@@ -1,8 +1,8 @@
-// Station-ID filler: the generated ident styles (frosted glass, spotlight, and
-// the retired animated / logo wall / pulse / retro / vintage looks), the on-disk
-// cache that keeps a break from ever waiting on generation, resolution of a
-// Filler row to a playable clip, which filler a break airs, and single-frame
-// still previews.
+// Idents — what a channel airs during a break (a Filler row): the generated
+// styles (frosted glass, spotlight, and the retired animated / logo wall /
+// pulse / retro / vintage looks), the on-disk cache that keeps a break from
+// ever waiting on generation, resolution of an ident to a playable clip, which
+// ident a break airs, and the editor's previews.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -595,8 +595,12 @@ function cacheName(style: string, fillerId: number, keyParts: string): string {
 // file ends .tmp.mp4.
 const CLIP_FILE = /^filler-[a-z]+-f\d+-[0-9a-f]{32}\.mp4$/
 
-/** One generated clip: where it lives, and how to build it. */
-type ClipPlan = { out: string; loop: number; build: StyleBuild; label: string }
+/**
+ * One generated clip: where it lives, and how to build it. `key` is everything
+ * that decides the picture (the file name is its hash); `title` and
+ * `channelId` name it for Activity.
+ */
+type ClipPlan = { out: string; key: string; loop: number; build: StyleBuild; label: string; title?: string; channelId?: number | null }
 
 /**
  * Plan the clip for a generated style, or null when the style can't be drawn
@@ -612,7 +616,7 @@ function planClip(style: string, fillerId: number, logoFile: string | undefined,
   const brand = BRANDED.has(style) ? `${fileKey(logoFile)}:${s}` : ''
   const key = `${brand}:${style === 'frosted' && divider ? 'div' : ''}:${dimKey(dims)}:v${STYLE_VERSION[style] ?? THEME_VERSION}`
   const label = `${style} filler (${dimKey(dims)}${BRANDED.has(style) && logoFile ? `, ${path.basename(logoFile)}` : ''})`
-  return { out: cacheName(style, fillerId, key), loop, build, label }
+  return { out: cacheName(style, fillerId, key), key: `${style}:${key}`, loop, build, label }
 }
 
 // ---- Rendering --------------------------------------------------------------
@@ -620,8 +624,30 @@ function planClip(style: string, fillerId: number, logoFile: string | undefined,
 // channels encoding live come first. Asking for a clip that's already being
 // built joins that render instead of starting a second copy of it.
 
-type Render = { promise: Promise<string | undefined>; listeners: Set<ProgressCb> }
+type Render = {
+  promise: Promise<string | undefined>
+  listeners: Set<ProgressCb>
+  title: string
+  channelId: number | null
+  percent: number
+  startedAt: number
+}
 const renders = new Map<string, Render>()
+
+// Builds that finished lately, so Activity can say how they went.
+type Built = { title: string; channelId: number | null; startedAt: number; finishedAt: number; error?: string }
+const finished: Built[] = []
+const FINISHED_KEEP_MS = 10 * 60_000
+
+/** Background builds, running and recently finished — for Activity. */
+export function identBuilds(): { running: { title: string; channelId: number | null; percent: number; startedAt: number }[]; finished: Built[] } {
+  const now = Date.now()
+  while (finished.length && now - finished[0].finishedAt > FINISHED_KEEP_MS) finished.shift()
+  return {
+    running: [...renders.values()].filter((r) => r.startedAt > 0).map((r) => ({ title: r.title, channelId: r.channelId, percent: r.percent, startedAt: r.startedAt })),
+    finished: [...finished],
+  }
+}
 let renderQueue: Promise<unknown> = Promise.resolve()
 
 // A render that just failed isn't retried on every break that asks for it.
@@ -632,30 +658,41 @@ function render(plan: ClipPlan, onProgress?: ProgressCb): Promise<string | undef
   let r = renders.get(plan.out)
   if (!r) {
     const listeners = new Set<ProgressCb>()
+    const title = plan.title ?? `the ${plan.label}`
+    const channelId = plan.channelId ?? null
     const run = async (): Promise<string | undefined> => {
       if (fs.existsSync(plan.out)) return plan.out // built while this waited its turn
       log('info', 'system', `Generating the ${plan.label}…`)
       // Written under a temp name and renamed once complete, so the clip never
       // exists half-written for a break to pick up.
       const tmp = `${plan.out}.${process.pid}.${Date.now()}.tmp.mp4`
+      const self = renders.get(plan.out)
+      if (self) self.startedAt = Date.now()
       try {
-        const progress = (pct: number) => listeners.forEach((l) => l(pct))
+        const progress = (pct: number) => {
+          if (self) self.percent = pct
+          listeners.forEach((l) => l(pct))
+        }
         await runFfmpeg(assembleVideo(plan.build, plan.loop, tmp), progress, plan.loop, { background: true })
         fs.renameSync(tmp, plan.out)
         failedAt.delete(plan.out)
+        finished.push({ title, channelId, startedAt: self?.startedAt ?? Date.now(), finishedAt: Date.now() })
         return plan.out
       } catch (e) {
         failedAt.set(plan.out, Date.now())
         log('warn', 'system', `Couldn't generate the ${plan.label}`, String(e))
+        finished.push({ title, channelId, startedAt: self?.startedAt ?? Date.now(), finishedAt: Date.now(), error: 'The build failed — see Logs' })
         return undefined
       } finally {
         fs.rmSync(tmp, { force: true }) // no-op once renamed
       }
     }
+    // Registered before the queue can run it, so the run finds itself.
+    r = { promise: Promise.resolve(undefined), listeners, title, channelId, percent: 0, startedAt: 0 }
+    renders.set(plan.out, r)
     const promise = renderQueue.then(run, run).finally(() => renders.delete(plan.out))
     renderQueue = promise.catch(() => {})
-    r = { promise, listeners }
-    renders.set(plan.out, r)
+    r.promise = promise
   }
   if (onProgress) r.listeners.add(onProgress)
   return r.promise
@@ -689,16 +726,20 @@ async function obtain(plan: ClipPlan, opts: GetOpts = {}): Promise<string | unde
 
 /** The plain animated clip: the last resort when nothing else is built. */
 export function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undefined> {
-  return obtain(planClip('animated', 0, undefined, RESOLUTIONS['1080p'])!, opts)
+  const plan = planClip('animated', 0, undefined, RESOLUTIONS['1080p'])!
+  plan.title = 'the fallback ident'
+  return obtain(plan, opts)
 }
 
 /**
- * The station ident a channel airs when it has no filler of its own and no
- * default ident is set: frosted glass from its logo, at the channel's size.
- * Undefined without the bundled MosaicTV mark (plain local dev only).
+ * Frosted glass from a logo, at the channel's size — the safety net a break
+ * falls back to when its idents can't be played (a channel always has some;
+ * this is for a render that failed or a channel caught mid-edit). Undefined
+ * without the bundled MosaicTV mark (plain local dev only).
  */
 export async function ensureStationIdent(logoFile: string, channelHeight?: number, opts: GetOpts = {}): Promise<string | undefined> {
   const plan = planClip('frosted', 0, logoFile, dimsFor('auto', channelHeight))
+  if (plan) plan.title = `the fallback ident for the ${path.parse(logoFile).name} logo`
   return plan ? obtain(plan, opts) : undefined
 }
 
@@ -723,6 +764,8 @@ export function removeFillerCache(fillerId: number): void {
 
 type FillerRow = {
   id: number
+  channelId?: number | null
+  name?: string | null
   style: string
   assetId: number | null
   audioAssetId: number | null
@@ -734,18 +777,42 @@ type FillerRow = {
 
 export type FillerClip = { clip?: string; music?: string }
 
+const identName = (f: FillerRow) => f.name?.trim() || `${f.style} ident`
+
 /**
- * Resolve a Filler to its clip and music. The music (if any) isn't in the clip:
+ * What an ident airs as for a given logo and channel size: its upload (a custom
+ * clip), or the generated clip it's built into. A pinned logo (`logoId`) wins
+ * over `logoFile`, the logo on air where the break falls. `plan` is null when
+ * the style can't be drawn here (see planClip).
+ */
+async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight?: number): Promise<{ upload?: string; plan: ClipPlan | null; dims: Dims }> {
+  const dims = dimsFor(f.resolution, channelHeight)
+  if (f.style === 'custom') {
+    const upload = await assetFilePath(f.assetId)
+    if (upload) return { upload, plan: null, dims }
+    return { plan: null, dims }
+  }
+  if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
+  const plan = planClip(f.style, f.id, logoFile, dims, f.logoScale, f.divider)
+  if (plan) {
+    plan.title = `“${identName(f)}”`
+    plan.channelId = f.channelId ?? null
+  }
+  return { plan, dims }
+}
+
+/**
+ * Resolve an ident to its clip and music. The music (if any) isn't in the clip:
  * it's laid over the break as it airs, from the top, so a song plays straight
  * through however many times the clip loops (and changing it rebuilds nothing).
- * A custom filler's clip is its upload; a generated one is built for this logo
+ * A custom ident's clip is its upload; a generated one is built for this logo
  * and size, falling back to the animated look if its style can't be built.
  *
- * `logoFile` is the logo of wherever this filler is airing; a filler that pins
- * its own logo (`logoId`) uses that everywhere instead. `channelHeight` sizes a
- * Match-channel filler. With `wait: false` a clip that isn't built yet comes
- * back missing (and starts building) rather than holding the caller up; with
- * `build: false` it just comes back missing.
+ * `logoFile` is the logo on air where the break falls; an ident that pins its
+ * own logo (`logoId`) uses that everywhere instead. `channelHeight` sizes it.
+ * With `wait: false` a clip that isn't built yet comes back missing (and starts
+ * building) rather than holding the caller up; with `build: false` it just
+ * comes back missing.
  */
 export async function resolveFillerClip(
   f: FillerRow,
@@ -753,120 +820,203 @@ export async function resolveFillerClip(
   opts: GetOpts & { channelHeight?: number } = {},
 ): Promise<FillerClip> {
   const music = await assetFilePath(f.audioAssetId)
-  if (f.style === 'custom') {
-    const clip = await assetFilePath(f.assetId)
-    if (clip) return { clip, music }
-  }
-  if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-  const dims = dimsFor(f.resolution, opts.channelHeight)
-  const plan = f.style === 'custom' ? null : planClip(f.style, f.id, logoFile, dims, f.logoScale, f.divider)
+  const { upload, plan, dims } = await planFor(f, logoFile, opts.channelHeight)
+  if (upload) return { clip: upload, music }
   const clip = plan ? await obtain(plan, opts) : undefined
   if (clip || (plan && (opts.wait === false || opts.build === false))) return { clip, music }
   // The style can't be drawn here or its render failed — or it's a custom
-  // filler whose upload is gone: the animated look instead.
+  // ident whose upload is gone: the animated look instead.
   return { clip: await obtain(planClip('animated', f.id, undefined, dims)!, opts), music }
 }
 
-/**
- * Render a single still frame of a filler to `out` (a JPEG). Uses the exact
- * graph the full clip would, so it's a faithful preview of the branded look
- * without the wait — for custom clips it grabs a frame from the source video.
- */
-export async function generateFillerStill(f: FillerRow, logoFile: string | undefined, out: string, channelHeight?: number): Promise<void> {
-  if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-  const dims = dimsFor(f.resolution, channelHeight)
-
-  if (f.style === 'custom') {
-    const clip = await assetFilePath(f.assetId)
-    if (clip) {
-      await runFfmpeg(['-y', '-ss', '1', '-i', clip, '-frames:v', '1', '-update', '1', '-q:v', '3', out])
-      return
-    }
-  }
+/** An ident's generated look, falling back to the animated one it airs as when its style can't be drawn. */
+function buildFor(f: FillerRow, logoFile: string | undefined, dims: Dims): { build: StyleBuild; loop: number } {
   const style = f.style === 'custom' ? 'animated' : f.style
-  const build =
-    buildStyle(style, dims, loopSecFor(style, dims), clampScale(f.logoScale), logoFile, mosaictvLogoFile(), f.divider) ??
-    animatedBuild(dims, LOOP_SEC)
-  await runFfmpeg(assembleStill(build, out))
+  const loop = loopSecFor(style, dims)
+  const build = buildStyle(style, dims, loop, clampScale(f.logoScale), logoFile, mosaictvLogoFile(), f.divider)
+  return build ? { build, loop } : { build: animatedBuild(dims, LOOP_SEC), loop: LOOP_SEC }
 }
 
-/** Where a preview should take its branding from. */
-export type FillerLogoContext = { channelId?: number | null; timeBlockId?: number | null }
+/** Where an ident is being previewed: its channel, and optionally the logo to show (a block's). */
+export type IdentContext = { channelId: number; logoId?: number | null }
+
+// The logo and channel size for a preview: the ident's pinned logo, else the
+// one asked for (the logo of a block it plays in), else the channel's own.
+async function previewSetting(ctx: IdentContext): Promise<{ logoFile?: string; channelHeight?: number }> {
+  const ch = await prisma.channel.findUnique({ where: { id: ctx.channelId }, include: { profile: true } })
+  if (!ch) return { logoFile: await localLogo(null) }
+  const logoFile =
+    ctx.logoId != null ? await logoFileById(ctx.logoId, null) : await localLogo(logoFor(ch, null, await logoPaths()).raw)
+  return { logoFile, channelHeight: resolveProfile(ch.profile).height }
+}
+
+const previewFile = (ext: string) =>
+  path.join(previewsDir(), `preview-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`)
+
+// Stills already drawn, by what's in the picture — the ident list and the
+// editor's Look cards ask for the same few over and over.
+const stills = new Map<string, Promise<string>>()
+
+/**
+ * A still of an ident as it airs (a 720p JPEG in the previews dir, kept: the
+ * caller sends it, and the next ask for the same picture gets the same file) —
+ * the thumbnails on the Breaks tab and the editor's Look cards. Uses the exact
+ * graph the full clip would; a custom clip gives a frame of its upload.
+ */
+export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise<string> {
+  let { logoFile } = await previewSetting(ctx)
+  if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
+  const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : undefined
+  // A thumbnail needn't be sharper than 720p, however big the channel.
+  const dims = dimsFor('720p')
+  const plan = upload ? null : planClip(f.style === 'custom' ? 'animated' : f.style, 0, logoFile, dims, f.logoScale, f.divider)
+  const key = upload ? `upload:${fileKey(upload)}` : (plan?.key ?? `animated:${dimKey(dims)}`)
+  const out = path.join(previewsDir(), `still-${createHash('md5').update(key).digest('hex')}.jpg`)
+  let job = stills.get(out)
+  if (!job || !fs.existsSync(out)) {
+    job = (async () => {
+      const tmp = `${out}.${Date.now()}.tmp.jpg`
+      try {
+        if (upload) await runFfmpeg(['-y', '-ss', '1', '-i', upload, '-frames:v', '1', '-update', '1', '-q:v', '3', tmp])
+        else await runFfmpeg(assembleStill(buildFor(f, logoFile, dims).build, tmp))
+        fs.renameSync(tmp, out)
+        return out
+      } finally {
+        fs.rmSync(tmp, { force: true })
+      }
+    })()
+    stills.set(out, job)
+    job.catch(() => stills.delete(out))
+  }
+  return job
+}
+
+// How long the editor's preview runs, and how its sound comes and goes.
+const PREVIEW_SEC = 6
+
+/** A newer preview request replaced this one before it started. */
+export class PreviewSuperseded extends Error {}
+let previewSeq = 0
+let previewChain: Promise<unknown> = Promise.resolve()
+
+/**
+ * The editor's preview: the first few seconds of an ident as it airs — its
+ * real look (the same graph and loop as the full clip, so the motion matches),
+ * the logo, and its music faded in and out — as an MP4 in the previews dir
+ * (the caller sends and deletes it). Small and fast on purpose: 720p at the
+ * fastest preset, a few seconds to render.
+ *
+ * It doesn't wait behind the background builds (a person is waiting on it),
+ * but previews run one at a time, and one that's still waiting when a newer
+ * request comes in is dropped (PreviewSuperseded).
+ */
+export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<string> {
+  const mine = ++previewSeq
+  const run = async (): Promise<string> => {
+    if (mine !== previewSeq) throw new PreviewSuperseded()
+    let { logoFile } = await previewSetting(ctx)
+    if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
+    const music = await assetFilePath(f.audioAssetId)
+    const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : undefined
+    const dims = dimsFor('720p')
+    const out = previewFile('mp4')
+    const fadeOut = `afade=t=out:st=${PREVIEW_SEC - 1.2}:d=1.2`
+    const encode = ['-t', String(PREVIEW_SEC), '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-c:a', 'aac', '-ac', '2', '-ar', '48000', '-movflags', '+faststart', out]
+    let args: string[]
+    if (upload) {
+      // The upload itself, scaled to fit; its own sound unless there's music.
+      const scale = `scale=${dims.w}:${dims.h}:force_original_aspect_ratio=decrease,pad=${dims.w}:${dims.h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v]`
+      args = music
+        ? ['-y', '-stream_loop', '-1', '-i', upload, '-stream_loop', '-1', '-i', music, '-filter_complex', `[0:v]${scale};[1:a]afade=t=in:d=0.5,${fadeOut}[a]`, '-map', '[v]', '-map', '[a]', ...encode]
+        : ['-y', '-stream_loop', '-1', '-i', upload, '-filter_complex', `[0:v]${scale}`, '-map', '[v]', '-map', '0:a?', ...encode]
+    } else {
+      const { build, loop } = buildFor(f, logoFile, dims)
+      const n = videoInputCount(build.inputs)
+      const sound = music ? ['-stream_loop', '-1', '-i', music] : toneInput(loop, build.tone, build.vol)
+      args = ['-y', ...build.inputs, ...sound, '-filter_complex', `${build.filter};[${n}:a]afade=t=in:d=0.5,${fadeOut}[a]`, '-map', '[v]', '-map', '[a]', ...encode]
+    }
+    try {
+      await runFfmpeg(args)
+    } catch (e) {
+      fs.rmSync(out, { force: true })
+      throw e
+    }
+    return out
+  }
+  const p = previewChain.then(run, run)
+  previewChain = p.catch(() => {})
+  return p
+}
+
+// ---- Which idents a break picks from ----------------------------------------
+
+type Pooled<F> = { fillerAssignments: { filler: F }[] }
+
+/**
+ * The idents a break picks from, in the order they take turns: the active
+ * block's own (idents playing "only during" it), else the channel's "everywhere
+ * else" ones. `key` names the pool for taking turns (see fillerTurn). The one
+ * rule the stream, the pre-build and the Breaks tab's status all use.
+ */
+export function poolFor<F extends { id: number; order: number }>(
+  channel: { id: number } & Pooled<F>,
+  block: ({ id: number } & Pooled<F>) | null,
+): { pool: F[]; key: string; from: 'block' | 'channel' } {
+  const sorted = (rows: { filler: F }[]) => rows.map((a) => a.filler).sort((a, b) => a.order - b.order || a.id - b.id)
+  const own = block ? sorted(block.fillerAssignments) : []
+  if (own.length > 0) return { pool: own, key: `${channel.id}:b${block!.id}`, from: 'block' }
+  return { pool: sorted(channel.fillerAssignments), key: `${channel.id}:ch`, from: 'channel' }
+}
+
+// A channel with every relation poolFor and logoFor need, for the pre-build
+// and the Breaks tab.
+const CHANNEL_POOLS = {
+  profile: true,
+  fillerAssignments: { include: { filler: true } },
+  timeBlocks: { include: { fillerAssignments: { include: { filler: true } }, collection: true } },
+} as const
+
+/** Whether an ident's clips are ready for everywhere it plays. */
+export type IdentReadiness = { ready: boolean; building: boolean }
+
+/**
+ * Per ident on a channel: is every clip it airs as (one per logo on air where
+ * it plays) already built, and is one building now? An ident that plays
+ * nowhere is ready — there's nothing to build.
+ */
+export async function identReadiness(channelId: number): Promise<Map<number, IdentReadiness>> {
+  const out = new Map<number, IdentReadiness>()
+  const ch = await prisma.channel.findUnique({ where: { id: channelId }, include: CHANNEL_POOLS })
+  if (!ch) return out
+  const idents = await prisma.filler.findMany({ where: { channelId } })
+  for (const f of idents) out.set(f.id, { ready: true, building: false })
+  const channelHeight = resolveProfile(ch.profile).height
+  const logos = await logoPaths()
+  for (const block of [null, ...ch.timeBlocks]) {
+    const logo = await localLogo(logoFor(ch, block, logos).raw)
+    for (const f of poolFor(ch, block).pool) {
+      const s = out.get(f.id) ?? { ready: true, building: false }
+      const { upload, plan } = await planFor(f, logo, channelHeight)
+      if (!upload && plan && !fs.existsSync(plan.out)) {
+        s.ready = false
+        if (renders.has(plan.out)) s.building = true
+      }
+      out.set(f.id, s)
+    }
+  }
+  return out
+}
+
+/** Is this ident's clip for this logo already built? (A custom one always is.) */
+export async function identBuilt(f: FillerRow, logoFile: string | undefined, channelHeight?: number): Promise<boolean> {
+  const { upload, plan } = await planFor(f, logoFile, channelHeight)
+  return !!upload || !plan || fs.existsSync(plan.out)
+}
 
 // Every logo's file, by id — what the stream resolves a logo id against.
 async function logoPaths(): Promise<Map<number, string>> {
   const logos = await prisma.logo.findMany({ select: { id: true, filename: true } })
   return new Map(logos.map((l) => [l.id, path.join(logosDir(), l.filename)]))
-}
-
-/**
- * The logo and channel size a filler is built with outside a break (the
- * Studio's preview and still). A filler is a global library item, so one
- * definition renders differently everywhere it's assigned: use the requested
- * channel or block, else the first place it's assigned, so a preview matches
- * what actually airs somewhere rather than the bundled fallback mark.
- */
-async function fillerSetting(fillerId: number, ctx: FillerLogoContext): Promise<{ logoFile?: string; channelHeight?: number }> {
-  const withChannel = { include: { channel: { include: { profile: true } }, collection: true } }
-  let block = ctx.timeBlockId != null ? await prisma.timeBlock.findUnique({ where: { id: ctx.timeBlockId }, ...withChannel }) : null
-  let channel =
-    !block && ctx.channelId != null ? await prisma.channel.findUnique({ where: { id: ctx.channelId }, include: { profile: true } }) : null
-
-  if (!block && !channel && fillerId) {
-    const a = await prisma.fillerAssignment.findFirst({
-      where: { fillerId },
-      orderBy: { order: 'asc' },
-      include: { channel: { include: { profile: true } }, timeBlock: withChannel },
-    })
-    block = a?.timeBlock ?? null
-    channel = a?.channel ?? null
-  }
-
-  const ch = block?.channel ?? channel
-  if (!ch) return { logoFile: await localLogo(null) } // unassigned: the bundled mark is all we have
-  return {
-    logoFile: await localLogo(logoFor(ch, block, await logoPaths()).raw),
-    channelHeight: resolveProfile(ch.profile).height,
-  }
-}
-
-/**
- * Build (if needed) and return a Filler's clip and music — used by the Studio's
- * generate. `ctx` picks whose logo to brand it with. `onProgress` reports
- * 0..99% during generation.
- */
-export async function resolveFillerClipById(id: number, ctx: FillerLogoContext = {}, onProgress?: ProgressCb): Promise<FillerClip | null> {
-  const f = await prisma.filler.findUnique({ where: { id } })
-  if (!f) return null
-  const { logoFile, channelHeight } = await fillerSetting(id, ctx)
-  return resolveFillerClip(f, logoFile, { channelHeight, onProgress })
-}
-
-/**
- * Render a still preview from a draft (unsaved) filler definition, branded with
- * the given owner's logo. Returns the on-disk JPEG path (caller streams + deletes
- * it). Nothing is persisted, so previews never accumulate.
- */
-export async function generateDraftStill(f: FillerRow, ctx: FillerLogoContext): Promise<string> {
-  const { logoFile, channelHeight } = await fillerSetting(f.id, ctx)
-  const out = path.join(previewsDir(), `still-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`)
-  await generateFillerStill(f, logoFile, out, channelHeight)
-  return out
-}
-
-// The Setting holding the default station ident's filler id.
-export const DEFAULT_FILLER_KEY = 'defaultFillerId'
-
-/**
- * The default station ident: the filler a channel with none of its own airs in
- * its breaks, and in any slot the stream has to hold. Null when unset (or its
- * filler was deleted) — the frosted-glass ident built from the channel's logo.
- */
-export async function loadDefaultFiller() {
-  const row = await prisma.setting.findUnique({ where: { key: DEFAULT_FILLER_KEY } })
-  const id = Number(row?.value)
-  if (!Number.isInteger(id)) return null
-  return prisma.filler.findUnique({ where: { id } })
 }
 
 // ---- Taking turns -----------------------------------------------------------
@@ -895,6 +1045,18 @@ function loadTurns(): Promise<Map<string, Turn>> {
  * ms). `pool` names the pool (channel + block); the first break a pool ever
  * has gets its first filler.
  */
+/**
+ * Which of a pool's `size` idents the NEXT break will air, without taking the
+ * turn — for the Breaks tab's "next break". A break already under way (`at` is
+ * its start) keeps the one it has.
+ */
+export async function peekTurn(pool: string, at: number, size: number): Promise<number> {
+  if (size <= 1) return 0
+  const last = (await loadTurns()).get(pool)
+  if (!last) return 0
+  return last.at === at ? last.idx % size : (last.idx + 1) % size
+}
+
 export async function fillerTurn(pool: string, at: number, size: number): Promise<number> {
   if (size <= 1) return 0
   const m = await loadTurns()
@@ -974,9 +1136,8 @@ let booted = false
 /**
  * Build every clip a break could need, so no break waits on a render. For each
  * channel that's every place a break can fall — outside its blocks, and in
- * each block — with the fillers that break would pick from (the block's, else
- * the channel's, else the default ident; else the frosted ident), the logo on
- * screen there, and the channel's size. Then sweep away clips nothing uses.
+ * each block — with the idents that break would pick from (poolFor), the logo
+ * on screen there, and the channel's size. Then sweep away clips nothing uses.
  */
 async function warmPass(): Promise<void> {
   const wanted = new Set<string>()
@@ -988,27 +1149,18 @@ async function warmPass(): Promise<void> {
   if (animated) keep(animated)
   else log('warn', 'system', 'No filler clip available — gaps will play black')
 
-  const assign = { include: { filler: true }, orderBy: { order: 'asc' as const } }
-  const channels = await prisma.channel.findMany({
-    include: {
-      profile: true,
-      fillerAssignments: assign,
-      timeBlocks: { include: { fillerAssignments: assign, collection: true } },
-    },
-  })
+  const channels = await prisma.channel.findMany({ include: CHANNEL_POOLS })
   const logos = await logoPaths()
-  const defaultFiller = await loadDefaultFiller()
   for (const ch of channels) {
     const channelHeight = resolveProfile(ch.profile).height
-    const chFillers = ch.fillerAssignments.map((a) => a.filler)
     for (const block of [null, ...ch.timeBlocks]) {
       // Something changed since this pass read the settings (an edit asked
       // for another pass): stop here rather than spend minutes building clips
       // for the old ones. The next pass starts over — and does the sweep.
       if (warmAgain) return
-      const blockFillers = block?.fillerAssignments.map((a) => a.filler) ?? []
-      const pool = blockFillers.length > 0 ? blockFillers : chFillers.length > 0 ? chFillers : defaultFiller ? [defaultFiller] : []
+      const { pool } = poolFor(ch, block)
       const logo = await localLogo(logoFor(ch, block, logos).raw)
+      // Only a channel caught mid-edit has no idents: its safety net, then.
       if (pool.length === 0 && logo) keep(await ensureStationIdent(logo, channelHeight))
       for (const f of pool) keep((await resolveFillerClip(f, logo, { channelHeight })).clip)
     }

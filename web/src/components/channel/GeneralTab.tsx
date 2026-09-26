@@ -182,7 +182,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
             A card naming the next program slides in over the current one — its poster, title,
             episode and start time — across this channel's rotation and blocks alike.{' '}
             <InfoHint>
-              A time block can override this on the Schedule tab. The card never shows over filler; it
+              A time block can override this on the Schedule tab. The card never shows over a break; it
               names the program after the break instead, and a broadcast episode gets one card near its
               end. Saving applies it to what's on air right away.
             </InfoHint>

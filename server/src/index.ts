@@ -9,7 +9,7 @@ import { warmCapabilities } from './streaming/capabilities.js'
 import { startMetrics } from './metrics.js'
 import { startGuideKeeper } from './guideKeeper.js'
 import { resetSegments } from './streaming/segmenter.js'
-import { migrateCollectionOwnership, migrateFillersToLibrary } from './migrate.js'
+import { migrateCollectionOwnership, migrateFillersToLibrary, migrateIdentsToChannels } from './migrate.js'
 import { seedDefaultAudio } from './seedDefaults.js'
 import { librariesRouter } from './routes/libraries.js'
 import { mediaRouter } from './routes/media.js'
@@ -174,6 +174,7 @@ async function boot(): Promise<void> {
   await backfillLibraryFolders()
   await migrateCollectionOwnership().catch((e) => log('error', 'system', 'Collection ownership migration failed', String(e?.stack || e)))
   await migrateFillersToLibrary().catch((e) => log('error', 'system', 'Filler library migration failed', String(e?.stack || e)))
+  await migrateIdentsToChannels().catch((e) => log('error', 'system', 'Moving idents to their channels failed', String(e?.stack || e)))
   await seedDefaultAudio().catch((e) => log('error', 'system', 'Default audio seed failed', String(e?.stack || e)))
   resetSegments() // clear any stale segmenter output from a previous run
   const metricSource = startMetrics()
@@ -192,8 +193,8 @@ async function boot(): Promise<void> {
       `Resource sampling via ${metricSource}${metricSource === 'process' ? ' — container totals unavailable, ffmpeg load NOT counted' : ''}`,
     )
   })
-  // Pre-build the default filler in the background so the first intermission
-  // never blocks on generation, and run the ffmpeg capability probes now so no
+  // Build every channel's idents in the background so no break waits on a
+  // render, and run the ffmpeg capability probes now so no
   // viewer ever pays for one mid-stream at a program boundary.
   if (ffmpegAvailable) {
     warmFiller().catch(() => {})

@@ -25,11 +25,11 @@ import { cardAnchor, cardEntry, cardRect, comingUpWindows, ffmpegArgs, placeCard
 import { renderCard, type CardContent } from './card.js'
 import { nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
-import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, resolveFillerClip } from './filler.js'
+import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
 
-// The channel shape the builder needs — timeBlocks with their collection +
-// ordered filler assignments, the channel-level filler assignments, plus the
-// logo/coming-up columns.
+// The channel shape the builder needs — timeBlocks with their collection and
+// the idents that play only during them, the channel's "everywhere else"
+// idents, plus the logo/coming-up/logo-on-breaks columns.
 export type ChannelForBuild = Prisma.ChannelGetPayload<{
   include: {
     timeBlocks: { include: { collection: true; fillerAssignments: { include: { filler: true } } } }
@@ -65,8 +65,6 @@ export type BuildItemParams = {
   defaultWm: WatermarkConfig
   logoPath: Map<number, string>
   logoWm: Map<number, WatermarkConfig>
-  /** The default station ident: airs in breaks on a channel with no filler of its own. */
-  defaultFiller: Filler | null
   item: PlayoutItemForBuild
   next: PlayoutItemForBuild | undefined
   /** The next real program, looking past any filler in between — what the
@@ -91,7 +89,7 @@ export type BuildItemParams = {
  * segmenter to spawn rather than streaming them itself.
  */
 export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem> {
-  const { channelNumber, channel, profile, enc, defaultWm, logoPath, logoWm, defaultFiller, item, next, nextProgram, prevKind, offset, segDur, output, readrate, tag } = params
+  const { channelNumber, channel, profile, enc, defaultWm, logoPath, logoWm, item, next, nextProgram, prevKind, offset, segDur, output, readrate, tag } = params
 
   const active = activeLogo(channel, channel.timeBlocks, logoPath, item.startTime)
   const logo = await localLogo(active.raw)
@@ -99,10 +97,10 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   const wm = active.id != null ? logoWm.get(active.id) ?? defaultWm : defaultWm
   const midItem = offset > 1
 
-  // The logo is hidden across filler unless asked otherwise, so ramp it down
-  // into that boundary and back up out of it rather than popping.
+  // The logo is hidden across a break unless the channel keeps it on, so ramp
+  // it down into that boundary and back up out of it rather than popping.
   const thisIsFiller = item.kind === 'filler'
-  const hiddenOnFiller = !wm.showOnFiller && wm.mode !== 'none'
+  const hiddenOnFiller = !channel.logoOnBreaks && wm.mode !== 'none'
   const edgeFade = hiddenOnFiller && !thisIsFiller ? Math.max(0, wm.fadeSeconds) : 0
   const fadeOutSec = edgeFade > 0 && next?.kind === 'filler' ? edgeFade : 0
   // Don't fade in when tuning in mid-program — there was no filler on screen.
@@ -116,14 +114,11 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   let label: string
 
   if (item.kind === 'filler' || !mi) {
-    // Filler pool: the active block's assigned fillers → the channel's → the
-    // default station ident → the built-in frosted/animated fallback.
-    const poolBlock = activeBlockAt(channel.timeBlocks, item.startTime)
-    const blockPool = poolBlock?.fillerAssignments.map((a) => a.filler) ?? []
-    const channelPool = channel.fillerAssignments.map((a) => a.filler)
-    const pool = blockPool.length > 0 ? blockPool : channelPool.length > 0 ? channelPool : defaultFiller ? [defaultFiller] : []
-    const src = blockPool.length > 0 ? ' [block]' : channelPool.length > 0 ? ' [channel]' : defaultFiller ? ' [default]' : ''
-    const poolKey = blockPool.length > 0 ? `${channel.id}:b${poolBlock?.id}` : `${channel.id}:ch`
+    // The idents this break picks from: the active block's own, else the
+    // channel's "everywhere else" ones (a channel always has some; the
+    // frosted/animated safety nets below are for when they can't play).
+    const { pool, key: poolKey, from } = poolFor(channel, activeBlockAt(channel.timeBlocks, item.startTime))
+    const src = pool.length > 0 ? ` [${from}]` : ''
     let clip: string | undefined
     let music: string | undefined
     let standIn = ''
@@ -153,8 +148,8 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
         log('info', 'stream', `Channel ${channelNumber}: filler “${name(f)}” isn't built for this logo yet — ${by} stands in while it builds`, undefined, tag)
       }
     } else if (logo) {
-      // No filler configured: the frosted-glass station ident from the
-      // channel/block logo, built in the background if it has to be.
+      // No idents at all (a channel caught mid-edit): frosted glass from the
+      // logo on air, built in the background if it has to be.
       clip = await ensureStationIdent(logo, profile.height, { wait: false })
     }
     // Last resort: the animated gradient (built at boot — the one clip worth a
@@ -171,7 +166,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     const audioFadeInSec = !hold && offset < 0.25 ? Math.min(0.5, segDur / 4) : 0
     const audioFadeOutSec = hold ? 0 : Math.min(1.5, segDur / 3)
     if (clip && segDur > 0.3) {
-      seg = { filePath: clip, offsetSec: 0, loop: true, durationSec: segDur, hasAudio: true, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec, audioFadeOutSec, hwDecode: fillerHw }
+      seg = { filePath: clip, offsetSec: 0, loop: true, durationSec: segDur, hasAudio: true, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec, audioFadeOutSec, hwDecode: fillerHw }
     }
     label = `filler (${Math.round(segDur)}s)${music ? ' +music' : ''}${src}${standIn}`
     if (!clip) log('error', 'stream', `Channel ${channelNumber}: no filler clip — a ${Math.round(segDur)}s gap will play black`, undefined, tag)

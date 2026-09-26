@@ -9,7 +9,7 @@ Every install needs the same two mounts and one port:
 
 | | Container path | Purpose |
 | - | ------------- | ------- |
-| **Data** | `/app/data` | Database, logos, generated filler — **persistent, keep it** |
+| **Data** | `/app/data` | Database, logos, music, clips, built idents — **persistent, keep it** |
 | **Media** | `/media` | Your media library — mount **read-only** |
 | **Port** | `8688` | Web UI + IPTV endpoints |
 

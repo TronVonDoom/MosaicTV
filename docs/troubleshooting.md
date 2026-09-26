@@ -9,7 +9,7 @@ issues. Most mysteries are explained there.
 ## Second stop: the Container load chart
 
 The **Dashboard** graphs container CPU and memory over the last 5/15/60 minutes,
-with a vertical rule at every playout change — an episode, a filler, or a music
+with a vertical rule at every playout change — an episode, a break, or a music
 video starting. Hover any point to read the exact figures and what was playing.
 
 Read it for *step changes*, not spikes: every transition spawns an encoder, so a
@@ -102,10 +102,11 @@ next program on time. **Logs** says why:
 ## Backup & restore
 
 Everything MosaicTV owns lives in **one folder**: the `/app/data` volume
-(database, uploaded logos, generated filler). Your media is never touched.
+(database, uploaded logos, music and clips, built idents). Your media is never
+touched.
 
 - **In-app:** **Settings → Maintenance → Download backup (.tar.gz)** — grabs
-  the database + logos + filler in one archive.
+  the database, logos, music and clips in one archive.
 - **Manual:** stop the container and copy the host folder mapped to
   `/app/data`.
 
@@ -113,7 +114,7 @@ Everything MosaicTV owns lives in **one folder**: the `/app/data` volume
 start it again.
 
 **Reset:** **Settings → Maintenance → Reset to clean slate** wipes the
-database (optionally also uploaded logos/filler) for a fresh start — take a
+database (optionally also uploaded logos, music and clips) for a fresh start — take a
 backup first.
 
 ## Still stuck?

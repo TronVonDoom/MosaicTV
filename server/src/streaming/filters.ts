@@ -23,6 +23,8 @@ export type Segment = {
   mediaHeight: number
   musicPath?: string // looped ambient audio (filler only) — overrides clip audio
   isFiller: boolean
+  // A break on a channel that keeps its corner logo on during breaks.
+  logoOnBreaks?: boolean
   // Fade the sound in over the first / out over the last this-many seconds
   // (filler: in at the top of a break, out before the show). 0 = a hard cut.
   audioFadeInSec?: number
@@ -386,7 +388,7 @@ export function audioFades(seg: Pick<Segment, 'audioFadeInSec' | 'audioFadeOutSe
 export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: StreamProfile, cards: CardOverlay[] = [], readrate?: string[], output: FfmpegOutput = { kind: 'mpegts-pipe' }): string[] {
   // Filler is usually built out of the logo already, so the bug goes on top of
   // it only if explicitly asked for.
-  const useWatermark = wm.mode !== 'none' && !!seg.logo && (!seg.isFiller || wm.showOnFiller)
+  const useWatermark = wm.mode !== 'none' && !!seg.logo && (!seg.isFiller || !!seg.logoOnBreaks)
   // Fading loops the still logo into an endless stream, which only terminates
   // because `-t` caps the output — so require a known positive duration and
   // fall back to a hard cut otherwise rather than risk a stream that never ends.

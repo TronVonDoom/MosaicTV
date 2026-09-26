@@ -35,7 +35,7 @@ function ago(iso: string): string {
 }
 
 /**
- * The bell in the top bar: background work (filler generation, library scans,
+ * The bell in the top bar: background work (ident builds, library scans,
  * metadata fetches) with live progress, and a toast when something finishes.
  * It polls quickly while anything runs and slowly otherwise, and looks straight
  * away when the app starts a job (ACTIVITY_EVENT).
@@ -146,7 +146,7 @@ export default function NotificationBell() {
           {shown.length === 0 ? (
             <div className="px-4 py-8 text-center">
               <Icon name="bell" size={20} className="mx-auto mb-2 text-ink-ghost" />
-              <p className="text-[12.5px] text-ink-faint">Nothing running. Filler generation, library scans and metadata fetches show up here.</p>
+              <p className="text-[12.5px] text-ink-faint">Nothing running. Ident builds, library scans and metadata fetches show up here.</p>
             </div>
           ) : (
             <ul className="max-h-[60vh] divide-y divide-edge/70 overflow-y-auto">

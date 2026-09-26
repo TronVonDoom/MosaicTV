@@ -1,7 +1,7 @@
-# Branding: Logos, Watermarks & Filler
+# Branding: Logos, Watermarks & Breaks
 
 The touches that make a channel feel like a real station: an on-screen bug in
-the corner, station-ID filler between programs, and "up next" cards.
+the corner, station breaks between programs, and "up next" cards.
 
 ## Logos
 
@@ -32,129 +32,139 @@ without watermark settings of its own (with the same live preview):
 - **Intermittent timing** — frequency (minutes), on-screen duration (seconds),
   fade time (seconds).
 
-The watermark hides during filler by default, fading across the boundary.
+The watermark hides during breaks by default, fading out as a break starts and
+back in after. A channel can keep it on screen instead: **Corner logo during
+breaks** on its Breaks tab.
 
-## Station-ID filler
+## Station breaks
 
-Filler is what plays in the gaps the schedule opens for it:
+A break is what plays in the gaps the schedule opens:
 
-- Between (or at the end of) the programs inside a time block, so the block
-  ends exactly on schedule — controlled by that block's **filler mode**.
+- Inside a time block, its leftover time — at the end, or spread between its
+  programs — so the block ends exactly on schedule.
 - Before a **hard-start** block, so it begins exactly on time.
 
-Nothing else creates a filler slot, and a rotation-only channel never plays
-filler at all — the channel editor warns you when that's the case.
+Nothing else creates a break, and a rotation-only channel never has one. Both
+are set per block on the **Schedule** tab (edit a block → **Breaks**: *Start*
+soft or hard, and *Leftover time* off, at the end, or between programs).
 
-The stream also falls back on the channel's filler (its **station ident**)
-whenever it has nothing else to show, instead of going to black:
+The stream also shows the channel's breaks whenever it has nothing else to
+show, instead of going to black:
 
 - the time between blocks on a blocks-only channel;
 - the rest of a slot whose file turned out shorter than its listing;
 - a program that can't be played at all (see
   [Troubleshooting](troubleshooting.md#a-program-shows-the-station-ident-instead)).
 
-Configure it per channel on the **Fillers** tab:
+### The Breaks tab
 
-- **Fillers on this channel** — every filler that airs on the channel, listed
-  once, with an **Edit** button. It's the same editor as the Studio's, and the
-  preview uses this channel's (or block's) logo. The editor always says where
-  else the filler airs, because an edit changes it everywhere. If a filler is
-  shared and you want it different here only, **Make a copy for this channel**
-  gives the channel (and its blocks) their own copy and leaves the original
-  airing everywhere else.
-- **Filler mode** — per block, whether it fills its leftover time (off /
-  between programs / at the end).
-- **Channel default** — the clips used in any slot where the active block has
-  none of its own.
-- **Per-block filler** — a block can override that with its own set.
+Each channel's **Breaks** tab is the one place its breaks are set up:
 
-The lists under **Channel default** and each block only assign fillers; editing
-happens in one place per channel, the list at the top.
+- **Next break** — when it is, what it leads into, which ident it'll play, and
+  whether that ident is built yet.
+- **When breaks happen** — which blocks have breaks, in words, with a button to
+  the Schedule tab to change it. It warns you when a channel's breaks can never
+  air.
+- **Idents** — what plays during a break (below), in the order breaks take
+  turns.
+- **Where each ident plays** — the week as a map, each block in the colour of
+  the ident its breaks would play, striped where its breaks are off, with a
+  white mark at each break. Select a block to see what it does and plays, and
+  jump to it on the Schedule tab.
+- **Corner logo during breaks** — keep the watermark on during this channel's
+  breaks.
 
-A channel with no filler of its own uses the **default station ident**, set
-under **Studio → Fillers** from a filler's ⋯ menu (**Make default station
-ident**). With none set, it uses a frosted-glass ident built from the
-channel's logo. A generated default is still branded with each channel's own
-logo, unless the filler pins a logo of its own.
+### Idents
 
-Assign more than one and breaks take turns through them in the order they're
-listed, so no filler plays twice in a row. The order carries on across a
+An ident belongs to one channel. Each has:
+
+- a **look** — **Frosted glass**, **Spotlight**, or **Your own clip** (a
+  video uploaded to **Studio → Clips**);
+- a **logo** — **Follow the block** (the logo of whichever block is on, so one
+  ident is branded correctly in every block) or **Always the same** logo;
+- optional **music** from **Studio → Music**;
+- where it **plays**: **Everywhere else** (every block without idents of its
+  own, time outside blocks, and the gaps before hard starts), or **Only during
+  certain blocks**, which takes over from the "everywhere else" idents while
+  those blocks are on. Pick blocks one by one or by the logo they air with.
+
+Every channel keeps at least one "everywhere else" ident — a new channel starts
+with a frosted-glass one made from its logo — so every break has something the
+tab lists. Where several idents can play, breaks take turns in the list's
+order (move them up and down to change it). The order carries on across a
 restart, and a break that's rebuilt (a retry, a restart mid-break) keeps the
-filler it had.
-Fillers come from a shared library that lives under **Studio → Fillers**; the
-**+ New filler** button on the Fillers tab creates one and assigns it without
-leaving the channel.
+ident it had.
 
-### The library
+An ident whose blocks all have breaks off is marked **Never airs**, with a link
+to the Schedule tab.
 
-**Studio → Fillers** holds every filler in one list, with two ways to add one:
+To reuse an ident elsewhere, **Copy from another channel** (or **Copy to other
+channels…** from an ident's ⋯ menu). Each channel gets its own copy, shown with
+its own logos and playing everywhere else there — editing one never changes
+another. **Duplicate** makes a second copy on the same channel.
 
-- **Upload clip** — your own bumper or ident reel. The upload and the filler
-  that wraps it are created together; there's no separate step to "register"
-  the file. (Deleting the filler removes the clip too, unless another filler
-  shares it.)
-- **New filler** — a generated station ID built from a channel's logo.
+### Looks
 
-Anything uploaded that no filler uses shows under **Unused clips** at the
-bottom of the list, so nothing becomes unreachable — normally it's empty.
-A filler that isn't assigned anywhere (and isn't the default station ident) is
-marked **Not on any channel** — it's in the library but never airs.
+| Look | What it is |
+| ---- | ---------- |
+| **Frosted glass** | Rows of logos glide behind frosted glass, still recognisable through the frost, with out-of-focus lights drifting up at different depths. A more heavily frosted band sits behind your logo, which floats in front on a soft shadow, and light plays across the glass as it runs. Under **Advanced**, **Divider between the halves** adds a lit glass seam between your logo and the MosaicTV mark |
+| **Spotlight** | A lit glass card with a sweeping gleam, your logo above the wordmark |
+| **Your own clip** | A bumper or ident reel you upload, looped for the length of the break |
 
-### Filler styles
-
-Filler clips are **generated for you** in one of several styles — each
-composites the channel's (or block's) logo into an animated station-ID loop:
-
-| Style | Look | Uses your logo |
-| ----- | ---- | -------------- |
-| `frosted` | Frosted glass: rows of logos glide behind it, still recognisable through the frost, with out-of-focus lights drifting up at different depths. A more heavily frosted band sits behind your logo, which floats in front on a soft shadow, and light plays across the glass as it runs. Tick **Divider between the halves** for a lit glass seam between your logo and the MosaicTV mark | ✅ |
-| `custom` | **Your own clip** — bumpers, ident reels, anything | your call |
+**Advanced** also has the logo's size. The picture is always built at the
+channel's own size.
 
 Earlier builds also offered `logowall`, `pulse`, `animated`, `retro` and
-`vintage`. Only the polished frosted-glass ident ships today; existing fillers
-on a retired style keep playing and stay editable, but new ones can't pick it.
-(`animated` also remains the internal fallback whenever a branded clip can't be
-built.)
+`vintage`. Idents on a retired look keep playing and stay editable; new ones
+can't pick it. (`animated` is also the internal fallback whenever a branded
+clip can't be built.)
 
-You can attach a **music track**. It isn't part of the clip: it's laid over
-the break as it airs, starting at the top of every break and playing straight
-through, looping if the break outlasts the song. Every break's sound fades in
-over half a second and out over the last second and a half, rather than cutting
-in and out. Changing the music never rebuilds a clip.
+The **music** isn't part of the clip: it's laid over the break as it airs,
+starting at the top of every break and playing straight through, looping if
+the break outlasts the song. Every break's sound fades in over half a second
+and out over the last second and a half. Without music, the look's own soft
+tone plays. Changing the music never rebuilds a clip.
 
 A generated clip is a **seamless loop** — every moving part comes back to where
 it started by the end, so a long break shows no jump where the clip repeats.
 Spotlight loops every 30 seconds; frosted glass every two minutes or so, the
 time its slowest lights take to rise back round.
 
-**Resolution** is either a fixed size or **Match channel**, which builds each
-channel's copy at that channel's own resolution (720p for a 720p channel, and so
-on up to 1440p) instead of rendering more than it can show.
+### Preview
 
-**Generating is for previewing.** A filler plays on air whether or not you ever
-press it. Because a generated style composites *the logo of wherever it's
-playing*, one filler renders a separate clip for every logo (and, with Match
-channel, every picture size) it airs with. MosaicTV builds all of them ahead,
-in the background and at low priority so live channels come first: at startup,
-and whenever a filler is edited or assigned, a channel's or block's logo or
-profile changes, or a logo image is replaced. A break never waits on a build —
-if its clip isn't ready yet (say, moments after an edit), the station ident
-stands in under the filler's music until it is. Clips nothing airs any more
-(an old look, a replaced logo) are deleted automatically.
+**Play preview** in the editor renders the first six seconds of the ident as it
+airs — the real look, logo and music — in a few seconds, without saving. When
+an ident shows different logos in different blocks, **Show with** picks which.
 
-The library's **Preview as** selector picks which channel's branding to build
-the preview with; without one it uses wherever the filler is first assigned.
-The preview includes the music, and is discarded automatically when you change
-the filler's look or music, so it never shows stale settings.
+### Built ahead
 
-Generation runs **on the server**, not in the page: the progress bar shows a
-percentage, and leaving the Studio page (or reloading) doesn't cancel anything —
-come back and the bar picks up where the build actually is, or shows the
-finished clip.
+A generated look composites *the logo on air where the break falls*, so one
+ident becomes a separate clip for every logo it airs with. MosaicTV builds all
+of them ahead, in the background and at low priority so live channels come
+first: at startup, and whenever an ident is edited, a channel's or block's
+logo or profile changes, or a logo image is replaced. The Breaks tab marks an
+ident **Building** until it's done, and the notification bell follows each
+build. A break never waits on one — if its clip isn't ready yet (say, moments
+after an edit), another of the channel's built idents stands in under its
+music until it is. Clips nothing airs any more (an old look, a replaced logo)
+are deleted automatically.
 
-Filler is looped and trimmed to exactly fill each gap, so blocks always land on
-their boundaries. The watermark stays off during filler; "up next" cards
-never show on filler either.
+A break is looped and trimmed to exactly fill each gap, so blocks always land
+on their boundaries. "Up next" cards never show over a break.
+
+### Upgrading from the filler library
+
+Before 0.12, fillers were a shared library in the Studio, assigned to channels
+and blocks, with a default station ident for channels that had none. On
+upgrade, each becomes an ident on the channel it aired on — one copy per
+channel if it was shared — and a channel that relied on the default station
+ident gets its own copy of it (or, with none set, a starter ident: the same
+frosted glass it aired before). A filler that wasn't on any channel goes to the
+channel whose logo it was branded with, playing during the blocks that use that
+logo; one with no match is kept on your first channel, playing nowhere until
+you choose. The Studio's stored preview clips are removed — previews render on
+demand now — and **Show on filler** moves from the watermark settings to each
+channel's Breaks tab.
 
 ## "Up next" cards
 
@@ -180,8 +190,8 @@ drawn exactly as it airs, over a still from what's on now, with your channel's
 logo where its watermark sits — so you can see at a glance if the card would
 cover it. It follows your changes before you save.
 
-Cards appear over programs from both rotation and blocks, never over filler. A
-station break between two programs doesn't hide the card: it names the
+Cards appear over programs from both rotation and blocks, never over a break.
+A station break between two programs doesn't hide the card: it names the
 program after the break.
 
 **Broadcast episodes.** A multi-segment episode (Dexter's three shorts, say)

@@ -178,27 +178,32 @@ Per block:
 - **Start mode**:
   - **soft** — the block takes over at the next program boundary; nothing gets
     cut off.
-  - **hard** — the block starts exactly on time; the gap before it is filled
-    with filler so the previous program doesn't overrun.
+  - **hard** — the block starts exactly on time; the gap before it is a
+    station break, so the previous program doesn't overrun.
 - **Logo override** — a different on-screen watermark while the block airs.
 - **"Coming up next" override** — per-block card settings, including
   turning it off for just this block.
 
-A block's **filler mode** — how leftover time inside it is handled so it ends
-on schedule — lives on the **Fillers** tab instead, next to the clips it
-governs: **off** (programs may overrun), **between** (filler spread between
-programs), or **end** (one filler stretch at the end).
+- **Leftover time** — how time the block's programs don't fill is handled so
+  it ends on schedule: **off** (programs run back to back and may overrun),
+  **at the end** (one break before the block ends), or **between programs**
+  (short breaks spread between them).
+
+Start and leftover time sit together under **Breaks** in the block editor —
+they decide *when* a block has breaks. *What* the breaks play is set on the
+channel's **Breaks** tab (see [Station breaks](branding.md#station-breaks)),
+and the editor says which ident will play.
 
 Blocks-only channels (no rotation) are fine. The time *between* their blocks
-has nothing scheduled, so the channel airs its station ident until the next
-block (see [Station-ID filler](branding.md#station-id-filler)); the guide shows
-the gap as empty.
+has nothing scheduled, so the channel airs its breaks until the next block
+(see [Station breaks](branding.md#station-breaks)); the guide shows the gap as
+empty.
 
 ## The playout (guide)
 
 **Guide** tab → **Build 48h** generates the timeline. The engine walks
 forward from the anchor point, applying blocks when active and the rotation
-otherwise, packing programs and inserting filler to land on block boundaries.
+otherwise, packing programs and inserting breaks to land on block boundaries.
 
 - **Timeline / list view** — preview exactly what airs when.
 - **Rebuild** — clears and regenerates the schedule anchored to *now*.
@@ -223,5 +228,5 @@ second the guide says.
 
 If a file can't be played, the channel doesn't retry it endlessly: a program
 that fails on the GPU gets one more try on the CPU, and otherwise the channel
-airs its station ident for the rest of that slot. The next program still
+airs its breaks for the rest of that slot. The next program still
 starts on time. The same goes for a file that ends before its slot does.

@@ -570,7 +570,7 @@ export default function Settings() {
           <div className="space-y-5">
           <SettingsCard
             title="Backup"
-            description="Everything that makes this instance yours — the database, your logos, and your filler clips — in one archive."
+            description="Everything that makes this instance yours — the database, your logos, music and clips — in one archive."
           >
             <LinkButton href={backupUrl} icon="download">
               Download backup (.tar.gz)
@@ -592,7 +592,7 @@ export default function Settings() {
                   checked={wipeAssets}
                   onChange={(e) => setWipeAssets(e.target.checked)}
                 />
-                Also delete uploaded logos &amp; filler
+                Also delete uploaded logos, music &amp; clips
               </label>
               <Button variant="danger" onClick={resetInstance} disabled={resetBusy} className="ml-auto">
                 {resetBusy ? 'Resetting…' : 'Reset to clean slate'}

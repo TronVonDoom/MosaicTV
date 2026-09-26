@@ -15,11 +15,9 @@ export type WatermarkConfig = {
   frequencyMinutes: number
   durationSeconds: number
   // One fade length, used wherever the logo appears or disappears: the
-  // intermittent cycle, and the hand-off to and from filler.
+  // intermittent cycle, and the hand-off to and from a break. (Whether it
+  // stays on during breaks is the channel's call: Channel.logoOnBreaks.)
   fadeSeconds: number
-  // Filler usually *is* the logo (logo wall, pulse, frosted), so a corner bug on
-  // top is a second one. Off by default.
-  showOnFiller: boolean
   // When true, size/position the logo relative to the actual media rectangle
   // (respecting the source aspect, e.g. 4:3 pillarboxed content) instead of the
   // full output canvas — so the watermark stays over the picture.
@@ -36,7 +34,6 @@ export const DEFAULT_WATERMARK: WatermarkConfig = {
   frequencyMinutes: 5,
   durationSeconds: 30,
   fadeSeconds: 1,
-  showOnFiller: false,
   constrainToMedia: false,
 }
 
@@ -65,7 +62,6 @@ export function sanitizeWatermark(input: unknown): WatermarkConfig {
     frequencyMinutes: Math.max(1, Number(wm.frequencyMinutes) || 5),
     durationSeconds: Math.max(1, Number(wm.durationSeconds) || 30),
     fadeSeconds: Math.max(0, Number(wm.fadeSeconds) || 0),
-    showOnFiller: !!wm.showOnFiller,
     constrainToMedia: !!wm.constrainToMedia,
   }
 }

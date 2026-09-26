@@ -3,9 +3,12 @@ import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout, resetPlayout } from '../playout.js'
 import { sanitizeComingUp } from '../streaming/overlays.js'
 import { comingUpPreview } from '../streaming/cardPreview.js'
-import { warmFiller } from '../streaming/filler.js'
+import path from 'node:path'
+import { identBuilt, peekTurn, poolFor, warmFiller } from '../streaming/filler.js'
 import { restyleSegmenter, segmenterViewers } from '../streaming/segmenter.js'
-import { activeBlockAt } from '../streaming/logo.js'
+import { activeBlockAt, localLogo, logoFor } from '../streaming/logo.js'
+import { resolveProfile } from '../streaming/profile.js'
+import { logosDir } from '../paths.js'
 import { asOrderSetting } from '../collections.js'
 import { programLabel } from '../labels.js'
 import { channelsNow } from '../nowPlaying.js'
@@ -93,15 +96,23 @@ channelsRouter.post('/', async (req, res) => {
   const num = number == null || number === '' ? null : Number(number)
   if (num != null && !Number.isInteger(num)) return res.status(400).json({ error: 'number must be a whole number' })
   try {
-    const c = await prisma.channel.create({
-      data: {
-        number: num,
-        name: String(name).trim(),
-        group: group || null,
-        logoId: logoId != null ? Number(logoId) : null,
-      },
+    // Every channel starts with an ident that plays everywhere else — frosted
+    // glass from its logo — so a break always has something its Breaks tab
+    // lists, and there's something to edit rather than a hidden default.
+    const c = await prisma.$transaction(async (tx) => {
+      const c = await tx.channel.create({
+        data: {
+          number: num,
+          name: String(name).trim(),
+          group: group || null,
+          logoId: logoId != null ? Number(logoId) : null,
+        },
+      })
+      const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'frosted', resolution: 'auto', order: 0 } })
+      await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
+      return c
     })
-    warmFiller().catch(() => {}) // its station ident, built ahead
+    warmFiller().catch(() => {}) // its starter ident, built ahead
     res.status(201).json(c)
   } catch {
     res.status(409).json({ error: 'A channel with that number already exists.' })
@@ -136,8 +147,8 @@ channelsRouter.get('/:id', async (req, res) => {
 
 channelsRouter.patch('/:id', async (req, res) => {
   const id = Number(req.params.id)
-  const { name, group, logoUrl, number, logoId, profileId, comingUp, audioLanguage } = req.body ?? {}
-  const data: { name?: string; group?: string | null; logoUrl?: string | null; number?: number | null; logoId?: number | null; profileId?: number | null; comingUp?: string | null; audioLanguage?: string | null } = {}
+  const { name, group, logoUrl, number, logoId, profileId, comingUp, audioLanguage, logoOnBreaks } = req.body ?? {}
+  const data: { name?: string; group?: string | null; logoUrl?: string | null; number?: number | null; logoId?: number | null; profileId?: number | null; comingUp?: string | null; audioLanguage?: string | null; logoOnBreaks?: boolean } = {}
   if (name !== undefined) data.name = String(name).trim()
   if (group !== undefined) data.group = group || null
   if (logoUrl !== undefined) data.logoUrl = logoUrl || null
@@ -147,16 +158,66 @@ channelsRouter.patch('/:id', async (req, res) => {
   if (comingUp !== undefined) data.comingUp = asComingUp(comingUp)
   // '' from a cleared <select> means "inherit the global setting", not "no audio".
   if (audioLanguage !== undefined) data.audioLanguage = audioLanguage ? String(audioLanguage) : null
+  if (logoOnBreaks !== undefined) data.logoOnBreaks = logoOnBreaks === true || logoOnBreaks === 'true'
   try {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
-    if (before && c.number != null && lookChanged(before, c)) restyleSegmenter(c.number)
+    if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks)) restyleSegmenter(c.number)
     // A new logo or picture size means new filler clips; build them ahead.
     if (logoId !== undefined || logoUrl !== undefined || profileId !== undefined) warmFiller().catch(() => {})
     res.json(c)
   } catch {
     res.status(409).json({ error: 'Update failed — is that channel number already in use?' })
   }
+})
+
+// GET /api/channels/:id/breaks -> the channel's next break, for the Breaks
+// tab: when it is, what it leads into, which ident's turn it will be, the logo
+// on air then, and whether that ident's clip is built for it. `next` is null
+// when the built schedule has no break coming.
+channelsRouter.get('/:id/breaks', async (req, res) => {
+  const id = Number(req.params.id)
+  const ch = await prisma.channel.findUnique({
+    where: { id },
+    include: {
+      profile: true,
+      fillerAssignments: { include: { filler: true } },
+      timeBlocks: { include: { collection: true, fillerAssignments: { include: { filler: true } } } },
+    },
+  })
+  if (!ch) return res.status(404).json({ error: 'Not found' })
+  const now = new Date()
+  const slot = await prisma.playoutItem.findFirst({
+    where: { channelId: id, kind: 'filler', stopTime: { gt: now } },
+    orderBy: { startTime: 'asc' },
+  })
+  if (!slot) return res.json({ next: null })
+  const block = activeBlockAt(ch.timeBlocks, slot.startTime)
+  const { pool, key } = poolFor(ch, block)
+  const ident = pool[await peekTurn(key, slot.startTime.getTime(), pool.length)] ?? null
+  const logos = new Map((await prisma.logo.findMany()).map((l) => [l.id, path.join(logosDir(), l.filename)]))
+  const logo = logoFor(ch, block, logos)
+  const built = ident ? await identBuilt(ident, await localLogo(logo.raw), resolveProfile(ch.profile).height) : false
+  const after = await prisma.playoutItem.findFirst({
+    where: { channelId: id, kind: 'program', startTime: { gte: slot.stopTime } },
+    orderBy: { startTime: 'asc' },
+    include: { mediaItem: true },
+  })
+  const afterBlock = activeBlockAt(ch.timeBlocks, slot.stopTime)
+  res.json({
+    next: {
+      start: slot.startTime,
+      stop: slot.stopTime,
+      onAir: slot.startTime <= now,
+      blockId: block?.id ?? null,
+      identId: ident?.id ?? null,
+      turns: pool.length,
+      logoId: ident?.logoId ?? logo.id,
+      built,
+      before: after?.mediaItem ? programLabel(after.mediaItem) : null,
+      beforeBlock: afterBlock && afterBlock.id !== block?.id ? afterBlock.collection.name : null,
+    },
+  })
 })
 
 // POST /api/channels/:id/coming-up/preview { comingUp } -> PNG of the up-next

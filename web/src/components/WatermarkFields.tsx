@@ -103,21 +103,9 @@ export default function WatermarkFields({
                 <Input type="number" min={0} step={0.5} className="w-full" value={wm.fadeSeconds} onChange={(e) => set('fadeSeconds', Number(e.target.value))} />
               </Field>
             </div>
-            <label className="flex items-start gap-2 text-sm mt-3 select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={wm.showOnFiller}
-                onChange={(e) => set('showOnFiller', e.target.checked)}
-              />
-              <span className="text-ink-soft">
-                Show on filler
-                <span className="block text-xs text-ink-faint">
-                  Filler is usually built from this logo already, so the corner bug is a second copy of it. Left off,
-                  the logo fades out as a program hands over to filler and fades back in afterwards.
-                </span>
-              </span>
-            </label>
+            <p className="text-xs text-ink-faint mt-3">
+              During breaks the logo fades out, unless a channel keeps it on (its Breaks tab).
+            </p>
           </Section>
 
           {wm.mode === 'intermittent' && (

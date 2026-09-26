@@ -1,8 +1,7 @@
 import { Router } from 'express'
-import { prisma } from '../db.js'
 import { getMetadataStatus } from '../metadata.js'
 import { getScanStatus } from '../scanner/scanner.js'
-import { fillerJobs } from './fillers.js'
+import { identBuilds } from '../streaming/filler.js'
 
 export const activityRouter = Router()
 
@@ -28,29 +27,39 @@ const KEEP_MS = 60 * 60_000
 const recent = (finishedAt: string | null) => !finishedAt || Date.now() - new Date(finishedAt).getTime() < KEEP_MS
 const fraction = (done: number, total: number) => (total > 0 ? Math.min(1, done / total) : null)
 
-// GET /api/activity — what's working in the background: filler generation,
+// GET /api/activity — what's working in the background: ident builds,
 // library scans and metadata fetches, running or recently finished. Each is
 // read from the state its own job already keeps, newest first.
 activityRouter.get('/', async (_req, res) => {
   const items: Activity[] = []
 
-  const jobs = fillerJobs()
-  const fillers = jobs.length
-    ? await prisma.filler.findMany({ where: { id: { in: jobs.map((j) => j.fillerId) } }, select: { id: true, name: true, style: true } })
-    : []
-  for (const j of jobs) {
-    const f = fillers.find((x) => x.id === j.fillerId)
-    const name = f?.name?.trim() || (f ? `${f.style} filler` : `Filler ${j.fillerId}`)
+  // Idents building in the background (after an edit, a new logo, a boot).
+  const builds = identBuilds()
+  const breaksOf = (channelId: number | null) => (channelId != null ? `/channels/${channelId}#breaks` : '/channels')
+  for (const b of builds.running) {
     items.push({
-      id: `filler:${j.fillerId}:${j.startedAt}`,
+      id: `ident:${b.title}:${b.startedAt}`,
       kind: 'filler',
-      title: j.done ? (j.error ? `Couldn’t generate “${name}”` : `“${name}” is ready`) : `Generating “${name}”`,
-      detail: j.error ?? (j.done ? 'Filler clip generated' : null),
-      state: j.done ? (j.error ? 'error' : 'done') : 'running',
-      progress: j.done ? null : j.percent / 100,
-      startedAt: new Date(j.startedAt).toISOString(),
-      finishedAt: j.finishedAt ? new Date(j.finishedAt).toISOString() : null,
-      href: '/studio#fillers',
+      title: `Building ${b.title}`,
+      detail: 'Breaks show a stand-in until it’s ready',
+      state: 'running',
+      progress: b.percent / 100,
+      startedAt: new Date(b.startedAt).toISOString(),
+      finishedAt: null,
+      href: breaksOf(b.channelId),
+    })
+  }
+  for (const b of builds.finished) {
+    items.push({
+      id: `ident:${b.title}:${b.startedAt}`,
+      kind: 'filler',
+      title: b.error ? `Couldn’t build ${b.title}` : `${b.title} is ready`,
+      detail: b.error ?? 'Ident built for its breaks',
+      state: b.error ? 'error' : 'done',
+      progress: null,
+      startedAt: new Date(b.startedAt).toISOString(),
+      finishedAt: new Date(b.finishedAt).toISOString(),
+      href: breaksOf(b.channelId),
     })
   }
 

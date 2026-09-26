@@ -10,7 +10,7 @@ export type Command = {
   id: string
   label: string
   /** Where this sits in the app — shown dim after the label, and searchable, so
-   *  typing "filler" finds "Studio › Fillers" without matching the label. */
+   *  typing "clips" finds "Studio › Clips" without matching the label. */
   context?: string
   icon: IconName
   /** A picture instead of the icon — a channel's logo. */
@@ -88,8 +88,8 @@ export default function CommandPalette({
       { id: 'library', label: 'Library', context: 'Browse', icon: 'libraries', group: 'Go to', run: go('/library#browse'), keywords: 'shows movies media' },
       { id: 'sources', label: 'Library', context: 'Sources', icon: 'folder', group: 'Go to', run: go('/library#sources'), keywords: 'scan folders add library tmdb metadata' },
       { id: 'logos', label: 'Studio', context: 'Logos', icon: 'image', group: 'Go to', run: go('/studio#images'), keywords: 'watermark images' },
-      { id: 'audio', label: 'Studio', context: 'Audio', icon: 'audio', group: 'Go to', run: go('/studio#audio'), keywords: 'music intermission ambient' },
-      { id: 'fillers', label: 'Studio', context: 'Fillers', icon: 'clip', group: 'Go to', run: go('/studio#fillers'), keywords: 'bumper station id clips' },
+      { id: 'audio', label: 'Studio', context: 'Music', icon: 'audio', group: 'Go to', run: go('/studio#audio'), keywords: 'audio intermission ambient breaks' },
+      { id: 'clips', label: 'Studio', context: 'Clips', icon: 'clip', group: 'Go to', run: go('/studio#clips'), keywords: 'bumper station id video filler' },
       { id: 'logs', label: 'Logs', icon: 'logs', group: 'Go to', run: go('/logs'), keywords: 'errors ffmpeg diagnostics debug' },
       { id: 'set-metadata', label: 'Settings', context: 'Metadata', icon: 'settings', group: 'Settings', run: go('/settings#metadata'), keywords: 'tmdb api key posters' },
       { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts transcode mode tuner hdhomerun horizon audio language' },

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   api,
   parseComingUp,
@@ -5,14 +6,16 @@ import {
   type ChannelDetail,
   type Collection,
   type ComingUpConfig,
+  type Ident,
 } from '../../lib/api'
+import { poolFor } from '../../lib/breaks'
 import { formatDays, minutesToTime } from '../../lib/format'
 import { INHERIT, PLAYBACK_ORDERS, orderLabel } from '../../lib/playback'
 import { useDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import WeeklyBlockGrid from '../WeeklyBlockGrid'
-import { Badge, Button, Card, EmptyState, InfoHint, Input, Section, Select, cx } from '../ui'
+import { Badge, Button, Card, EmptyState, InfoHint, Input, Section, Segmented, Select, cx } from '../ui'
 import type { ChannelTabProps } from './types'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -44,6 +47,7 @@ type BlockForm = {
   logoUrl: string
   logoId: number | null
   startMode: string
+  fillerMode: string
   comingUp: ComingUpConfig | null
 }
 
@@ -56,15 +60,26 @@ const emptyBlock = (): BlockForm => ({
   logoUrl: '',
   logoId: null,
   startMode: 'soft',
+  fillerMode: 'none',
   comingUp: null,
 })
 
+// How a block's leftover time airs, and what its start does — the "when" of
+// its breaks (what they play is the Breaks tab's).
+const BREAK_HINTS: Record<string, string> = {
+  none: 'Programs run back to back.',
+  end: 'Leftover time at the end of the block becomes one break before the next block.',
+  between: 'Leftover time is spread out as short breaks between programs.',
+}
+const START_HINTS: Record<string, string> = {
+  soft: 'Starts at the next program boundary, so there’s no gap to fill.',
+  hard: 'Starts exactly on time. Whatever time is left before it becomes a break.',
+}
+
 /**
  * What plays when: the always-on rotation, plus time blocks that override it
- * during specific day/time windows.
- *
- * A block's fillerMode is deliberately absent from this form — it's edited on
- * the Fillers tab, next to the fillers it governs, and patched on its own.
+ * during specific day/time windows — and when each block has breaks (what the
+ * breaks play is set on the Breaks tab).
  */
 export default function ScheduleTab({
   channelId,
@@ -73,7 +88,17 @@ export default function ScheduleTab({
   drafts,
   cols,
   onError,
-}: ChannelTabProps & { cols: Collection[]; onError: (msg: string) => void }) {
+  focusBlockId,
+  onFocused,
+  onOpenBreaks,
+}: ChannelTabProps & {
+  cols: Collection[]
+  onError: (msg: string) => void
+  /** A block to open in the form (asked for from the Breaks tab). */
+  focusBlockId?: number | null
+  onFocused?: () => void
+  onOpenBreaks?: () => void
+}) {
   const [rot, setRot, clearRotDraft] = useDraft(drafts, 'schedule.rotation', () => ({
     collectionId: '',
     mode: 'one',
@@ -132,9 +157,30 @@ export default function ScheduleTab({
       logoUrl: b.logoUrl ?? '',
       logoId: b.logoId ?? null,
       startMode: b.startMode ?? 'soft',
+      fillerMode: b.fillerMode || 'none',
       comingUp: parseComingUp(b.comingUp),
     })
   }
+
+  // The channel's idents, to say what a block's breaks will play.
+  const [idents, setIdents] = useState<Ident[]>([])
+  useEffect(() => {
+    api.idents(channelId).then(setIdents).catch(() => {})
+  }, [channelId])
+
+  // Opened from the Breaks tab on a block: put it in the form and bring the
+  // form into view.
+  const formRef = useRef<HTMLFormElement>(null)
+  useEffect(() => {
+    if (focusBlockId == null) return
+    const b = ch.timeBlocks.find((x) => x.id === focusBlockId)
+    if (b) {
+      editBlock(b)
+      requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    }
+    onFocused?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusBlockId])
 
   async function submitBlock(e: React.FormEvent) {
     e.preventDefault()
@@ -151,6 +197,7 @@ export default function ScheduleTab({
       logoUrl: blk.logoUrl || null,
       logoId: blk.logoId,
       startMode: blk.startMode,
+      fillerMode: blk.fillerMode,
       comingUp: blk.comingUp,
     }
     await guard(
@@ -267,7 +314,7 @@ export default function ScheduleTab({
           Scheduled slots for specific days and times, which override the rotation while they're on.{' '}
           <InfoHint>
             Click an empty cell in the grid to start a block at that day and time, or click an existing
-            block to edit it. Each block's filler is set on the Fillers tab.
+            block to edit it. Whether a block has breaks is set here; what they play is on the Breaks tab.
           </InfoHint>
         </p>
 
@@ -293,7 +340,8 @@ export default function ScheduleTab({
                   {effectiveLabel(b.playbackOrder, b.collection)}
                   {b.startMode === 'hard' && ' · hard start'}
                   {(b.logoId || b.logoUrl) && ' · logo'}
-                  {b.fillerMode && b.fillerMode !== 'none' && ` · filler: ${b.fillerMode}`}
+                  {b.fillerMode === 'end' && ' · break at the end'}
+                  {b.fillerMode === 'between' && ' · breaks between programs'}
                   {b.comingUp && ' · up-next'}
                 </div>
               </div>
@@ -314,7 +362,7 @@ export default function ScheduleTab({
           ))}
         </div>
 
-        <form onSubmit={submitBlock} className="space-y-2 border-t border-edge pt-4">
+        <form ref={formRef} onSubmit={submitBlock} className="space-y-2 border-t border-edge pt-4">
           {editingBlock && (
             <div className="text-xs text-indigo-300">Editing a block — change values and Save.</div>
           )}
@@ -351,6 +399,60 @@ export default function ScheduleTab({
             onChange={(id) => setBlk({ ...blk, logoId: id })}
             noneLabel="On-screen logo: use collection/channel logo"
           />
+
+          <Section title="Breaks">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <div className="text-[12.5px] font-medium text-ink-soft">Start</div>
+                <Segmented
+                  size="sm"
+                  value={blk.startMode}
+                  onChange={(v) => setBlk({ ...blk, startMode: v })}
+                  options={[
+                    { value: 'soft', label: 'Soft' },
+                    { value: 'hard', label: 'Hard' },
+                  ]}
+                />
+                <p className="text-xs text-ink-faint leading-snug">{START_HINTS[blk.startMode] ?? START_HINTS.soft}</p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-[12.5px] font-medium text-ink-soft">Leftover time</div>
+                <Segmented
+                  size="sm"
+                  value={blk.fillerMode}
+                  onChange={(v) => setBlk({ ...blk, fillerMode: v })}
+                  options={[
+                    { value: 'none', label: 'Off' },
+                    { value: 'end', label: 'At the end' },
+                    { value: 'between', label: 'Between programs' },
+                  ]}
+                />
+                <p className="text-xs text-ink-faint leading-snug">{BREAK_HINTS[blk.fillerMode] ?? BREAK_HINTS.none}</p>
+              </div>
+            </div>
+            {(() => {
+              const current = editingBlock != null ? ch.timeBlocks.find((b) => b.id === editingBlock) ?? null : null
+              const pool = poolFor(current, idents)
+              const on = blk.fillerMode !== 'none' || blk.startMode === 'hard'
+              const what = pool.map((i) => `“${i.name}”`).join(' and ')
+              return (
+                <p className="mt-3 flex items-start gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.05] px-3 py-2 text-[12.5px] text-ink-soft">
+                  <span className="min-w-0 flex-1">
+                    {!what
+                      ? 'This channel has no idents yet.'
+                      : on
+                        ? `Breaks here play ${what}${pool.length > 1 ? ', taking turns' : ''}.`
+                        : `No ident plays here while breaks are off. Turned on, it would be ${what}.`}
+                  </span>
+                  {onOpenBreaks && (
+                    <button type="button" onClick={onOpenBreaks} className="shrink-0 text-indigo-300 hover:text-indigo-200">
+                      Choose idents on the Breaks tab
+                    </button>
+                  )}
+                </p>
+              )
+            })()}
+          </Section>
 
           <Section title="Coming up next">
             <label className="flex items-center gap-2 text-sm select-none">
@@ -413,14 +515,6 @@ export default function ScheduleTab({
                   {o.label}
                 </option>
               ))}
-            </Select>
-            <Select
-              value={blk.startMode}
-              onChange={(e) => setBlk({ ...blk, startMode: e.target.value })}
-              title="Soft: starts at the next programme boundary. Hard: starts exactly on time, filling the gap before it."
-            >
-              <option value="soft">soft start</option>
-              <option value="hard">hard start</option>
             </Select>
             <Button type="submit" size="sm">
               {editingBlock ? 'Save' : 'Add'}

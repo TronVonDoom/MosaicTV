@@ -153,7 +153,6 @@ export type WatermarkConfig = {
   frequencyMinutes: number
   durationSeconds: number
   fadeSeconds: number
-  showOnFiller: boolean
   constrainToMedia: boolean
 }
 
@@ -233,8 +232,6 @@ export type SettingsInfo = {
   hdhrFriendlyName: string
   playoutHorizonHours: number
   audioLanguage: string
-  /** The filler a channel with none of its own airs in its breaks; null = frosted glass from its logo. */
-  defaultFillerId: number | null
 }
 
 export type MetadataStatus = {
@@ -294,47 +291,72 @@ export type CollectionItem = {
   } | null
 }
 
-export type FillerOwner = { channelId?: number; timeBlockId?: number }
-export type FillerVisual = 'animated' | 'frosted' | 'spotlight' | 'custom' | 'logowall' | 'pulse' | 'retro' | 'vintage'
-/** 'auto' = Match channel: rendered at the size of the channel it airs on. */
-export type FillerResolution = 'auto' | '720p' | '1080p' | '1440p'
-/** One place a filler airs: a channel's default, or a block (with its channel). */
-export type FillerUse = {
-  channelId: number
-  channelName: string
-  channelNumber: number | null
-  block: { id: number; name: string; days: string; startMinute: number; endMinute: number } | null
-}
-export type Filler = {
+/** An ident's look: a generated style, or `custom` (an uploaded clip). The
+ *  rest are retired styles older idents may still carry. */
+export type IdentLook = 'animated' | 'frosted' | 'spotlight' | 'custom' | 'logowall' | 'pulse' | 'retro' | 'vintage'
+/** Where an ident plays: everywhere else on its channel, only during some of
+ *  its blocks, or (left over from an upgrade) nowhere yet. */
+export type IdentPlays = 'any' | 'blocks' | 'none'
+/** What a channel airs during a break. Belongs to one channel. */
+export type Ident = {
   id: number
-  channelId: number | null
-  timeBlockId: number | null
-  name: string | null
-  style: FillerVisual
+  channelId: number
+  channel: { id: number; name: string; number: number | null } | null
+  name: string
+  style: IdentLook
   assetId: number | null
   audioAssetId: number | null
+  /** Pinned logo; null = the logo of whichever block is on. */
   logoId: number | null
-  generatedAssetId: number | null
-  resolution: FillerResolution
   logoScale: number
   /** Frosted glass: a divider between the two halves. */
   divider: boolean
   order: number
-  /** Where it airs — on the library list only (not on create/update replies). */
-  usedOn?: FillerUse[]
+  plays: IdentPlays
+  blockIds: number[]
+  /** Built for everywhere it plays — only on a channel's own list (else null). */
+  ready: boolean | null
+  building: boolean
 }
-export type FillerInput = {
-  name?: string | null
-  style: FillerVisual
-  assetId?: number | null
-  audioAssetId?: number | null
-  logoId?: number | null
-  resolution: FillerResolution
+export type IdentInput = {
+  /** An existing ident's id, when previewing it. */
+  id?: number
+  name: string
+  style: IdentLook
+  assetId: number | null
+  audioAssetId: number | null
+  logoId: number | null
   logoScale: number
-  divider?: boolean
+  divider: boolean
+  plays: IdentPlays
+  blockIds: number[]
 }
-export type FillerGenStatus = { percent?: number; done?: boolean; error?: string; assetId?: number; idle?: boolean }
-export type FillerGenJob = { fillerId: number; percent: number; done: boolean; error: string | null }
+/** A still of a saved ident showing `logoId` (null: its channel's logo). The
+ *  URL carries the look, so an edited ident asks for its new picture. */
+export function identThumbUrl(
+  i: Pick<Ident, 'id' | 'style' | 'assetId' | 'logoId' | 'logoScale' | 'divider'>,
+  logoId: number | null,
+): string {
+  const v = [i.style, i.assetId, i.logoId, i.logoScale, i.divider].join('-')
+  return `/api/fillers/${i.id}/thumb?${logoId != null ? `logoId=${logoId}&` : ''}v=${encodeURIComponent(v)}`
+}
+/** A channel's next break, for the Breaks tab. */
+export type NextBreak = {
+  start: string
+  stop: string
+  onAir: boolean
+  /** The block on air when it starts (null = outside blocks). */
+  blockId: number | null
+  /** Whose turn it will be. */
+  identId: number | null
+  /** How many idents that break picks from. */
+  turns: number
+  logoId: number | null
+  built: boolean
+  /** The program it leads into, and that program's block when it's a different one. */
+  before: string | null
+  beforeBlock: string | null
+}
 export type Collection = {
   id: number
   name: string
@@ -406,7 +428,6 @@ export type Asset = {
   mime: string
   sizeBytes: number | null
   createdAt: string
-  generated?: boolean // built from a Filler definition rather than uploaded
 }
 export function assetFileUrl(id: number): string {
   return `/api/assets/${id}/file`
@@ -424,7 +445,7 @@ export type TimeBlock = {
   fillerMode: string
   startMode: string
   comingUp: string | null // JSON ComingUpConfig; null = inherit channel
-  collection: { id: number; name: string; defaultOrder: string }
+  collection: { id: number; name: string; defaultOrder: string; logoId?: number | null }
 }
 
 // What a time block accepts on write. Omitted fields keep the schema default on
@@ -467,6 +488,8 @@ export type ChannelDetail = {
   profileId: number | null
   comingUp: string | null // JSON ComingUpConfig; null = off
   audioLanguage: string | null // null = inherit the global setting
+  /** Keep the corner logo on screen during breaks. */
+  logoOnBreaks: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }
@@ -626,6 +649,25 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+const identQuery = (channelId: number, logoId: number | null) =>
+  `?channelId=${channelId}${logoId != null ? `&logoId=${logoId}` : ''}`
+
+// POST a JSON body and hand back the reply as a Blob (a rendered preview).
+async function blobFrom(url: string, body: unknown, signal?: AbortSignal): Promise<Blob> {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal })
+  if (!res.ok) {
+    let message = `Preview failed (${res.status})`
+    try {
+      const b = await res.json()
+      if (b?.error) message = b.error
+    } catch {
+      /* non-JSON error */
+    }
+    throw new Error(message)
+  }
+  return res.blob()
+}
+
 export const api = {
   health: () => request<Health>('/api/health'),
   stats: () => request<Stats>('/api/stats'),
@@ -721,11 +763,6 @@ export const api = {
   metadataStatus: () => request<MetadataStatus>('/api/metadata/status'),
   saveWatermark: (wm: WatermarkConfig) =>
     request<{ ok: boolean; watermark: WatermarkConfig }>('/api/settings/watermark', { method: 'POST', body: JSON.stringify(wm) }),
-  saveDefaultFiller: (fillerId: number | null) =>
-    request<{ ok: boolean; defaultFillerId: number | null }>('/api/settings/default-filler', {
-      method: 'POST',
-      body: JSON.stringify({ fillerId }),
-    }),
   saveStreamMode: (mode: StreamMode) =>
     request<{ ok: boolean; streamMode: StreamMode }>('/api/settings/stream-mode', { method: 'POST', body: JSON.stringify({ mode }) }),
   saveAudioLanguage: (audioLanguage: string) =>
@@ -800,62 +837,27 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ ids }),
     }),
-  // The global filler library (created & generated under Media).
-  fillers: () => request<Filler[]>('/api/fillers'),
-  addFiller: (data: FillerInput) =>
-    request<Filler>('/api/fillers', { method: 'POST', body: JSON.stringify(data) }),
-  updateFiller: (id: number, data: FillerInput) =>
-    request<Filler>(`/api/fillers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  // Deleting a custom filler also deletes the clip it was created with, unless
-  // another filler shares it or `keepSource` is set.
-  // A copy of a shared filler that takes over this channel's (and its blocks')
-  // uses of it, so it can change here without changing elsewhere.
-  copyFillerForChannel: (id: number, channelId: number) =>
-    request<Filler>(`/api/fillers/${id}/copy`, { method: 'POST', body: JSON.stringify({ channelId }) }),
-  deleteFiller: (id: number, keepSource = false) =>
-    request<void>(`/api/fillers/${id}${keepSource ? '?keepSource=1' : ''}`, { method: 'DELETE' }),
-  // `owner` brands the generated preview with that channel's/block's logo — the
-  // same filler renders differently everywhere it's assigned.
-  generateFillerClip: (id: number, owner?: FillerOwner) => {
-    const qs = owner?.channelId != null ? `?channelId=${owner.channelId}` : owner?.timeBlockId != null ? `?timeBlockId=${owner.timeBlockId}` : ''
-    return pokeActivity(request<{ started: boolean }>(`/api/fillers/${id}/generate${qs}`, { method: 'POST' }))
-  },
-  fillerGenStatus: (id: number) => request<FillerGenStatus>(`/api/fillers/${id}/generate/status`),
+  // A channel's idents (the Breaks tab), or — without a channel — every ident
+  // with its channel (Copy from another channel, Studio's "Used by").
+  idents: (channelId?: number) => request<Ident[]>(`/api/fillers${channelId != null ? `?channelId=${channelId}` : ''}`),
+  addIdent: (channelId: number, data: IdentInput) =>
+    request<Ident>('/api/fillers', { method: 'POST', body: JSON.stringify({ ...data, channelId }) }),
+  updateIdent: (id: number, data: IdentInput) =>
+    request<Ident>(`/api/fillers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  /** A copy on `channelId`: everywhere else there, or a duplicate on its own channel. */
+  copyIdent: (id: number, channelId: number) =>
+    request<Ident>(`/api/fillers/${id}/copy`, { method: 'POST', body: JSON.stringify({ channelId }) }),
+  deleteIdent: (id: number) => request<void>(`/api/fillers/${id}`, { method: 'DELETE' }),
+  orderIdents: (channelId: number, ids: number[]) =>
+    request<void>('/api/fillers/order', { method: 'POST', body: JSON.stringify({ channelId, ids }) }),
+  // A few seconds of an unsaved ident as it airs (MP4), or one frame of it
+  // (JPEG), on `channelId` showing `logoId` (else the channel's logo).
+  identPreview: (draft: IdentInput, channelId: number, logoId: number | null, signal?: AbortSignal) =>
+    blobFrom(`/api/fillers/preview${identQuery(channelId, logoId)}`, draft, signal),
+  identStill: (draft: IdentInput, channelId: number, logoId: number | null, signal?: AbortSignal) =>
+    blobFrom(`/api/fillers/still${identQuery(channelId, logoId)}`, draft, signal),
+  nextBreak: (channelId: number) => request<{ next: NextBreak | null }>(`/api/channels/${channelId}/breaks`),
   activity: () => request<Activity[]>('/api/activity'),
-  // Render a single still frame of a draft (unsaved) filler, branded with the
-  // owner's logo, and hand back the image as a Blob (turn it into an object URL
-  // for an <img>). Nothing is stored server-side, so previews never pile up.
-  fillerPreviewImage: async (draft: FillerInput, owner?: FillerOwner): Promise<Blob> => {
-    const qs = owner?.channelId != null ? `?channelId=${owner.channelId}` : owner?.timeBlockId != null ? `?timeBlockId=${owner.timeBlockId}` : ''
-    const res = await fetch(`/api/fillers/preview${qs}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(draft),
-    })
-    if (!res.ok) {
-      let message = `Preview failed (${res.status})`
-      try {
-        const b = await res.json()
-        if (b?.error) message = b.error
-      } catch {
-        /* non-JSON error */
-      }
-      throw new Error(message)
-    }
-    return res.blob()
-  },
-  // Every generation the server is running or recently finished — lets a page
-  // that wasn't open for the whole build resume showing its progress.
-  fillerGenJobs: () => request<FillerGenJob[]>('/api/fillers/generating'),
-  // Assigning library fillers to a channel (default gap filler) or a block.
-  fillerAssignments: (owner: FillerOwner) => {
-    const qs = owner.channelId != null ? `channelId=${owner.channelId}` : `timeBlockId=${owner.timeBlockId}`
-    return request<number[]>(`/api/fillers/assignments?${qs}`)
-  },
-  assignFiller: (owner: FillerOwner, fillerId: number) =>
-    request<{ ok: boolean }>('/api/fillers/assignments', { method: 'POST', body: JSON.stringify({ ...owner, fillerId }) }),
-  unassignFiller: (owner: FillerOwner, fillerId: number) =>
-    request<void>('/api/fillers/assignments', { method: 'DELETE', body: JSON.stringify({ ...owner, fillerId }) }),
 
   // --- channels ---
   channels: () => request<Channel[]>('/api/channels'),
@@ -874,7 +876,7 @@ export const api = {
     if (!res.ok) throw new Error(`Preview failed (${res.status})`)
     return res.blob()
   },
-  updateChannel: (id: number, data: { number?: number | null; name?: string; group?: string | null; logoUrl?: string | null; logoId?: number | null; profileId?: number | null; comingUp?: ComingUpConfig | null; audioLanguage?: string | null }) =>
+  updateChannel: (id: number, data: { number?: number | null; name?: string; group?: string | null; logoUrl?: string | null; logoId?: number | null; profileId?: number | null; comingUp?: ComingUpConfig | null; audioLanguage?: string | null; logoOnBreaks?: boolean }) =>
     request<Channel>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // --- encoding profiles ---
@@ -897,8 +899,8 @@ export const api = {
     request<void>(`/api/channels/${channelId}/rotation/${itemId}`, { method: 'DELETE' }),
   addBlock: (channelId: number, data: BlockInput) =>
     request<TimeBlock>(`/api/channels/${channelId}/blocks`, { method: 'POST', body: JSON.stringify(data) }),
-  // PATCH is field-by-field on the server, so a caller may send just the one
-  // field it owns (the Fillers tab patches fillerMode alone).
+  // PATCH is field-by-field on the server, so a caller may send just the
+  // fields it changed.
   updateBlock: (channelId: number, blockId: number, data: Partial<BlockInput>) =>
     request<TimeBlock>(`/api/channels/${channelId}/blocks/${blockId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteBlock: (channelId: number, blockId: number) =>

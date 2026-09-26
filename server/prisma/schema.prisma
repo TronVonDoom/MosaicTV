@@ -188,10 +188,13 @@ model Collection {
   @@index([channelId])
 }
 
-// A branded interstitial played during gaps. Owned by a channel (its default) or
-// a specific time block (which overrides the channel default). collectionId is
-// kept nullable only so the retired collection-level rows migrate cleanly; the
-// app uses channel/block ownership.
+// An ident: what a channel airs during a break (the UI calls breaks "breaks"
+// and these "idents"; the code keeps the older name). Each belongs to one
+// channel (channelId). Where it plays is its assignments — one channel-level
+// row means "everywhere else" (blocks without idents of their own, time
+// outside blocks, holds), block rows mean "only during these blocks", and none
+// means it plays nowhere. timeBlockId/collectionId are retired owner columns,
+// kept nullable so `prisma db push` doesn't drop data.
 model Filler {
   id           Int         @id @default(autoincrement())
   channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -204,28 +207,25 @@ model Filler {
   style        String      @default("frosted") // "animated" | "frosted" | "custom"
   assetId      Int? // custom visual (Asset kind "filler"); null for generated styles
   audioAssetId Int? // music (Asset kind "audio"), laid over the break as it airs — never part of the clip
-  // Explicit brand logo for the generated (frosted/logo) styles. Null = derive
-  // from whichever channel/block the filler airs in (the per-owner default).
+  // Explicit brand logo for the generated (frosted/logo) styles. Null = follow
+  // the block: whichever logo is on air where the break falls.
   logo         Logo?       @relation(fields: [logoId], references: [id], onDelete: SetNull)
   logoId       Int?
-  generatedAssetId Int? // the last generated output clip, saved as a Media asset (for preview/reuse)
+  generatedAssetId Int? // unused: the old Studio preview copy (previews are now rendered on demand)
   // Unused: a filler's clip used to be this long (or its track's length). Clips
   // are now seamless loops of a length each style picks, and the music plays
   // over the break, so nothing reads these. Kept so existing databases push.
   durationMode String      @default("fixed")
   durationSec  Int         @default(30)
-  // Render resolution of the generated clip ("720p" | "1080p" | "1440p"), or
-  // "auto" (Match channel): the size of the channel it airs on.
-  // Playback still scales to the channel profile, but a higher source keeps a
-  // filler sharp on a 1080p channel instead of upscaling a 720p clip.
-  resolution   String      @default("1080p")
+  // Render resolution of the generated clip: "auto" (the size of the channel it
+  // airs on — what every ident uses now) or a fixed "720p" | "1080p" | "1440p"
+  // from before the setting was retired.
+  resolution   String      @default("auto")
   // Multiplier on the branded logo's size in the generated styles (1 = default).
   logoScale    Float       @default(1)
   // Frosted glass: draw a divider between the channel's half and MosaicTV's.
   divider      Boolean     @default(false)
-  // Legacy per-owner columns: fillers are now a GLOBAL library assigned via
-  // FillerAssignment. Kept (nullable) so `prisma db push` doesn't drop data;
-  // the boot migration copies any set owner into an assignment and nulls these.
+  // Place in its channel's list: the order breaks take turns in.
   order        Int         @default(0)
   createdAt    DateTime    @default(now())
   assignments  FillerAssignment[]
@@ -235,9 +235,9 @@ model Filler {
   @@index([collectionId])
 }
 
-// Assigns a global Filler to a channel (its default gap filler) or to a time
-// block. Many-to-many: a filler can be used by many owners; an owner can have
-// many fillers. Deleting either the filler or the owner cascades the row away.
+// Where an ident plays: a channel-level row ("everywhere else") or one row per
+// time block ("only during these blocks"), always on the ident's own channel.
+// Deleting the ident, the channel or the block cascades the row away.
 model FillerAssignment {
   id          Int        @id @default(autoincrement())
   filler      Filler     @relation(fields: [fillerId], references: [id], onDelete: Cascade)
@@ -246,8 +246,7 @@ model FillerAssignment {
   channelId   Int?
   timeBlock   TimeBlock? @relation(fields: [timeBlockId], references: [id], onDelete: Cascade)
   timeBlockId Int?
-  // Insertion order: the order breaks take turns through the pool in (see
-  // fillerTurn in streaming/filler.ts). Not a priority — every one gets used.
+  // Unused: breaks take turns in the ident's own order (Filler.order).
   order       Int        @default(0)
 
   @@unique([fillerId, channelId])
@@ -302,11 +301,14 @@ model Channel {
   // setting; "" is never stored. Picks among a file's audio tracks at air time
   // — a dub-first anime channel sets "jpn" without changing the rest.
   audioLanguage String?
+  // Keep the corner logo on screen during breaks. Off: it fades out as a break
+  // starts and back in after — the idents already show the logo.
+  logoOnBreaks  Boolean        @default(false)
   collections   Collection[]
   rotationItems RotationItem[]
   timeBlocks    TimeBlock[]
   playout       PlayoutItem[]
-  fillers       Filler[] // legacy per-channel ownership (see FillerAssignment)
+  fillers       Filler[] // its idents
   fillerAssignments FillerAssignment[]
 }
 

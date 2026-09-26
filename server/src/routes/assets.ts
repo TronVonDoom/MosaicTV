@@ -33,24 +33,11 @@ function shape(a: { id: number; name: string; kind: string; mime: string; sizeBy
   return { id: a.id, name: a.name, kind: a.kind, mime: a.mime, sizeBytes: a.sizeBytes, createdAt: a.createdAt }
 }
 
-// Which asset ids are the output of a Filler rather than a user upload.
-async function generatedAssetIds(): Promise<Set<number>> {
-  const rows = await prisma.filler.findMany({
-    where: { generatedAssetId: { not: null } },
-    select: { generatedAssetId: true },
-  })
-  return new Set(rows.map((r) => r.generatedAssetId as number))
-}
-
 assetsRouter.get('/', async (req, res) => {
   const kind = req.query.kind as string | undefined
   const where = kind && KINDS.includes(kind as Kind) ? { kind } : {}
   const assets = await prisma.asset.findMany({ where, orderBy: { createdAt: 'desc' } })
-  // Generated clips live alongside uploads under the same "filler" kind; flag
-  // them so the UI can badge them and keep them out of the custom-clip picker
-  // (choosing one there would nest a generated filler inside another filler).
-  const generated = await generatedAssetIds()
-  res.json(assets.map((a) => ({ ...shape(a), generated: generated.has(a.id) })))
+  res.json(assets.map(shape))
 })
 
 // Raw-body upload so large audio/video files aren't capped by the JSON limit.
@@ -89,10 +76,17 @@ assetsRouter.delete('/:id', async (req, res) => {
   const id = Number(req.params.id)
   const asset = await prisma.asset.findUnique({ where: { id } })
   if (asset) {
+    // A clip an ident plays can't go out from under it: say which, so it can
+    // be changed first. (Music is fine to delete — those breaks play without.)
+    const users = await prisma.filler.findMany({
+      where: { style: 'custom', assetId: id },
+      select: { name: true, channel: { select: { name: true } } },
+    })
+    if (users.length) {
+      const who = users.map((u) => `“${u.name ?? 'an ident'}” on ${u.channel?.name ?? 'a channel'}`).join(', ')
+      return res.status(409).json({ error: `This clip is used by ${who}. Give ${users.length === 1 ? 'it' : 'them'} another look first.` })
+    }
     fs.rm(path.join(assetsDir(), asset.filename), () => {})
-    // Clear the back-reference first: a filler pointing at a deleted asset
-    // would offer a Preview with nothing behind it.
-    await prisma.filler.updateMany({ where: { generatedAssetId: id }, data: { generatedAssetId: null } })
     await prisma.asset.delete({ where: { id } }).catch(() => {})
   }
   res.status(204).end()

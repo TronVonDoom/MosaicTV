@@ -64,7 +64,7 @@ a **name**. Leave the number blank to keep it a **draft** — hidden from the
 guide and stream until you're ready.
 
 Open the channel. It has five tabs: **General · Collections · Schedule ·
-Fillers · Guide**.
+Breaks · Guide**.
 
 ## 5. Add collections
 
@@ -91,9 +91,9 @@ On the **Schedule** tab:
   **Shuffle**.
 - **Time blocks** (optional) — day/time slots that override the rotation, e.g.
   *Weekdays 18:00–21:00 → Cartoons*. Click the weekly grid to add one. Blocks
-  can have their own playback order, filler, logo, and "coming up next"
+  can have their own playback order, logo, breaks, and "coming up next"
   settings. **Soft start** waits for the current program to finish; **hard
-  start** begins exactly on time and fills the gap before it.
+  start** begins exactly on time, with a station break in the gap before it.
 
 A channel can be rotation-only, blocks-only, or both. Episode positions are
 remembered — shows resume where they left off, across days and rebuilds.
@@ -124,9 +124,10 @@ VLC. Full player-by-player instructions: [Connecting Players](clients.md).
   them per channel/block, and tune the on-screen watermark per logo or under
   **Settings → Watermark**, with a live preview.
   → [Branding](branding.md)
-- **Station-ID filler** — fill the gaps between programs with generated
-  station-ID clips or your own bumpers, per channel and per block.
-  → [Branding](branding.md)
+- **Station breaks** — fill the gaps between programs with generated
+  station idents or your own bumpers, set up on each channel's **Breaks** tab.
+  Every channel starts with one made from its logo.
+  → [Branding](branding.md#station-breaks)
 - **"Up next" cards** — a card naming the next program, with its poster, slides
   in near the end of each one, per channel or per block. Channel **General**
   tab. → [Branding](branding.md#up-next-cards)

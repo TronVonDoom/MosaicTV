@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { audioFades, cardAnchor, cardEntry, comingUpWindows, placeCard } from './filters.js'
-import { DEFAULT_COMINGUP, parseComingUp, sanitizeComingUp } from './overlays.js'
+import { audioFades, cardAnchor, cardEntry, comingUpWindows, ffmpegArgs, placeCard, type Segment } from './filters.js'
+import { DEFAULT_COMINGUP, DEFAULT_WATERMARK, parseComingUp, sanitizeComingUp } from './overlays.js'
+import { DEFAULT_PROFILE } from './profile.js'
 import { fitText, textWidth } from './card.js'
 import { cleanEpisodeTitle, episodeCodeLabel, runtimeLabel } from './cardContent.js'
 
@@ -155,4 +156,26 @@ test('a break fades its sound in at the top and out before the show', () => {
   assert.equal(audioFades({ durationSec: 1800 }), '')
   // A fade out can't start before the segment does.
   assert.equal(audioFades({ audioFadeOutSec: 1.5 }), '')
+})
+
+test('the corner logo stays off a break unless the channel keeps it on', () => {
+  const seg: Segment = {
+    filePath: 'ident.mp4',
+    offsetSec: 0,
+    loop: true,
+    durationSec: 30,
+    hasAudio: true,
+    logo: 'logo.png',
+    wmEpochSec: 0,
+    mediaWidth: 1280,
+    mediaHeight: 720,
+    isFiller: true,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+  }
+  const showsLogo = (s: Segment) => ffmpegArgs(s, 'libx264', DEFAULT_WATERMARK, DEFAULT_PROFILE).includes('logo.png')
+  assert.equal(showsLogo(seg), false)
+  assert.equal(showsLogo({ ...seg, logoOnBreaks: true }), true)
+  // A program always has it.
+  assert.equal(showsLogo({ ...seg, isFiller: false, loop: false }), true)
 })

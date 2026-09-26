@@ -11,14 +11,14 @@ import Icon from '../components/Icon'
 import CollectionManager from '../components/CollectionManager'
 import GeneralTab from '../components/channel/GeneralTab'
 import ScheduleTab from '../components/channel/ScheduleTab'
-import FillersTab from '../components/channel/FillersTab'
+import BreaksTab from '../components/channel/BreaksTab'
 import GuideTab from '../components/channel/GuideTab'
 import { Badge, Banner, Breadcrumbs, Button, LiveBadge, ProgressBar, Skeleton, Tabs } from '../components/ui'
 
 // hls.js is only needed once a preview is actually opened.
 const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
 
-const TAB_IDS = ['general', 'collections', 'schedule', 'fillers', 'guide'] as const
+const TAB_IDS = ['general', 'collections', 'schedule', 'breaks', 'guide'] as const
 type Tab = (typeof TAB_IDS)[number]
 
 /**
@@ -35,7 +35,10 @@ export default function ChannelEditor() {
   const [ch, setCh] = useState<ChannelDetail | null>(null)
   const [cols, setCols] = useState<Collection[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'general')
+  // "#fillers" is what the Breaks tab was called — old links still land on it.
+  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'general', { fillers: 'breaks' })
+  // A block the Breaks tab asked to open on the Schedule tab.
+  const [scheduleFocus, setScheduleFocus] = useState<number | null>(null)
   const [now, setNow] = useState<ChannelNow | null>(null)
   const [watching, setWatching] = useState(false)
   const nowMs = useNow(15000)
@@ -103,7 +106,7 @@ export default function ChannelEditor() {
       icon: 'clock',
       badge: ch.rotationItems.length + ch.timeBlocks.length || undefined,
     } as const,
-    { id: 'fillers', label: 'Fillers', icon: 'clip' } as const,
+    { id: 'breaks', label: 'Breaks', icon: 'tv' } as const,
     { id: 'guide', label: 'Guide', icon: 'xmltv' } as const,
   ]
 
@@ -190,15 +193,28 @@ export default function ChannelEditor() {
       {tab === 'collections' && <CollectionManager channelId={channelId} onChange={loadCols} />}
 
       {tab === 'schedule' && (
-        <ScheduleTab channelId={channelId} ch={ch} guard={guard} drafts={drafts} cols={cols} onError={setError} />
-      )}
-
-      {tab === 'fillers' && (
-        <FillersTab
+        <ScheduleTab
           channelId={channelId}
           ch={ch}
           guard={guard}
-          onGoToSchedule={() => setTab('schedule')}
+          drafts={drafts}
+          cols={cols}
+          onError={setError}
+          focusBlockId={scheduleFocus}
+          onFocused={() => setScheduleFocus(null)}
+          onOpenBreaks={() => setTab('breaks')}
+        />
+      )}
+
+      {tab === 'breaks' && (
+        <BreaksTab
+          channelId={channelId}
+          ch={ch}
+          guard={guard}
+          onEditBlock={(blockId) => {
+            setScheduleFocus(blockId ?? null)
+            setTab('schedule')
+          }}
         />
       )}
 

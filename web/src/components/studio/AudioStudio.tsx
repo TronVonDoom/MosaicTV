@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, assetFileUrl, type Asset, type Filler } from '../../lib/api'
+import { Link } from 'react-router-dom'
+import { api, assetFileUrl, type Asset, type Ident } from '../../lib/api'
 import { confirmDialog } from '../../lib/confirm'
 import { toast } from '../../lib/toast'
 import UploadDialog from '../UploadDialog'
 import Icon from '../Icon'
 import { Badge, Button, EmptyState, IconTile, Input, Skeleton, cx } from '../ui'
 import Workspace, { InspectorPlaceholder } from './Workspace'
-import { fillerStyleLabel } from '../FillerEditor'
 
 function fmtSize(bytes: number | null): string {
   if (!bytes) return '—'
@@ -37,10 +37,10 @@ function Bars({ playing, className }: { playing: boolean; className?: string }) 
   )
 }
 
-/** Studio → Audio: the music that plays under station breaks. */
+/** Studio → Music: the tracks idents play under station breaks. */
 export default function AudioStudio({ onCount }: { onCount: (n: number) => void }) {
   const [assets, setAssets] = useState<Asset[] | null>(null)
-  const [fillers, setFillers] = useState<Filler[]>([])
+  const [idents, setIdents] = useState<Ident[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -59,7 +59,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
       .catch(() => setAssets((x) => x ?? []))
   useEffect(() => {
     refresh()
-    api.fillers().then(setFillers).catch(() => {})
+    api.idents().then(setIdents).catch(() => {})
     return () => player.current?.pause()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -76,7 +76,8 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assets])
 
-  const usedBy = (id: number) => fillers.filter((f) => f.audioAssetId === id)
+  const usedBy = (id: number) => idents.filter((i) => i.audioAssetId === id)
+  const where = (i: Ident) => `${i.channel?.name ?? 'A channel'} › ${i.name}`
   const selected = assets?.find((a) => a.id === selectedId) ?? null
   const shown = useMemo(
     () => (assets ?? []).filter((a) => !query.trim() || a.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -103,7 +104,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
     const ok = await confirmDialog({
       title: `Delete “${a.name}”?`,
       message: users.length
-        ? `${users.length} filler${users.length === 1 ? ' uses' : 's use'} it (${users.map((f) => f.name || fillerStyleLabel(f.style)).join(', ')}) — they'll play without music.`
+        ? `${users.length} ident${users.length === 1 ? ' uses' : 's use'} it (${users.map(where).join(', ')}) — ${users.length === 1 ? 'its breaks' : 'their breaks'} will play without music.`
         : 'Nothing uses it right now.',
       confirmLabel: 'Delete track',
       danger: true,
@@ -128,7 +129,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter tracks…" className="w-full pl-9" />
             </div>
             <Button icon="upload" onClick={() => setUploading(true)} className="ml-auto">
-              Upload audio
+              Upload music
             </Button>
           </>
         }
@@ -169,14 +170,20 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
                 <div className="text-[12.5px] font-medium text-ink-soft mb-2">Used by</div>
                 {usedBy(selected.id).length === 0 ? (
                   <p className="text-[13px] text-ink-faint">
-                    No filler uses this track yet. Pick it as a filler's audio under Studio → Fillers.
+                    No ident plays this track yet. Pick it as an ident’s music on a channel’s Breaks tab.
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
-                    {usedBy(selected.id).map((f) => (
-                      <li key={f.id} className="flex items-center gap-2.5 rounded-lg border border-edge bg-sunken/60 px-3 py-2 text-[13px]">
-                        <Icon name="clip" size={15} className="text-ink-faint" />
-                        <span className="truncate text-ink-soft">{f.name || fillerStyleLabel(f.style)}</span>
+                    {usedBy(selected.id).map((i) => (
+                      <li key={i.id}>
+                        <Link
+                          to={`/channels/${i.channelId}#breaks`}
+                          className="flex items-center gap-2.5 rounded-lg border border-edge bg-sunken/60 px-3 py-2 text-[13px] hover:border-edge-strong"
+                        >
+                          <Icon name="tv" size={15} className="text-ink-faint" />
+                          <span className="truncate text-ink-soft">{where(i)}</span>
+                          <Icon name="chevronRight" size={14} className="ml-auto shrink-0 text-ink-ghost" />
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -192,11 +199,11 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
           )
         }
         inspectorTitle={selected?.name}
-        inspectorSubtitle="Audio track"
+        inspectorSubtitle="Music track"
         onCloseInspector={() => setSelectedId(null)}
         placeholder={
           <InspectorPlaceholder icon={<IconTile name="audio" size="lg" />} title="Select a track">
-            Listen to it, see how long it runs, and which fillers play it.
+            Listen to it, see how long it runs, and which idents play it.
           </InspectorPlaceholder>
         }
       >
@@ -209,8 +216,8 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
         ) : assets.length === 0 ? (
           <EmptyState
             icon="audio"
-            title="No audio yet"
-            description="Upload music to play under station breaks — a filler can use it as its soundtrack, and match its length to the track."
+            title="No music yet"
+            description="Upload tracks to play under station breaks — any ident can use one as its music."
             action={
               <Button icon="upload" onClick={() => setUploading(true)}>
                 Upload a track
@@ -245,7 +252,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
                       {durations[a.id] ? fmtTime(durations[a.id]) : '—'} · {fmtSize(a.sizeBytes)}
                     </div>
                   </button>
-                  {users > 0 ? <Badge tone="accent">{users} filler{users === 1 ? '' : 's'}</Badge> : <Badge>Unused</Badge>}
+                  {users > 0 ? <Badge tone="accent">{users} ident{users === 1 ? '' : 's'}</Badge> : <Badge>Unused</Badge>}
                   <Icon name="chevronRight" size={16} className={cx('shrink-0', on ? 'text-indigo-300' : 'text-ink-ghost')} />
                 </div>
               )
@@ -257,7 +264,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
 
       {uploading && (
         <UploadDialog
-          title="Upload audio"
+          title="Upload music"
           subtitle="Music for station breaks — MP3, AAC, FLAC or WAV."
           icon="audio"
           kind="audio"

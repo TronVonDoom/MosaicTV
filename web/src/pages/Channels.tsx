@@ -140,7 +140,7 @@ export default function Channels() {
   async function del(c: Channel) {
     const ok = await confirmDialog({
       title: `Delete “${c.name}”?`,
-      message: 'Its collections, schedule, fillers and built guide go with it. Your media files are not touched.',
+      message: 'Its collections, schedule, idents and built guide go with it. Your media files are not touched.',
       confirmLabel: 'Delete channel',
       danger: true,
     })
@@ -239,7 +239,7 @@ export default function Channels() {
         <EmptyState
           icon="channels"
           title="No channels yet"
-          description="A channel is where your collections, schedule and fillers come together into something that actually broadcasts."
+          description="A channel is where your collections, schedule and breaks come together into something that actually broadcasts."
           action={
             <Button icon="plus" onClick={() => setCreating(true)}>
               Create your first channel

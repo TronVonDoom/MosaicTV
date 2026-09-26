@@ -20,7 +20,7 @@ const KIND_COLOR: Record<MetricMarker['kind'], string> = {
 }
 const KIND_LABEL: Record<MetricMarker['kind'], string> = {
   program: 'Episode / movie',
-  filler: 'Filler',
+  filler: 'Break',
   song: 'Music video',
 }
 const LINE = '#3987e5'

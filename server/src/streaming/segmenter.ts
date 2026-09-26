@@ -29,7 +29,6 @@ import { resolveProfile } from './profile.js'
 import { loadWatermark, parseWatermark, type WatermarkConfig } from './overlays.js'
 import { detectReadrateBurst, resolveEncoder } from './capabilities.js'
 import { blackArgs, type FfmpegOutput } from './filters.js'
-import { loadDefaultFiller } from './filler.js'
 import { buildItemArgs, type BuildItemParams, type ChannelForBuild, type PlayoutItemForBuild } from './itemBuild.js'
 
 // ready = playlist has segments; starting = warming up; unavailable = no channel/schedule.
@@ -243,8 +242,8 @@ class ChannelSegmenter {
     const channel = await prisma.channel.findFirst({
       where: { number: this.n },
       include: {
-        timeBlocks: { include: { collection: true, fillerAssignments: { include: { filler: true }, orderBy: { order: 'asc' } } } },
-        fillerAssignments: { include: { filler: true }, orderBy: { order: 'asc' } },
+        timeBlocks: { include: { collection: true, fillerAssignments: { include: { filler: true } } } },
+        fillerAssignments: { include: { filler: true } },
         rotationItems: true,
         profile: true,
       },
@@ -270,7 +269,6 @@ class ChannelSegmenter {
       defaultWm,
       logoPath: new Map<number, string>(logos.map((l) => [l.id, path.join(logosDir(), l.filename)])),
       logoWm: new Map<number, WatermarkConfig>(logos.map((l) => [l.id, parseWatermark(l.watermark, defaultWm)])),
-      defaultFiller: await loadDefaultFiller(),
     }
 
     // Enough look-ahead to see past a station break to the program after it.

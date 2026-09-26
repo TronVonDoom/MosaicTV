@@ -6,10 +6,11 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PX_H = 26 // px per hour
 const DAY_H = 24 * PX_H
 
-// A collection-colored span placed in a day column.
-type Seg = { day: number; top: number; bottom: number; block: Block }
+// A block's span on one day (minutes from midnight). A block that runs past
+// midnight is two spans: the rest of its day, and the start of the next.
+export type Seg = { day: number; top: number; bottom: number; block: Block }
 
-function expand(blocks: Block[]): Seg[] {
+export function expand(blocks: Block[]): Seg[] {
   const segs: Seg[] = []
   for (const b of blocks) {
     const days = b.days.split(',').map(Number).filter((n) => !Number.isNaN(n))

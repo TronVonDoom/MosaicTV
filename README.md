@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>Turn your media library into scheduled 24/7 live TV channels.</b><br/>
-  Your shows and movies, playing on a real schedule — with station logos, filler,
+  Your shows and movies, playing on a real schedule — with station logos, station breaks,
   "up next" cards, and a TV guide — in Plex, Jellyfin, Emby, or any IPTV player.
 </p>
 
@@ -27,7 +27,7 @@ simple to run and pleasant to configure.
 - 📺 **Real live-TV channels** — tune in mid-program like broadcast TV; every channel resumes where it left off, forever.
 - 🗓 **Scheduling that thinks like a station** — a 24/7 rotation plus day/time blocks with soft or exact-time starts, and five playback orders.
 - 🧩 **Multi-segment episodes, aired as broadcast** — cartoons split into 7-minute shorts play as the half-hour episodes they aired as, even with a short borrowed from another show.
-- 🎬 **Broadcast polish** — station logos and watermarks, generated station-ID filler, and a frosted-glass "up next" card with the next show's poster.
+- 🎬 **Broadcast polish** — station logos and watermarks, station breaks with generated idents and music, and a frosted-glass "up next" card with the next show's poster.
 - 🔍 **A library built in** — scanner, TMDB artwork and metadata, show pages and a searchable poster wall.
 - 📡 **Works with what you watch on** — M3U + XMLTV for Jellyfin, Emby, VLC, TiviMate and any IPTV app, and a built-in HDHomeRun tuner for Plex (no Threadfin needed).
 - ⚡ **GPU encoding** — NVIDIA, Intel QuickSync, VAAPI, AMD AMF or Apple VideoToolbox, verified on your host, with a clean CPU fallback.
@@ -110,8 +110,8 @@ The **rotation** is the channel's 24/7 backbone — collections that loop
 forever, 1 or N programs a turn. **Time blocks** override it for specific days
 and times (*Weekdays 6–9pm → Cartoons*), shown on a weekly grid. A **soft**
 start waits for the current program to finish; a **hard** start begins on the
-dot, with filler covering the gap. Each block can carry its own playback order,
-logo, filler and up-next card. Guides are built ahead to your chosen horizon and
+dot, with a station break covering the gap. Each block can carry its own
+playback order, logo, breaks and up-next card. Guides are built ahead to your chosen horizon and
 topped up automatically, so listings never run dry.
 
 <img src="docs/screenshots/schedule.webp" alt="A channel's rotation and weekly time-block grid" width="100%" />
@@ -129,23 +129,32 @@ and cached, so big libraries stay quick to browse.
 
 <img src="docs/screenshots/show.webp" alt="A show page over its backdrop, with every season" width="100%" />
 
-### Studio: logos, watermarks and station IDs
+### Studio: logos, watermarks, music and clips
 
-**Studio** is the branding suite. Upload logos and give each its own
+**Studio** is the branding kit. Upload logos and give each its own
 **watermark** — permanent or intermittent with fades, any corner, size and
-opacity — previewed live over a frame from your library in 16:9 or 4:3.
+opacity — previewed live over a frame from your library in 16:9 or 4:3. Music
+and video clips for your station breaks live here too.
 
 <img src="docs/screenshots/studio-logos.webp" alt="Studio: logos with a live watermark preview" width="100%" />
 
-**Station-ID filler** covers the gaps so blocks end on time: upload your own
-bumpers and idents, or generate one branded with the channel's logo. The
-**Frosted glass** ident scrolls rows of logos behind frosted glass with
-out-of-focus lights drifting at different depths, a light glint across the
-surface, and your logo floating in front. Add a music bed, match the clip to
-the track's length, preview a still (click it to enlarge), and assign fillers
-per channel or per block.
+### Station breaks
 
-<img src="docs/screenshots/studio-fillers.webp" alt="Studio: the filler library and editor" width="100%" />
+**Breaks** cover the gaps so blocks end on time, and each channel's **Breaks**
+tab is the one place they're set up. A channel's **idents** are what plays:
+**Frosted glass** (rows of logos behind frosted glass, out-of-focus lights
+drifting at different depths, your logo floating in front), **Spotlight** (a
+lit glass card with a sweeping gleam), or a clip of your own, each with an
+optional music bed. An ident plays **everywhere else** or **only during
+certain blocks** (pick them by logo — a Nick at Nite ident for the Nick at
+Nite blocks), and where several can play, breaks take turns. Play a
+six-second preview with the real logo and music before you save.
+
+The tab shows when the next break is and what it'll play, which blocks have
+breaks (set per block on the Schedule tab), a week map coloured by the ident
+each block plays, and a warning when an ident — or a whole channel's breaks —
+would never air. Every new channel starts with a frosted-glass ident made from
+its logo, so nothing plays that the tab doesn't show.
 
 <img src="docs/screenshots/frosted-filler.webp" alt="A frame of the generated Frosted glass station ident" width="100%" />
 
@@ -175,7 +184,7 @@ live preview over a frame from your library.
 
 - **Search from anywhere** (Ctrl/⌘ K) — pages, channels, settings, and every
   show and movie in your library.
-- **Notifications** — a bell in the top bar follows filler generation, library
+- **Notifications** — a bell in the top bar follows ident builds, library
   scans and metadata fetches with live progress, and tells you when each
   finishes, wherever you are in the app.
 - **Watch and cast** — any channel's live preview plays in the browser and can
@@ -244,7 +253,7 @@ in about ten minutes.
 | 🚀 [Installation](docs/install.md) | Docker run · Portainer · **Unraid template** · Compose |
 | 🏁 [Getting Started](docs/getting-started.md) | First library → first channel → first stream |
 | 🗓 [Channels & Scheduling](docs/channels.md) | Collections, multi-segment broadcast episodes, rotations, time blocks, playback orders, the guide |
-| 🎨 [Branding](docs/branding.md) | Logos, watermarks, filler styles, up-next cards |
+| 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, up-next cards |
 | 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps · casting |
 | ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | CPU vs NVIDIA, setup per platform, profiles |
 | 🔒 [Security](docs/security.md) | LAN-only stance, VPN access, reverse proxies |
@@ -266,7 +275,7 @@ npm run dev           # backend :8688, frontend :5173
 ## Contributing
 
 Issues and PRs welcome — bug reports with the in-app log download attached are
-extra welcome. If you're missing a feature (another filler style? another
+extra welcome. If you're missing a feature (another ident look? another
 metadata source?), open an issue and let's talk.
 
 ## License

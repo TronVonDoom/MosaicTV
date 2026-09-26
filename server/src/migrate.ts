@@ -1,5 +1,10 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { prisma } from './db.js'
 import { log } from './logs.js'
+import { assetsDir } from './paths.js'
+import { planIdentMigration } from './identMigration.js'
+import { loadWatermark, parseWatermark } from './streaming/overlays.js'
 
 const FLAG = 'migrated_collection_ownership'
 
@@ -96,4 +101,103 @@ export async function migrateFillersToLibrary(): Promise<void> {
 
   await prisma.setting.create({ data: { key: FILLER_FLAG, value: new Date().toISOString() } })
   if (owned.length > 0) log('info', 'system', `Filler library migration complete — ${owned.length} filler(s) assigned`)
+}
+
+const IDENTS_FLAG = 'migrated_idents_to_channels'
+
+/**
+ * One-time migration from the shared filler library to idents owned by a
+ * channel — the Breaks tab. What goes where is decided by planIdentMigration
+ * (identMigration.ts); this applies it. Along the way: every ident matches its
+ * channel's size (the resolution setting is gone), the default station ident
+ * setting is removed (the channels that relied on it now have their own copy),
+ * the Studio's stored preview copies are deleted (previews render on demand),
+ * and "show the logo on filler" moves from the watermark to each channel.
+ * Idempotent — guarded by a Setting flag.
+ */
+export async function migrateIdentsToChannels(): Promise<void> {
+  if (await prisma.setting.findUnique({ where: { key: IDENTS_FLAG } })) return
+
+  const fillers = await prisma.filler.findMany({
+    include: { assignments: { include: { timeBlock: { select: { channelId: true } } } } },
+  })
+  const channels = await prisma.channel.findMany({
+    include: { logo: true, timeBlocks: { include: { collection: { select: { logoId: true } } } } },
+  })
+  const defaultRow = await prisma.setting.findUnique({ where: { key: 'defaultFillerId' } })
+  const defaultId = Number(defaultRow?.value)
+
+  const plan = planIdentMigration({
+    fillers: fillers.map((f) => ({
+      id: f.id,
+      name: f.name,
+      logoId: f.logoId,
+      assignments: f.assignments.map((a) => ({
+        channelId: a.channelId,
+        timeBlockId: a.timeBlockId,
+        blockChannelId: a.timeBlock?.channelId ?? null,
+        order: a.order,
+      })),
+    })),
+    channels: channels.map((c) => ({
+      id: c.id,
+      name: c.name,
+      number: c.number,
+      logoId: c.logoId,
+      blocks: c.timeBlocks.map((b) => ({ id: b.id, logoId: b.logoId ?? b.collection.logoId })),
+    })),
+    defaultFillerId: Number.isInteger(defaultId) ? defaultId : null,
+  })
+
+  // The corner logo during breaks: what the channel's own logo was set to.
+  const globalWm = await loadWatermark()
+  const previews = fillers.map((f) => f.generatedAssetId).filter((id): id is number => id != null)
+  const previewFiles = await prisma.asset.findMany({ where: { id: { in: previews } }, select: { filename: true } })
+
+  await prisma.$transaction(
+    async (tx) => {
+      // Where every ident plays is rewritten from the plan, so start clean.
+      await tx.fillerAssignment.deleteMany({})
+      const byId = new Map(fillers.map((f) => [f.id, f]))
+      for (const p of plan.idents) {
+        const own = { channelId: p.channelId, timeBlockId: null, collectionId: null, name: p.name, order: p.order, resolution: 'auto' }
+        let id: number
+        if (p.source != null && p.keep) {
+          id = (await tx.filler.update({ where: { id: p.source }, data: own })).id
+        } else if (p.source != null) {
+          const src = byId.get(p.source)!
+          id = (
+            await tx.filler.create({
+              data: { ...own, style: src.style, assetId: src.assetId, audioAssetId: src.audioAssetId, logoId: src.logoId, logoScale: src.logoScale, divider: src.divider },
+            })
+          ).id
+        } else {
+          id = (await tx.filler.create({ data: { ...own, style: 'frosted' } })).id
+        }
+        if (p.plays === 'any') await tx.fillerAssignment.create({ data: { fillerId: id, channelId: p.channelId, order: p.order } })
+        for (const timeBlockId of p.blockIds) await tx.fillerAssignment.create({ data: { fillerId: id, timeBlockId, order: p.order } })
+      }
+      await tx.filler.updateMany({ data: { resolution: 'auto', generatedAssetId: null } })
+      await tx.asset.deleteMany({ where: { id: { in: previews } } })
+      await tx.setting.deleteMany({ where: { key: { in: ['defaultFillerId', 'fillerTurns'] } } })
+      for (const c of channels) {
+        // Retired from the watermark settings, but still in the saved JSON.
+        const wm = (c.logo?.watermark ? parseWatermark(c.logo.watermark, globalWm) : globalWm) as { showOnFiller?: boolean }
+        if (wm.showOnFiller) await tx.channel.update({ where: { id: c.id }, data: { logoOnBreaks: true } })
+      }
+      await tx.setting.create({ data: { key: IDENTS_FLAG, value: new Date().toISOString() } })
+    },
+    { timeout: 60_000 },
+  )
+
+  for (const a of previewFiles) fs.rmSync(path.join(assetsDir(), a.filename), { force: true })
+  const copies = plan.idents.filter((p) => p.source != null && !p.keep).length
+  const starters = plan.idents.filter((p) => p.source == null).length
+  log(
+    'info',
+    'system',
+    `Idents now belong to their channels — ${plan.idents.length} ident(s) on ${new Set(plan.idents.map((p) => p.channelId)).size} channel(s)` +
+      `${copies ? `, ${copies} copied for a second channel or block set` : ''}${starters ? `, ${starters} starter ident(s) made from channel logos` : ''}` +
+      `${previewFiles.length ? `; ${previewFiles.length} stored preview clip(s) removed` : ''}`,
+  )
 }

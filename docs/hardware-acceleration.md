@@ -100,8 +100,8 @@ Uncomment the NVIDIA lines in `docker-compose.yml`:
 
 > **Burn-in** is the only way to get subtitles onto a live channel — there's no
 > track for a player to switch on, because every viewer receives the same
-> encoded picture. It applies to programs (never filler) and only when the file
+> encoded picture. It applies to programs (never breaks) and only when the file
 > actually has a subtitle stream, so it costs nothing on sources without one.
 
 A practical split: a "HD" profile (1080p, `auto`) for your main channels and a
-"Light" profile (720p, `cpu`, capped threads) for background/filler-heavy ones.
+"Light" profile (720p, `cpu`, capped threads) for background/break-heavy ones.
