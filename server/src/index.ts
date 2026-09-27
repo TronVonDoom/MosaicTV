@@ -8,6 +8,7 @@ import { warmFiller } from './streaming/filler.js'
 import { warmCapabilities } from './streaming/capabilities.js'
 import { startMetrics } from './metrics.js'
 import { startGuideKeeper } from './guideKeeper.js'
+import { startActBreakFinder } from './actBreakFinder.js'
 import { allSegmenterViewers, resetSegments } from './streaming/segmenter.js'
 import { eventStream, watch } from './events.js'
 import { migrateDatabase } from './dbMigrate.js'
@@ -184,6 +185,7 @@ async function boot(): Promise<void> {
   )
   const metricSource = startMetrics()
   startGuideKeeper() // keep every channel's guide built out, watched or not
+  startActBreakFinder() // find act breaks for the channels that break inside programs
   await checkFfmpeg()
   app.listen(PORT, () => {
     console.log(`MosaicTV v${VERSION} listening on http://0.0.0.0:${PORT}`)

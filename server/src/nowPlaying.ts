@@ -68,10 +68,13 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
   const first = unit[0]
   const last = unit[unit.length - 1]
   const m = first.mediaItem
+  // A program split at its act breaks is the same file several times over,
+  // with breaks between: it counts, and reads, as one of each file.
+  const files = unit.flatMap((r) => (r.mediaItem ? [r.mediaItem] : [])).filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i)
   const base = {
     startTime: first.startTime.toISOString(),
     stopTime: last.stopTime.toISOString(),
-    parts: unit.length,
+    parts: Math.max(1, files.length),
   }
   if (first.kind === 'filler' || !m) {
     return {
@@ -92,9 +95,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
 
   if (m.type === 'episode' && m.showTitle) {
     // Every segment's code and title, so a two-parter reads as both halves.
-    const segs = unit
-      .map((r) => r.mediaItem)
-      .filter((x): x is MediaForNow => !!x)
+    const segs = files
     const code = episodeCode(m)
     const lastCode = episodeCode(segs[segs.length - 1])
     const codes = segs.length > 1 && lastCode && lastCode !== code ? `${code}–${lastCode.replace(/^S\d+/, '')}` : code

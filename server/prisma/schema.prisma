@@ -233,6 +233,11 @@ model Filler {
   logoScale    Float              @default(1)
   // Frosted glass: draw a divider between the channel's half and MosaicTV's.
   divider      Boolean            @default(false)
+  // A break reel: a folder of clips (bumpers, promos, commercials) that a
+  // break is filled from, in turn, with the channel's generated look covering
+  // what's left (style "reel"). Its clips are ReelClip rows.
+  reelFolder   String?
+  clips        ReelClip[]
   // Place in its channel's list: the order breaks take turns in.
   order        Int                @default(0)
   createdAt    DateTime           @default(now())
@@ -314,6 +319,10 @@ model Channel {
   // starts on the clock's next line — :00 and :30 on a 30 — and the time
   // between is a break. A time block can set its own (TimeBlock.grid).
   grid              Int                @default(0)
+  // Breaks inside programs: on a broadcast clock, a program's share of break
+  // time is split across its act breaks (MediaItem.breaks) instead of all
+  // coming after it. A time block can say otherwise (TimeBlock.actBreaks).
+  actBreaks         Boolean            @default(false)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -362,6 +371,8 @@ model TimeBlock {
   // The block's own broadcast clock (see Channel.grid); null = the channel's,
   // 0 = off here.
   grid              Int?
+  // Breaks inside programs here (see Channel.actBreaks); null = the channel's.
+  actBreaks         Boolean?
   fillerAssignments FillerAssignment[]
 
   @@index([channelId])
@@ -391,6 +402,9 @@ model PlayoutItem {
   // How it went on the stream, set by the segmenter as it plays it: "ok", or
   // what went wrong ("held: …"). Null while nobody has watched it.
   streamed    String?
+  // Where in the file this row starts, in seconds: set on the second and later
+  // acts of a program split at its act breaks (null = the top of the file).
+  inPoint     Float?
 
   @@index([channelId, startTime])
 }
@@ -418,6 +432,21 @@ model Aired {
   @@index([channelId, startTime])
   @@index([mediaItemId])
   @@index([showId, startTime])
+}
+
+// One clip in a break reel's folder (see Filler.reelFolder), found when the
+// ident is saved or its folder is rescanned.
+model ReelClip {
+  id          Int     @id @default(autoincrement())
+  filler      Filler  @relation(fields: [fillerId], references: [id], onDelete: Cascade)
+  fillerId    Int
+  path        String
+  durationSec Float
+  hasAudio    Boolean @default(true)
+  width       Int?
+  height      Int?
+
+  @@index([fillerId])
 }
 
 // One root folder belonging to a library.
@@ -471,6 +500,12 @@ model MediaItem {
   rating           Float?
   tmdbPosterPath   String?
   tmdbBackdropPath String?
+  // Act breaks: seconds into the file where it cut to commercial when it aired
+  // (JSON number[]), where they came from (chapters | detected | none), and
+  // when they were looked for (null = not yet; reset when the file changes).
+  breaks           String?
+  breaksSource     String?
+  breaksCheckedAt  DateTime?
   missing          Boolean         @default(false)
   addedAt          DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

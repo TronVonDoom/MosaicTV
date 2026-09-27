@@ -26,6 +26,7 @@ import { renderCard, type CardContent } from './card.js'
 import { nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
 import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
+import { reelClips, reelPlan, reelSeed, type ReelClipRow } from './reel.js'
 
 // The channel shape the builder needs — timeBlocks with their collection and
 // the idents that play only during them, the channel's "everywhere else"
@@ -54,6 +55,9 @@ export type BuiltItem =
       mediaHeight: number
       /** Human-readable watermark state, for the "now airing" log line. */
       wmDesc: string
+      /** How long this encode is meant to run: the slot's remainder, or less
+       *  for one clip of a break reel (the next encode carries on the break). */
+      durSec: number
     }
   | { kind: 'black'; durSec: number; why: string; label: string }
 
@@ -106,6 +110,9 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   // Don't fade in when tuning in mid-program — there was no filler on screen.
   const fadeInSec = edgeFade > 0 && prevKind === 'filler' && !midItem ? edgeFade : 0
   const mi = item.mediaItem
+  // Where in the file this row's frames come from: a later act of a program
+  // split at its act breaks starts partway in (PlayoutItem.inPoint).
+  const seek = (item.inPoint ?? 0) + offset
   // Absolute wall-clock start of the frames we're about to emit — anchors the
   // intermittent watermark so it fires on schedule for every viewer.
   const wmEpochSec = item.startTime.getTime() / 1000 + offset
@@ -122,15 +129,29 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     let clip: string | undefined
     let music: string | undefined
     let standIn = ''
+    // A break reel plays its break as several clips, one encode each: this one
+    // runs to the end of the piece of the break the cursor is in (fillDur), and
+    // the next one picks up from there.
+    let fillDur = segDur
+    let reel: { row: ReelClipRow; into: number; name: string } | null = null
     if (pool.length > 0) {
       const turn = await fillerTurn(poolKey, item.startTime.getTime(), pool.length)
       const f = pool[turn]
       const name = (x: Filler) => x.name || x.style
+      if (f.style === 'reel') {
+        const clips = await reelClips(f.id)
+        const plan = reelPlan(clips, (item.stopTime.getTime() - item.startTime.getTime()) / 1000, reelSeed(f.id, item.startTime.getTime()))
+        const piece = plan.find((p) => offset < p.start + p.dur - 0.05)
+        if (piece) {
+          fillDur = Math.min(segDur, piece.start + piece.dur - offset)
+          if (piece.clip != null) reel = { row: clips[piece.clip], into: Math.max(0, offset - piece.start), name: name(f) }
+        }
+      }
       // Never wait on a render here — it would eat the stream's lead. A clip
       // that isn't built yet starts building, and this break airs a stand-in
       // under the filler's own music: the next filler in the pool that's
       // already built for this logo (the channel's own look), else the ident.
-      const r = await resolveFillerClip(f, logo, { channelHeight: profile.height, wait: false })
+      const r = reel ? { clip: reel.row.path, music: undefined } : await resolveFillerClip(f, logo, { channelHeight: profile.height, wait: false })
       clip = r.clip
       music = r.music
       if (!clip) {
@@ -163,17 +184,24 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     // back, rather than cutting it mid-note. A hold airs its ident in 30s
     // chunks, so it's left alone: fading each chunk would dip every 30s.
     const hold = item.id < 0
-    const audioFadeInSec = !hold && offset < 0.25 ? Math.min(0.5, segDur / 4) : 0
-    const audioFadeOutSec = hold ? 0 : Math.min(1.5, segDur / 3)
-    if (clip && segDur > 0.3) {
-      seg = { filePath: clip, offsetSec: 0, loop: true, durationSec: segDur, hasAudio: true, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec, audioFadeOutSec, hwDecode: fillerHw }
+    const audioFadeInSec = !hold && offset < 0.25 ? Math.min(0.5, fillDur / 4) : 0
+    const audioFadeOutSec = hold ? 0 : Math.min(1.5, fillDur / 3)
+    if (reel && fillDur > 0.3) {
+      // A clip from the reel, from where the break is in it: its own picture
+      // and sound, cut hard to the next one the way a tape break was.
+      const r = reel.row
+      seg = { filePath: r.path, offsetSec: reel.into, loop: false, durationSec: fillDur, hasAudio: r.hasAudio, logo, wmEpochSec, mediaWidth: r.width ?? FILLER_W, mediaHeight: r.height ?? FILLER_H, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0 }
+    } else if (clip && fillDur > 0.3) {
+      seg = { filePath: clip, offsetSec: 0, loop: true, durationSec: fillDur, hasAudio: true, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec, audioFadeOutSec, hwDecode: fillerHw }
     }
-    label = `filler (${Math.round(segDur)}s)${music ? ' +music' : ''}${src}${standIn}`
+    label = reel
+      ? `break reel “${reel.name}”: ${path.basename(reel.row.path)} (${Math.round(fillDur)}s)${src}`
+      : `filler (${Math.round(fillDur)}s)${music ? ' +music' : ''}${src}${standIn}`
     if (!clip) log('error', 'stream', `Channel ${channelNumber}: no filler clip — a ${Math.round(segDur)}s gap will play black`, undefined, tag)
-  } else if (fs.existsSync(mi.path) && offset >= (mi.durationSec ?? Infinity) - 0.2) {
+  } else if (fs.existsSync(mi.path) && seek >= (mi.durationSec ?? Infinity) - 0.2) {
     // The file is shorter than the slot it was given. Seeking past its end would
     // produce nothing, so fill the rest of the slot with black instead.
-    return { kind: 'black', durSec: Math.min(segDur, 10), why: `${mi.title} ran out ${offset.toFixed(1)}s in (file shorter than its slot)`, label: mi.title }
+    return { kind: 'black', durSec: Math.min(segDur, 10), why: `${mi.title} ran out ${seek.toFixed(1)}s in (file shorter than its slot)`, label: mi.title }
   } else if (fs.existsSync(mi.path)) {
     // Only anamorphic sources need correcting, and only a constrained watermark
     // cares — skip the probe otherwise.
@@ -186,7 +214,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     const audioLanguage = effectiveAudioLanguage(channel.audioLanguage, await globalAudioLanguage())
     const audioTrack =
       audioLanguage && mi.audioCodec ? pickAudioTrack(await probeAudioLangs(mi.path), audioLanguage) : 0
-    seg = { filePath: mi.path, offsetSec: offset, loop: false, durationSec: segDur, hasAudio: !!mi.audioCodec, logo, wmEpochSec, mediaWidth: dispW, mediaHeight: mi.height ?? FILLER_H, isFiller: false, fadeInSec, fadeOutSec, hwDecode, hasSubtitles, audioTrack }
+    seg = { filePath: mi.path, offsetSec: seek, loop: false, durationSec: segDur, hasAudio: !!mi.audioCodec, logo, wmEpochSec, mediaWidth: dispW, mediaHeight: mi.height ?? FILLER_H, isFiller: false, fadeInSec, fadeOutSec, hwDecode, hasSubtitles, audioTrack }
     label = programLabel(mi, { withTitle: true })
   } else {
     log('warn', 'stream', `Channel ${channelNumber}: media file missing, skipping`, mi.path, tag)
@@ -280,5 +308,5 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   }
 
   const captionFiles = cardFiles
-  return { kind: 'encode', args, label, captionFiles, hwDecode: seg.hwDecode ?? false, mediaWidth: seg.mediaWidth, mediaHeight: seg.mediaHeight, wmDesc }
+  return { kind: 'encode', args, label, captionFiles, hwDecode: seg.hwDecode ?? false, mediaWidth: seg.mediaWidth, mediaHeight: seg.mediaHeight, wmDesc, durSec: seg.durationSec ?? segDur }
 }

@@ -11,6 +11,7 @@ import {
   warmFiller,
 } from '../streaming/filler.js'
 import { IdentLook, IdentOrder, IdentPlacement, type Ident, type Stored } from '../contract/index.js'
+import { reelScanning, scanReelLater } from '../streaming/reel.js'
 
 // Idents — what a channel airs during a break (the Breaks tab). Each belongs to
 // one channel. Where it plays is its assignments: a channel-level row is
@@ -49,12 +50,13 @@ type Look = IdentLook
 const IDENT_INCLUDE = {
   assignments: { select: { channelId: true, timeBlockId: true } },
   channel: { select: { id: true, name: true, number: true } },
+  clips: { select: { durationSec: true } },
 } satisfies Prisma.FillerInclude
 
 type IdentRow = Prisma.FillerGetPayload<{ include: typeof IDENT_INCLUDE }>
 
 // An ident as the API returns it: its look, where it plays, and whose it is.
-function shape({ assignments, channel, ...f }: IdentRow, readiness?: { ready: boolean; building: boolean }) {
+function shape({ assignments, channel, clips, ...f }: IdentRow, readiness?: { ready: boolean; building: boolean }) {
   const blockIds = assignments.filter((a) => a.timeBlockId != null).map((a) => a.timeBlockId as number)
   const plays: Plays = assignments.some((a) => a.channelId != null) ? 'any' : blockIds.length ? 'blocks' : 'none'
   return {
@@ -68,6 +70,11 @@ function shape({ assignments, channel, ...f }: IdentRow, readiness?: { ready: bo
     logoId: f.logoId,
     logoScale: f.logoScale,
     divider: f.divider,
+    reelFolder: f.reelFolder,
+    reel:
+      f.style === 'reel'
+        ? { clips: clips.length, seconds: clips.reduce((a, c) => a + c.durationSec, 0), scanning: reelScanning(f.id) }
+        : null,
     order: f.order,
     plays,
     blockIds,
@@ -118,6 +125,15 @@ async function checkLook(look: Look): Promise<void> {
   if (look.style === 'custom') {
     const clip = look.assetId != null ? await prisma.asset.findUnique({ where: { id: look.assetId } }) : null
     if (!clip || clip.kind !== 'filler') throw new Refused(400, 'Pick a clip for it, or choose a generated look.')
+  }
+  if (look.style === 'reel') {
+    let folder = false
+    try {
+      folder = !!look.reelFolder && fs.statSync(look.reelFolder).isDirectory()
+    } catch {
+      /* not there */
+    }
+    if (!folder) throw new Refused(400, 'Pick the folder its clips are in.')
   }
 }
 
@@ -232,6 +248,7 @@ fillersRouter.post(
       await writePlacement(tx, f.id, channelId, where)
       return f
     })
+    if (f.reelFolder) scanReelLater(f.id, f.reelFolder)
     warmFiller().catch(() => {})
     res.status(201).json(shape((await loadIdent(f.id))!))
   }),
@@ -262,6 +279,8 @@ fillersRouter.patch(
       await tx.filler.update({ where: { id }, data: look })
       await writePlacement(tx, id, channelId, where)
     })
+    if (look.reelFolder && look.reelFolder !== before.reelFolder) scanReelLater(id, look.reelFolder)
+    if (!look.reelFolder && before.reelFolder) await prisma.reelClip.deleteMany({ where: { fillerId: id } })
     warmFiller().catch(() => {})
     res.json(shape((await loadIdent(id))!))
   }),
@@ -295,14 +314,28 @@ fillersRouter.post(
           logoId: same ? src.logoId : null,
           logoScale: src.logoScale,
           divider: src.divider,
+          reelFolder: src.reelFolder,
           order,
         },
       })
       await writePlacement(tx, f.id, channelId, same ? original : { plays: 'any', blockIds: [] })
       return f
     })
+    if (f.reelFolder) scanReelLater(f.id, f.reelFolder)
     warmFiller().catch(() => {})
     res.status(201).json(shape((await loadIdent(f.id))!))
+  }),
+)
+
+// POST /api/fillers/:id/rescan -> look through a break reel's folder again
+// (clips added or taken away since).
+fillersRouter.post(
+  '/:id/rescan',
+  handle(async (req, res) => {
+    const f = await prisma.filler.findUnique({ where: { id: Number(req.params.id) } })
+    if (!f?.reelFolder) throw new Refused(404, 'Not a break reel')
+    scanReelLater(f.id, f.reelFolder)
+    res.json(shape((await loadIdent(f.id))!))
   }),
 )
 

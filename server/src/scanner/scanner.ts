@@ -4,6 +4,7 @@ import { prisma } from '../db.js'
 import { ffprobe } from '../ffprobe.js'
 import { parseMedia, type LibraryKind } from './parse.js'
 import { detectArtwork } from './artwork.js'
+import { walk } from './walk.js'
 import { log } from '../logs.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
@@ -11,10 +12,6 @@ import type { ScanStatus } from '../contract/index.js'
 
 type DirCache = Map<string, string[] | null>
 
-const VIDEO_EXTS = new Set([
-  '.mkv', '.mp4', '.m4v', '.avi', '.mov', '.ts', '.m2ts',
-  '.wmv', '.flv', '.webm', '.mpg', '.mpeg',
-])
 
 const PROBE_CONCURRENCY = 4
 
@@ -45,26 +42,6 @@ export function getScanStatus(): ScanStatus {
 
 export function isScanning(): boolean {
   return status.running
-}
-
-/** Recursively collect all video file paths under a directory. */
-async function walk(dir: string): Promise<string[]> {
-  const out: string[] = []
-  let entries: import('node:fs').Dirent[]
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      out.push(...(await walk(full)))
-    } else if (entry.isFile() && VIDEO_EXTS.has(path.extname(entry.name).toLowerCase())) {
-      out.push(full)
-    }
-  }
-  return out
 }
 
 /** What one scan pass learns beyond each file's own row. */
@@ -183,6 +160,8 @@ async function processFile(
     sizeBytes: stat.size,
     mtimeMs,
     missing: false,
+    // A changed file's act breaks are looked for again.
+    ...(unchanged ? {} : { breaks: null, breaksSource: null, breaksCheckedAt: null }),
   }
 
   if (moved) {

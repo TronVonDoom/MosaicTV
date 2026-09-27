@@ -77,3 +77,27 @@ test('the worst outcome wins, and nobody watching is not a problem', () => {
   assert.equal(worstStreamed(['ok', 'held: x', 'held: x']), 'held: x')
   assert.equal(worstStreamed([null, null]), null)
 })
+
+test('a program split at its act breaks is archived, listed and counted as one airing', async () => {
+  const at = T0 + 24 * 60 * MIN
+  const key = `${ch.id}:${at}`
+  const act = (from: number, to: number, kind: string, inPoint: number | null, groupKey: string | null, streamed: string | null = null) =>
+    prisma.playoutItem.create({
+      data: { channelId: ch.id, kind, mediaItemId: kind === 'program' ? e4.id : null, inPoint, groupKey, streamed, startTime: new Date(at + from * MIN), stopTime: new Date(at + to * MIN) },
+    })
+  await act(0, 4, 'program', null, key, 'ok')
+  await act(4, 6, 'filler', null, key)
+  await act(6, 11, 'program', 240, key, 'held: stalled')
+  await act(11, 13, 'filler', null, null)
+  // Before it's archived, history already reads it as one program.
+  const before = await airedHistory(ch.id, new Date(at), new Date(at + 20 * MIN), new Date(at + 15 * MIN))
+  assert.deepEqual(before.map((p) => [p.parts, p.stopTime.getTime() - p.startTime.getTime(), p.streamed]), [[1, 11 * MIN, 'held: stalled']])
+  const counted = (await episodesAired([e4.id], new Date(at + 15 * MIN)))[e4.id].count
+  await archivePlayout(ch.id, at + 3 * 60 * MIN)
+  const rows = await prisma.aired.findMany({ where: { groupKey: key } })
+  assert.equal(rows.length, 1, 'one aired row for the two acts')
+  const row = rows[0]
+  assert.equal(row.streamed, 'held: stalled')
+  assert.equal(row.stopTime.getTime() - row.startTime.getTime(), 11 * MIN)
+  assert.equal((await episodesAired([e4.id], new Date(at + 4 * 60 * MIN)))[e4.id].count, counted)
+})

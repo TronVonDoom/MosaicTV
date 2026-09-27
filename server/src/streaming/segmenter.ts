@@ -138,6 +138,7 @@ function identItem(channelId: number, startMs: number, stopMs: number): PlayoutI
     groupKey: null,
     state: null,
     streamed: null,
+    inPoint: null,
     mediaItem: null,
   }
 }
@@ -440,8 +441,11 @@ class ChannelSegmenter {
     // It exited cleanly well short of its slot (or with nothing at all): the
     // file is shorter than the slot. Hold the remainder so the next program
     // still starts on time, instead of re-attempting an instant-EOF program.
-    if (res.encodedSec < 0.5 || res.encodedSec < segDur - EARLY_EXIT_MARGIN_SEC) {
-      const short = Math.round(segDur - res.encodedSec)
+    // (A break reel's clip is meant to end before the slot does: measure it
+    // against its own length.)
+    const meant = built.durSec
+    if (res.encodedSec < 0.5 || res.encodedSec < meant - EARLY_EXIT_MARGIN_SEC) {
+      const short = Math.round(meant - res.encodedSec)
       this.attempts.set(item.id, { stopMs, cpu: attempt?.cpu ?? false, hold: `${built.label} ended ${short}s early` })
       if (short > 1) log('info', 'stream', `Ch ${this.n}: ${built.label} ended ${short}s before its slot — holding to stay on schedule`, undefined, this.tag)
       if (short > 1) void noteStreamed(item, `held: the file ended ${short}s before its slot`)

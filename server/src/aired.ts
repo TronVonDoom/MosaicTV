@@ -38,6 +38,22 @@ function groups<T extends { groupKey: string | null }>(rows: T[]): T[][] {
   return out
 }
 
+/**
+ * A program split at its act breaks airs as several rows of one file, with
+ * breaks between: fold those back into one row, from its first act's start to
+ * its last one's end. `rows` are programs only, in start order.
+ */
+export function joinActs<T extends { groupKey: string | null; mediaItemId: number | null; stopTime: Date; streamed: string | null }>(rows: T[]): T[] {
+  const out: T[] = []
+  for (const r of rows) {
+    const last = out[out.length - 1]
+    if (last && r.groupKey && last.groupKey === r.groupKey && r.mediaItemId != null && last.mediaItemId === r.mediaItemId) {
+      out[out.length - 1] = { ...last, stopTime: r.stopTime, streamed: worstStreamed([last.streamed, r.streamed]) }
+    } else out.push(r)
+  }
+  return out
+}
+
 const MEDIA = { select: { title: true, showTitle: true, showId: true, season: true, episode: true, type: true, year: true, artist: true } } as const
 
 /**
@@ -62,7 +78,7 @@ export async function archivePlayout(channelId: number, now = Date.now()): Promi
     if (more > 0) units.pop()
   }
   const done = units.flat()
-  const programs = done.filter((r) => r.kind === 'program')
+  const programs = joinActs(done.filter((r) => r.kind === 'program'))
   await prisma.$transaction([
     prisma.aired.createMany({
       data: programs.map((r) => ({
@@ -114,7 +130,7 @@ export async function airedHistory(channelId: number, from: Date, to: Date, now 
       include: { mediaItem: MEDIA },
     }),
   ])
-  const rows = [
+  const rows = joinActs([
     ...archived.map((a) => ({ ...a, live: false })),
     ...recent.map((r) => ({
       channelId,
@@ -127,7 +143,7 @@ export async function airedHistory(channelId: number, from: Date, to: Date, now 
       streamed: r.streamed,
       live: r.stopTime > now,
     })),
-  ].sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+  ].sort((a, b) => a.startTime.getTime() - b.startTime.getTime()))
   return groups(rows)
     .map((u) => {
       const first = u[0]
@@ -160,13 +176,22 @@ export async function episodesAired(mediaItemIds: number[], now = new Date()): P
     }),
     prisma.playoutItem.findMany({
       where: { mediaItemId: { in: mediaItemIds }, kind: 'program', startTime: { lte: now } },
-      select: { mediaItemId: true, channelId: true, startTime: true },
+      select: { mediaItemId: true, channelId: true, startTime: true, groupKey: true },
     }),
     prisma.channel.findMany({ select: { id: true, name: true, number: true } }),
   ])
   const byId = new Map(channels.map((c) => [c.id, c]))
   const out: Record<number, EpisodeAired> = {}
-  for (const r of [...archived, ...recent]) {
+  // Every act of a split program is a row; it aired once.
+  const seenActs = new Set<string>()
+  const oncePerAiring = recent.filter((r) => {
+    if (!r.groupKey) return true
+    const key = `${r.groupKey}|${r.mediaItemId}`
+    if (seenActs.has(key)) return false
+    seenActs.add(key)
+    return true
+  })
+  for (const r of [...archived, ...oncePerAiring]) {
     if (r.mediaItemId == null) continue
     const e = (out[r.mediaItemId] ??= { count: 0, lastAt: r.startTime, channelName: null, channelNumber: null })
     e.count++

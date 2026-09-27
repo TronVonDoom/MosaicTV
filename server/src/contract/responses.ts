@@ -377,6 +377,8 @@ export type TimeBlock = {
   comingUp: string | null
   /** Its own broadcast clock in minutes; null = the channel's, 0 = off. */
   grid: number | null
+  /** Breaks inside programs here; null = the channel's setting. */
+  actBreaks: boolean | null
   collection: { id: number; name: string; defaultOrder: PlaybackOrder; logoId?: number | null }
 }
 
@@ -412,6 +414,8 @@ export type ChannelDetail = {
   logoOnBreaks: boolean
   /** The broadcast clock in minutes (0 = off). */
   grid: number
+  /** Breaks inside programs (on a clock): a program's break time split across its act breaks. */
+  actBreaks: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }
@@ -455,6 +459,8 @@ export type AiredProgram = {
   /** Still on the air. */
   onAir: boolean
 }
+/** How far a channel's act-break search has got through what it plays. */
+export type ActBreakProgress = { total: number; checked: number; withBreaks: number }
 export type AiredHistory = { from: Date; to: Date; programs: AiredProgram[] }
 
 /** How often a file has aired in the kept history, and where it last did. */
@@ -504,6 +510,9 @@ export type Ident = {
   logoScale: number
   /** Frosted glass: a divider between the two halves. */
   divider: boolean
+  /** A break reel's folder of clips, and what's in it (null for other styles). */
+  reelFolder: string | null
+  reel: { clips: number; seconds: number; scanning: boolean } | null
   order: number
   plays: IdentPlays
   blockIds: number[]

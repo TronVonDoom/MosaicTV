@@ -8,6 +8,7 @@ import {
   type ComingUpConfig,
   type FillerMode,
   type GridMinutes,
+  type ActBreakProgress,
   type Ident,
   type OrderSetting,
   type RotationMode,
@@ -56,6 +57,8 @@ type BlockForm = {
   comingUp: ComingUpConfig | null
   /** Its own broadcast clock; null = the channel's. */
   grid: number | null
+  /** Breaks inside programs here; null = the channel's setting. */
+  actBreaks: boolean | null
 }
 
 const emptyBlock = (): BlockForm => ({
@@ -70,6 +73,7 @@ const emptyBlock = (): BlockForm => ({
   fillerMode: 'none',
   comingUp: null,
   grid: null,
+  actBreaks: null,
 })
 
 // How a block's leftover time airs, and what its start does — the "when" of
@@ -182,6 +186,7 @@ export default function ScheduleTab({
       fillerMode: b.fillerMode || 'none',
       comingUp: parseComingUp(b.comingUp),
       grid: b.grid ?? null,
+      actBreaks: b.actBreaks ?? null,
     })
   }
 
@@ -223,6 +228,7 @@ export default function ScheduleTab({
       fillerMode: blk.fillerMode,
       comingUp: blk.comingUp,
       grid: blk.grid,
+      actBreaks: blk.actBreaks,
     }
     await guard(
       () =>
@@ -246,6 +252,28 @@ export default function ScheduleTab({
 
   const blockClock = blk.grid ?? ch.grid
 
+  // How far the search for act breaks has got, while it's on anywhere here.
+  const actsAnywhere = ch.actBreaks || ch.timeBlocks.some((b) => b.actBreaks)
+  const [actProgress, setActProgress] = useState<ActBreakProgress | null>(null)
+  useEffect(() => {
+    if (!actsAnywhere) return setActProgress(null)
+    let stop = false
+    const load = () =>
+      api
+        .actBreakProgress(channelId)
+        .then((p) => {
+          if (stop) return
+          setActProgress(p)
+          if (p.checked < p.total) t = setTimeout(load, 15_000)
+        })
+        .catch(() => {})
+    let t = setTimeout(load, 0)
+    return () => {
+      stop = true
+      clearTimeout(t)
+    }
+  }, [channelId, actsAnywhere])
+
   return (
     <div className="space-y-6">
       {/* ---- Broadcast clock ---- */}
@@ -263,13 +291,39 @@ export default function ScheduleTab({
               </InfoHint>
             </p>
           </div>
+          <div className="flex flex-col items-end gap-3">
           <Segmented
             size="sm"
             value={String(ch.grid)}
             onChange={(v) => guard(() => api.updateChannel(channelId, { grid: Number(v) as GridMinutes }), 'Clock saved — the guide follows from the next program')}
             options={CLOCK_OPTIONS.map((o) => ({ ...o }))}
           />
+          </div>
         </div>
+        <label className={cx('mt-4 flex items-start gap-2.5 border-t border-edge pt-4 select-none', !ch.grid && 'opacity-60')}>
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={ch.actBreaks}
+            disabled={!ch.grid}
+            onChange={(e) => guard(() => api.updateChannel(channelId, { actBreaks: e.target.checked }), 'Saved — the guide follows from the next program')}
+          />
+          <span className="min-w-0">
+            <span className="text-sm text-ink">Breaks inside programs</span>
+            <span className="block text-xs text-ink-faint leading-snug mt-0.5">
+              {ch.grid
+                ? 'Share each slot’s break time out across the program’s act breaks — the points it cut to commercial when it aired — with the last of it after. Multi-part episodes break between their parts.'
+                : 'Needs the broadcast clock: it shares out the break time each slot leaves.'}
+              {actProgress && actProgress.total > 0 && (
+                <span className="block mt-1 text-ink-muted">
+                  {actProgress.checked < actProgress.total
+                    ? `Looking for act breaks: ${actProgress.checked} of ${actProgress.total} programs so far, found in ${actProgress.withBreaks}.`
+                    : `Act breaks found in ${actProgress.withBreaks} of ${actProgress.total} programs; the rest break after.`}
+                </span>
+              )}
+            </span>
+          </span>
+        </label>
       </Card>
 
       {/* ---- Rotation ---- */}
@@ -394,6 +448,7 @@ export default function ScheduleTab({
                   {b.fillerMode === 'between' && ' · breaks between programs'}
                   {b.comingUp && ' · up-next'}
                   {b.grid != null && b.grid !== ch.grid && ` · ${clockName(b.grid)}`}
+                  {b.actBreaks != null && b.actBreaks !== ch.actBreaks && (b.actBreaks ? ' · breaks inside programs' : ' · breaks after programs')}
                 </div>
               </div>
               <button
@@ -496,6 +551,19 @@ export default function ScheduleTab({
                   ))}
                 </Select>
               </div>
+              {blockClock > 0 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="text-[12.5px] font-medium text-ink-soft">Breaks inside programs</div>
+                  <Select
+                    value={blk.actBreaks == null ? 'channel' : blk.actBreaks ? 'on' : 'off'}
+                    onChange={(e) => setBlk({ ...blk, actBreaks: e.target.value === 'channel' ? null : e.target.value === 'on' })}
+                  >
+                    <option value="channel">The channel's ({ch.actBreaks ? 'on' : 'off'})</option>
+                    <option value="on">On in this block</option>
+                    <option value="off">Off in this block</option>
+                  </Select>
+                </div>
+              )}
             </div>
             {(() => {
               const current = editingBlock != null ? ch.timeBlocks.find((b) => b.id === editingBlock) ?? null : null

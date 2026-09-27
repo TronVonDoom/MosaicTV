@@ -12,6 +12,7 @@ import { assetsDir, dataDir, logosDir, previewsDir } from '../paths.js'
 import { log } from '../logs.js'
 import { runFfmpeg, type ProgressCb } from './run.js'
 import { localLogo, logoFileById, logoFor } from './logo.js'
+import { reelClips } from './reel.js'
 import { resolveProfile } from './profile.js'
 
 export type { ProgressCb }
@@ -777,6 +778,20 @@ export type FillerClip = { clip?: string; music?: string }
 const identName = (f: FillerRow) => f.name?.trim() || `${f.style} ident`
 
 /**
+ * The generated look an ident is drawn in. A break reel airs its clips, and the
+ * part of a break they don't fill (and any stand-in or thumbnail it needs) is
+ * the frosted glass.
+ */
+const lookOf = (style: string): string => (style === 'reel' ? 'frosted' : style)
+
+/** A clip to show for a reel on its own: its first. */
+async function reelCover(f: FillerRow): Promise<string | undefined> {
+  if (f.style !== 'reel' || !f.id) return undefined
+  const first = (await reelClips(f.id))[0]
+  return first && fs.existsSync(first.path) ? first.path : undefined
+}
+
+/**
  * What an ident airs as for a given logo and channel size: its upload (a custom
  * clip), or the generated clip it's built into. A pinned logo (`logoId`) wins
  * over `logoFile`, the logo on air where the break falls. `plan` is null when
@@ -790,7 +805,7 @@ async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight
     return { plan: null, dims }
   }
   if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-  const plan = planClip(f.style, f.id, logoFile, dims, f.logoScale, f.divider)
+  const plan = planClip(lookOf(f.style), f.id, logoFile, dims, f.logoScale, f.divider)
   if (plan) {
     plan.title = `“${identName(f)}”`
     plan.channelId = f.channelId ?? null
@@ -828,7 +843,7 @@ export async function resolveFillerClip(
 
 /** An ident's generated look, falling back to the animated one it airs as when its style can't be drawn. */
 function buildFor(f: FillerRow, logoFile: string | undefined, dims: Dims): { build: StyleBuild; loop: number } {
-  const style = f.style === 'custom' ? 'animated' : f.style
+  const style = f.style === 'custom' ? 'animated' : lookOf(f.style)
   const loop = loopSecFor(style, dims)
   const build = buildStyle(style, dims, loop, clampScale(f.logoScale), logoFile, mosaictvLogoFile(), f.divider)
   return build ? { build, loop } : { build: animatedBuild(dims, LOOP_SEC), loop: LOOP_SEC }
@@ -863,10 +878,10 @@ const stills = new Map<string, Promise<string>>()
 export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise<string> {
   let { logoFile } = await previewSetting(ctx)
   if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-  const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : undefined
+  const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : await reelCover(f)
   // A thumbnail needn't be sharper than 720p, however big the channel.
   const dims = dimsFor('720p')
-  const plan = upload ? null : planClip(f.style === 'custom' ? 'animated' : f.style, 0, logoFile, dims, f.logoScale, f.divider)
+  const plan = upload ? null : planClip(f.style === 'custom' ? 'animated' : lookOf(f.style), 0, logoFile, dims, f.logoScale, f.divider)
   const key = upload ? `upload:${fileKey(upload)}` : (plan?.key ?? `animated:${dimKey(dims)}`)
   const out = path.join(previewsDir(), `still-${createHash('md5').update(key).digest('hex')}.jpg`)
   let job = stills.get(out)
@@ -913,8 +928,8 @@ export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<str
     if (mine !== previewSeq) throw new PreviewSuperseded()
     let { logoFile } = await previewSetting(ctx)
     if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-    const music = await assetFilePath(f.audioAssetId)
-    const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : undefined
+    const music = f.style === 'reel' ? undefined : await assetFilePath(f.audioAssetId)
+    const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : await reelCover(f)
     const dims = dimsFor('720p')
     const out = previewFile('mp4')
     const fadeOut = `afade=t=out:st=${PREVIEW_SEC - 1.2}:d=1.2`

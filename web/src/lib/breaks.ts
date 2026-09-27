@@ -125,6 +125,7 @@ export const LOOKS: { id: IdentLook; label: string; desc: string }[] = [
   { id: 'frosted', label: 'Frosted glass', desc: 'Your logo in front of frosted glass, logos gliding behind.' },
   { id: 'spotlight', label: 'Spotlight', desc: 'A lit glass card with a sweeping gleam.' },
   { id: 'custom', label: 'Your own clip', desc: 'A video you upload, looped for the break.' },
+  { id: 'reel', label: 'Clips from a folder', desc: 'Bumpers, promos, old commercials — each break a new mix of them.' },
 ]
 
 // Retired looks older idents may still carry: they still air, and show here by name.

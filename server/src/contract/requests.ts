@@ -85,6 +85,7 @@ export const ChannelUpdate = z.object({
   audioLanguage: textOrNull.optional(),
   logoOnBreaks: flag.optional(),
   grid: loose.transform(asGrid).optional(),
+  actBreaks: flag.optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 
@@ -108,6 +109,8 @@ const blockLook = {
   comingUp,
   // null (or missing) = the channel's clock.
   grid: loose.transform((v): number | null => (v == null || v === '' ? null : asGrid(v))),
+  // null (or missing) = the channel's setting.
+  actBreaks: loose.transform((v): boolean | null => (v == null || v === '' ? null : v === true || v === 'true' || v === 1 || v === '1')),
 }
 const sameStartEnd = (b: { startMinute?: number; endMinute?: number }) =>
   b.startMinute == null || b.endMinute == null || b.startMinute !== b.endMinute
@@ -142,6 +145,7 @@ export const BlockUpdate = z
     startMode: blockLook.startMode.optional(),
     comingUp: blockLook.comingUp.optional(),
     grid: blockLook.grid.optional(),
+    actBreaks: blockLook.actBreaks.optional(),
   })
   .refine(sameStartEnd, SAME_START_END)
 export type BlockUpdate = z.output<typeof BlockUpdate>
@@ -276,8 +280,13 @@ export const IdentLook = z
       return Math.max(0.4, Math.min(2, Number.isFinite(n) ? n : 1))
     }),
     divider: flag,
+    reelFolder: textOrNull,
   })
-  .transform((b) => ({ ...b, assetId: b.style === 'custom' && present(b.assetId) ? Number(b.assetId) : null }))
+  .transform((b) => ({
+    ...b,
+    assetId: b.style === 'custom' && present(b.assetId) ? Number(b.assetId) : null,
+    reelFolder: b.style === 'reel' && b.reelFolder ? b.reelFolder.trim() : null,
+  }))
 export type IdentLook = z.output<typeof IdentLook>
 
 /** Where an ident plays (checked against the channel's blocks by the route). */

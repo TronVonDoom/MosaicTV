@@ -68,6 +68,7 @@ setSegmenterDeps({
       mediaWidth: 1280,
       mediaHeight: 720,
       wmDesc: 'fake',
+      durSec: p.segDur,
     }
   },
 })

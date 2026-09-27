@@ -54,7 +54,7 @@ export type MediaType = (typeof MEDIA_TYPES)[number]
 
 /** An ident's look: a generated style, or `custom` (an uploaded clip). The
  *  rest are retired styles older idents may still carry. */
-export const IDENT_STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'logowall', 'pulse', 'retro', 'vintage'] as const
+export const IDENT_STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const
 export type IdentStyle = (typeof IDENT_STYLES)[number]
 
 /** Where an ident plays: everywhere else on its channel, only during some of

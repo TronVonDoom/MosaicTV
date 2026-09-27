@@ -149,6 +149,9 @@ function nextBlockBoundary(
  */
 export const GRID_SLACK_MS = 60_000
 
+/** The shortest break worth cutting away from a program for. */
+export const MIN_POD_MS = 45_000
+
 /**
  * Where a program ending at `endMs` hands over on a `gridMin`-minute
  * broadcast clock: the next line at or after it (in local time: :00 and :30 on
@@ -260,11 +263,14 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     stopTime: Date
     groupKey: string | null
     state: string | null
+    inPoint: number | null
   }[] = []
-  const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null, state: string | null) =>
-    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state })
-  const pushFiller = (start: Date, stop: Date) =>
-    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey: null, state: null })
+  const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null, state: string | null, inPoint: number | null = null) =>
+    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state, inPoint })
+  // A break. One inside a program (between its acts) carries the program's
+  // groupKey, so the guide shows the program as one entry across it.
+  const pushFiller = (start: Date, stop: Date, groupKey: string | null = null) =>
+    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null })
 
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
@@ -307,6 +313,89 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     }
     return c
   }
+
+  // ── Breaks inside programs ─────────────────────────────────────────────────
+  // With a clock, the break time a program leaves in its slot can be shared out
+  // across its act breaks — a pod at each and one at the end — the way it aired
+  // with commercials, instead of all coming after it.
+  const actsOf = (block: TimeBlock | null): boolean => (block?.actBreaks ?? channel.actBreaks) && gridOf(block) > 0
+  // Where a unit can cut away, in ms from its start: between a broadcast
+  // episode's segments, or at a single file's act breaks.
+  const cutPoints = (u: ProgramUnit): number[] => {
+    if (u.length > 1) {
+      const out: number[] = []
+      let t = 0
+      for (const seg of u.slice(0, -1)) out.push((t += Math.round((seg.durationSec ?? 0) * 1000)))
+      return out.filter((x) => x > 0)
+    }
+    const m = u[0]
+    const dur = (m.durationSec ?? 0) * 1000
+    try {
+      const pts = JSON.parse(m.breaks ?? '[]') as unknown
+      if (!Array.isArray(pts)) return []
+      return pts.map((p) => Math.round(Number(p) * 1000)).filter((p) => p > 30_000 && p < dur - 30_000)
+    } catch {
+      return []
+    }
+  }
+  // Where the slot of a unit ending at `endMs` ends: the clock's next line, but
+  // never past an exact-time block's start (or `limitMs`).
+  const slotEnd = (endMs: number, grid: number, limitMs = Infinity): number => {
+    if (!grid) return endMs
+    const line = Math.min(nextGridLine(endMs, grid), limitMs)
+    const b = nextBlockBoundary(channel.timeBlocks, new Date(endMs - 1), new Date(line))
+    return b && b.block.startMode === 'hard' ? Math.min(line, Math.max(endMs, b.start.getTime())) : line
+  }
+  /**
+   * Lay out a unit from `startMs` in a slot ending at `slotEndMs`: the program,
+   * then the rest of the slot as a break — or, with `acts`, that break time
+   * shared evenly between a pod at each act break and one at the end. Each pod
+   * is at least MIN_POD_MS; with too little time to go round, fewer act breaks
+   * (spread through the program) are used. Returns where the slot ends.
+   */
+  const layUnit = (u: ProgramUnit, startMs: number, cp: string, slotEndMs: number, acts: boolean): number => {
+    const end = startMs + unitDuration(u) * 1000
+    const spare = slotEndMs - end
+    const cuts = acts ? cutPoints(u) : []
+    const n = Math.min(cuts.length, Math.floor(spare / MIN_POD_MS) - 1)
+    if (n <= 0) {
+      const stop = pushUnit(u, startMs, cp)
+      if (slotEndMs - stop > 500) pushFiller(new Date(stop), new Date(slotEndMs))
+      return Math.max(stop, slotEndMs)
+    }
+    // n of the cut points, spread through the program.
+    const chosen = Array.from({ length: n }, (_, i) => cuts[Math.round(((i + 1) * (cuts.length + 1)) / (n + 1)) - 1])
+    const pod = spare / (n + 1)
+    const groupKey = `${channelId}:${startMs}`
+    let wall = startMs
+    let unitT = 0 // ms of program laid out so far
+    let k = 0
+    let first = true
+    for (const seg of u) {
+      const sdur = Math.round((seg.durationSec ?? 0) * 1000)
+      let at = 0 // ms into this file
+      while (at < sdur) {
+        const cutAt = k < chosen.length ? chosen[k] - unitT + at : Infinity
+        const to = Math.min(sdur, cutAt)
+        if (to > at) {
+          pushProgram(seg.id, new Date(wall), new Date(wall + (to - at)), groupKey, first ? cp : null, at > 0 ? at / 1000 : null)
+          first = false
+        }
+        wall += to - at
+        unitT += to - at
+        at = to
+        if (k < chosen.length && unitT >= chosen[k]) {
+          pushFiller(new Date(wall), new Date(wall + pod), groupKey)
+          wall += pod
+          k++
+        }
+      }
+    }
+    // The last pod, after the program: outside its entry in the guide.
+    if (slotEndMs - wall > 500) pushFiller(new Date(wall), new Date(slotEndMs))
+    return slotEndMs
+  }
+
   let iterations = 0
   let stall = 0
   const stallLimit = channel.rotationItems.length + channel.timeBlocks.length + 3
@@ -333,9 +422,9 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
         const u = items.at(pos)
         const cp = checkpoint(key, items, pos)
         advance(key, block.collectionId, items, pos + 1)
-        const end = pushUnit(u, cursor.getTime(), cp)
-        if (end > cursor.getTime()) cursor = new Date(end)
-        padToGrid(gridOf(block))
+        const c = cursor.getTime()
+        const end = layUnit(u, c, cp, slotEnd(c + unitDuration(u) * 1000, gridOf(block)), actsOf(block))
+        if (end > c) cursor = new Date(end)
       } else if (gridOf(block)) {
         // On a broadcast clock: program after program, each padded to the next
         // line with a break, as many as start and finish inside the block; the
@@ -354,14 +443,9 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
             continue
           }
           if (c + dur * 1000 > endMs) break
-          c = pushUnit(u, c, checkpoint(key, items, pos))
+          c = layUnit(u, c, checkpoint(key, items, pos), slotEnd(c + dur * 1000, grid, endMs), actsOf(block))
           pos++
           placed++
-          const line = Math.min(nextGridLine(c, grid), endMs)
-          if (line - c > 500) {
-            pushFiller(new Date(c), new Date(line))
-            c = line
-          }
         }
         if (placed === 0) {
           // Nothing fits in what's left of the block: play one anyway (it
@@ -369,8 +453,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
           const u = items.at(pos)
           const cp = checkpoint(key, items, pos)
           advance(key, block.collectionId, items, pos + 1)
-          cursor = new Date(Math.max(pushUnit(u, c, cp), c + 1000))
-          padToGrid(grid)
+          cursor = new Date(Math.max(layUnit(u, c, cp, slotEnd(c + unitDuration(u) * 1000, grid), actsOf(block)), c + 1000))
         } else {
           advance(key, block.collectionId, items, pos)
           if (endMs - c > 500) pushFiller(new Date(c), blockEnd)
@@ -404,9 +487,9 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
           const u = items.at(pos)
           const cp = checkpoint(key, items, pos)
           advance(key, block.collectionId, items, pos + 1)
-          const end = pushUnit(u, cursor.getTime(), cp)
-          cursor = new Date(Math.max(end, cursor.getTime() + 1000))
-          padToGrid(gridOf(block))
+          const c = cursor.getTime()
+          const end = layUnit(u, c, cp, slotEnd(c + unitDuration(u) * 1000, gridOf(block)), actsOf(block))
+          cursor = new Date(Math.max(end, c + 1000))
         } else {
           advance(key, block.collectionId, items, pos)
           const gapSec = Math.max(0, availSec - used)
@@ -484,8 +567,8 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
           }
           const cp = checkpoint(key, items, pos, { id: ri.id, left: take - k })
           pos++
-          cursor = new Date(pushUnit(u, cursor.getTime(), cp))
-          padToGrid(gridOf(null))
+          const c = cursor.getTime()
+          cursor = new Date(layUnit(u, c, cp, slotEnd(c + dur * 1000, gridOf(null)), actsOf(null)))
           if (cursor >= until) {
             if (k + 1 < take) state.turn = { id: ri.id, left: take - k - 1 }
             break

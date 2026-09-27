@@ -17,6 +17,8 @@ import { errorMessage } from '../lib/errors'
 import { formatDays, minutesToTime } from '../lib/format'
 import Icon from './Icon'
 import LogoPicker from './LogoPicker'
+import DirectoryPicker from './DirectoryPicker'
+import { formatLongDuration } from '../lib/format'
 import { Badge, Banner, Button, Field, Modal, ModalHeader, Segmented, Select, cx } from './ui'
 
 const inputOf = (i: Ident): IdentInput => ({
@@ -28,6 +30,7 @@ const inputOf = (i: Ident): IdentInput => ({
   logoId: i.logoId,
   logoScale: i.logoScale,
   divider: i.divider,
+  reelFolder: i.reelFolder,
   plays: i.plays,
   blockIds: i.blockIds,
 })
@@ -40,6 +43,7 @@ const blankInput = (ch: ChannelDetail, look: IdentLook, idents: Ident[]): IdentI
   logoId: null,
   logoScale: 1,
   divider: false,
+  reelFolder: null,
   plays: 'any',
   blockIds: [],
 })
@@ -96,6 +100,28 @@ export default function IdentEditor({
   const [advanced, setAdvanced] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [pickingFolder, setPickingFolder] = useState(false)
+  // A saved reel's clips, as last scanned (a rescan updates it).
+  const [reel, setReel] = useState(editing?.reel ?? null)
+  const rescan = async () => {
+    if (!editing) return
+    try {
+      setReel((await api.rescanIdent(editing.id)).reel)
+    } catch (e) {
+      setError(errorMessage(e, 'Could not look through the folder'))
+    }
+  }
+  // While a scan runs, check back for what it found.
+  useEffect(() => {
+    if (!editing || !reel?.scanning) return
+    const t = setTimeout(() => {
+      api
+        .idents(ch.id)
+        .then((list) => setReel(list.find((i) => i.id === editing.id)?.reel ?? null))
+        .catch(() => {})
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [editing, reel, ch.id])
 
   useEffect(() => {
     api.assets('filler').then(setClips).catch(() => {})
@@ -122,6 +148,8 @@ export default function IdentEditor({
     ? 'Give it a name.'
     : draft.style === 'custom' && draft.assetId == null
       ? 'Pick or upload a clip.'
+      : draft.style === 'reel' && !draft.reelFolder
+        ? 'Pick the folder its clips are in.'
       : draft.plays === 'blocks' && draft.blockIds.length === 0
         ? 'Pick at least one block.'
         : draft.plays === 'none'
@@ -144,6 +172,8 @@ export default function IdentEditor({
     const ctl = new AbortController()
     for (const l of looks) {
       if (l.id === 'custom' && draft.assetId == null) continue
+      // A reel's card shows its first clip, once it's saved with some.
+      if (l.id === 'reel' && !(editing?.style === 'reel' && reel?.clips)) continue
       const key = stillKey(l.id)
       if (stills[key]) continue
       api
@@ -289,6 +319,8 @@ export default function IdentEditor({
                         <img src={still} alt="" className="h-full w-full object-cover" />
                       ) : l.id === 'custom' ? (
                         <Icon name="clip" size={22} className="text-ink-faint" />
+                      ) : l.id === 'reel' ? (
+                        <Icon name="folder" size={22} className="text-ink-faint" />
                       ) : (
                         <span className="skeleton h-full w-full" />
                       )}
@@ -321,6 +353,46 @@ export default function IdentEditor({
                 <p className="w-full text-xs text-ink-faint">It loops for the length of each break. Clips live in Studio → Clips.</p>
               </div>
             )}
+            {draft.style === 'reel' && (
+              <div className="mt-2.5 space-y-2 rounded-xl border border-dashed border-edge-strong p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    readOnly
+                    value={draft.reelFolder ?? ''}
+                    placeholder="No folder yet"
+                    aria-label="Folder"
+                    className="h-9 min-w-48 flex-1 rounded-lg bg-sunken border border-edge-strong px-3 text-sm text-ink-soft placeholder:text-ink-ghost font-mono"
+                  />
+                  <Button variant="secondary" size="sm" icon="folder" onClick={() => setPickingFolder(true)}>
+                    {draft.reelFolder ? 'Change folder' : 'Choose folder'}
+                  </Button>
+                  {editing?.style === 'reel' && draft.reelFolder === editing.reelFolder && (
+                    <Button variant="ghost" size="sm" icon="refresh" onClick={rescan} loading={!!reel?.scanning}>
+                      Look again
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-ink-faint leading-snug">
+                  {editing?.style === 'reel' && draft.reelFolder === editing.reelFolder && reel
+                    ? reel.scanning
+                      ? 'Looking through the folder…'
+                      : `${reel.clips} clip${reel.clips === 1 ? '' : 's'}, ${formatLongDuration(reel.seconds)} in all. `
+                    : 'Its clips are found when you save. '}
+                  Each break plays clips from this folder and the folders inside it, a new mix every time; what they
+                  don't fill is your channel's frosted glass.
+                </p>
+              </div>
+            )}
+            {pickingFolder && (
+              <DirectoryPicker
+                initialPath={draft.reelFolder ?? undefined}
+                onSelect={(p) => {
+                  set('reelFolder', p)
+                  setPickingFolder(false)
+                }}
+                onClose={() => setPickingFolder(false)}
+              />
+            )}
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
@@ -348,6 +420,7 @@ export default function IdentEditor({
             ) : (
               <div />
             )}
+            {draft.style !== 'reel' && (
             <Field
               label="Music"
               hint={
@@ -370,6 +443,7 @@ export default function IdentEditor({
                 ))}
               </Select>
             </Field>
+            )}
           </div>
 
           <div>

@@ -55,6 +55,7 @@ import type {
   CardPosition,
   ComingUpConfig,
   EncodingProfile,
+  ActBreakProgress,
   FsListing,
   GridMinutes,
   Health,
@@ -96,6 +97,7 @@ export type {
   CardPosition,
   ComingUpConfig,
   EncodingProfile,
+  ActBreakProgress,
   FsListing,
   GridMinutes,
   Health,
@@ -416,6 +418,8 @@ export const api = {
   idents: (channelId?: number) => request<Ident[]>(`/api/fillers${channelId != null ? `?channelId=${channelId}` : ''}`),
   addIdent: (channelId: number, data: IdentInput) =>
     request<Ident>('/api/fillers', { method: 'POST', body: JSON.stringify({ ...data, channelId }) }),
+  /** Look through a break reel's folder again. */
+  rescanIdent: (id: number) => request<Ident>(`/api/fillers/${id}/rescan`, { method: 'POST' }),
   updateIdent: (id: number, data: IdentInput) =>
     request<Ident>(`/api/fillers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   /** A copy on `channelId`: everywhere else there, or a duplicate on its own channel. */
@@ -486,6 +490,8 @@ export const api = {
     request<{ ok: boolean; from: string | null }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
   playout: (channelId: number, hours = 24) =>
     request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}`),
+  /** How far the act-break search has got through what the channel plays. */
+  actBreakProgress: (channelId: number) => request<ActBreakProgress>(`/api/channels/${channelId}/act-breaks`),
   /** What the channel aired, newest first, going back `hours`. */
   aired: (channelId: number, hours = 24) => request<AiredHistory>(`/api/channels/${channelId}/aired?hours=${hours}`),
 
