@@ -45,6 +45,31 @@ function prisma(args: string[], url: string, allowFail = false): number {
   return r.status ?? 1
 }
 
+// What a database from before shows had ids must look like once migrated:
+// each query counts rows that break a rule, and must count none.
+const SHOW_INVARIANTS: [string, string][] = [
+  ['an episode title with no show, or the wrong one', `SELECT COUNT(*) AS n FROM "MediaItem" m LEFT JOIN "Show" s ON s."id" = m."showId"
+    WHERE m."showTitle" IS NOT NULL AND (s."id" IS NULL OR s."title" <> m."showTitle" OR s."libraryId" <> m."libraryId")`],
+  ['a broadcast episode with no show', `SELECT COUNT(*) AS n FROM "Airing" a LEFT JOIN "Show" s ON s."id" = a."showId" WHERE s."id" IS NULL`],
+  ['a show pick of a known show that lost it', `SELECT COUNT(*) AS n FROM "CollectionItem" c WHERE c."kind" IN ('show', 'season') AND c."showId" IS NULL
+    AND c."label" IN (SELECT "title" FROM "Show")`],
+  ['a show without its own title as a name', `SELECT COUNT(*) AS n FROM "Show" s
+    WHERE NOT EXISTS (SELECT 1 FROM "ShowName" n WHERE n."showId" = s."id" AND n."name" = s."title")`],
+]
+
+/**
+ * Seeded rows point at each other by position, not meaning; this makes the
+ * links a real library has — a show pick naming a show that has episodes, a
+ * broadcast episode of it — so the show migration has something to map.
+ */
+async function linkShows(db: PrismaClient): Promise<void> {
+  await db.$executeRawUnsafe(`UPDATE "CollectionItem" SET "kind" = 'show', "libraryId" = 1,
+    "showTitle" = (SELECT "showTitle" FROM "MediaItem" WHERE "id" = 1), "label" = (SELECT "showTitle" FROM "MediaItem" WHERE "id" = 1) WHERE "id" = 1`)
+  await db.$executeRawUnsafe(`UPDATE "CollectionItem" SET "kind" = 'season', "libraryId" = NULL, "season" = 1,
+    "showTitle" = (SELECT "showTitle" FROM "MediaItem" WHERE "id" = 2), "label" = (SELECT "showTitle" FROM "MediaItem" WHERE "id" = 2) WHERE "id" = 2`)
+  await db.$executeRawUnsafe(`UPDATE "Airing" SET "libraryId" = 1, "showTitle" = (SELECT "showTitle" FROM "MediaItem" WHERE "id" = 1) WHERE "id" = 1`)
+}
+
 function client(url: string): PrismaClient {
   return new PrismaClient({ datasources: { db: { url } } })
 }
@@ -105,7 +130,7 @@ function migrate(url: string): string {
   return r.stdout
 }
 
-async function rehearse(name: string, prepare: (url: string, dir: string) => Promise<{ flagsSet: boolean } | void>) {
+async function rehearse(name: string, prepare: (url: string, dir: string) => Promise<{ flagsSet: boolean; invariants?: [string, string][] } | void>) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `mosaictv-rehearse-${name}-`))
   const url = urlFor(path.join(dir, 'mosaictv.db'))
   try {
@@ -123,6 +148,12 @@ async function rehearse(name: string, prepare: (url: string, dir: string) => Pro
     for (const t of KEPT) {
       if (before[t] == null) continue
       if ((after[t] ?? 0) < before[t]) throw new Error(`${name}: ${t} lost rows (${before[t]} → ${after[t] ?? 0})`)
+    }
+    for (const [what, sql] of (prep && prep.invariants) || []) {
+      const check = client(url)
+      const [{ n }] = await check.$queryRawUnsafe<{ n: bigint }[]>(sql)
+      await check.$disconnect()
+      if (Number(n) > 0) throw new Error(`${name}: ${n} row(s) with ${what}`)
     }
     if (prep && prep.flagsSet && after.FillerAssignment !== before.FillerAssignment) {
       throw new Error(`${name}: legacy migrations ran on a database whose flags said they already had`)
@@ -161,11 +192,12 @@ async function main() {
         prisma(['db', 'push', '--schema', schema, '--skip-generate'], url)
         const db = client(url)
         await seed(db)
+        await linkShows(db)
         if (flags) {
           for (const key of LEGACY_FLAGS) await db.$executeRawUnsafe(`INSERT INTO "Setting" ("key", "value") VALUES ('${key}', 'rehearsal')`)
         }
         await db.$disconnect()
-        return { flagsSet: flags }
+        return { flagsSet: flags, invariants: SHOW_INVARIANTS }
       })
     }
   }

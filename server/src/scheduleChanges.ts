@@ -35,16 +35,6 @@ export async function scheduleChangedEverywhere(): Promise<void> {
   for (const c of channels) scheduleChanged(c.id)
 }
 
-/** The channels whose collections include any of these shows. */
-export async function channelsAiringShows(titles: string[]): Promise<number[]> {
-  if (titles.length === 0) return []
-  const rows = await prisma.collectionItem.findMany({
-    where: { showTitle: { in: titles }, collection: { channelId: { not: null } } },
-    select: { collection: { select: { channelId: true } } },
-  })
-  return [...new Set(rows.map((r) => r.collection.channelId!))]
-}
-
 async function replanNow(channelId: number): Promise<void> {
   try {
     const hasSchedule =

@@ -121,18 +121,11 @@ const airingInclude = {
 }
 
 /** Airings owned by (filed under) the given shows, with their segments' files. */
-async function airingsForShows(
-  where: { libraryId?: number; showTitle?: string; showTitles?: string[]; season?: number },
-): Promise<AiringWithSegments[]> {
-  const titleClause = where.showTitles
-    ? { showTitle: { in: where.showTitles } }
-    : where.showTitle
-      ? { showTitle: where.showTitle }
-      : {}
+async function airingsForShows(where: { showIds: number[]; season?: number }): Promise<AiringWithSegments[]> {
+  if (where.showIds.length === 0) return []
   return prisma.airing.findMany({
     where: {
-      ...titleClause,
-      ...(where.libraryId ? { libraryId: where.libraryId } : {}),
+      showId: { in: where.showIds },
       ...(where.season != null ? { season: where.season } : {}),
     },
     include: airingInclude,
@@ -164,23 +157,19 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
   const singleById = new Map(singles.map((m) => [m.id, m]))
 
   for (const it of members) {
-    if ((it.kind === 'show' || it.kind === 'season') && it.showTitle) {
+    if ((it.kind === 'show' || it.kind === 'season') && it.showId != null) {
+      const season = it.kind === 'season' && it.season != null ? it.season : undefined
       const eps = await prisma.mediaItem.findMany({
         where: {
           type: 'episode',
           missing: false,
           durationSec: { gt: 0 },
-          showTitle: it.showTitle,
-          ...(it.libraryId ? { libraryId: it.libraryId } : {}),
-          ...(it.kind === 'season' && it.season != null ? { season: it.season } : {}),
+          showId: it.showId,
+          ...(season != null ? { season } : {}),
         },
       })
       if (eps.length === 0) continue
-      const airings = await airingsForShows({
-        showTitle: it.showTitle,
-        ...(it.libraryId ? { libraryId: it.libraryId } : {}),
-        ...(it.kind === 'season' && it.season != null ? { season: it.season } : {}),
-      })
+      const airings = await airingsForShows({ showIds: [it.showId], season })
       for (const u of groupIntoAirings(eps, airings)) out.push(u)
     } else if ((it.kind === 'movie' || it.kind === 'episode') && it.mediaItemId != null) {
       const m = singleById.get(it.mediaItemId)
@@ -190,15 +179,9 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
 
   if (hasFilter(c)) {
     const filtered = await prisma.mediaItem.findMany({ where: collectionWhere(c) })
-    const eps = filtered.filter((m) => m.type === 'episode' && m.showTitle)
-    const others = filtered.filter((m) => !(m.type === 'episode' && m.showTitle))
-    const showTitles = [...new Set(eps.map((e) => e.showTitle as string))]
-    const airings = showTitles.length
-      ? await airingsForShows({
-          showTitles,
-          ...(c.libraryId ? { libraryId: c.libraryId } : {}),
-        })
-      : []
+    const eps = filtered.filter((m) => m.type === 'episode' && m.showId != null)
+    const others = filtered.filter((m) => !(m.type === 'episode' && m.showId != null))
+    const airings = await airingsForShows({ showIds: [...new Set(eps.map((e) => e.showId as number))] })
     // Show by show, A–Z: the filter has no member order of its own, and grouped
     // this way its shows follow the hand-picked ones in a rotation too.
     const units = groupIntoAirings(eps, airings).sort(
@@ -237,10 +220,9 @@ export async function resolveUnits(c: CollectionWithItems): Promise<ProgramUnit[
 export async function collectionCount(c: CollectionWithItems): Promise<number> {
   // One OR'd query covers every show/season member at once.
   const showWhere = c.items
-    .filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showTitle)
+    .filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null)
     .map((i) => ({
-      showTitle: i.showTitle as string,
-      ...(i.libraryId ? { libraryId: i.libraryId } : {}),
+      showId: i.showId as number,
       ...(i.kind === 'season' && i.season != null ? { season: i.season } : {}),
     }))
   const singleIds = c.items
@@ -339,8 +321,13 @@ function byUnit(a: ProgramUnit, b: ProgramUnit): number {
   return byEpisode(a[0], b[0])
 }
 
-/** A show (or the one group all the movies share) and its units in episode order. */
-type ShowGroup = { key: string; units: ProgramUnit[] }
+/**
+ * A show (or the one group all the movies share) and its units in episode
+ * order. `key` names it in a rotation's saved progress; `legacyKey` is what
+ * progress saved before shows had ids called it (by title), adopted on first
+ * use so a rotation carries on across the upgrade.
+ */
+type ShowGroup = { key: string; legacyKey?: string; units: ProgramUnit[] }
 
 /**
  * Split units into per-show groups, each internally in episode order. Units
@@ -354,14 +341,15 @@ type ShowGroup = { key: string; units: ProgramUnit[] }
  * order the user arranges is the order a rotation or release order follows.
  */
 function showGroups(units: ProgramUnit[]): ShowGroup[] {
-  const groups = new Map<string, ProgramUnit[]>()
+  const groups = new Map<string, ShowGroup>()
   for (const u of units) {
-    const key = u[0].showTitle ? 'show:' + u[0].showTitle : 'movies'
+    const m = u[0]
+    const key = m.showId != null ? 'show:' + m.showId : m.showTitle ? 'show:' + m.showTitle : 'movies'
     const g = groups.get(key)
-    if (g) g.push(u)
-    else groups.set(key, [u])
+    if (g) g.units.push(u)
+    else groups.set(key, { key, legacyKey: m.showId != null && m.showTitle ? 'show:' + m.showTitle : undefined, units: [u] })
   }
-  return [...groups.entries()].map(([key, arr]) => ({ key, units: arr.sort(byUnit) }))
+  return [...groups.values()].map((g) => ({ ...g, units: g.units.sort(byUnit) }))
 }
 
 /**
@@ -386,11 +374,14 @@ function startingTurns(groups: ShowGroup[], progress: RotationProgress): Record<
   const out: Record<string, number> = {}
   if (progress.shows) {
     // A show new to the rotation starts at its first episode.
-    for (const g of groups) out[g.key] = progress.shows[g.key] ?? 0
+    const saved = progress.shows
+    for (const g of groups) out[g.key] = saved[g.key] ?? (g.legacyKey ? saved[g.legacyKey] : undefined) ?? 0
     return out
   }
-  const alpha = groups.map((g) => g.key).sort((a, b) => a.localeCompare(b))
-  for (const g of groups) out[g.key] = slotTurns(progress.base, alpha.indexOf(g.key), groups.length)
+  // A–Z by title, as those rotations ran (a show's key is its id now).
+  const name = (g: ShowGroup) => g.legacyKey ?? g.key
+  const alpha = groups.map(name).sort((a, b) => a.localeCompare(b))
+  for (const g of groups) out[g.key] = slotTurns(progress.base, alpha.indexOf(name(g)), groups.length)
   return out
 }
 
@@ -427,7 +418,10 @@ function rotation(
       // Shows no longer in the collection keep their count, so one that comes
       // back resumes where it was.
       const out: Record<string, number> = { ...progress.shows }
-      groups.forEach((grp, g) => (out[grp.key] = taken(g, pos)))
+      groups.forEach((grp, g) => {
+        out[grp.key] = taken(g, pos)
+        if (grp.legacyKey) delete out[grp.legacyKey] // adopted under the show's id
+      })
       return out
     },
   }

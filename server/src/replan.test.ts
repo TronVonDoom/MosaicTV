@@ -34,11 +34,14 @@ const HOUR = 60 * MIN
 /** A channel with a bit of everything the builder does. Returns its id and the window to build. */
 async function fixture() {
   const lib = await prisma.library.create({ data: { name: 'TV', kind: 'tv' } })
+  const showIds = new Map<string, number>()
   const show = async (title: string, count: number, sec: number) => {
     const ids: number[] = []
+    const { id: showId } = await prisma.show.create({ data: { libraryId: lib.id, title } })
+    showIds.set(title, showId)
     for (let e = 1; e <= count; e++) {
       const m = await prisma.mediaItem.create({
-        data: { libraryId: lib.id, path: `/tv/${title}/S01E${e}.mkv`, type: 'episode', title: `${title} ${e}`, showTitle: title, season: 1, episode: e, durationSec: sec },
+        data: { libraryId: lib.id, path: `/tv/${title}/S01E${e}.mkv`, type: 'episode', title: `${title} ${e}`, showId, showTitle: title, season: 1, episode: e, durationSec: sec },
       })
       ids.push(m.id)
     }
@@ -50,7 +53,7 @@ async function fixture() {
   // Two of Bravo's 11-minute shorts at a time air as one broadcast episode.
   for (let g = 0; g < 4; g++) {
     await prisma.airing.create({
-      data: { libraryId: lib.id, showTitle: 'Bravo', season: 1, number: g + 1, segments: { create: [{ mediaItemId: b[g * 2], order: 0 }, { mediaItemId: b[g * 2 + 1], order: 1 }] } },
+      data: { libraryId: lib.id, showId: showIds.get('Bravo')!, season: 1, number: g + 1, segments: { create: [{ mediaItemId: b[g * 2], order: 0 }, { mediaItemId: b[g * 2 + 1], order: 1 }] } },
     })
   }
 
@@ -61,7 +64,7 @@ async function fixture() {
         name,
         channelId: ch.id,
         defaultOrder,
-        items: { create: shows.map((s, order) => ({ kind: 'show', showTitle: s, libraryId: lib.id, order })) },
+        items: { create: shows.map((s, order) => ({ kind: 'show', showId: showIds.get(s)!, libraryId: lib.id, order })) },
       },
     })
   const colA = await col('Alpha', ['Alpha'], 'chronological')

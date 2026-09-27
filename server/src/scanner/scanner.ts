@@ -6,6 +6,7 @@ import { parseMedia, type LibraryKind } from './parse.js'
 import { detectArtwork } from './artwork.js'
 import { log } from '../logs.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
 import type { ScanStatus } from '../contract/index.js'
 
 type DirCache = Map<string, string[] | null>
@@ -70,8 +71,12 @@ async function walk(dir: string): Promise<string[]> {
 type ScanPass = {
   /** Rows a moved file has already claimed this pass (4 files probe at once). */
   claimed: Set<number>
-  /** Show titles that changed under a file this pass: old title -> new titles. */
-  retitled: Map<string, Set<string>>
+  /** Shows a file left for another this pass: old show id -> the shows it went to. */
+  refiled: Map<number, Set<number>>
+  /** Show lookups this pass, by library and name (see showFor). */
+  shows: Map<string, Promise<FiledShow>>
+  /** Shows this pass created. */
+  created: Set<number>
 }
 
 const exists = (p: string) =>
@@ -119,6 +124,10 @@ async function processFile(
   const moved = atPath ? null : await movedFrom(filePath, stat.size, libraryId, pass)
   const existing = atPath ?? moved
   const parsed = parseMedia(filePath, libraryPath, kind)
+  // The show it files under: by the name its folder parses to, through the
+  // show's names, so a renamed or merged show keeps its files.
+  const show = parsed.showTitle ? await showFor(libraryId, parsed.showTitle, pass.shows) : null
+  if (show?.created) pass.created.add(show.id)
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
   const art = await detectArtwork(filePath, libraryPath, kind, parsed.season, cache)
@@ -138,7 +147,8 @@ async function processFile(
     existing.showPosterPath === art.showPosterPath &&
     existing.seasonPosterPath === art.seasonPosterPath &&
     existing.title === parsed.title &&
-    existing.showTitle === parsed.showTitle &&
+    existing.showId === (show?.id ?? null) &&
+    existing.showTitle === (show?.title ?? null) &&
     existing.season === parsed.season &&
     existing.episode === parsed.episode
   ) {
@@ -154,7 +164,8 @@ async function processFile(
     libraryId,
     type: parsed.type,
     title: parsed.title,
-    showTitle: parsed.showTitle,
+    showId: show?.id ?? null,
+    showTitle: show?.title ?? null,
     season: parsed.season,
     episode: parsed.episode,
     year: parsed.year,
@@ -183,10 +194,10 @@ async function processFile(
       update: data,
     })
   }
-  if (existing?.showTitle && parsed.showTitle && existing.showTitle !== parsed.showTitle) {
-    const to = pass.retitled.get(existing.showTitle) ?? new Set<string>()
-    to.add(parsed.showTitle)
-    pass.retitled.set(existing.showTitle, to)
+  if (existing?.showId != null && show && existing.showId !== show.id) {
+    const to = pass.refiled.get(existing.showId) ?? new Set<number>()
+    to.add(show.id)
+    pass.refiled.set(existing.showId, to)
   }
 
   if (moved) status.moved++
@@ -195,35 +206,35 @@ async function processFile(
 }
 
 /**
- * Carry a show's title change through to everything filed under the old one.
- * Collection members, broadcast episodes and the show's metadata row refer to
- * a show by title, so when every one of its files now parses to a new title (a
- * renamed folder, a parser that learned to strip a tag), they follow — rather
- * than quietly matching nothing. A show whose files split between titles, or
- * that still has files under the old one, is left alone.
+ * Carry a show through a change to its folder name. When every one of a show's
+ * files now parses to one other name (a renamed folder, a parser that learned
+ * to strip a tag), the show follows them rather than being left with nothing:
+ * a name new this pass joins the show — which takes it as its title too,
+ * unless it was given one of its own — and a name that's already another show
+ * means the files went to that show, so this one is merged into it (its
+ * collection picks and broadcast episodes with it). A show whose files split
+ * between names, or that still has files under the old one, is left alone.
  */
-async function followRetitledShows(libraryId: number, retitled: Map<string, Set<string>>): Promise<void> {
-  for (const [from, targets] of retitled) {
+async function followRefiledShows(libraryId: number, pass: ScanPass): Promise<void> {
+  for (const [from, targets] of pass.refiled) {
     if (targets.size !== 1) continue
     const [to] = targets
-    const left = await prisma.mediaItem.count({ where: { libraryId, showTitle: from, missing: false } })
+    const left = await prisma.mediaItem.count({ where: { showId: from, missing: false } })
     if (left > 0) continue
-    const inLibrary = { OR: [{ libraryId }, { libraryId: null }] }
-    const [members, airings] = await prisma.$transaction([
-      prisma.collectionItem.updateMany({ where: { showTitle: from, ...inLibrary }, data: { showTitle: to } }),
-      prisma.airing.updateMany({ where: { libraryId, showTitle: from }, data: { showTitle: to } }),
-      prisma.collectionItem.updateMany({ where: { label: from, showTitle: to }, data: { label: to } }),
-      prisma.collection.updateMany({ where: { filterShow: from, ...inLibrary }, data: { filterShow: to } }),
+    const [old, target] = await Promise.all([
+      prisma.show.findUnique({ where: { id: from }, include: { names: true } }),
+      prisma.show.findUnique({ where: { id: to } }),
     ])
-    // Its artwork and TMDB match move too, unless the new title already has its own.
-    if (!(await prisma.show.findUnique({ where: { libraryId_title: { libraryId, title: to } } }))) {
-      await prisma.show.updateMany({ where: { libraryId, title: from }, data: { title: to } })
+    if (!old || !target || old.libraryId !== libraryId) continue
+    if (pass.created.has(to)) {
+      const ownTitle = !old.names.some((n) => n.name === old.title)
+      await mergeShows(to, from)
+      if (!ownTitle) await renameShow(from, target.title)
+      log('info', 'system', `"${old.title}" is now filed as "${target.title}" — its collection picks and broadcast episodes stay with it`)
+    } else {
+      const r = await mergeShows(from, to)
+      log('info', 'system', `"${old.title}"'s files are all "${target.title}" now — ${r.picks} collection pick(s) and ${r.airings} broadcast episode(s) followed them`)
     }
-    log(
-      'info',
-      'system',
-      `"${from}" is now "${to}" — ${members.count} collection pick(s) and ${airings.count} broadcast episode(s) followed it`,
-    )
   }
 }
 
@@ -279,7 +290,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     status.total = found.length
 
     const dirCache: DirCache = new Map()
-    const pass: ScanPass = { claimed: new Set(), retitled: new Map() }
+    const pass: ScanPass = { claimed: new Set(), refiled: new Map(), shows: new Map(), created: new Set() }
     await runPool(found, PROBE_CONCURRENCY, ({ file, root }) =>
       processFile(file, library.id, root, library.kind as LibraryKind, dirCache, force, pass),
     )
@@ -298,7 +309,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       })
       status.removed = goneIds.length
     }
-    await followRetitledShows(library.id, pass.retitled)
+    await followRefiledShows(library.id, pass)
     // New, changed or vanished files change what the channels can air.
     if (status.added + status.updated + status.removed + status.moved > 0) await scheduleChangedEverywhere()
   } catch (err) {

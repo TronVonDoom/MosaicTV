@@ -244,6 +244,18 @@ export const AiringsReplace = z
   })
 export type AiringsReplace = z.output<typeof AiringsReplace>
 
+// ── Shows ───────────────────────────────────────────────────────────────────
+
+/** A show's new on-screen title. */
+export const ShowRename = z.object({ title: requiredText('title is required') })
+export type ShowRename = z.output<typeof ShowRename>
+
+/** Fold this show into another one in its library. */
+export const ShowMerge = z.object({
+  into: loose.transform((v) => Number(v)).pipe(z.number({ error: 'into must be a show id' }).int().positive('into must be a show id')),
+})
+export type ShowMerge = z.output<typeof ShowMerge>
+
 // ── Idents ──────────────────────────────────────────────────────────────────
 
 /** An ident's look, clamped. (Picture size always matches the channel.) */

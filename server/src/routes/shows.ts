@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
+import { ShowMerge, ShowRename } from '../contract/index.js'
+import { readBody } from '../validate.js'
+import { mergeShows, renameShow, ShowConflict } from '../shows.js'
+import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { publish } from '../events.js'
 
 export const showsRouter = Router()
 
@@ -65,6 +70,7 @@ showsRouter.get('/', async (req, res) => {
   const metaRows = await prisma.show.findMany({
     where: libraryId ? { libraryId } : {},
     select: {
+      id: true,
       libraryId: true,
       title: true,
       year: true,
@@ -80,6 +86,7 @@ showsRouter.get('/', async (req, res) => {
     .map((s) => {
       const m = metaMap.get(s.libraryId + ':' + s.showTitle)
       return {
+        id: m?.id ?? null,
         showTitle: s.showTitle,
         year: s.year ?? m?.year ?? null,
         seasonCount: s.seasons.size,
@@ -115,7 +122,7 @@ showsRouter.get('/detail', async (req, res) => {
     prisma.mediaItem.findMany({ where, orderBy: [{ season: 'asc' }, { episode: 'asc' }] }),
     prisma.show.findFirst({
       where: { title: show, ...(libraryId ? { libraryId } : {}) },
-      include: { seasons: true },
+      include: { seasons: true, names: { orderBy: { id: 'asc' } } },
     }),
   ])
 
@@ -139,7 +146,10 @@ showsRouter.get('/detail', async (req, res) => {
 
   const year = showRow?.year ?? episodes.find((e) => e.year != null)?.year ?? null
   res.json({
+    id: showRow?.id ?? null,
+    libraryId: showRow?.libraryId ?? libraryId ?? null,
     showTitle: show,
+    names: showRow?.names.map((n) => n.name) ?? [],
     year,
     episodeCount: episodes.length,
     overview: showRow?.overview ?? null,
@@ -154,3 +164,51 @@ showsRouter.get('/detail', async (req, res) => {
     seasons,
   })
 })
+
+// PATCH /api/shows/:id  { title }  -> rename a show (its on-screen title)
+showsRouter.patch('/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  const body = readBody(ShowRename, req, res)
+  if (!body) return
+  const show = await prisma.show.findUnique({ where: { id }, select: { id: true } })
+  if (!show) return res.status(404).json({ error: 'Show not found' })
+  try {
+    const renamed = await renameShow(id, body.title)
+    // Nothing airs differently, but the guides name the show anew.
+    for (const channelId of await channelsAiringShow(id)) publish({ type: 'guide', channelId, from: null })
+    res.json(renamed)
+  } catch (e) {
+    if (e instanceof ShowConflict) {
+      return res.status(409).json({ error: `${e.message} — merge the two instead.`, conflict: e.other })
+    }
+    throw e
+  }
+})
+
+// POST /api/shows/:id/merge  { into }  -> fold this show into another
+showsRouter.post('/:id/merge', async (req, res) => {
+  const id = Number(req.params.id)
+  const body = readBody(ShowMerge, req, res)
+  if (!body) return
+  const [from, into] = await Promise.all([
+    prisma.show.findUnique({ where: { id } }),
+    prisma.show.findUnique({ where: { id: body.into } }),
+  ])
+  if (!from || !into) return res.status(404).json({ error: 'Show not found' })
+  if (from.id === into.id) return res.status(400).json({ error: 'A show cannot be merged into itself' })
+  if (from.libraryId !== into.libraryId) return res.status(400).json({ error: 'Shows can only be merged within one library' })
+  const result = await mergeShows(from.id, into.id)
+  // Collections that aired either one now air one show, in one rotation turn.
+  await scheduleChangedEverywhere()
+  res.json(result)
+})
+
+/** Channels with the show in their guide ahead (its episodes are scheduled there). */
+async function channelsAiringShow(showId: number): Promise<number[]> {
+  const rows = await prisma.playoutItem.findMany({
+    where: { stopTime: { gt: new Date() }, mediaItem: { showId } },
+    distinct: ['channelId'],
+    select: { channelId: true },
+  })
+  return rows.map((r) => r.channelId)
+}

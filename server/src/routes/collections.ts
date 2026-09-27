@@ -7,6 +7,7 @@ import { asPlaybackOrder, collectionCount, resolveCollection } from '../collecti
 import { scheduleChanged } from '../scheduleChanges.js'
 import { CollectionCreate, CollectionUpdate, MemberCreate, Reorder } from '../contract/index.js'
 import { readBody } from '../validate.js'
+import { findShow } from '../shows.js'
 
 export const collectionsRouter = Router()
 
@@ -26,7 +27,7 @@ type MemberMeta = {
 async function memberMeta(items: CollectionItem[]): Promise<Map<number, MemberMeta>> {
   const out = new Map<number, MemberMeta>()
   const singleIds = items.filter((i) => i.mediaItemId != null).map((i) => i.mediaItemId as number)
-  const titles = [...new Set(items.filter((i) => i.showTitle).map((i) => i.showTitle as string))]
+  const showIds = [...new Set(items.filter((i) => i.showId != null).map((i) => i.showId as number))]
   const [singles, groups] = await Promise.all([
     singleIds.length
       ? prisma.mediaItem.findMany({
@@ -34,10 +35,10 @@ async function memberMeta(items: CollectionItem[]): Promise<Map<number, MemberMe
           select: { id: true, type: true, year: true, missing: true, posterPath: true, tmdbPosterPath: true },
         })
       : [],
-    titles.length
+    showIds.length
       ? prisma.mediaItem.groupBy({
-          by: ['showTitle', 'libraryId', 'season'],
-          where: { type: 'episode', missing: false, showTitle: { in: titles } },
+          by: ['showId', 'season'],
+          where: { type: 'episode', missing: false, showId: { in: showIds } },
           _count: { _all: true },
           _min: { id: true, year: true },
         })
@@ -60,9 +61,7 @@ async function memberMeta(items: CollectionItem[]): Promise<Map<number, MemberMe
     }
     const gs = groups.filter(
       (g) =>
-        g.showTitle === it.showTitle &&
-        (it.libraryId == null || g.libraryId === it.libraryId) &&
-        (it.kind !== 'season' || g.season === it.season),
+        it.showId != null && g.showId === it.showId && (it.kind !== 'season' || g.season === it.season),
     )
     const ids = gs.map((g) => g._min.id).filter((x): x is number => x != null)
     const years = gs.map((g) => g._min.year).filter((x): x is number => x != null)
@@ -83,13 +82,13 @@ collectionsRouter.get('/', async (req, res) => {
   const cols = await prisma.collection.findMany({
     where: channelId != null ? { channelId } : {},
     orderBy: { createdAt: 'asc' },
-    include: { items: { orderBy: { order: 'asc' } } },
+    include: { items: { orderBy: { order: 'asc' }, include: { show: { select: { title: true } } } } },
   })
   const meta = await memberMeta(cols.flatMap((c) => c.items))
   const withCounts = await Promise.all(
     cols.map(async (c): Promise<Stored<Collection>> => ({
       ...c,
-      items: c.items.map((i) => ({ ...i, meta: meta.get(i.id) ?? null })),
+      items: c.items.map(({ show, ...i }) => ({ ...i, showTitle: show?.title ?? null, meta: meta.get(i.id) ?? null })),
       itemCount: await collectionCount(c),
     })),
   )
@@ -235,9 +234,10 @@ collectionsRouter.patch('/:id/items/reorder', async (req, res) => {
   const items = await prisma.collectionItem.findMany({
     where: { collectionId },
     orderBy: { order: 'asc' },
+    include: { show: { select: { title: true } } },
   })
   await collectionChanged(collectionId)
-  res.json(items)
+  res.json(items.map(({ show, ...i }) => ({ ...i, showTitle: show?.title ?? null })))
 })
 
 // Add a member: a whole show, one season of it, a single episode, or a movie.
@@ -253,11 +253,21 @@ collectionsRouter.post('/:id/items', async (req, res) => {
     where: { collectionId },
     _max: { order: true },
   })
+  // A show pick names the show by title (and library); it's stored by id.
+  const { showTitle, ...pick } = member
+  const show = showTitle != null ? await findShow(member.libraryId, showTitle) : null
+  if (showTitle != null && !show) return res.status(404).json({ error: `No show called "${showTitle}"` })
   const item = await prisma.collectionItem.create({
-    data: { ...member, collectionId, order: (max._max.order ?? -1) + 1 },
+    data: {
+      ...pick,
+      showId: show?.id ?? null,
+      libraryId: show?.libraryId ?? pick.libraryId,
+      collectionId,
+      order: (max._max.order ?? -1) + 1,
+    },
   })
   scheduleChanged(col.channelId)
-  res.status(201).json(item)
+  res.status(201).json({ ...item, showTitle: show?.title ?? null })
 })
 
 collectionsRouter.delete('/:id/items/:itemId', async (req, res) => {

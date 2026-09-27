@@ -194,6 +194,8 @@ export type MediaSort = 'title' | 'year' | 'added' | 'rating'
 export type LibrarySample = { items: { id: number; title: string; art: 'poster' | 'show' }[] }
 
 export type Show = {
+  /** The show's id (null only for a show the scanner hasn't filed yet). */
+  id: number | null
   showTitle: string
   year: number | null
   seasonCount: number
@@ -212,7 +214,11 @@ export type Show = {
 export type SeasonGroup = { season: number | null; episodes: MediaItem[]; tmdbPosterPath: string | null }
 
 export type ShowDetail = {
+  id: number | null
+  libraryId: number | null
   showTitle: string
+  /** The folder names its files are filed under (more than one after a merge). */
+  names: string[]
   year: number | null
   episodeCount: number
   overview: string | null
@@ -303,6 +309,8 @@ export type ProfileInput = { name: string } & ProfileFields
 export type CollectionItem = {
   id: number
   kind: MemberKind
+  /** The show a show or season pick is of, and its title as it reads now. */
+  showId: number | null
   showTitle: string | null
   libraryId: number | null
   season: number | null

@@ -17,6 +17,7 @@ model Library {
   folders   LibraryFolder[]
   items     MediaItem[]
   shows     Show[]
+  showNames ShowName[]
   airings   Airing[]
 }
 
@@ -29,28 +30,28 @@ model Setting {
 // A reusable ffmpeg output profile assignable per channel (null on a channel =
 // the built-in default). Human-facing knobs; the stream derives ffmpeg args.
 model EncodingProfile {
-  id           Int       @id @default(autoincrement())
-  name         String
-  width        Int       @default(1280)
-  height       Int       @default(720)
-  fps          Int       @default(30)
-  quality      String    @default("medium") // "low" | "medium" | "high"
-  hwaccel      String    @default("auto") // "auto" | "nvidia" | "cpu"
-  audioBitrate Int       @default(192) // kbps
+  id                Int       @id @default(autoincrement())
+  name              String
+  width             Int       @default(1280)
+  height            Int       @default(720)
+  fps               Int       @default(30)
+  quality           String    @default("medium") // "low" | "medium" | "high"
+  hwaccel           String    @default("auto") // "auto" | "nvidia" | "cpu"
+  audioBitrate      Int       @default(192) // kbps
   // Encoder tuning. Zero means "derive it" so a profile can stay simple.
-  preset            String  @default("auto") // "auto" | encoder-specific speed preset
-  videoBitrateK     Int     @default(0) // 0 = derive from quality
-  videoBufferK      Int     @default(0) // 0 = derive from bitrate
-  scalingMode       String  @default("pad") // "pad" | "stretch" | "crop"
-  deinterlace       Boolean @default(true) // yadif, but only on frames flagged interlaced
-  threads           Int     @default(0) // 0 = let ffmpeg decide
-  audioChannels     Int     @default(2)
-  normalizeLoudness Boolean @default(false)
+  preset            String    @default("auto") // "auto" | encoder-specific speed preset
+  videoBitrateK     Int       @default(0) // 0 = derive from quality
+  videoBufferK      Int       @default(0) // 0 = derive from bitrate
+  scalingMode       String    @default("pad") // "pad" | "stretch" | "crop"
+  deinterlace       Boolean   @default(true) // yadif, but only on frames flagged interlaced
+  threads           Int       @default(0) // 0 = let ffmpeg decide
+  audioChannels     Int       @default(2)
+  normalizeLoudness Boolean   @default(false)
   // Burn the first embedded subtitle stream into the picture (for programs that
   // have one). Off by default — it forces a filter and costs a little CPU.
-  burnSubtitles     Boolean @default(false)
-  createdAt    DateTime  @default(now())
-  channels     Channel[]
+  burnSubtitles     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  channels          Channel[]
 }
 
 // An uploaded non-logo media asset (ambient audio, custom filler video),
@@ -67,31 +68,35 @@ model Asset {
 
 // An uploaded logo/watermark image, reusable across channels and blocks.
 model Logo {
-  id        Int         @id @default(autoincrement())
-  name      String
-  filename  String // stored under the data dir /logos
-  mime      String
+  id          Int          @id @default(autoincrement())
+  name        String
+  filename    String // stored under the data dir /logos
+  mime        String
   // Per-logo watermark settings (JSON WatermarkConfig). Null = inherit the
   // global default watermark. Lets each logo carry its own mode/size/position/
   // opacity/timing and the constrain-to-media flag.
-  watermark String?
-  createdAt DateTime    @default(now())
+  watermark   String?
+  createdAt   DateTime     @default(now())
   // Bumped when the image is replaced in place (same id, new file), which is
   // what lets the UI cache-bust a swapped logo instead of showing the old one.
   // @default is not optional here: without it this is a NOT NULL column with no
   // default, and `db push` cannot add one to a table that already has rows — it
   // aborts, which takes the whole container down on an existing install.
-  updatedAt DateTime    @default(now()) @updatedAt
-  channels  Channel[]
-  blocks    TimeBlock[]
+  updatedAt   DateTime     @default(now()) @updatedAt
+  channels    Channel[]
+  blocks      TimeBlock[]
   collections Collection[]
-  fillers   Filler[]
+  fillers     Filler[]
 }
 
-// Show-level metadata (one row per distinct show title in a TV library).
+// A show: one row per show in a TV library, and what everything that means
+// "this show" points at — its episodes (MediaItem.showId), collection picks and
+// broadcast episodes. `title` is what it's called on screen and can be changed;
+// the folder names its files are filed under are its ShowNames, so a renamed or
+// merged show keeps its files on the next scan.
 model Show {
-  id               Int      @id @default(autoincrement())
-  library          Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  id               Int              @id @default(autoincrement())
+  library          Library          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   libraryId        Int
   title            String
   year             Int?
@@ -101,10 +106,30 @@ model Show {
   rating           Float?
   tmdbPosterPath   String? // TMDB path like "/abc.jpg"
   tmdbBackdropPath String?
-  updatedAt        DateTime @updatedAt
+  updatedAt        DateTime         @updatedAt
   seasons          Season[]
+  names            ShowName[]
+  episodes         MediaItem[]
+  members          CollectionItem[]
+  airings          Airing[]
 
   @@unique([libraryId, title])
+}
+
+// A show title as the scanner reads it off the files (the folder name, cleaned
+// up), and the show it files under. A show starts with its own title as its one
+// name; merging another show into it adds that one's names, so those files keep
+// landing in the merged show on every scan after.
+model ShowName {
+  id        Int     @id @default(autoincrement())
+  library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  libraryId Int
+  name      String
+  show      Show    @relation(fields: [showId], references: [id], onDelete: Cascade)
+  showId    Int
+
+  @@unique([libraryId, name])
+  @@index([showId])
 }
 
 model Season {
@@ -130,14 +155,15 @@ model Airing {
   id        Int             @id @default(autoincrement())
   library   Library         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   libraryId Int
-  showTitle String // the show this airing belongs to (its guide title)
+  show      Show            @relation(fields: [showId], references: [id], onDelete: Cascade)
+  showId    Int // the show this airing belongs to (its guide title is the show's)
   season    Int? // primary season, for scoping/ordering within the show
   number    Int             @default(0) // running order of airings within the show
   title     String? // optional label override (defaults to the show name)
   createdAt DateTime        @default(now())
   segments  AiringSegment[]
 
-  @@index([libraryId, showTitle])
+  @@index([showId])
 }
 
 // One segment (a canonical episode file) within an Airing, in play order.
@@ -158,28 +184,28 @@ model AiringSegment {
 // later, filler). Members are hand-picked shows and movies; the optional smart
 // filter adds a query-based set (unioned in).
 model Collection {
-  id           Int              @id @default(autoincrement())
-  name         String
+  id            Int              @id @default(autoincrement())
+  name          String
   // Owning channel (null = orphan/unassigned). Cascade-deletes with the channel.
-  channel      Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId    Int?
+  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId     Int?
   // The collection's own on-screen logo (falls back to the channel logo).
-  logo         Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
-  logoId       Int?
+  logo          Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logoId        Int?
   // The order this collection plays in when a rotation item or time block asks
   // for "inherit" (which is the default for new ones), so a collection airing in
   // several blocks only needs its order set once.
-  defaultOrder String           @default("chronological")
+  defaultOrder  String           @default("chronological")
   // Optional smart filter (advanced).
-  libraryId    Int?
-  filterType   String? // "movie" | "episode" | "other"
-  filterShow   String? // exact show title (legacy; prefer members)
-  filterSearch String? // title/show contains
-  filterGenre  String? // genre contains
-  createdAt    DateTime         @default(now())
-  items        CollectionItem[]
+  libraryId     Int?
+  filterType    String? // "movie" | "episode" | "other"
+  filterShow    String? // exact show title (legacy; prefer members)
+  filterSearch  String? // title/show contains
+  filterGenre   String? // genre contains
+  createdAt     DateTime         @default(now())
+  items         CollectionItem[]
   rotationItems RotationItem[]
-  timeBlocks   TimeBlock[]
+  timeBlocks    TimeBlock[]
 
   @@index([channelId])
 }
@@ -191,24 +217,24 @@ model Collection {
 // outside blocks, holds), block rows mean "only during these blocks", and none
 // means it plays nowhere.
 model Filler {
-  id           Int         @id @default(autoincrement())
-  channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  id           Int                @id @default(autoincrement())
+  channel      Channel?           @relation(fields: [channelId], references: [id], onDelete: Cascade)
   channelId    Int?
   name         String?
-  style        String      @default("frosted") // "animated" | "frosted" | "custom"
+  style        String             @default("frosted") // "animated" | "frosted" | "custom"
   assetId      Int? // custom visual (Asset kind "filler"); null for generated styles
   audioAssetId Int? // music (Asset kind "audio"), laid over the break as it airs — never part of the clip
   // Explicit brand logo for the generated (frosted/logo) styles. Null = follow
   // the block: whichever logo is on air where the break falls.
-  logo         Logo?       @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logo         Logo?              @relation(fields: [logoId], references: [id], onDelete: SetNull)
   logoId       Int?
   // Multiplier on the branded logo's size in the generated styles (1 = default).
-  logoScale    Float       @default(1)
+  logoScale    Float              @default(1)
   // Frosted glass: draw a divider between the channel's half and MosaicTV's.
-  divider      Boolean     @default(false)
+  divider      Boolean            @default(false)
   // Place in its channel's list: the order breaks take turns in.
-  order        Int         @default(0)
-  createdAt    DateTime    @default(now())
+  order        Int                @default(0)
+  createdAt    DateTime           @default(now())
   assignments  FillerAssignment[]
 
   @@index([channelId])
@@ -240,7 +266,8 @@ model CollectionItem {
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId Int
   kind         String // "show" | "season" | "episode" | "movie"
-  showTitle    String? // for kind "show" and "season"
+  show         Show?      @relation(fields: [showId], references: [id], onDelete: Cascade)
+  showId       Int? // for kind "show" and "season"
   libraryId    Int? // for kind "show"/"season" (which library the show is in)
   season       Int? // for kind "season"
   mediaItemId  Int? // for kind "movie" and "episode"
@@ -248,44 +275,45 @@ model CollectionItem {
   order        Int        @default(0)
 
   @@index([collectionId])
+  @@index([showId])
 }
 
 // A virtual TV channel: a container for its collections, a rotation (24/7
 // default) + optional time blocks. `number` is optional — a channel with no
 // number is a draft (not exposed in the M3U/guide/stream until it gets one).
 model Channel {
-  id            Int            @id @default(autoincrement())
-  number        Int?           @unique
-  name          String
-  group         String?
-  logoUrl       String? // legacy free-form logo URL (fallback)
-  logo          Logo?          @relation(fields: [logoId], references: [id], onDelete: SetNull)
-  logoId        Int?
+  id                Int                @id @default(autoincrement())
+  number            Int?               @unique
+  name              String
+  group             String?
+  logoUrl           String? // legacy free-form logo URL (fallback)
+  logo              Logo?              @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logoId            Int?
   // Output encoding profile (null = built-in default).
-  profile       EncodingProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
-  profileId     Int?
-  createdAt     DateTime       @default(now())
+  profile           EncodingProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  profileId         Int?
+  createdAt         DateTime           @default(now())
   // Playout build state (see playout engine).
-  playoutAnchor DateTime?
-  playoutCursor DateTime?
-  playoutState  String? // JSON { rotationIndex, positions }
+  playoutAnchor     DateTime?
+  playoutCursor     DateTime?
+  playoutState      String? // JSON { rotationIndex, positions }
   // "Coming up next" caption config (JSON ComingUpConfig); null = off. A time
   // block can override this for its own window (TimeBlock.comingUp).
-  comingUp      String?
+  comingUp          String?
   // A test channel: streamable/previewable but hidden from the public M3U/EPG.
-  isTest        Boolean        @default(false)
+  isTest            Boolean            @default(false)
   // Preferred audio language (ISO 639 tag, e.g. "eng"). Null = use the global
   // setting; "" is never stored. Picks among a file's audio tracks at air time
   // — a dub-first anime channel sets "jpn" without changing the rest.
-  audioLanguage String?
+  audioLanguage     String?
   // Keep the corner logo on screen during breaks. Off: it fades out as a break
   // starts and back in after — the idents already show the logo.
-  logoOnBreaks  Boolean        @default(false)
-  collections   Collection[]
-  rotationItems RotationItem[]
-  timeBlocks    TimeBlock[]
-  playout       PlayoutItem[]
-  fillers       Filler[] // its idents
+  logoOnBreaks      Boolean            @default(false)
+  collections       Collection[]
+  rotationItems     RotationItem[]
+  timeBlocks        TimeBlock[]
+  playout           PlayoutItem[]
+  fillers           Filler[] // its idents
   fillerAssignments FillerAssignment[]
 }
 
@@ -306,25 +334,25 @@ model RotationItem {
 
 // A day/time block that overrides the rotation while active.
 model TimeBlock {
-  id            Int        @id @default(autoincrement())
-  channel       Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId     Int
-  days          String // CSV of day numbers, Sun=0 .. Sat=6, e.g. "1,2,3,4,5"
-  startMinute   Int // minutes from local midnight
-  endMinute     Int
-  collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  collectionId  Int
-  playbackOrder String     @default("chronological")
-  logoUrl       String? // legacy free-form logo URL (fallback)
-  logo          Logo?      @relation(fields: [logoId], references: [id], onDelete: SetNull)
-  logoId        Int?
-  fillerMode    String     @default("none") // "none" | "between" | "end"
+  id                Int                @id @default(autoincrement())
+  channel           Channel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId         Int
+  days              String // CSV of day numbers, Sun=0 .. Sat=6, e.g. "1,2,3,4,5"
+  startMinute       Int // minutes from local midnight
+  endMinute         Int
+  collection        Collection         @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collectionId      Int
+  playbackOrder     String             @default("chronological")
+  logoUrl           String? // legacy free-form logo URL (fallback)
+  logo              Logo?              @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logoId            Int?
+  fillerMode        String             @default("none") // "none" | "between" | "end"
   // "soft" = block starts at the next program boundary (a rotation item may run
   // past the start). "hard" = starts exactly on time; the pre-block gap is filled.
-  startMode     String     @default("soft") // "soft" | "hard"
+  startMode         String             @default("soft") // "soft" | "hard"
   // Per-block override of the channel's "coming up next" caption (JSON
   // ComingUpConfig); null = inherit the channel's setting.
-  comingUp      String?
+  comingUp          String?
   fillerAssignments FillerAssignment[]
 
   @@index([channelId])
@@ -368,28 +396,33 @@ model LibraryFolder {
 
 // A single video file discovered by the scanner.
 model MediaItem {
-  id          Int      @id @default(autoincrement())
-  library     Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
-  libraryId   Int
-  path        String   @unique
-  type        String // "movie" | "episode" | "other" | "music"
-  title       String
-  showTitle   String?
-  season      Int?
-  episode     Int?
-  year        Int?
+  id               Int             @id @default(autoincrement())
+  library          Library         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  libraryId        Int
+  path             String          @unique
+  type             String // "movie" | "episode" | "other" | "music"
+  title            String
+  // An episode's show (null for movies and other files), and its title as
+  // shown — kept equal to the show's title, so a rename reaches every place
+  // that labels an episode without a join.
+  show             Show?           @relation(fields: [showId], references: [id], onDelete: SetNull)
+  showId           Int?
+  showTitle        String?
+  season           Int?
+  episode          Int?
+  year             Int?
   // Music videos ("music" type): performer and album from the Artist/Album/Title
   // folder layout (or an "Artist - Title" filename).
-  artist      String?
-  album       String?
-  durationSec Float?
-  width       Int?
-  height      Int?
-  videoCodec  String?
-  audioCodec  String?
-  container   String?
-  sizeBytes   Float? // Float (not Int) — file sizes exceed 32-bit; avoids BigInt JSON pain
-  mtimeMs     Float? // used to skip re-probing unchanged files
+  artist           String?
+  album            String?
+  durationSec      Float?
+  width            Int?
+  height           Int?
+  videoCodec       String?
+  audioCodec       String?
+  container        String?
+  sizeBytes        Float? // Float (not Int) — file sizes exceed 32-bit; avoids BigInt JSON pain
+  mtimeMs          Float? // used to skip re-probing unchanged files
   // Local artwork on disk (Plex/Kodi/Jellyfin naming), served via /api/artwork.
   posterPath       String? // this item's own art (movie poster / episode thumb)
   showPosterPath   String? // show-level art (shared by all episodes of a show)
@@ -401,13 +434,14 @@ model MediaItem {
   rating           Float?
   tmdbPosterPath   String?
   tmdbBackdropPath String?
-  missing     Boolean  @default(false)
-  addedAt     DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  playouts    PlayoutItem[]
-  airingSegments AiringSegment[]
+  missing          Boolean         @default(false)
+  addedAt          DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  playouts         PlayoutItem[]
+  airingSegments   AiringSegment[]
 
   @@index([libraryId])
   @@index([type])
   @@index([showTitle])
+  @@index([showId])
 }

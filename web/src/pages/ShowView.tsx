@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   api,
   ART,
@@ -15,8 +15,9 @@ import { formatDuration, formatSize, posterGradient } from '../lib/format'
 import MediaDetailModal from '../components/MediaDetailModal'
 import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
+import ShowIdentityDialog from '../components/ShowIdentityDialog'
 import Icon from '../components/Icon'
-import { Badge, Banner, Breadcrumbs, Button, Skeleton, cx } from '../components/ui'
+import { Badge, Banner, Breadcrumbs, Button, Menu, Skeleton, cx } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
 
 function seasonLabel(season: number | null): string {
@@ -41,6 +42,8 @@ export default function ShowView() {
   const [appearances, setAppearances] = useState<AiringAppearance[]>([])
   // Only for the breadcrumb — the show payload doesn't carry its library's name.
   const [libraryName, setLibraryName] = useState<string | null>(null)
+  const [identity, setIdentity] = useState<'rename' | 'merge' | null>(null)
+  const navigate = useNavigate()
 
   const reloadAirings = () =>
     api
@@ -194,9 +197,25 @@ export default function ShowView() {
             </div>
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">TV Series</div>
-              <h1 className="mt-1 text-[34px] sm:text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] text-white">
-                {showTitle}
-              </h1>
+              <div className="mt-1 flex items-center gap-2">
+                <h1 className="text-[34px] sm:text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] text-white">
+                  {showTitle}
+                </h1>
+                {detail?.id != null && (
+                  <Menu
+                    label="Show actions"
+                    items={[
+                      { label: 'Rename…', icon: 'edit', onSelect: () => setIdentity('rename') },
+                      { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
+                    ]}
+                  />
+                )}
+              </div>
+              {detail && detail.names.length > 1 && (
+                <div className="mt-1.5 text-[12.5px] text-ink-faint">
+                  Filed from {detail.names.map((n) => `“${n}”`).join(', ')}
+                </div>
+              )}
               {detail ? (
                 <div className="mt-3 flex items-center gap-x-3 gap-y-2 flex-wrap text-[13.5px] text-ink-soft">
                   {detail.rating != null && detail.rating > 0 && (
@@ -394,6 +413,17 @@ export default function ShowView() {
 
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} />
+      )}
+      {identity && detail?.id != null && (
+        <ShowIdentityDialog
+          mode={identity}
+          show={{ id: detail.id, libraryId: detail.libraryId ?? id, title: showTitle, episodeCount: detail.episodeCount }}
+          onClose={() => setIdentity(null)}
+          onDone={(title) => {
+            setIdentity(null)
+            navigate(`/library/${id}/show/${encodeURIComponent(title)}`, { replace: true })
+          }}
+        />
       )}
     </div>
   )

@@ -303,6 +303,13 @@ export const api = {
     request<ShowDetail>(
       `/api/shows/detail?libraryId=${libraryId}&show=${encodeURIComponent(show)}`,
     ),
+  renameShow: (id: number, title: string) =>
+    request<{ id: number; title: string }>(`/api/shows/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
+  mergeShow: (id: number, into: number) =>
+    request<{ into: { id: number; title: string }; episodes: number; picks: number; airings: number }>(`/api/shows/${id}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ into }),
+    }),
 
   // --- airings (broadcast episodes / multi-part grouping) ---
   airings: (libraryId: number, show: string) =>

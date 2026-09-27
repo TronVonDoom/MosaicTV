@@ -4,6 +4,7 @@ import { prisma } from '../db.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { AiringsReplace } from '../contract/index.js'
 import { readBody } from '../validate.js'
+import { findShow } from '../shows.js'
 
 export const airingsRouter = Router()
 
@@ -62,25 +63,32 @@ function parseSeason(raw: unknown): number | null | undefined {
   return n
 }
 
-function episodeWhere(libraryId: number, show: string, season: number | null | undefined): Prisma.MediaItemWhereInput {
+function episodeWhere(showId: number, season: number | null | undefined): Prisma.MediaItemWhereInput {
   return {
     type: 'episode',
     missing: false,
-    libraryId,
-    showTitle: show,
+    showId,
     ...(season === undefined ? {} : { season }),
   }
 }
 
+/** The show a request names by `libraryId` + `show` (its title), or null. */
+async function requestedShow(q: Record<string, unknown>): Promise<{ id: number; title: string } | null> {
+  const libraryId = Number(q.libraryId)
+  const show = typeof q.show === 'string' ? q.show : ''
+  if (!Number.isFinite(libraryId) || !show) return null
+  return findShow(libraryId, show)
+}
+
 // GET /api/airings?libraryId=&show=  -> the show's airings with full segment info.
 airingsRouter.get('/', async (req, res) => {
-  const libraryId = Number(req.query.libraryId)
-  const show = typeof req.query.show === 'string' ? req.query.show : ''
-  if (!Number.isFinite(libraryId) || !show) {
+  if (!Number.isFinite(Number(req.query.libraryId)) || !req.query.show) {
     return res.status(400).json({ error: 'libraryId and show are required' })
   }
+  const show = await requestedShow(req.query)
+  if (!show) return res.json({ airings: [] })
   const airings = await prisma.airing.findMany({
-    where: { libraryId, showTitle: show },
+    where: { showId: show.id },
     include: airingInclude,
     orderBy: [{ season: 'asc' }, { number: 'asc' }],
   })
@@ -94,19 +102,19 @@ airingsRouter.get('/', async (req, res) => {
 // borrowed into two hosts yields two rows. Cheap: AiringSegment is indexed by
 // mediaItemId. Lets the show's own page flag which of its episodes air elsewhere.
 airingsRouter.get('/appearances', async (req, res) => {
-  const libraryId = Number(req.query.libraryId)
-  const show = typeof req.query.show === 'string' ? req.query.show : ''
-  if (!Number.isFinite(libraryId) || !show) {
+  if (!Number.isFinite(Number(req.query.libraryId)) || !req.query.show) {
     return res.status(400).json({ error: 'libraryId and show are required' })
   }
+  const show = await requestedShow(req.query)
+  if (!show) return res.json({ appearances: [] })
   const segs = await prisma.airingSegment.findMany({
     where: {
-      mediaItem: { libraryId, showTitle: show },
-      airing: { libraryId, showTitle: { not: show } },
+      mediaItem: { showId: show.id },
+      airing: { showId: { not: show.id } },
     },
     include: {
       mediaItem: { select: SEGMENT_SELECT },
-      airing: { select: { id: true, showTitle: true, number: true, season: true } },
+      airing: { select: { id: true, show: { select: { title: true } }, number: true, season: true } },
     },
   })
   const appearances = segs.map((s) => ({
@@ -115,7 +123,7 @@ airingsRouter.get('/appearances', async (req, res) => {
     episode: s.mediaItem.episode,
     title: s.mediaItem.title,
     host: {
-      showTitle: s.airing.showTitle,
+      showTitle: s.airing.show.title,
       airingId: s.airing.id,
       number: s.airing.number,
       season: s.airing.season,
@@ -156,16 +164,16 @@ airingsRouter.get('/search-episodes', async (req, res) => {
 // ~targetSec, using the durations already probed. Nothing is saved — the client
 // reviews and PUTs what it wants to keep. Returns every block (singletons too).
 airingsRouter.get('/suggest', async (req, res) => {
-  const libraryId = Number(req.query.libraryId)
-  const show = typeof req.query.show === 'string' ? req.query.show : ''
   const season = parseSeason(req.query.season)
   const targetSec = Number(req.query.targetSec) > 0 ? Number(req.query.targetSec) : DEFAULT_TARGET_SEC
-  if (!Number.isFinite(libraryId) || !show) {
+  if (!Number.isFinite(Number(req.query.libraryId)) || !req.query.show) {
     return res.status(400).json({ error: 'libraryId and show are required' })
   }
+  const show = await requestedShow(req.query)
+  if (!show) return res.json({ blocks: [] })
   const eps = await prisma.mediaItem.findMany({
     // Only packable episodes (the suggester needs real durations).
-    where: { ...episodeWhere(libraryId, show, season), durationSec: { gt: 0 } },
+    where: { ...episodeWhere(show.id, season), durationSec: { gt: 0 } },
     orderBy: [{ season: 'asc' }, { episode: 'asc' }],
     select: { id: true, durationSec: true },
   })
@@ -203,6 +211,8 @@ airingsRouter.put('/', async (req, res) => {
   const body = readBody(AiringsReplace, req, res)
   if (!body) return
   const { libraryId, showTitle, season, groups } = body
+  const show = await findShow(libraryId, showTitle)
+  if (!show) return res.status(404).json({ error: `No show called "${showTitle}" in that library` })
 
   // A segment id is valid if it's a playable episode in this library (any show —
   // that's what allows cross-show blocks). Each file appears in one airing.
@@ -225,12 +235,12 @@ airingsRouter.put('/', async (req, res) => {
   }
 
   await prisma.$transaction([
-    prisma.airing.deleteMany({ where: { libraryId, showTitle, season: season ?? null } }),
+    prisma.airing.deleteMany({ where: { showId: show.id, season: season ?? null } }),
     ...clean.map((ids, gi) =>
       prisma.airing.create({
         data: {
           libraryId,
-          showTitle,
+          showId: show.id,
           season: season ?? null,
           number: gi + 1,
           segments: { create: ids.map((mediaItemId, order) => ({ mediaItemId, order })) },
@@ -240,7 +250,7 @@ airingsRouter.put('/', async (req, res) => {
   ])
 
   const saved = await prisma.airing.findMany({
-    where: { libraryId, showTitle },
+    where: { showId: show.id },
     include: airingInclude,
     orderBy: [{ season: 'asc' }, { number: 'asc' }],
   })
