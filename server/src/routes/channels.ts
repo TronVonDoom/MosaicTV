@@ -3,6 +3,8 @@ import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout } from '../playout.js'
 import { KEEP_DAYS, airedHistory } from '../aired.js'
 import { actBreakProgress, kickActBreakFinder } from '../actBreakFinder.js'
+import { lintSchedule } from '../scheduleLint.js'
+import { MAX_LOOKAHEAD_DAYS, lookAhead } from '../lookAhead.js'
 import { replanChannel, scheduleChanged } from '../scheduleChanges.js'
 import { sanitizeComingUp, type ComingUpConfig } from '../streaming/overlays.js'
 import { comingUpPreview } from '../streaming/cardPreview.js'
@@ -23,6 +25,8 @@ import {
   type ChannelNow,
   type NextBreak,
   type ActBreakProgress,
+  type LookAhead,
+  type ScheduleWarning,
   type AiredHistory,
   type Playout,
   type Stored,
@@ -353,6 +357,21 @@ channelsRouter.post('/:id/reset', async (req, res) => {
   const hard = req.query.hard === '1' || req.query.hard === 'true'
   const { from } = await replanChannel(Number(req.params.id), hard)
   res.json({ ok: true, from })
+})
+
+// Things about the schedule worth knowing before they air (the Schedule tab).
+channelsRouter.get('/:id/lint', async (req, res) => {
+  res.json((await lintSchedule(Number(req.params.id))) satisfies ScheduleWarning[])
+})
+
+// The schedule laid out ?days= ahead (default four weeks), without saving it.
+channelsRouter.get('/:id/look-ahead', async (req, res) => {
+  const days = Math.min(MAX_LOOKAHEAD_DAYS, Math.max(1, Number(req.query.days) || 28))
+  try {
+    res.json((await lookAhead(Number(req.params.id), days)) satisfies Stored<LookAhead>)
+  } catch (e) {
+    res.status(404).json({ error: e instanceof Error ? e.message : 'Not found' })
+  }
 })
 
 // How far the act-break search has got through what the channel plays.

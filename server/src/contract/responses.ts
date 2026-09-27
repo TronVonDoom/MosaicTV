@@ -538,3 +538,44 @@ export type NextBreak = {
   before: string | null
   beforeBlock: string | null
 }
+
+/** One program in the look-ahead (an airing's parts folded into one). */
+export type LookAheadProgram = {
+  startTime: Date
+  stopTime: Date
+  mediaItemId: number | null
+  title: string
+  subtitle: string | null
+}
+
+/** A time block in the look-ahead: how late its first program really starts. */
+export type LookAheadBlock = {
+  blockId: number
+  name: string
+  days: string
+  startMinute: number
+  hard: boolean
+  airings: number
+  avgLateSec: number
+  maxLateSec: number
+}
+
+/** A channel's schedule laid out weeks ahead, without saving it. */
+export type LookAhead = {
+  from: Date
+  to: Date
+  programs: LookAheadProgram[]
+  breakMinutesPerDay: number
+  offAirMinutesPerDay: number
+  blocks: LookAheadBlock[]
+  /** Shows that run out and go back to an earlier episode, and when. */
+  wraps: { show: string; at: Date; to: string }[]
+}
+
+/** Something about a channel's schedule worth knowing before it airs. */
+export type ScheduleWarning = {
+  severity: 'warn' | 'info'
+  message: string
+  blockId?: number
+  collectionId?: number
+}

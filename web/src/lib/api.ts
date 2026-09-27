@@ -21,6 +21,8 @@ import {
   type AiredHistory as AiredHistoryDTO,
   type AiredProgram as AiredProgramDTO,
   type EpisodeAired as EpisodeAiredDTO,
+  type LookAhead as LookAheadDTO,
+  type LookAheadProgram as LookAheadProgramDTO,
   type Asset as AssetDTO,
   type Channel as ChannelDTO,
   type ChannelDetail as ChannelDetailDTO,
@@ -57,6 +59,7 @@ import type {
   EncodingProfile,
   ActBreakProgress,
   FsListing,
+  ScheduleWarning,
   GridMinutes,
   Health,
   IdentInput,
@@ -99,6 +102,7 @@ export type {
   EncodingProfile,
   ActBreakProgress,
   FsListing,
+  ScheduleWarning,
   GridMinutes,
   Health,
   IdentInput,
@@ -136,6 +140,8 @@ export type AiringSegmentInfo = Wire<AiringSegmentInfoDTO>
 export type AiredHistory = Wire<AiredHistoryDTO>
 export type AiredProgram = Wire<AiredProgramDTO>
 export type EpisodeAired = Wire<EpisodeAiredDTO>
+export type LookAhead = Wire<LookAheadDTO>
+export type LookAheadProgram = Wire<LookAheadProgramDTO>
 export type Asset = Wire<AssetDTO>
 export type Channel = Wire<ChannelDTO>
 export type ChannelDetail = Wire<ChannelDetailDTO>
@@ -490,6 +496,10 @@ export const api = {
     request<{ ok: boolean; from: string | null }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
   playout: (channelId: number, hours = 24) =>
     request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}`),
+  /** What's worth knowing about the schedule before it airs. */
+  scheduleWarnings: (channelId: number) => request<ScheduleWarning[]>(`/api/channels/${channelId}/lint`),
+  /** The schedule laid out `days` ahead, without saving it. */
+  lookAhead: (channelId: number, days = 28) => request<LookAhead>(`/api/channels/${channelId}/look-ahead?days=${days}`),
   /** How far the act-break search has got through what the channel plays. */
   actBreakProgress: (channelId: number) => request<ActBreakProgress>(`/api/channels/${channelId}/act-breaks`),
   /** What the channel aired, newest first, going back `hours`. */

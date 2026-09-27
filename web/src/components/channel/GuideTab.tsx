@@ -6,6 +6,7 @@ import { useNow } from '../../lib/hooks'
 import { guideFor, useLiveRefresh, useServerEvent } from '../../lib/events'
 import GuideGrid from '../GuideGrid'
 import AiredList from './AiredList'
+import LookAheadView from './LookAheadView'
 import MediaDetailModal from '../MediaDetailModal'
 import { Button, Card, EmptyState, InfoHint, LiveBadge, Segmented, Skeleton, cx } from '../ui'
 import type { ChannelTabProps } from './types'
@@ -42,7 +43,7 @@ export default function GuideTab({
 }) {
   const [playout, setPlayout] = useState<Playout | null>(null)
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'timeline' | 'list' | 'aired'>('timeline')
+  const [view, setView] = useState<'timeline' | 'list' | 'aired' | 'ahead'>('timeline')
   const [building, setBuilding] = useState(false)
   // The configured horizon, so the button names the depth it will build.
   const [horizon, setHorizon] = useState<number | null>(null)
@@ -128,6 +129,7 @@ export default function GuideTab({
               { value: 'timeline', label: 'Timeline', icon: 'guide' },
               { value: 'list', label: 'List', icon: 'list' },
               { value: 'aired', label: 'What aired', icon: 'clock' },
+              { value: 'ahead', label: 'Weeks ahead', icon: 'calendar' },
             ]}
           />
           <InfoHint>
@@ -158,6 +160,8 @@ export default function GuideTab({
 
       {view === 'aired' ? (
         <AiredList channelId={channelId} onSelect={setDetailId} />
+      ) : view === 'ahead' ? (
+        <LookAheadView channelId={channelId} onSelect={setDetailId} />
       ) : !hasSchedule ? (
         <EmptyState
           icon="clock"

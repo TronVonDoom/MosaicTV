@@ -1,4 +1,4 @@
-import type { TimeBlock } from '@prisma/client'
+import type { Prisma, TimeBlock } from '@prisma/client'
 import { prisma } from './db.js'
 import {
   effectiveOrder,
@@ -191,23 +191,68 @@ export function buildPlayout(channelId: number, until: Date): Promise<number> {
  * per-block/per-rotation position keys are adopted on first use.
  */
 async function buildPlayoutInner(channelId: number, until: Date): Promise<number> {
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-    include: {
-      rotationItems: {
-        orderBy: { order: 'asc' },
-        include: { collection: { include: { items: true } } },
-      },
-      timeBlocks: { include: { collection: { include: { items: true } } } },
-    },
-  })
-  if (!channel) throw new Error(`Channel ${channelId} not found`)
-
+  const channel = await loadForPlan(channelId)
   const anchor = channel.playoutAnchor ?? truncateToMinute(new Date())
-  let cursor = channel.playoutCursor ?? anchor
-  if (cursor >= until) return 0
-
+  const from = channel.playoutCursor ?? anchor
+  if (from >= until) return 0
   const state: State = channel.playoutState ? (JSON.parse(channel.playoutState) as State) : freshState()
+  const plan = await planTimeline(channel, from, state, until, { continuing: !!channel.playoutCursor })
+  await prisma.$transaction([
+    prisma.playoutItem.createMany({
+      data: plan.rows.map(({ blockId: _block, ...c }) => ({ channelId, ...c })),
+    }),
+    prisma.channel.update({
+      where: { id: channelId },
+      data: { playoutAnchor: anchor, playoutCursor: plan.cursor, playoutState: JSON.stringify(plan.state) },
+    }),
+  ])
+  return plan.rows.length
+}
+
+const PLAN_INCLUDE = {
+  rotationItems: {
+    orderBy: { order: 'asc' as const },
+    include: { collection: { include: { items: true } } },
+  },
+  timeBlocks: { include: { collection: { include: { items: true } } } },
+}
+export type ChannelForPlan = Prisma.ChannelGetPayload<{ include: typeof PLAN_INCLUDE }>
+
+export async function loadForPlan(channelId: number): Promise<ChannelForPlan> {
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, include: PLAN_INCLUDE })
+  if (!channel) throw new Error(`Channel ${channelId} not found`)
+  return channel
+}
+
+/** A row of a planned timeline, and the time block it was placed in (null = the rotation). */
+export type PlannedRow = {
+  mediaItemId: number | null
+  kind: string
+  title: string | null
+  startTime: Date
+  stopTime: Date
+  groupKey: string | null
+  state: string | null
+  inPoint: number | null
+  blockId: number | null
+}
+
+/**
+ * Lay out a channel's timeline from `from` (where the schedule stands then is
+ * `startState`) up to `until`, without saving any of it — what a build writes,
+ * and what the look-ahead shows weeks out. `continuing` = something aired
+ * before `from` (the very first program a channel airs isn't put on its clock).
+ */
+export async function planTimeline(
+  channel: ChannelForPlan,
+  from: Date,
+  startState: State,
+  until: Date,
+  opts: { continuing: boolean },
+): Promise<{ rows: PlannedRow[]; cursor: Date; state: State }> {
+  const channelId = channel.id
+  let cursor = from
+  const state: State = structuredClone(startState)
 
   // Position for a collection, adopting the pre-refactor per-block/per-rotation
   // key the first time so nothing restarts at episode 1 on upgrade.
@@ -255,22 +300,15 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     return JSON.stringify(snap)
   }
 
-  const created: {
-    mediaItemId: number | null
-    kind: string
-    title: string | null
-    startTime: Date
-    stopTime: Date
-    groupKey: string | null
-    state: string | null
-    inPoint: number | null
-  }[] = []
+  const created: PlannedRow[] = []
+  // The block being laid out (null = the rotation), for the look-ahead.
+  let placing: number | null = null
   const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null, state: string | null, inPoint: number | null = null) =>
-    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state, inPoint })
+    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state, inPoint, blockId: placing })
   // A break. One inside a program (between its acts) carries the program's
   // groupKey, so the guide shows the program as one entry across it.
   const pushFiller = (start: Date, stop: Date, groupKey: string | null = null) =>
-    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null })
+    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null, blockId: placing })
 
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
@@ -404,6 +442,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     iterations++
     const before = cursor.getTime()
     const block = activeBlock(channel.timeBlocks, cursor)
+    placing = block?.id ?? null
 
     if (block) {
       const key = 'c' + block.collectionId
@@ -516,7 +555,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
       // Back on the channel's clock first, if something off it (a block with
       // no clock of its own) left the cursor between lines. Not before the very
       // first program a channel airs: that starts the moment it's built.
-      if (created.length > 0 || channel.playoutCursor) {
+      if (created.length > 0 || opts.continuing) {
         const before = cursor.getTime()
         padToGrid(gridOf(null))
         if (cursor.getTime() !== before && activeBlock(channel.timeBlocks, cursor)) continue
@@ -590,16 +629,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     if (stall > stallLimit) break
   }
 
-  await prisma.$transaction([
-    prisma.playoutItem.createMany({
-      data: created.map((c) => ({ channelId, ...c })),
-    }),
-    prisma.channel.update({
-      where: { id: channelId },
-      data: { playoutAnchor: anchor, playoutCursor: cursor, playoutState: JSON.stringify(state) },
-    }),
-  ])
-  return created.length
+  return { rows: created, cursor, state }
 }
 
 // How far ahead of now a replan may start. The segmenter encodes ~8s ahead of

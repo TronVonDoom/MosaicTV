@@ -9,6 +9,7 @@ import {
   type FillerMode,
   type GridMinutes,
   type ActBreakProgress,
+  type ScheduleWarning,
   type Ident,
   type OrderSetting,
   type RotationMode,
@@ -21,7 +22,7 @@ import { useDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import WeeklyBlockGrid from '../WeeklyBlockGrid'
-import { Badge, Button, Card, EmptyState, InfoHint, Input, Section, Segmented, Select, cx } from '../ui'
+import { Badge, Banner, Button, Card, EmptyState, InfoHint, Input, Section, Segmented, Select, cx } from '../ui'
 import type { ChannelTabProps } from './types'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -252,6 +253,13 @@ export default function ScheduleTab({
 
   const blockClock = blk.grid ?? ch.grid
 
+  // What's worth knowing about the schedule as it stands — looked at again
+  // after every change (the page hands down a fresh channel each time).
+  const [warnings, setWarnings] = useState<ScheduleWarning[]>([])
+  useEffect(() => {
+    api.scheduleWarnings(channelId).then(setWarnings).catch(() => setWarnings([]))
+  }, [channelId, ch])
+
   // How far the search for act breaks has got, while it's on anywhere here.
   const actsAnywhere = ch.actBreaks || ch.timeBlocks.some((b) => b.actBreaks)
   const [actProgress, setActProgress] = useState<ActBreakProgress | null>(null)
@@ -276,6 +284,33 @@ export default function ScheduleTab({
 
   return (
     <div className="space-y-6">
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          {warnings.map((w, i) => (
+            <Banner key={i} tone={w.severity === 'warn' ? 'warn' : 'info'}>
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="min-w-0 flex-1">{w.message}</span>
+                {w.blockId != null && ch.timeBlocks.some((b) => b.id === w.blockId) && (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    onClick={() => {
+                      const b = ch.timeBlocks.find((x) => x.id === w.blockId)
+                      if (b) {
+                        editBlock(b)
+                        requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                      }
+                    }}
+                  >
+                    Edit the block
+                  </button>
+                )}
+              </span>
+            </Banner>
+          ))}
+        </div>
+      )}
+
       {/* ---- Broadcast clock ---- */}
       <Card>
         <div className="flex items-start justify-between gap-4 flex-wrap">
