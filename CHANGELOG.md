@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.12.0 — Breaks, and what's on next (2026-09-26)
+
+A Breaks tab for everything that plays between programs, a poster card for
+what's on next, and streams that run a few seconds ahead of the schedule.
+
+- **Breaks, in one place per channel.** Fillers used to be spread across a
+  shared library in the Studio, a channel default, a picker per block, the
+  Fillers tab and the watermark settings, with a hidden default station ident
+  deciding what aired when nothing was set. Each channel now has a **Breaks**
+  tab: its **idents** (what plays in a break) and where each one plays, when
+  breaks happen, when the next break is and what it'll play, and a week map
+  coloured by the ident each block plays. It warns you when an ident — or a
+  whole channel's breaks — would never air.
+- **Idents belong to their channel.** Each has a look (**Frosted glass**,
+  **Spotlight** or your own clip), a logo that follows the block or stays the
+  same, optional music, and **Plays during**: everywhere else, or only during
+  certain blocks, picked one by one or by the logo they air with. Where several
+  can play, breaks take turns in the list's order, and the turn carries on
+  across a restart. Every channel keeps at least one "everywhere else" ident
+  (a new channel starts with frosted glass made from its logo), so the default
+  station ident setting is gone. Copy an ident from another channel, or send
+  one to others; each copy is that channel's own.
+- **A real preview.** The editor plays six seconds of the ident as it airs,
+  with the real logo and music, rendered in a few seconds. The still,
+  **Generate preview** and the stored preview clips are gone.
+- **When breaks happen is set on Schedule.** A block's editor has **Start**
+  (soft or hard) and **Leftover time** (off, at the end, or between programs)
+  side by side under **Breaks**, and says which ident its breaks will play.
+- **Music over the break.** A break's music plays from the top and straight
+  through, instead of restarting with every loop of a 30-second clip, and the
+  sound fades in and out. Changing the music rebuilds nothing.
+- **Seamless loops.** Every generated look loops without a jump: Spotlight
+  every 30 seconds, frosted glass every two minutes or so. Spotlight's gleam
+  stays on its card.
+- **No break waits on a build.** Idents are built ahead for every logo they air
+  with, at the channel's own picture size, in the background and at low
+  priority. Until a changed one is ready, another built ident stands in under
+  its music. The notification bell follows each build.
+- **Corner logo during breaks** is a switch per channel on its Breaks tab,
+  instead of "Show on filler" in the watermark settings.
+- **Studio is Logos, Music and Clips** — the raw material idents are made from.
+  Each track and clip lists the idents that use it, and a clip that's in use
+  can't be deleted out from under them.
+- **Up next card.** The "coming up next" text caption is replaced by a card
+  naming the next program: its poster, title, episode and episode title, year,
+  genres and rating, and the time it starts (a movie shows its runtime).
+  **Glass** is a frosted panel over the picture; **Broadcast** is a
+  cable-network bar. Eight positions around the picture, each sliding in from
+  its nearest edge, in three sizes; on a pillarboxed 4:3 show it stays on the
+  picture. A broadcast episode gets one card for the whole episode, and music
+  videos get a matching **Now playing** card. The settings preview draws your
+  channel's actual next program as it airs, with its logo where the watermark
+  sits. Existing caption settings carry over.
+- **Streams run a few seconds ahead.** Each channel keeps an 8-second lead on
+  its schedule: a cold channel is ready in under two seconds instead of about
+  ten, and each next program has buffer in hand while its encoder starts. Dead
+  air between blocks no longer races ahead of real time.
+- **A broken file no longer loops.** A program that fails gets one more try on
+  the CPU; after that — or when a file ends before its slot — the channel airs
+  its breaks for the rest of the slot, and the next program starts on time.
+- **Menus** open over their tile instead of being clipped inside it, and work
+  from the keyboard.
+
+### Upgrading
+
+Fillers move onto channels the first time 0.12 starts:
+
+- A filler several channels used becomes one ident per channel. One that was a
+  channel's default *and* in some of its blocks is split in two, so every break
+  picks from exactly what it did before.
+- A channel that relied on the default station ident gets its own copy of it;
+  one with nothing set gets a starter ident — the same frosted glass it aired
+  before.
+- A filler on no channel goes to the channel whose logo it was branded with,
+  playing during the blocks that use that logo; one with no match is kept on
+  your first channel, playing nowhere until you choose.
+- Every ident is built at its channel's own size (the resolution setting is
+  retired), the Studio's stored preview clips are deleted, and "Show on filler"
+  becomes each channel's corner-logo switch.
+
+Old links to a channel's Fillers tab land on its Breaks tab, and Studio →
+Fillers lands on Clips.
+
 ## 0.11.0 — In your order (2026-09-23)
 
 Rotations that follow your arrangement and keep each show's place, clearer
