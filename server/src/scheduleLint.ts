@@ -8,6 +8,8 @@ import { formatDays, minutesToTime } from './contract/index.js'
 import type { ScheduleWarning } from './contract/index.js'
 
 const DAY = 1440
+// How far past its end a block's last program can run: about a movie.
+const OVERRUN_MIN = 120
 
 /** Minutes into the week a block runs, per day it's on: [start, end) pairs. */
 function weekIntervals(days: string, start: number, end: number): [number, number][] {
@@ -18,6 +20,8 @@ function weekIntervals(days: string, start: number, end: number): [number, numbe
     .filter((d) => Number.isInteger(d))
     .map((d) => [d * DAY + start, d * DAY + start + len] as [number, number])
 }
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 const hm = (sec: number) => {
   const m = Math.round(sec / 60)
@@ -37,22 +41,34 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   const when = (b: { days: string; startMinute: number; endMinute: number }) =>
     `${formatDays(b.days)} ${minutesToTime(b.startMinute)}–${minutesToTime(b.endMinute)}`
 
-  // A block with its breaks off, running straight into an exact-time block:
-  // its last program overruns the start, and everything after runs late.
-  for (const hard of ch.timeBlocks.filter((b) => b.startMode === 'hard')) {
-    const starts = weekIntervals(hard.days, hard.startMinute, hard.endMinute).map(([s]) => s)
-    for (const other of ch.timeBlocks) {
-      if (other.id === hard.id || other.fillerMode !== 'none') continue
-      const feeds = weekIntervals(other.days, other.startMinute, other.endMinute).some(([s, e]) =>
-        starts.some((t) => (t > s && t <= e) || (t + 7 * DAY > s && t + 7 * DAY <= e)),
-      )
-      if (feeds) {
-        out.push({
-          severity: 'warn',
-          blockId: other.id,
-          message: `“${other.collection.name}” (${when(other)}) has no breaks, so its last program runs past ${minutesToTime(hard.startMinute)} and “${hard.collection.name}” can’t start on time — the rest of the day runs late. Set its leftover time to “At the end”.`,
-        })
+  // A block with its breaks off, running into an exact-time start — inside it,
+  // or soon after it ends, since its last program runs past its own end: that
+  // program overruns the start, and everything after runs late. A block can do
+  // it to itself (an all-day block whose last program runs past midnight).
+  // Each block with no breaks warns once, about the first exact-time start its
+  // overrun reaches.
+  const hards = ch.timeBlocks.filter((b) => b.startMode === 'hard')
+  for (const other of ch.timeBlocks) {
+    if (other.fillerMode !== 'none') continue
+    let hit: { hard: (typeof hards)[number]; after: number } | null = null
+    for (const hard of hards) {
+      const starts = weekIntervals(hard.days, hard.startMinute, hard.endMinute).map(([s]) => s)
+      for (const [s, e] of weekIntervals(other.days, other.startMinute, other.endMinute)) {
+        for (const x of starts.flatMap((t) => [t, t + 7 * DAY])) {
+          if (x > s && x <= e + OVERRUN_MIN && (!hit || x - s < hit.after)) hit = { hard, after: x - s }
+        }
       }
+    }
+    if (hit) {
+      const hard = hit.hard
+      const self = other.id === hard.id
+      out.push({
+        severity: 'warn',
+        blockId: other.id,
+        message: self
+          ? `“${other.collection.name}” (${when(other)}) starts at an exact time but has no breaks, so its last program each time runs past its end and its next start can’t be on time — every airing after runs late. Set its leftover time to “At the end”.`
+          : `“${other.collection.name}” (${when(other)}) has no breaks, so its last program runs past ${minutesToTime(hard.startMinute)} and “${hard.collection.name}” can’t start on time — the rest of the day runs late. Set its leftover time to “At the end”.`,
+      })
     }
   }
 
@@ -89,13 +105,14 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
     }
   }
 
-  // Season 0 (specials, shorts) airs first in release order.
+  // Season 0 (specials, shorts) airs first: every order but shuffle plays a
+  // show's episodes in order.
   for (const [id, c] of used) {
     const orders = [
       ...ch.rotationItems.filter((r) => r.collectionId === id).map((r) => effectiveOrder(r.playbackOrder, c)),
       ...ch.timeBlocks.filter((b) => b.collectionId === id).map((b) => effectiveOrder(b.playbackOrder, c)),
     ]
-    if (!orders.includes('chronological')) continue
+    if (!orders.some((o) => o !== 'shuffle')) continue
     const shows = c.items.filter((i) => i.kind === 'show' && i.showId != null).map((i) => i.showId as number)
     if (shows.length === 0) continue
     const specials = await prisma.mediaItem.groupBy({
@@ -103,13 +120,21 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
       where: { showId: { in: shows }, season: 0, missing: false },
       _count: { _all: true },
     })
-    for (const s of specials) {
-      out.push({
-        severity: 'info',
-        collectionId: id,
-        message: `${s.showTitle}’s season 0 (${s._count._all} specials or shorts) airs before season 1 in “${c.name}”. Pick its seasons instead of the whole show to leave them out.`,
-      })
-    }
+    if (specials.length === 0) continue
+    // One note per collection, naming the shows.
+    const named = specials
+      .sort((a, b) => (a.showTitle ?? '').localeCompare(b.showTitle ?? ''))
+      .map((x) => `${x.showTitle} (${x._count._all})`)
+    const list = named.length > 6 ? `${named.slice(0, 5).join(', ')} and ${named.length - 5} more` : named.join(', ')
+    const total = specials.reduce((a, x) => a + x._count._all, 0)
+    out.push({
+      severity: 'info',
+      collectionId: id,
+      message:
+        specials.length === 1
+          ? `In “${c.name}”, season 0 of ${specials[0].showTitle} (${plural(total, 'special or short', 'specials or shorts')}) airs before season 1. Pick its seasons instead of the whole show to leave it out.`
+          : `In “${c.name}”, season 0 of ${specials.length} shows airs before their season 1 — ${list}: ${plural(total, 'special or short', 'specials or shorts')} in all. Pick their seasons instead of the whole shows to leave them out.`,
+    })
   }
 
   // An exact-time start between the lines of the clock.

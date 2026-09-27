@@ -76,7 +76,17 @@ test('the schedule warnings name the traps, and what to change', async () => {
   assert.match(text, /“Snick” \(Every day 7:00 PM–9:15 PM\) has no breaks, so its last program runs past 9:15 PM and “Doug” can’t start on time/)
   assert.match(text, /“Nothing” has nothing it can play/)
   assert.match(text, /“Snick” has 1h 15m of programs for .* a week of blocks, so it repeats within the week/)
-  assert.match(text, /Doug’s season 0 \(2 specials or shorts\) airs before season 1/)
+  assert.match(text, /In “Doug”, season 0 of Doug \(2 specials or shorts\) airs before season 1/)
   assert.match(text, /“Doug” starts at 9:15 PM, between the lines of the channel’s clock/)
   assert.equal(warnings.find((w) => w.message.includes('has no breaks'))?.blockId, soft.id)
+})
+
+test('an all-day exact-time block with no breaks runs into its own next start', async () => {
+  const ch2 = await prisma.channel.create({ data: { name: 'Favorites', number: 42 } })
+  const fav = await prisma.collection.create({ data: { name: 'Favorites', channelId: ch2.id, defaultOrder: 'rotate', items: { create: [{ kind: 'show', showId: doug, libraryId: lib.id }] } } })
+  await prisma.timeBlock.create({ data: { channelId: ch2.id, days: every, startMinute: 0, endMinute: 1439, collectionId: fav.id, playbackOrder: 'inherit', fillerMode: 'none', startMode: 'hard' } })
+  const text = (await lintSchedule(ch2.id)).map((w) => w.message).join('\n')
+  assert.match(text, /“Favorites” \(Every day 12:00 AM–11:59 PM\) starts at an exact time but has no breaks/)
+  // Rotating shows plays each show in episode order too: season 0 first.
+  assert.match(text, /In “Favorites”, season 0 of Doug \(2 specials or shorts\) airs before season 1/)
 })
