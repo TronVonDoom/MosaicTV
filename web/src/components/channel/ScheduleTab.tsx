@@ -93,9 +93,9 @@ const CLOCK_OPTIONS = [
 ] as const
 const clockName = (grid: number) => (grid === 15 ? 'quarter-hour clock' : grid === 30 ? ':00/:30 clock' : grid === 60 ? 'hourly clock' : 'no clock')
 const CLOCK_BREAKS: Record<string, string> = {
-  none: 'Programs start on the clock with a break before each; the last one may run past the end of the block.',
-  end: 'Programs start on the clock with a break before each, as many as finish inside the block; the rest is a break.',
-  between: 'Programs start on the clock with a break before each, as many as finish inside the block; the rest is a break.',
+  none: 'Programs start on the clock, each followed by a break up to the next line; the last one may run past the end of the block.',
+  end: 'Programs start on the clock, each followed by a break up to the next line — as many as finish inside the block; the rest of it is a break.',
+  between: 'Programs start on the clock, each followed by a break up to the next line — as many as finish inside the block; the rest of it is a break.',
 }
 
 const START_HINTS: Record<string, string> = {
@@ -241,16 +241,6 @@ export default function ScheduleTab({
     resetBlockForm()
   }
 
-  if (cols.length === 0) {
-    return (
-      <EmptyState
-        icon="browse"
-        title="Nothing to schedule yet"
-        description="A schedule is built from collections — groups of shows or movies you assemble on the Collections tab. Make one first, then come back."
-      />
-    )
-  }
-
   const blockClock = blk.grid ?? ch.grid
 
   // What's worth knowing about the schedule as it stands — looked at again
@@ -281,6 +271,17 @@ export default function ScheduleTab({
       clearTimeout(t)
     }
   }, [channelId, actsAnywhere])
+
+
+  if (cols.length === 0) {
+    return (
+      <EmptyState
+        icon="browse"
+        title="Nothing to schedule yet"
+        description="A schedule is built from collections — groups of shows or movies you assemble on the Collections tab. Make one first, then come back."
+      />
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -603,7 +604,8 @@ export default function ScheduleTab({
             {(() => {
               const current = editingBlock != null ? ch.timeBlocks.find((b) => b.id === editingBlock) ?? null : null
               const pool = poolFor(current, idents)
-              const on = blk.fillerMode !== 'none' || blk.startMode === 'hard'
+              // On a clock every slot ends in a break, whatever the leftover-time setting.
+              const on = blk.fillerMode !== 'none' || blk.startMode === 'hard' || blockClock > 0
               const what = pool.map((i) => `“${i.name}”`).join(' and ')
               return (
                 <p className="mt-3 flex items-start gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.05] px-3 py-2 text-[12.5px] text-ink-soft">

@@ -68,7 +68,7 @@ export default function BreaksTab({
   const list = idents ?? []
   const colorOf = (id: number) => identColor(Math.max(0, list.findIndex((i) => i.id === id)))
   const logoName = (id: number | null) => (id == null ? null : (logos.find((l) => l.id === id)?.name ?? null))
-  const when = whenSummary(ch.timeBlocks)
+  const when = whenSummary(ch)
   const nextIdent = next?.identId != null ? list.find((i) => i.id === next.identId) : undefined
 
   async function move(index: number, by: -1 | 1) {
@@ -130,7 +130,9 @@ export default function BreaksTab({
                   {next.onAir ? 'On now' : 'Next break'}
                 </div>
                 <div className="text-[15px] font-semibold">{next.onAir ? 'A break is on air' : whenLabel(next.start)}</div>
-                {(next.before || next.beforeBlock) && (
+                {next.within ? (
+                  <div className="text-[13px] text-ink-muted">An act break in {next.within}</div>
+                ) : (next.before || next.beforeBlock) && (
                   <p className="text-[13px] text-ink-muted leading-snug">
                     Before {[next.beforeBlock, next.before].filter(Boolean).join(': ')}
                   </p>

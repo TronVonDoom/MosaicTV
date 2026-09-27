@@ -222,6 +222,7 @@ channelsRouter.get('/:id/breaks', async (req, res) => {
       built,
       before: after?.mediaItem ? programLabel(after.mediaItem) : null,
       beforeBlock: afterBlock && afterBlock.id !== block?.id ? afterBlock.collection.name : null,
+      within: slot.groupKey && after?.groupKey === slot.groupKey && after.mediaItem ? programLabel(after.mediaItem) : null,
     }
   res.json({ next })
 })

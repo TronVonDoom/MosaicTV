@@ -537,6 +537,8 @@ export type NextBreak = {
   /** The program it leads into, and that program's block when it's a different one. */
   before: string | null
   beforeBlock: string | null
+  /** An act break: the program it falls inside (null for a break between programs). */
+  within: string | null
 }
 
 /** One program in the look-ahead (an airing's parts folded into one). */

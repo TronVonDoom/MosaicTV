@@ -1,5 +1,5 @@
 import type { ChannelDetail, Ident, Logo } from '../../lib/api'
-import { blockLogo, breaksOn, poolFor, type Block } from '../../lib/breaks'
+import { blockLogo, breaksOn, clockOf, poolFor, type Block } from '../../lib/breaks'
 import { formatDays, minutesToTime } from '../../lib/format'
 import { expand } from '../WeeklyBlockGrid'
 import { Button, cx } from '../ui'
@@ -14,7 +14,13 @@ function tint(hex: string, a: number): string {
   return `rgb(${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255} / ${a})`
 }
 
-function breakText(b: Block): string {
+function breakText(b: Block, ch: ChannelDetail): string {
+  if (clockOf(b, ch) > 0) {
+    const acts = (b.actBreaks ?? ch.actBreaks) ? ', shared out across its act breaks' : ''
+    return b.startMode === 'hard'
+      ? `On the clock: each program is followed by a break up to the next line${acts}, and the gap before its hard start is a break too.`
+      : `On the clock: each program is followed by a break up to the next line${acts}.`
+  }
   if (b.fillerMode === 'end' && b.startMode === 'hard') return 'Starts hard, so the gap before it is a break — and its leftover time at the end is one more.'
   if (b.fillerMode === 'end') return 'Its leftover time at the end is one break.'
   if (b.fillerMode === 'between') return 'Its leftover time is spread out as breaks between programs.'
@@ -77,7 +83,7 @@ export default function BreaksMap({
                   .map((s, i) => {
                     const b = s.block
                     const c = colorFor(b)
-                    const on = breaksOn(b)
+                    const on = breaksOn(b, ch)
                     const isSel = b.id === selected
                     // A block that runs past midnight is two spans: its hard
                     // start is on the first, the break at its end on the second
@@ -136,11 +142,11 @@ export default function BreaksMap({
               {formatDays(sel.days)} · {minutesToTime(sel.startMinute)}–{minutesToTime(sel.endMinute)}
               {logoName(blockLogo(sel, ch)) && ` · ${logoName(blockLogo(sel, ch))} logo`}
             </div>
-            <div className="pt-1 text-[13px] text-ink-soft">{breakText(sel)}</div>
+            <div className="pt-1 text-[13px] text-ink-soft">{breakText(sel, ch)}</div>
             <div className="text-[13px] text-ink-soft">
               {selPool.length === 0
                 ? 'Nothing would play here.'
-                : `${breaksOn(sel) ? 'Plays' : 'If you turn breaks on, it plays'} ${selPool.map((i) => `“${i.name}”`).join(' and ')}${
+                : `${breaksOn(sel, ch) ? 'Plays' : 'If you turn breaks on, it plays'} ${selPool.map((i) => `“${i.name}”`).join(' and ')}${
                     selPool.length > 1 ? ', taking turns' : ''
                   }${logoName(selLogo) ? `, with the ${logoName(selLogo)} logo` : ''}.`}
             </div>

@@ -517,7 +517,7 @@ export default function IdentEditor({
                             onChange={() => toggleBlocks([b.id])}
                           />
                           <span className="min-w-0 flex-1 truncate text-ink-soft">{b.collection.name}</span>
-                          {!breaksOn(b) && <Badge>Breaks off</Badge>}
+                          {!breaksOn(b, ch) && <Badge>Breaks off</Badge>}
                           <span className="text-xs text-ink-faint tabular-nums whitespace-nowrap">
                             {formatDays(b.days)} · {minutesToTime(b.startMinute)}–{minutesToTime(b.endMinute)}
                           </span>
@@ -623,8 +623,9 @@ export default function IdentEditor({
           )}
           {previewError && <p className="text-xs text-rose-400">{previewError}</p>}
           <p className="text-xs text-ink-faint leading-relaxed">
-            Rendered in a few seconds with the real logo and music. Saving builds the full loop in the background — breaks
-            keep the current version until it’s ready.
+            {draft.style === 'reel'
+              ? 'A few seconds of its first clip. On air, each break is a fresh mix of its clips, then the frosted glass for whatever time is left.'
+              : 'Rendered in a few seconds with the real logo and music. Saving builds the full loop in the background — breaks keep the current version until it’s ready.'}
           </p>
           <div
             className={cx(

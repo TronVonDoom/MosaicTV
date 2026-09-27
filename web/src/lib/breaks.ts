@@ -8,8 +8,19 @@ import { formatDays, minutesToTime } from './format'
 
 export type Block = ChannelDetail['timeBlocks'][number]
 
-/** Does a block have breaks: leftover time filled, or a hard start (the gap before it is a break). */
-export const breaksOn = (b: Block): boolean => (b.fillerMode || 'none') !== 'none' || b.startMode === 'hard'
+type Clock = Pick<ChannelDetail, 'grid'>
+
+/** A block's broadcast clock in minutes: its own, else the channel's (0 = none). */
+export const clockOf = (b: Block, ch: Clock): number => (b.grid ?? ch.grid) || 0
+
+/**
+ * Does a block have breaks: on a broadcast clock (every program is followed by
+ * one), leftover time filled, or a hard start (the gap before it is a break).
+ */
+export const breaksOn = (b: Block, ch: Clock): boolean =>
+  clockOf(b, ch) > 0 || (b.fillerMode || 'none') !== 'none' || b.startMode === 'hard'
+
+const CLOCK_NAME: Record<number, string> = { 15: 'quarter-hour', 30: ':00/:30', 60: 'hourly' }
 
 /** The idents that play only during this block. */
 export const ownIdents = (b: Block, idents: Ident[]): Ident[] =>
@@ -76,14 +87,40 @@ export function nameBlocks(bs: Block[]): string {
 export const describeBlocks = (bs: Block[]): string =>
   bs.length === 1 ? nameBlocks(bs) : `${bs.length} blocks (${nameBlocks(bs)})`
 
-/** "Airs in …" for an ident, or null when none of its blocks have breaks. */
+/**
+ * "Airs in …" for an ident, or null when none of its blocks have breaks. On a
+ * clock, an "everywhere else" ident also airs between programs outside blocks.
+ */
 export function airsIn(i: Pick<Ident, 'id' | 'plays' | 'blockIds'>, ch: ChannelDetail, idents: Ident[]): string | null {
-  const on = blocksOf(i, ch.timeBlocks, idents).filter(breaksOn)
-  return on.length ? describeBlocks(on) : null
+  const on = blocksOf(i, ch.timeBlocks, idents).filter((b) => breaksOn(b, ch))
+  const outside = i.plays === 'any' && ch.grid > 0 ? 'between programs outside blocks' : ''
+  if (on.length && outside) return `${describeBlocks(on)}, and ${outside}`
+  return on.length ? describeBlocks(on) : outside || null
 }
 
 /** When a channel's breaks happen, in words — the Breaks tab's summary of what's set on Schedule. */
-export function whenSummary(blocks: Block[]): { headline: string; detail: string; none: boolean } {
+export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'timeBlocks'>): { headline: string; detail: string; none: boolean } {
+  const blocks = ch.timeBlocks
+  if (ch.grid > 0) {
+    // On a clock, every program is followed by a break up to the next line.
+    const off = blocks.filter((b) => clockOf(b, ch) === 0)
+    const offBreaks = off.filter((b) => breaksOn(b, ch))
+    const hard = blocks.filter((b) => b.startMode === 'hard').length
+    return {
+      headline: `Every program is followed by a break up to the next line of the ${CLOCK_NAME[ch.grid] ?? ch.grid + '-minute'} clock${ch.actBreaks ? ', shared out across its act breaks' : ''}.`,
+      detail: [
+        off.length
+          ? `${describeBlocks(off)} ${off.length === 1 ? 'turns' : 'turn'} the clock off${offBreaks.length === off.length ? ' but still' : offBreaks.length ? '; some still' : ', so programs there run back to back'}${offBreaks.length ? ' break by leftover time or a hard start' : ''}.`
+          : blocks.length
+            ? `All ${blocks.length} block${blocks.length === 1 ? '' : 's'} keep the clock.`
+            : 'It has no time blocks: the rotation runs on the clock around the day.',
+        hard ? `${hard} start${hard === 1 ? 's' : ''} hard, so whatever is on before gives way to a break.` : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      none: false,
+    }
+  }
   if (blocks.length === 0) {
     return {
       headline: 'No breaks.',
@@ -91,7 +128,7 @@ export function whenSummary(blocks: Block[]): { headline: string; detail: string
       none: true,
     }
   }
-  const on = blocks.filter(breaksOn)
+  const on = blocks.filter((b) => breaksOn(b, ch))
   if (on.length === 0) {
     return {
       headline: 'Breaks never air on this channel.',

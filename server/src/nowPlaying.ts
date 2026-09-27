@@ -169,6 +169,22 @@ export async function channelsNow(channelIds: number[], nextCount = 3): Promise<
     ),
   )
 
+  // A program on the air may have started rows ago — a broadcast episode's
+  // earlier segments, the acts and act breaks before this one: fetch those
+  // too, so "now" is the whole program from its start.
+  await Promise.all(
+    perChannel.map(async (rows, i) => {
+      const first = rows[0]
+      if (!first?.groupKey || first.startTime > now) return
+      const earlier = await prisma.playoutItem.findMany({
+        where: { channelId: channelIds[i], groupKey: first.groupKey, startTime: { lt: first.startTime } },
+        orderBy: { startTime: 'asc' },
+        select: { kind: true, title: true, startTime: true, stopTime: true, groupKey: true, mediaItem: { select: MEDIA_SELECT } },
+      })
+      rows.unshift(...earlier)
+    }),
+  )
+
   // Show-level TMDB data for every episode involved, in one query.
   const wanted = new Map<number, Set<string>>()
   for (const rows of perChannel)
