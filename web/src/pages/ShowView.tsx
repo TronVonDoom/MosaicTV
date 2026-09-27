@@ -11,7 +11,7 @@ import {
   type SeasonGroup,
   type ShowDetail,
 } from '../lib/api'
-import { formatDuration, formatSize, posterGradient } from '../lib/format'
+import { formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
 import MediaDetailModal from '../components/MediaDetailModal'
 import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
@@ -347,6 +347,7 @@ export default function ShowView() {
                     {ep.videoCodec ? ` · ${ep.videoCodec}` : ''}
                     {ep.sizeBytes ? ` · ${formatSize(ep.sizeBytes)}` : ''}
                     {ep.missing ? ' · missing' : ''}
+                    {detail.aired[ep.id] && <span className="text-ink-muted"> · {formatAired(detail.aired[ep.id])}</span>}
                   </div>
                 </div>
                 <div className="text-[13px] text-ink-muted shrink-0 tabular-nums">

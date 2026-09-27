@@ -9,7 +9,8 @@
 
 import { prisma } from './db.js'
 import { log } from './logs.js'
-import { topUpPlayout } from './playout.js'
+import { prunePlayout, topUpPlayout } from './playout.js'
+import { pruneAired } from './aired.js'
 
 // Hourly. With the refill at the halfway mark, a channel on the default
 // 48-hour horizon only really rebuilds about once a day — the other sweeps cost
@@ -35,6 +36,9 @@ export async function sweepGuides(): Promise<{ channels: number; built: number }
     let touched = 0
     let built = 0
     for (const ch of channels) {
+      // What aired moves to the history hourly, not only when the guide refills
+      // (about once a day), so "what was on" stays a short reach back.
+      await prunePlayout(ch.id).catch((e) => log('warn', 'playout', `Archiving what aired on "${ch.name}" failed`, String(e)))
       const res = await topUpPlayout(ch).catch((e) => {
         log('error', 'playout', `Guide sweep failed for "${ch.name}"`, String((e as Error)?.stack || e))
         return null
@@ -44,6 +48,7 @@ export async function sweepGuides(): Promise<{ channels: number; built: number }
         built += res.built
       }
     }
+    await pruneAired().catch(() => {})
     if (touched > 0) {
       log('info', 'playout', `Guide sweep: extended ${touched} channel(s) by ${built} program(s)`)
     }

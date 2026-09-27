@@ -23,6 +23,7 @@ import { hlsDir, logosDir } from '../paths.js'
 import { log } from '../logs.js'
 import { markEvent } from '../metrics.js'
 import { topUpPlayout } from '../playout.js'
+import { worstStreamed } from '../aired.js'
 import { clientIp, clientName, closeSession, openSession, type Session } from '../sessions.js'
 import { ensureChannelReady, pipeSegment } from './pipe.js'
 import { resolveProfile } from './profile.js'
@@ -114,9 +115,33 @@ function identItem(channelId: number, startMs: number, stopMs: number): PlayoutI
     stopTime: new Date(stopMs),
     groupKey: null,
     state: null,
+    streamed: null,
     mediaItem: null,
   }
 }
+
+/**
+ * Note on a program's playout row how it went on the stream (see
+ * PlayoutItem.streamed): "ok" unless something already went wrong with it, and
+ * a problem joins any before it. Breaks and stand-ins aren't recorded.
+ */
+function noteStreamed(item: { id: number; kind: string }, outcome: string): Promise<void> {
+  if (item.id <= 0 || item.kind !== 'program') return Promise.resolve()
+  // One at a time: an "ok" still being written must not land on top of a
+  // problem noted a moment later.
+  streamedNotes = streamedNotes.then(async () => {
+    try {
+      const row = await prisma.playoutItem.findUnique({ where: { id: item.id }, select: { streamed: true } })
+      if (!row) return
+      const next = worstStreamed([row.streamed, outcome])
+      if (next !== row.streamed) await prisma.playoutItem.update({ where: { id: item.id }, data: { streamed: next } })
+    } catch {
+      /* history is best-effort; never let it stop the stream */
+    }
+  })
+  return streamedNotes
+}
+let streamedNotes: Promise<void> = Promise.resolve()
 
 class ChannelSegmenter {
   readonly n: number
@@ -336,6 +361,7 @@ class ChannelSegmenter {
 
     if (built.kind === 'black') {
       this.attempts.set(item.id, { stopMs, cpu: attempt?.cpu ?? false, hold: built.why })
+      void noteStreamed(item, `held: ${built.why}`)
       return
     }
 
@@ -348,6 +374,8 @@ class ChannelSegmenter {
     )
     markEvent(this.n, item.kind === 'filler' ? 'filler' : item.mediaItem?.type === 'music' ? 'song' : 'program', built.label, enc)
 
+    // Someone is watching it: it streamed, unless something below says otherwise.
+    void noteStreamed(item, 'ok')
     const res = await this.encodeToMaster(built.args, built.label, built.captionFiles, at)
     if (!this.running || res.restyled) return
 
@@ -361,9 +389,11 @@ class ChannelSegmenter {
       if (!attempt?.cpu && (enc !== 'libx264' || built.hwDecode)) {
         this.attempts.set(item.id, { stopMs, cpu: true })
         log('warn', 'stream', `Ch ${this.n}: ${built.label} ${why} on the GPU — retrying it on the CPU`, undefined, this.tag)
+        void noteStreamed(item, `glitch: ${why} on the GPU, carried on on the CPU`)
       } else {
         this.attempts.set(item.id, { stopMs, cpu: true, hold: `${built.label} could not be played` })
         log('warn', 'stream', `Ch ${this.n}: ${built.label} ${why} — holding the rest of its slot with the station ident`, undefined, this.tag)
+        void noteStreamed(item, `held: ${why} — the rest of its slot was a station break`)
       }
       return
     }
@@ -375,6 +405,7 @@ class ChannelSegmenter {
       const short = Math.round(segDur - res.encodedSec)
       this.attempts.set(item.id, { stopMs, cpu: attempt?.cpu ?? false, hold: `${built.label} ended ${short}s early` })
       if (short > 1) log('info', 'stream', `Ch ${this.n}: ${built.label} ended ${short}s before its slot — holding to stay on schedule`, undefined, this.tag)
+      if (short > 1) void noteStreamed(item, `held: the file ended ${short}s before its slot`)
     }
   }
 

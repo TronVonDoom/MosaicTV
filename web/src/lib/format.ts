@@ -114,3 +114,18 @@ export function formatLongDuration(seconds: number | null): string {
   const days = hours / 24
   return days >= 365 ? `${(days / 365).toFixed(1)} years` : `${Math.round(days)} days`
 }
+
+/** "Tue 9:40 PM" — or just "9:40 PM" today, "Mar 3" when it's older than a week. */
+export function formatWhen(t: string | number | Date, now = Date.now()): string {
+  const d = new Date(t)
+  const n = new Date(now)
+  if (d.toDateString() === n.toDateString()) return formatClock(d)
+  if (now - d.getTime() < 6 * 86400_000) return d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+/** "Aired 3× · last Tue 9:40 PM on 31" for an episode's history. */
+export function formatAired(a: { count: number; lastAt: string; channelNumber: number | null; channelName: string | null }, now = Date.now()): string {
+  const where = a.channelNumber != null ? ` on ${a.channelNumber}` : a.channelName ? ` on ${a.channelName}` : ''
+  return `${a.count > 1 ? `Aired ${a.count}× · last` : 'Aired'} ${formatWhen(a.lastAt, now)}${where}`
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { api, ART, artworkUrl, tmdbImage, type MediaItemDetail } from '../lib/api'
-import { episodeCode, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { episodeCode, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
 import { Badge, IconButton, Modal, Skeleton } from './ui'
 
 function Spec({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
@@ -122,6 +122,7 @@ export default function MediaDetailModal({ id, onClose }: { id: number; onClose:
 
               <dl className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3.5 rounded-xl border border-edge bg-sunken/60 p-4">
                 <Spec label="Library" value={item.library.name} />
+                <Spec label="Last aired" value={item.aired ? formatAired(item.aired) : 'Not in the last 90 days'} />
                 <Spec label="Resolution" value={item.width && item.height ? `${item.width}×${item.height}` : '—'} />
                 <Spec label="Codecs" value={[item.videoCodec, item.audioCodec].filter(Boolean).join(' / ') || '—'} />
                 <Spec label="Container" value={item.container || '—'} />

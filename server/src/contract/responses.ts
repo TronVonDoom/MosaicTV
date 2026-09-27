@@ -187,7 +187,7 @@ export type MediaItem = {
   missing: boolean
 }
 
-export type MediaItemDetail = MediaItem & { library: { name: string; kind: LibraryKind } }
+export type MediaItemDetail = MediaItem & { library: { name: string; kind: LibraryKind }; aired: EpisodeAired | null }
 
 export type MediaPage = { total: number; page: number; pageSize: number; items: MediaItem[] }
 export type MediaSort = 'title' | 'year' | 'added' | 'rating'
@@ -215,6 +215,8 @@ export type SeasonGroup = { season: number | null; episodes: MediaItem[]; tmdbPo
 
 export type ShowDetail = {
   id: number | null
+  /** When each episode last aired, by media item id (only those that have). */
+  aired: Record<number, EpisodeAired>
   libraryId: number | null
   showTitle: string
   /** The folder names its files are filed under (more than one after a merge). */
@@ -434,6 +436,25 @@ export type PlayoutEntry = {
 }
 
 export type Playout = { now: string; items: PlayoutEntry[] }
+
+/** One program a channel aired (an airing's segments folded into one). */
+export type AiredProgram = {
+  mediaItemId: number | null
+  showId: number | null
+  title: string
+  subtitle: string | null
+  startTime: Date
+  stopTime: Date
+  parts: number
+  /** How the stream went: "ok", what went wrong, or null if nobody was watching. */
+  streamed: string | null
+  /** Still on the air. */
+  onAir: boolean
+}
+export type AiredHistory = { from: Date; to: Date; programs: AiredProgram[] }
+
+/** How often a file has aired in the kept history, and where it last did. */
+export type EpisodeAired = { count: number; lastAt: Date; channelName: string | null; channelNumber: number | null }
 
 /** One program as the "what's on" views show it. A multi-part airing is a single unit. */
 export type NowUnit = {

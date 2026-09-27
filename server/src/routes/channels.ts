@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout } from '../playout.js'
+import { KEEP_DAYS, airedHistory } from '../aired.js'
 import { replanChannel, scheduleChanged } from '../scheduleChanges.js'
 import { sanitizeComingUp, type ComingUpConfig } from '../streaming/overlays.js'
 import { comingUpPreview } from '../streaming/cardPreview.js'
@@ -20,6 +21,7 @@ import {
   type ChannelDetail,
   type ChannelNow,
   type NextBreak,
+  type AiredHistory,
   type Playout,
   type Stored,
 } from '../contract/index.js'
@@ -343,6 +345,17 @@ channelsRouter.post('/:id/reset', async (req, res) => {
   const hard = req.query.hard === '1' || req.query.hard === 'true'
   const { from } = await replanChannel(Number(req.params.id), hard)
   res.json({ ok: true, from })
+})
+
+// What the channel aired, newest first: ?hours= back from now (default a day,
+// up to the kept history).
+channelsRouter.get('/:id/aired', async (req, res) => {
+  const channelId = Number(req.params.id)
+  const hours = Math.min(KEEP_DAYS * 24, Math.max(1, Number(req.query.hours) || 24))
+  const to = new Date()
+  const from = new Date(to.getTime() - hours * 3600 * 1000)
+  const programs = await airedHistory(channelId, from, to, to)
+  res.json({ from, to, programs } satisfies AiredHistory)
 })
 
 channelsRouter.get('/:id/playout', async (req, res) => {

@@ -9,6 +9,7 @@ import {
 } from './collections.js'
 import { log } from './logs.js'
 import { publish } from './events.js'
+import { archivePlayout } from './aired.js'
 
 const MAX_ITERATIONS = 50000
 
@@ -501,8 +502,10 @@ async function replanInner(channelId: number, opts: ReplanOptions): Promise<Repl
   return { from: null, built: await buildPlayoutInner(channelId, until) }
 }
 
-/** Drop already-finished programs to keep the table small. */
+/**
+ * Keep the table small: programs that finished over an hour ago move to the
+ * channel's history (aired.ts), and the breaks around them go.
+ */
 export async function prunePlayout(channelId: number): Promise<void> {
-  const cutoff = new Date(Date.now() - 3600 * 1000)
-  await prisma.playoutItem.deleteMany({ where: { channelId, stopTime: { lt: cutoff } } })
+  await archivePlayout(channelId)
 }

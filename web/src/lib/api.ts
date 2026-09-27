@@ -18,6 +18,9 @@ import {
   type Airing as AiringDTO,
   type AiringAppearance as AiringAppearanceDTO,
   type AiringSegmentInfo as AiringSegmentInfoDTO,
+  type AiredHistory as AiredHistoryDTO,
+  type AiredProgram as AiredProgramDTO,
+  type EpisodeAired as EpisodeAiredDTO,
   type Asset as AssetDTO,
   type Channel as ChannelDTO,
   type ChannelDetail as ChannelDetailDTO,
@@ -126,6 +129,9 @@ export type Activity = Wire<ActivityDTO>
 export type Airing = Wire<AiringDTO>
 export type AiringAppearance = Wire<AiringAppearanceDTO>
 export type AiringSegmentInfo = Wire<AiringSegmentInfoDTO>
+export type AiredHistory = Wire<AiredHistoryDTO>
+export type AiredProgram = Wire<AiredProgramDTO>
+export type EpisodeAired = Wire<EpisodeAiredDTO>
 export type Asset = Wire<AssetDTO>
 export type Channel = Wire<ChannelDTO>
 export type ChannelDetail = Wire<ChannelDetailDTO>
@@ -478,6 +484,8 @@ export const api = {
     request<{ ok: boolean; from: string | null }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
   playout: (channelId: number, hours = 24) =>
     request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}`),
+  /** What the channel aired, newest first, going back `hours`. */
+  aired: (channelId: number, hours = 24) => request<AiredHistory>(`/api/channels/${channelId}/aired?hours=${hours}`),
 
   // --- logs ---
   logs: (params: { level?: LogLevel; category?: LogCategory; limit?: number; debug?: boolean } = {}) => {

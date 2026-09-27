@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
+import { episodesAired } from '../aired.js'
 
 export const mediaRouter = Router()
 
@@ -52,5 +53,6 @@ mediaRouter.get('/:id', async (req, res) => {
     include: { library: { select: { name: true, kind: true } } },
   })
   if (!item) return res.status(404).json({ error: 'Not found' })
-  res.json(item)
+  const aired = await episodesAired([id])
+  res.json({ ...item, aired: aired[id] ?? null })
 })

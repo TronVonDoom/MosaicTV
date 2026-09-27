@@ -112,6 +112,7 @@ model Show {
   episodes         MediaItem[]
   members          CollectionItem[]
   airings          Airing[]
+  aired            Aired[]
 
   @@unique([libraryId, title])
 }
@@ -313,6 +314,7 @@ model Channel {
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
   playout           PlayoutItem[]
+  aired             Aired[]
   fillers           Filler[] // its idents
   fillerAssignments FillerAssignment[]
 }
@@ -379,8 +381,36 @@ model PlayoutItem {
   // schedule edit cuts the timeline at the next checkpoint and rebuilds from
   // it, so the guide follows the edit without skipping or repeating episodes.
   state       String?
+  // How it went on the stream, set by the segmenter as it plays it: "ok", or
+  // what went wrong ("held: …"). Null while nobody has watched it.
+  streamed    String?
 
   @@index([channelId, startTime])
+}
+
+// What a channel aired: a program's playout rows, kept once the guide lets
+// them go (see aired.ts). Breaks aren't kept. Title and subtitle are as they
+// read on air, so the history survives a file going missing; `streamed` is how
+// the stream went if anyone was watching (null = nobody was).
+model Aired {
+  id          Int        @id @default(autoincrement())
+  channel     Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId   Int
+  mediaItem   MediaItem? @relation(fields: [mediaItemId], references: [id], onDelete: SetNull)
+  mediaItemId Int?
+  show        Show?      @relation(fields: [showId], references: [id], onDelete: SetNull)
+  showId      Int?
+  // One airing's segments share it, as on the playout row.
+  groupKey    String?
+  title       String
+  subtitle    String?
+  startTime   DateTime
+  stopTime    DateTime
+  streamed    String?
+
+  @@index([channelId, startTime])
+  @@index([mediaItemId])
+  @@index([showId, startTime])
 }
 
 // One root folder belonging to a library.
@@ -438,6 +468,7 @@ model MediaItem {
   addedAt          DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   playouts         PlayoutItem[]
+  aired            Aired[]
   airingSegments   AiringSegment[]
 
   @@index([libraryId])

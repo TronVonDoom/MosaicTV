@@ -6,6 +6,7 @@ import { readBody } from '../validate.js'
 import { mergeShows, renameShow, ShowConflict } from '../shows.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { publish } from '../events.js'
+import { episodesAired } from '../aired.js'
 
 export const showsRouter = Router()
 
@@ -145,8 +146,10 @@ showsRouter.get('/detail', async (req, res) => {
     }))
 
   const year = showRow?.year ?? episodes.find((e) => e.year != null)?.year ?? null
+  const aired = await episodesAired(episodes.map((e) => e.id))
   res.json({
     id: showRow?.id ?? null,
+    aired,
     libraryId: showRow?.libraryId ?? libraryId ?? null,
     showTitle: show,
     names: showRow?.names.map((n) => n.name) ?? [],
