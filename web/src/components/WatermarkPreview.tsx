@@ -14,10 +14,10 @@ function sampleBackdrop(): Promise<number | null> {
 
 /**
  * A 16:9 frame showing where a watermark lands, over a real backdrop from the
- * library — the same geometry the encoder uses (filters.ts watermarkGraph):
- * width as a share of the picture, margins from the chosen corner, and with
- * "keep on the picture" the rectangle is the 4:3 image inside its pillarbox
- * rather than the whole frame. Intermittent logos pulse to say so.
+ * library — the same geometry the encoder uses (filters.ts watermarkBox):
+ * width and margins as shares of the frame, set in from the chosen corner, and
+ * with "keep on the picture" that corner is the 4:3 image's inside its
+ * pillarbox rather than the frame's. Intermittent logos pulse to say so.
  */
 export default function WatermarkPreview({
   wm,
@@ -38,9 +38,11 @@ export default function WatermarkPreview({
   // The picture inside the 16:9 frame, as fractions of the frame. A 4:3 image
   // fills the height and 75% of the width, pillarboxed.
   const pic = classic ? { x: 0.125, w: 0.75 } : { x: 0, w: 1 }
+  // Size and margins are shares of the whole frame, so the logo is the same
+  // size over either show; keeping it on the picture only moves the edges.
   const rect = wm.constrainToMedia ? pic : { x: 0, w: 1 }
-  const logoW = rect.w * (wm.widthPercent / 100)
-  const mx = rect.w * (wm.horizontalMarginPercent / 100)
+  const logoW = wm.widthPercent / 100
+  const mx = wm.horizontalMarginPercent / 100
   const my = wm.verticalMarginPercent / 100
   const [v, h] = wm.position.split('-') as ['top' | 'bottom', 'left' | 'right']
   const style: React.CSSProperties = {

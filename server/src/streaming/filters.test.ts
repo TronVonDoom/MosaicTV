@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { audioFades, cardAnchor, cardEntry, comingUpWindows, ffmpegArgs, placeCard, type Segment } from './filters.js'
+import { audioFades, cardAnchor, cardEntry, comingUpWindows, ffmpegArgs, mediaRect, placeCard, watermarkBox, type Segment } from './filters.js'
 import { DEFAULT_COMINGUP, DEFAULT_WATERMARK, parseComingUp, sanitizeComingUp } from './overlays.js'
 import { DEFAULT_PROFILE } from './profile.js'
 import { fitText, textWidth } from './card.js'
@@ -133,6 +133,31 @@ test('a card sits on the picture, not on the pillarbox bars', () => {
     const at = placeCard({ x0: 160, y0: 0, mw: 960, mh: 720 }, frame, card, pos, 1)
     assert.ok(at.x >= 160 && at.x + card.w <= 1120, `${pos}: ${JSON.stringify(at)}`)
   }
+})
+
+test('the logo is the same size on a 4:3 show as on a 16:9 one', () => {
+  const frame = { w: 1280, h: 720 }
+  const wm = { ...DEFAULT_WATERMARK, widthPercent: 10, horizontalMarginPercent: 4, verticalMarginPercent: 4, constrainToMedia: true }
+  const wide = watermarkBox(wm, mediaRect(1920, 1080, true, 1280, 720), frame)
+  const classic = watermarkBox(wm, mediaRect(640, 480, true, 1280, 720), frame)
+  const scope = watermarkBox(wm, mediaRect(1920, 800, true, 1280, 720), frame)
+  assert.equal(wide.LW, 128)
+  assert.equal(classic.LW, 128)
+  assert.equal(scope.LW, 128)
+  // Still set in from the picture's own corner, by the same distance.
+  assert.equal(wide.right, 1280 - 51)
+  assert.equal(classic.right, 1120 - 51)
+  assert.equal(classic.bottom, wide.bottom)
+  assert.equal(scope.bottom, 94 + 533 - 29) // a 2.4:1 picture, 533px tall
+  // And the whole command asks for the same width either way.
+  const seg = (w: number, h: number): Segment => ({
+    filePath: 'x.mkv', offsetSec: 0, durationSec: 60, loop: false, hasAudio: true, logo: 'logo.png', wmEpochSec: 0,
+    mediaWidth: w, mediaHeight: h, isFiller: false, fadeInSec: 0, fadeOutSec: 0,
+  })
+  const widthIn = (args: string[]) => /\[1:v\]scale=(\d+):-2/.exec(args[args.indexOf('-filter_complex') + 1])?.[1]
+  const profile = { ...DEFAULT_PROFILE, width: 1280, height: 720, scalingMode: 'pad' as const }
+  assert.equal(widthIn(ffmpegArgs(seg(640, 480), 'libx264', wm, profile)), '128')
+  assert.equal(widthIn(ffmpegArgs(seg(1920, 1080), 'libx264', wm, profile)), '128')
 })
 
 test('a card slides in from its own edge', () => {

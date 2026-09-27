@@ -84,8 +84,8 @@ export default function WatermarkFields({
               <span className="text-ink-soft">
                 Keep the logo on the picture
                 <span className="block text-xs text-ink-faint">
-                  Size and place it against the visible image rather than the full frame, so it never drifts onto the
-                  black bars of 4:3 or letterboxed content.
+                  Set it in from the corner of the visible image rather than the full frame, so it never drifts onto the
+                  black bars of 4:3 or letterboxed content. It stays the same size either way.
                 </span>
               </span>
             </label>
@@ -93,7 +93,7 @@ export default function WatermarkFields({
 
           <Section title="Appearance">
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Width %" hint="Share of the picture's width.">
+              <Field label="Width %" hint="Share of the frame's width — the same on every show.">
                 <Input type="number" min={1} max={50} className="w-full" value={wm.widthPercent} onChange={(e) => set('widthPercent', Number(e.target.value))} />
               </Field>
               <Field label="Opacity %">

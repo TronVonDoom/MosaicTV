@@ -54,7 +54,7 @@ function escapeFilterPath(p: string): string {
 // aspect-preserving fit (pillar/letterbox). Used to constrain the watermark to
 // the media. When not constraining, this is the whole canvas.
 type Rect = { x0: number; y0: number; mw: number; mh: number }
-function mediaRect(mediaW: number, mediaH: number, constrain: boolean, cw: number, ch: number): Rect {
+export function mediaRect(mediaW: number, mediaH: number, constrain: boolean, cw: number, ch: number): Rect {
   if (!constrain || !mediaW || !mediaH) return { x0: 0, y0: 0, mw: cw, mh: ch }
   const ar = mediaW / mediaH
   const canvasAR = cw / ch
@@ -80,6 +80,31 @@ function wantsFade(wm: WatermarkConfig, seg?: Pick<Segment, 'fadeInSec' | 'fadeO
   return cycleFades || edgeFades
 }
 
+/**
+ * The logo's box on the frame: its width and its margins in pixels, and the
+ * corner it's set in from. Size and margins are shares of the whole FRAME, so
+ * the logo is the same size on every program; "keep it on the picture" only
+ * moves the edges it's measured from to the picture's (a 4:3 show's pillarbox).
+ * Measuring the size against the picture made it shrink by a quarter every time
+ * a 4:3 show came on and grow back for the next 16:9 one.
+ */
+export function watermarkBox(
+  wm: Pick<WatermarkConfig, 'widthPercent' | 'horizontalMarginPercent' | 'verticalMarginPercent'>,
+  rect: Rect,
+  frame: { w: number; h: number },
+): { LW: number; left: number; top: number; right: number; bottom: number } {
+  const LW = Math.max(2, Math.round((frame.w * wm.widthPercent) / 100))
+  const MX = Math.round((frame.w * wm.horizontalMarginPercent) / 100)
+  const MY = Math.round((frame.h * wm.verticalMarginPercent) / 100)
+  return {
+    LW,
+    left: rect.x0 + MX,
+    top: rect.y0 + MY,
+    right: rect.x0 + rect.mw - MX, // right edge of the logo box
+    bottom: rect.y0 + rect.mh - MY, // bottom edge of the logo box
+  }
+}
+
 // Build the logo scale + opacity chain, overlay position, and (for intermittent
 // mode) a timeline `enable` expression that shows the logo for `durationSeconds`
 // every `frequencyMinutes`, aligned to wall-clock time so every viewer sees it
@@ -90,19 +115,14 @@ function watermarkGraph(
   logoIdx: number,
   wmEpochSec: number,
   rect: Rect,
+  frame: { w: number; h: number },
   fps: number,
   fading: boolean,
   fadeInSec: number,
   fadeOutSec: number,
   totalFrames: number,
 ): { logoChain: string; overlayPos: string; overlayExtra: string } {
-  const LW = Math.max(2, Math.round((rect.mw * wm.widthPercent) / 100))
-  const MX = Math.round((rect.mw * wm.horizontalMarginPercent) / 100)
-  const MY = Math.round((rect.mh * wm.verticalMarginPercent) / 100)
-  const left = rect.x0 + MX
-  const top = rect.y0 + MY
-  const right = rect.x0 + rect.mw - MX // right edge of the logo box
-  const bottom = rect.y0 + rect.mh - MY // bottom edge of the logo box
+  const { LW, left, top, right, bottom } = watermarkBox(wm, rect, frame)
   const positions: Record<string, string> = {
     'top-left': `${left}:${top}`,
     'top-right': `${right}-w:${top}`,
@@ -253,8 +273,10 @@ export function placeCard(
   position: CardPosition,
   scale: number,
 ): { x: number; y: number } {
-  const mx = Math.max(24 * scale, rect.mw * 0.04)
-  const my = Math.max(24 * scale, rect.mh * 0.06)
+  // Margins are shares of the frame, like the watermark's, so the card sits the
+  // same distance inside the picture on a 4:3 show as on a 16:9 one.
+  const mx = Math.max(24 * scale, frame.width * 0.04)
+  const my = Math.max(24 * scale, frame.height * 0.06)
   const [v, hz] = position.split('-') as ['top' | 'middle' | 'bottom', 'left' | 'center' | 'right']
   const x = hz === 'left' ? rect.x0 + mx : hz === 'right' ? rect.x0 + rect.mw - mx - box.w : rect.x0 + (rect.mw - box.w) / 2
   const y = v === 'top' ? rect.y0 + my : v === 'bottom' ? rect.y0 + rect.mh - my - box.h : rect.y0 + (rect.mh - box.h) / 2
@@ -470,7 +492,8 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
     const constrain = wm.constrainToMedia && p.scalingMode === 'pad'
     const rect = mediaRect(seg.mediaWidth, seg.mediaHeight, constrain, p.width, p.height)
     const totalFrames = Math.round((seg.durationSec ?? 0) * p.fps)
-    const wg = watermarkGraph(wm, logoIdx, seg.wmEpochSec, rect, p.fps, fading, seg.fadeInSec, seg.fadeOutSec, totalFrames)
+    const frame = { w: p.width, h: p.height }
+    const wg = watermarkGraph(wm, logoIdx, seg.wmEpochSec, rect, frame, p.fps, fading, seg.fadeInSec, seg.fadeOutSec, totalFrames)
     vf = `${base}[bg];${wg.logoChain};[bg][lg]overlay=${wg.overlayPos}${wg.overlayExtra}${cards.length ? '[vpre]' : '[v]'}`
   } else {
     vf = `${base}${cards.length ? '[vpre]' : '[v]'}`
