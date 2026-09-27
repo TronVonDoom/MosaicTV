@@ -142,6 +142,28 @@ function nextBlockBoundary(
   return best
 }
 
+/**
+ * How far past a clock line a program may run and still hand straight over —
+ * the next one starting that little bit late — instead of padding a whole
+ * slot. Files often carry a few seconds of black past their half hour.
+ */
+export const GRID_SLACK_MS = 60_000
+
+/**
+ * Where a program ending at `endMs` hands over on a `gridMin`-minute
+ * broadcast clock: the next line at or after it (in local time: :00 and :30 on
+ * a 30), or `endMs` itself when it lands on a line or only just past one.
+ */
+export function nextGridLine(endMs: number, gridMin: number): number {
+  if (!gridMin) return endMs
+  const d = new Date(endMs)
+  d.setSeconds(0, 0)
+  d.setMinutes(d.getMinutes() - (d.getMinutes() % gridMin)) // the line at or before
+  if (endMs - d.getTime() <= GRID_SLACK_MS) return endMs
+  d.setMinutes(d.getMinutes() + gridMin)
+  return d.getTime()
+}
+
 // One build per channel at a time. Concurrent builds (e.g. two viewers
 // connecting at once) would each read the same saved positions, double-schedule
 // the same window, and the last writer would clobber the other's state — which
@@ -247,6 +269,24 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
   const unitDuration = (u: ProgramUnit) => u.reduce((a, m) => a + (m.durationSec ?? 0), 0)
+  // The broadcast clock a program lands on: its block's own, else the channel's.
+  const gridOf = (block: TimeBlock | null): number => (block?.grid ?? channel.grid) || 0
+  // A hard-start block the pad after a program must not run into.
+  const hardStartBefore = (limitMs: number): number => {
+    const b = nextBlockBoundary(channel.timeBlocks, cursor, new Date(limitMs))
+    return b && b.block.startMode === 'hard' ? b.start.getTime() : limitMs
+  }
+  // Pad from the cursor to the clock's next line with a break (never past
+  // `limitMs`), so the next program starts on the clock.
+  const padToGrid = (grid: number, limitMs = Infinity) => {
+    if (!grid) return
+    const c = cursor.getTime()
+    const line = Math.min(nextGridLine(c, grid), hardStartBefore(Math.min(limitMs, c + grid * 60_000)))
+    if (line - c > 500) {
+      pushFiller(new Date(c), new Date(line))
+      cursor = new Date(line)
+    }
+  }
   // Schedule one unit's segments back-to-back starting at startMs, returning the
   // end time in ms. A multi-segment unit tags every segment with one groupKey
   // ("channelId:startMs" — unique per airing on this channel) so the guide can
@@ -295,6 +335,47 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
         advance(key, block.collectionId, items, pos + 1)
         const end = pushUnit(u, cursor.getTime(), cp)
         if (end > cursor.getTime()) cursor = new Date(end)
+        padToGrid(gridOf(block))
+      } else if (gridOf(block)) {
+        // On a broadcast clock: program after program, each padded to the next
+        // line with a break, as many as start and finish inside the block; the
+        // rest of the block is one break. Resuming from a checkpoint inside it
+        // (a program's start, on a line) lays the rest out the same way.
+        const grid = gridOf(block)
+        const endMs = blockEnd.getTime()
+        let pos = posOf(key, legacy)
+        let c = cursor.getTime()
+        let placed = 0
+        for (let g = 0; g < 20000; g++) {
+          const u = items.at(pos)
+          const dur = unitDuration(u)
+          if (dur <= 0) {
+            pos++
+            continue
+          }
+          if (c + dur * 1000 > endMs) break
+          c = pushUnit(u, c, checkpoint(key, items, pos))
+          pos++
+          placed++
+          const line = Math.min(nextGridLine(c, grid), endMs)
+          if (line - c > 500) {
+            pushFiller(new Date(c), new Date(line))
+            c = line
+          }
+        }
+        if (placed === 0) {
+          // Nothing fits in what's left of the block: play one anyway (it
+          // overruns), then back onto the clock.
+          const u = items.at(pos)
+          const cp = checkpoint(key, items, pos)
+          advance(key, block.collectionId, items, pos + 1)
+          cursor = new Date(Math.max(pushUnit(u, c, cp), c + 1000))
+          padToGrid(grid)
+        } else {
+          advance(key, block.collectionId, items, pos)
+          if (endMs - c > 500) pushFiller(new Date(c), blockEnd)
+          cursor = blockEnd
+        }
       } else {
         // Pack as many program units as fit, then filler to land on blockEnd. A
         // multi-part airing counts as one unit — it never straddles the end.
@@ -325,6 +406,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
           advance(key, block.collectionId, items, pos + 1)
           const end = pushUnit(u, cursor.getTime(), cp)
           cursor = new Date(Math.max(end, cursor.getTime() + 1000))
+          padToGrid(gridOf(block))
         } else {
           advance(key, block.collectionId, items, pos)
           const gapSec = Math.max(0, availSec - used)
@@ -348,6 +430,14 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
         }
       }
     } else if (channel.rotationItems.length > 0) {
+      // Back on the channel's clock first, if something off it (a block with
+      // no clock of its own) left the cursor between lines. Not before the very
+      // first program a channel airs: that starts the moment it's built.
+      if (created.length > 0 || channel.playoutCursor) {
+        const before = cursor.getTime()
+        padToGrid(gridOf(null))
+        if (cursor.getTime() !== before && activeBlock(channel.timeBlocks, cursor)) continue
+      }
       // "play N" counts units, so a multi-part airing is one of the N.
       const turnSize = (r: (typeof channel.rotationItems)[number]) => (r.mode === 'multiple' ? Math.max(1, r.count) : 1)
       // A turn left unfinished carries on first (see State.turn), unless its
@@ -395,6 +485,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
           const cp = checkpoint(key, items, pos, { id: ri.id, left: take - k })
           pos++
           cursor = new Date(pushUnit(u, cursor.getTime(), cp))
+          padToGrid(gridOf(null))
           if (cursor >= until) {
             if (k + 1 < take) state.turn = { id: ri.id, left: take - k - 1 }
             break

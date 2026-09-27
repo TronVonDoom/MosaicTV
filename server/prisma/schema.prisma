@@ -310,6 +310,10 @@ model Channel {
   // Keep the corner logo on screen during breaks. Off: it fades out as a break
   // starts and back in after — the idents already show the logo.
   logoOnBreaks      Boolean            @default(false)
+  // The broadcast clock, in minutes (0 = off, or 15, 30, 60): every program
+  // starts on the clock's next line — :00 and :30 on a 30 — and the time
+  // between is a break. A time block can set its own (TimeBlock.grid).
+  grid              Int                @default(0)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -355,6 +359,9 @@ model TimeBlock {
   // Per-block override of the channel's "coming up next" caption (JSON
   // ComingUpConfig); null = inherit the channel's setting.
   comingUp          String?
+  // The block's own broadcast clock (see Channel.grid); null = the channel's,
+  // 0 = off here.
+  grid              Int?
   fillerAssignments FillerAssignment[]
 
   @@index([channelId])

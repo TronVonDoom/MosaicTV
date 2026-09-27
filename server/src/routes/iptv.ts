@@ -202,6 +202,24 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
     xml += `    <icon src="${escapeXml(c.logoId ? `${base}/api/logos/${c.logoId}/image` : c.logoUrl || `${base}/mosaictv-icon.png`)}" />\n`
     xml += '  </channel>\n'
   }
+  // A break that follows a program is listed as part of it, the way a paper
+  // guide lists a half-hour show from :00 to :30 though its episode runs 22
+  // minutes. A long break — the wait for an exact-time block — keeps its own
+  // entry. `end` is the index just past the program's rows.
+  const FOLD_BREAK_MS = 15 * 60_000
+  const foldsBreak = (end: number): boolean => {
+    const next = items[end]
+    const prev = items[end - 1]
+    return (
+      !!next &&
+      next.kind === 'filler' &&
+      next.channelId === prev.channelId &&
+      next.startTime.getTime() === prev.stopTime.getTime() &&
+      next.stopTime.getTime() - next.startTime.getTime() <= FOLD_BREAK_MS
+    )
+  }
+  const listedStop = (end: number): Date => (foldsBreak(end) ? items[end].stopTime : items[end - 1].stopTime)
+
   let i = 0
   while (i < items.length) {
     const it = items[i]
@@ -237,7 +255,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
           return `${code ? `${code} — ` : ''}${sm.title}`
         })
         .filter(Boolean)
-      xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(last.stopTime)}" channel="${chno}">\n`
+      xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(listedStop(i + run))}" channel="${chno}">\n`
       xml += `    <title>${escapeXml(showName)}</title>\n`
       if (lines.length) {
         xml += `    <sub-title>${escapeXml(lines.join(' • '))}</sub-title>\n`
@@ -250,7 +268,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
         xml += `    <episode-num system="xmltv_ns">${m.season - 1}.${m.episode - 1}.0</episode-num>\n`
       }
       xml += '  </programme>\n'
-      i += run
+      i += run + (foldsBreak(i + run) ? 1 : 0)
       continue
     }
 
@@ -266,7 +284,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
         : isEp
           ? (m.showTitle as string)
           : m.title
-    xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(it.stopTime)}" channel="${chno}">\n`
+    xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(it.kind === 'program' ? listedStop(i + 1) : it.stopTime)}" channel="${chno}">\n`
     xml += `    <title>${escapeXml(title)}</title>\n`
     if (isEp && m && m.title) xml += `    <sub-title>${escapeXml(m.title)}</sub-title>\n`
     else if (isMusic && m && m.album) xml += `    <sub-title>${escapeXml(m.album)}</sub-title>\n`
@@ -279,7 +297,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
       xml += `    <episode-num system="xmltv_ns">${m.season - 1}.${m.episode - 1}.0</episode-num>\n`
     }
     xml += '  </programme>\n'
-    i++
+    i += it.kind === 'program' && foldsBreak(i + 1) ? 2 : 1
   }
   xml += '</tv>\n'
   res.setHeader('Content-Type', 'application/xml')

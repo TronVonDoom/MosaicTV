@@ -12,6 +12,7 @@ import {
   MEMBER_KINDS,
   NO_AUDIO_PREFERENCE,
   asFillerMode,
+  asGrid,
   asOrderSetting,
   asPlaybackOrder,
   asStartMode,
@@ -83,6 +84,7 @@ export const ChannelUpdate = z.object({
   // '' from a cleared <select> means "inherit the global setting", not "no audio".
   audioLanguage: textOrNull.optional(),
   logoOnBreaks: flag.optional(),
+  grid: loose.transform(asGrid).optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 
@@ -104,6 +106,8 @@ const blockLook = {
   fillerMode: loose.transform(asFillerMode),
   startMode: loose.transform(asStartMode),
   comingUp,
+  // null (or missing) = the channel's clock.
+  grid: loose.transform((v): number | null => (v == null || v === '' ? null : asGrid(v))),
 }
 const sameStartEnd = (b: { startMinute?: number; endMinute?: number }) =>
   b.startMinute == null || b.endMinute == null || b.startMinute !== b.endMinute
@@ -137,6 +141,7 @@ export const BlockUpdate = z
     fillerMode: blockLook.fillerMode.optional(),
     startMode: blockLook.startMode.optional(),
     comingUp: blockLook.comingUp.optional(),
+    grid: blockLook.grid.optional(),
   })
   .refine(sameStartEnd, SAME_START_END)
 export type BlockUpdate = z.output<typeof BlockUpdate>

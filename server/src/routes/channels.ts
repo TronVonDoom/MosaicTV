@@ -160,6 +160,8 @@ channelsRouter.patch('/:id', async (req, res) => {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
     if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks)) restyleSegmenter(c.number)
+    // A new broadcast clock lays the guide out anew from the next program.
+    if (before && before.grid !== c.grid) scheduleChanged(id)
     // A new logo or picture size means new filler clips; build them ahead.
     if (logoId !== undefined || logoUrl !== undefined || profileId !== undefined) warmFiller().catch(() => {})
     res.json(c)
@@ -294,7 +296,7 @@ channelsRouter.patch('/:id/blocks/:blockId', async (req, res) => {
   const b = await prisma.timeBlock.update({ where: { id: blockId }, data }).catch(() => null)
   if (!b) return res.status(404).json({ error: 'Block not found.' })
   // When and what it airs, as opposed to how it looks (handled below).
-  const airs = (t: typeof b) => [t.collectionId, t.days, t.startMinute, t.endMinute, t.playbackOrder, t.fillerMode, t.startMode].join('|')
+  const airs = (t: typeof b) => [t.collectionId, t.days, t.startMinute, t.endMinute, t.playbackOrder, t.fillerMode, t.startMode, t.grid].join('|')
   if (airs(current) !== airs(b)) scheduleChanged(b.channelId)
   // Only a block governing the program on air has a look to refresh. That's
   // the block the program *started* in (the stream styles it by its start

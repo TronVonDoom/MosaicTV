@@ -7,6 +7,7 @@ import {
   type Collection,
   type ComingUpConfig,
   type FillerMode,
+  type GridMinutes,
   type Ident,
   type OrderSetting,
   type RotationMode,
@@ -53,6 +54,8 @@ type BlockForm = {
   startMode: StartMode
   fillerMode: FillerMode
   comingUp: ComingUpConfig | null
+  /** Its own broadcast clock; null = the channel's. */
+  grid: number | null
 }
 
 const emptyBlock = (): BlockForm => ({
@@ -66,6 +69,7 @@ const emptyBlock = (): BlockForm => ({
   startMode: 'soft',
   fillerMode: 'none',
   comingUp: null,
+  grid: null,
 })
 
 // How a block's leftover time airs, and what its start does — the "when" of
@@ -75,6 +79,20 @@ const BREAK_HINTS: Record<string, string> = {
   end: 'Leftover time at the end of the block becomes one break before the next block.',
   between: 'Leftover time is spread out as short breaks between programs.',
 }
+// The broadcast clock, and how it reads in a block's summary line.
+const CLOCK_OPTIONS = [
+  { value: '0', label: 'Off' },
+  { value: '15', label: 'Quarter hours' },
+  { value: '30', label: ':00 and :30' },
+  { value: '60', label: 'On the hour' },
+] as const
+const clockName = (grid: number) => (grid === 15 ? 'quarter-hour clock' : grid === 30 ? ':00/:30 clock' : grid === 60 ? 'hourly clock' : 'no clock')
+const CLOCK_BREAKS: Record<string, string> = {
+  none: 'Programs start on the clock with a break before each; the last one may run past the end of the block.',
+  end: 'Programs start on the clock with a break before each, as many as finish inside the block; the rest is a break.',
+  between: 'Programs start on the clock with a break before each, as many as finish inside the block; the rest is a break.',
+}
+
 const START_HINTS: Record<string, string> = {
   soft: 'Starts at the next program boundary, so there’s no gap to fill.',
   hard: 'Starts exactly on time. Whatever time is left before it becomes a break.',
@@ -163,6 +181,7 @@ export default function ScheduleTab({
       startMode: b.startMode ?? 'soft',
       fillerMode: b.fillerMode || 'none',
       comingUp: parseComingUp(b.comingUp),
+      grid: b.grid ?? null,
     })
   }
 
@@ -203,6 +222,7 @@ export default function ScheduleTab({
       startMode: blk.startMode,
       fillerMode: blk.fillerMode,
       comingUp: blk.comingUp,
+      grid: blk.grid,
     }
     await guard(
       () =>
@@ -224,8 +244,34 @@ export default function ScheduleTab({
     )
   }
 
+  const blockClock = blk.grid ?? ch.grid
+
   return (
     <div className="space-y-6">
+      {/* ---- Broadcast clock ---- */}
+      <Card>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 max-w-xl">
+            <h2 className="font-semibold">Broadcast clock</h2>
+            <p className="text-ink-muted text-sm mt-1">
+              {ch.grid
+                ? `Every program starts on the ${clockName(ch.grid)}, and the time until then is a break — a 22-minute episode at 7:00 is followed by ${ch.grid === 30 ? 'an 8-minute break, and the next show starts at 7:30' : 'a break up to the next line'}.`
+                : 'Off: programs play back to back, starting whenever the one before ends. Turn it on to start them on the :00 and :30, like broadcast TV.'}{' '}
+              <InfoHint>
+                A program that runs a minute or less past a line hands straight over instead of waiting a whole slot. A
+                time block can keep its own clock, or none, in its settings below.
+              </InfoHint>
+            </p>
+          </div>
+          <Segmented
+            size="sm"
+            value={String(ch.grid)}
+            onChange={(v) => guard(() => api.updateChannel(channelId, { grid: Number(v) as GridMinutes }), 'Clock saved — the guide follows from the next program')}
+            options={CLOCK_OPTIONS.map((o) => ({ ...o }))}
+          />
+        </div>
+      </Card>
+
       {/* ---- Rotation ---- */}
       <Card>
         <div className="flex items-center gap-2 mb-1">
@@ -347,6 +393,7 @@ export default function ScheduleTab({
                   {b.fillerMode === 'end' && ' · break at the end'}
                   {b.fillerMode === 'between' && ' · breaks between programs'}
                   {b.comingUp && ' · up-next'}
+                  {b.grid != null && b.grid !== ch.grid && ` · ${clockName(b.grid)}`}
                 </div>
               </div>
               <button
@@ -431,7 +478,23 @@ export default function ScheduleTab({
                     { value: 'between', label: 'Between programs' },
                   ]}
                 />
-                <p className="text-xs text-ink-faint leading-snug">{BREAK_HINTS[blk.fillerMode] ?? BREAK_HINTS.none}</p>
+                <p className="text-xs text-ink-faint leading-snug">
+                  {(blockClock ? CLOCK_BREAKS : BREAK_HINTS)[blk.fillerMode] ?? BREAK_HINTS.none}
+                </p>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <div className="text-[12.5px] font-medium text-ink-soft">Clock</div>
+                <Select
+                  value={blk.grid == null ? 'channel' : String(blk.grid)}
+                  onChange={(e) => setBlk({ ...blk, grid: e.target.value === 'channel' ? null : Number(e.target.value) })}
+                >
+                  <option value="channel">The channel's ({ch.grid ? clockName(ch.grid) : 'off'})</option>
+                  {CLOCK_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.value === '0' ? 'Off in this block' : o.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
             {(() => {

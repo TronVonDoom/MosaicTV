@@ -30,6 +30,14 @@ export const START_MODES = ['soft', 'hard'] as const
 export type StartMode = (typeof START_MODES)[number]
 export const asStartMode = (v: unknown): StartMode => (String(v) === 'hard' ? 'hard' : 'soft')
 
+/**
+ * A broadcast clock, in minutes: programs start on its lines (:00 and :30 on
+ * a 30) with a break filling the rest of each slot. 0 = no clock.
+ */
+export const GRID_MINUTES = [0, 15, 30, 60] as const
+export type GridMinutes = (typeof GRID_MINUTES)[number]
+export const asGrid = (v: unknown): GridMinutes => ((GRID_MINUTES as readonly number[]).includes(Number(v)) ? (Number(v) as GridMinutes) : 0)
+
 /** How many programs a rotation item airs a turn. */
 export const ROTATION_MODES = ['one', 'multiple'] as const
 export type RotationMode = (typeof ROTATION_MODES)[number]

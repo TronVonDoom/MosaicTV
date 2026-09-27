@@ -375,6 +375,8 @@ export type TimeBlock = {
   startMode: StartMode
   /** JSON ComingUpConfig; null = inherit the channel's. */
   comingUp: string | null
+  /** Its own broadcast clock in minutes; null = the channel's, 0 = off. */
+  grid: number | null
   collection: { id: number; name: string; defaultOrder: PlaybackOrder; logoId?: number | null }
 }
 
@@ -408,6 +410,8 @@ export type ChannelDetail = {
   audioLanguage: string | null
   /** Keep the corner logo on screen during breaks. */
   logoOnBreaks: boolean
+  /** The broadcast clock in minutes (0 = off). */
+  grid: number
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }

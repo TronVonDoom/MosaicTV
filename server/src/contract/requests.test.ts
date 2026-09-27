@@ -41,6 +41,7 @@ test('bodies are read as loosely as the routes always read them', () => {
     fillerMode: 'none',
     startMode: 'soft',
     comingUp: null,
+    grid: null, // the channel's clock
   })
   // Midnight is a real start time.
   assert.equal(BlockCreate.parse({ collectionId: 3, days: '0', startMinute: 0, endMinute: 60 }).startMinute, 0)
@@ -113,4 +114,11 @@ test('an up-next config is clamped on the way in', () => {
   assert.equal(comingUp?.leadSeconds, 3600)
   assert.equal(comingUp?.position, 'top-left')
   assert.equal(comingUp?.style, DEFAULT_COMINGUP.style)
+})
+
+test('a broadcast clock is one of the clock settings, or none', () => {
+  assert.equal(ChannelUpdate.parse({ grid: '30' }).grid, 30)
+  assert.equal(ChannelUpdate.parse({ grid: 45 }).grid, 0)
+  assert.equal(BlockCreate.parse({ collectionId: 3, days: '0', startMinute: 0, endMinute: 60, grid: 0 }).grid, 0)
+  assert.equal(BlockCreate.parse({ collectionId: 3, days: '0', startMinute: 0, endMinute: 60, grid: '' }).grid, null)
 })
