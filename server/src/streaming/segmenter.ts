@@ -77,6 +77,28 @@ const PRODUCER_STALL_SEC = 15
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * What the segmenter reaches outside itself for: launching ffmpeg, building an
+ * item's command, and probing what this host's ffmpeg can do. Swappable so a
+ * test can run the real producer loop against a fake encoder on a fake clock
+ * (segmenter.test.ts) — every boundary, stall and hold in seconds, instead of
+ * an overnight soak.
+ */
+export type SegmenterDeps = {
+  spawn: (cmd: string, args: string[]) => ChildProcess
+  buildItemArgs: typeof buildItemArgs
+  resolveEncoder: typeof resolveEncoder
+  detectReadrateBurst: typeof detectReadrateBurst
+}
+const deps: SegmenterDeps = { spawn, buildItemArgs, resolveEncoder, detectReadrateBurst }
+
+/** Tests only: swap what the segmenter launches and builds with. Returns an undo. */
+export function setSegmenterDeps(over: Partial<SegmenterDeps>): () => void {
+  const was = { ...deps }
+  Object.assign(deps, over)
+  return () => Object.assign(deps, was)
+}
+
 // One segment in the master playlist. `seq` is the global monotonic index and
 // the on-disk name (seg_{seq}.ts); `disc` marks an item boundary the player
 // resets on; `pdt` is the scheduled program-date-time on the first segment of
@@ -164,6 +186,12 @@ class ChannelSegmenter {
   // encoded so far. Runs ~LEAD_SEC ahead of the wall clock.
   private cursor = 0
   private attempts = new Map<number, Attempt>() // playout item id -> what it has tried
+  // How many of the producer's awaits are on the clock (a sleep, an encoder
+  // running) rather than on work. A test on a mocked clock only moves time on
+  // while this is non-zero, as real time does all but nothing while the
+  // producer queries the database. See segmenterIdle.
+  waiting = 0
+  booting = false // building the guide before the producer starts
 
   constructor(n: number) {
     this.n = n
@@ -177,7 +205,9 @@ class ChannelSegmenter {
 
   /** Spin up the producer and wait (briefly) for the playlist to be servable. */
   async start(): Promise<HlsStatus> {
-    if (!(await ensureChannelReady(this.n))) return 'unavailable'
+    this.booting = true
+    const ready = await ensureChannelReady(this.n).finally(() => (this.booting = false))
+    if (!ready) return 'unavailable'
     fs.rmSync(this.dir, { recursive: true, force: true })
     fs.mkdirSync(this.workDir, { recursive: true })
     this.session = openSession(this.n, 'hls')
@@ -231,6 +261,15 @@ class ChannelSegmenter {
     return path.join(this.dir, 'index.m3u8')
   }
 
+  private async onClock<T>(p: Promise<T>): Promise<T> {
+    this.waiting++
+    try {
+      return await p
+    } finally {
+      this.waiting--
+    }
+  }
+
   // ── The producer loop ──────────────────────────────────────────────────────
   private async runLoop(): Promise<void> {
     while (this.running) {
@@ -238,7 +277,7 @@ class ChannelSegmenter {
         await this.produceNext()
       } catch (e) {
         log('warn', 'stream', `Channel ${this.n} segmenter iteration failed — retrying`, String((e as Error)?.stack || e), this.tag)
-        await sleep(500)
+        await this.onClock(sleep(500))
       }
     }
   }
@@ -257,7 +296,7 @@ class ChannelSegmenter {
     // race the clock): wait for it rather than encode further ahead.
     const aheadMs = this.cursor - now - (LEAD_SEC + 2) * 1000
     if (aheadMs > 0) {
-      await sleep(Math.min(aheadMs, 1000))
+      await this.onClock(sleep(Math.min(aheadMs, 1000)))
       return
     }
     const at = this.cursor
@@ -291,7 +330,7 @@ class ChannelSegmenter {
       channelNumber: this.n,
       channel: channel as unknown as ChannelForBuild,
       profile,
-      enc: await resolveEncoder(profile.hwaccel),
+      enc: await deps.resolveEncoder(profile.hwaccel),
       defaultWm,
       logoPath: new Map<number, string>(logos.map((l) => [l.id, path.join(logosDir(), l.filename)])),
       logoWm: new Map<number, WatermarkConfig>(logos.map((l) => [l.id, parseWatermark(l.watermark, defaultWm)])),
@@ -345,7 +384,7 @@ class ChannelSegmenter {
     // also turns off GPU decode.
     const enc = attempt?.cpu ? 'libx264' : ctx.enc
 
-    const built = await buildItemArgs({
+    const built = await deps.buildItemArgs({
       ...ctx,
       enc,
       item,
@@ -424,7 +463,7 @@ class ChannelSegmenter {
       return
     }
     if (!skipIdent) {
-      const ident = await buildItemArgs({
+      const ident = await deps.buildItemArgs({
         ...ctx,
         enc: cpu ? 'libx264' : ctx.enc,
         item: identItem(ctx.channel.id, at, at + sec * 1000),
@@ -453,13 +492,13 @@ class ChannelSegmenter {
       // Not even black could be encoded (ffmpeg itself is failing). Step the
       // schedule past this chunk and let the clock catch up rather than spin.
       this.cursor = at + sec * 1000
-      await sleep(1000)
+      await this.onClock(sleep(1000))
     }
   }
 
   /** The read meter for the next encode: real time, plus a burst that tops the lead back up to LEAD_SEC. */
   private async readrate(): Promise<string[]> {
-    if (!(await detectReadrateBurst())) return ['-readrate', '1.0']
+    if (!(await deps.detectReadrateBurst())) return ['-readrate', '1.0']
     // Always explicit, zero included: left out, ffmpeg's own 0.5s default
     // applies, and the lead creeps up by that much a program.
     const burst = Math.max(0, Math.min(MAX_BURST_SEC, LEAD_SEC - (this.cursor - Date.now()) / 1000))
@@ -467,7 +506,7 @@ class ChannelSegmenter {
   }
 
   private async maxLagMs(): Promise<number> {
-    return (await detectReadrateBurst()) ? MAX_LAG_SEC * 1000 : 0
+    return (await deps.detectReadrateBurst()) ? MAX_LAG_SEC * 1000 : 0
   }
 
   /** Build the playout further ahead if it's running low. False = nothing scheduled. */
@@ -501,7 +540,7 @@ class ChannelSegmenter {
     const playlist = args[args.length - 1]
     const run: Run = { dir: this.workDir, playlist, ingested: 0, firstOfRun: true, startMs: atMs, encodedSec: 0 }
 
-    const proc = spawn('ffmpeg', args)
+    const proc = deps.spawn('ffmpeg', args)
     this.proc = proc
     let stderr = ''
     proc.stderr?.on('data', (d: Buffer) => (stderr = (stderr + d).slice(-2000)))
@@ -536,13 +575,15 @@ class ChannelSegmenter {
     }, 1000)
     watchdog.unref?.()
 
-    const code: number | null = await new Promise((resolve) => {
-      proc.on('error', (e) => {
-        log('error', 'ffmpeg', `Channel ${this.n}: failed to launch encoder for ${label}`, String(e), this.tag)
-        resolve(null)
-      })
-      proc.on('close', (c) => resolve(c))
-    })
+    const code: number | null = await this.onClock(
+      new Promise((resolve) => {
+        proc.on('error', (e) => {
+          log('error', 'ffmpeg', `Channel ${this.n}: failed to launch encoder for ${label}`, String(e), this.tag)
+          resolve(null)
+        })
+        proc.on('close', (c) => resolve(c))
+      }),
+    )
     clearInterval(poll)
     clearInterval(watchdog)
     this.ingest(run) // final drain: pick up the last finalized segment
@@ -728,6 +769,14 @@ export function allSegmenterViewers(): Record<number, number> {
   return out
 }
 
+/** Stop every channel's producer. */
+export function stopAllSegmenters(): void {
+  for (const [n, seg] of channels) {
+    seg.stop()
+    channels.delete(n)
+  }
+}
+
 /** Wipe stale segmenter output from a previous run (called at boot). */
 export function resetSegments(): void {
   try {
@@ -814,7 +863,7 @@ export async function streamMpegtsViaSegmenter(n: number, res: Response, req?: R
     }
     await waitReady()
     const startedAt = Date.now()
-    const proc = spawn('ffmpeg', args)
+    const proc = deps.spawn('ffmpeg', args)
     const kill = () => proc.kill('SIGKILL')
     res.on('close', kill)
     const result = await pipeSegment(proc, res, `Ch ${n} segmenter→player`, tag)
@@ -837,4 +886,13 @@ export async function streamMpegtsViaSegmenter(n: number, res: Response, req?: R
   closeSession(session.id)
   log('info', 'stream', `⏹ Channel ${n} MPEG-TS wrapper ended — ${reason}`, undefined, tag)
   if (!res.writableEnded) res.end()
+}
+
+/**
+ * Whether a channel's producer is waiting on the clock (or not running): what
+ * a test on a mocked clock waits for before it moves time on.
+ */
+export function segmenterIdle(n: number): boolean {
+  const seg = channels.get(n)
+  return !seg || (!seg.running && !seg.booting) || seg.waiting > 0
 }
