@@ -26,8 +26,9 @@ simple to run and pleasant to configure.
 
 - 📺 **Real live-TV channels** — tune in mid-program like broadcast TV; every channel resumes where it left off, forever.
 - 🛋 **TV mode** — your channels full screen in the browser: flip with the arrow keys or a swipe, punch in a number, pull up the channel guide.
-- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation plus day/time blocks with soft or exact-time starts, and five playback orders. Edit it any time: the guide follows from the next program on.
+- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation plus day/time blocks with soft or exact-time starts, five playback orders, and a broadcast clock that starts shows on the :00 and :30. Edit it any time: the guide follows from the next program on, and the Schedule tab warns you about what will go wrong before it airs.
 - 🧩 **Multi-segment episodes, aired as broadcast** — cartoons split into 7-minute shorts play as the half-hour episodes they aired as, even with a short borrowed from another show.
+- 📺 **Real commercial breaks** — breaks at each episode's act breaks (found from chapters or fades to black), filled from a folder of your old bumpers, promos and commercials.
 - 🎬 **Broadcast polish** — station logos and watermarks, station breaks with generated idents and music, and a frosted-glass "up next" card with the next show's poster.
 - 🔍 **A library built in** — scanner, TMDB artwork and metadata, show pages and a searchable poster wall.
 - 📡 **Works with what you watch on** — M3U + XMLTV for Jellyfin, Emby, VLC, TiviMate and any IPTV app, and a built-in HDHomeRun tuner for Plex (no Threadfin needed).
@@ -116,6 +117,15 @@ playback order, logo, breaks and up-next card. Guides are built ahead to your ch
 topped up automatically, so listings never run dry — and there's nothing to rebuild after an
 edit: the guide changes from the next program on, and every show carries on from the episode it
 was up to.
+
+Turn on the **broadcast clock** and every program starts on the :00 and :30,
+the time between filled with a break — and with **breaks inside programs**,
+that break time is split across each episode's act breaks, the way it aired
+with commercials. The **Schedule** tab warns you about the traps before they
+air (a block that will run into an exact-time start, season 0 specials airing
+first), and the Guide tab shows **what aired** and lays the schedule out
+**weeks ahead** — what's on any day next month, and how late each block really
+starts.
 
 <img src="docs/screenshots/schedule.webp" alt="A channel's rotation and weekly time-block grid" width="100%" />
 

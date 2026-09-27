@@ -27,7 +27,10 @@ without watermark settings of its own (with the same live preview):
 - **Mode** — `permanent` (always on), `intermittent` (appears every N minutes
   for a set duration, with fade in/out), or `none`.
 - **Position** — any corner; margins in percent.
-- **Size** — width as a percent of the frame.
+- **Size** — width as a percent of the frame, the same on every program.
+  With **Keep the logo on the picture**, it's set in from the corner of the
+  picture instead of the frame (so it stays off a 4:3 show's black bars), at
+  the same size.
 - **Opacity** — see-through like a real station bug.
 - **Intermittent timing** — frequency (minutes), on-screen duration (seconds),
   fade time (seconds).
@@ -78,8 +81,9 @@ Each channel's **Breaks** tab is the one place its breaks are set up:
 
 An ident belongs to one channel. Each has:
 
-- a **look** — **Frosted glass**, **Spotlight**, or **Your own clip** (a
-  video uploaded to **Studio → Clips**);
+- a **look** — **Frosted glass**, **Spotlight**, **Your own clip** (a
+  video uploaded to **Studio → Clips**), or **Clips from a folder** (a break
+  reel, below);
 - a **logo** — **Follow the block** (the logo of whichever block is on, so one
   ident is branded correctly in every block) or **Always the same** logo;
 - optional **music** from **Studio → Music**;
@@ -110,6 +114,7 @@ another. **Duplicate** makes a second copy on the same channel.
 | **Frosted glass** | Rows of logos glide behind frosted glass, still recognisable through the frost, with out-of-focus lights drifting up at different depths. A more heavily frosted band sits behind your logo, which floats in front on a soft shadow, and light plays across the glass as it runs. Under **Advanced**, **Divider between the halves** adds a lit glass seam between your logo and the MosaicTV mark |
 | **Spotlight** | A lit glass card with a sweeping gleam, your logo above the wordmark |
 | **Your own clip** | A bumper or ident reel you upload, looped for the length of the break |
+| **Clips from a folder** | A break reel: a folder of clips on your media share — bumpers, promos, old commercials. Each break plays a fresh mix of them, one after another, and the channel's frosted glass covers whatever time they don't fill. The same break always gets the same clips (a restart mid-break carries on), no clip plays twice in one break, and clips play with their own sound. **Look again** picks up clips added to the folder since |
 
 **Advanced** also has the logo's size. The picture is always built at the
 channel's own size.

@@ -2,7 +2,46 @@
 
 ## Unreleased
 
-A guide that follows your edits, TV mode, and a sturdier foundation under both.
+A broadcast clock and real commercial breaks, a guide that follows your edits,
+TV mode, and a sturdier foundation under all of it.
+
+- **A broadcast clock.** A channel can start every program on the :00 and :30
+  (or the quarter hour, or the hour), like broadcast TV: each program is
+  followed by a break up to the next line. A block can keep its own clock, or
+  none. A program that runs a minute or less past a line hands straight over.
+  The XMLTV guide lists a short break as part of the program before it, so a
+  22-minute episode shows from :00 to :30.
+- **Breaks inside programs.** On a clock, a channel (or a block) can share
+  each slot's break time out across the program's act breaks — the points it
+  cut to commercial when it aired — with the last of it after, instead of all
+  at the end. A multi-part broadcast episode breaks between its parts. Act
+  breaks are found in the background for the channels that use them: chapter
+  markers when a file has them, otherwise a fade to black and silence. The
+  Schedule tab says how far the search has got.
+- **Break reels.** An ident can be **Clips from a folder** — bumpers, promos,
+  old commercials. Each break plays a fresh mix of them, and the channel's
+  frosted glass covers whatever time they don't fill.
+- **What aired.** The Guide tab has a **What aired** view (a day, a week or a
+  month back) with the stream problems anyone watching would have seen, and
+  episodes say how often and where they last aired. History is kept 90 days.
+- **Weeks ahead.** The Guide tab lays the schedule out 2, 4 or 8 weeks ahead
+  without saving anything: any day's programs, a search for a show, how late
+  each block really starts, break time per day, and when each show goes back
+  to an earlier episode.
+- **Schedule warnings.** The Schedule tab points out the traps before they air
+  — a block with no breaks running into an exact-time start, a collection with
+  nothing to play, one shorter than its blocks' week, season 0 specials airing
+  first, an exact-time start between the clock's lines — and says what to
+  change.
+- **Rename a show, or merge two spellings of one.** A show's page has
+  **Rename** and **Merge into another show**. Both stick through every scan
+  after: shows are now rows that episodes, collection picks and broadcast
+  episodes point at, with the folder names they're filed under. A renamed
+  folder carries its show along.
+- **The logo is the same size on every show.** With "keep the logo on the
+  picture" on, the corner logo was sized against the picture, so it shrank by
+  a quarter on a 4:3 show. It's now a share of the frame, set in from the
+  picture's corner.
 
 - **The guide follows the schedule.** Change the rotation, a block, a
   collection's shows or order, or a show's broadcast episodes, and every

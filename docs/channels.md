@@ -194,10 +194,71 @@ they decide *when* a block has breaks. *What* the breaks play is set on the
 channel's **Breaks** tab (see [Station breaks](branding.md#station-breaks)),
 and the editor says which ident will play.
 
+A block can also keep its own **clock** (or turn the channel's off) and its
+own **breaks inside programs** setting — see below.
+
 Blocks-only channels (no rotation) are fine. The time *between* their blocks
 has nothing scheduled, so the channel airs its breaks until the next block
 (see [Station breaks](branding.md#station-breaks)); the guide shows the gap as
 empty.
+
+## The broadcast clock
+
+On the **Schedule** tab, **Broadcast clock** starts every program on a line of
+the clock — **:00 and :30**, **quarter hours** or **on the hour** — like
+broadcast TV. The time between the end of a program and the next line is a
+break: a 22-minute episode at 7:00 is followed by an 8-minute break, and the
+next show starts at 7:30. A 95-minute movie at 8:00 runs to 9:35 and hands over
+at 10:00.
+
+- A program that runs **a minute or less** past a line hands straight over
+  (the next one starts that little bit late) rather than waiting a whole slot
+  — files often carry a few seconds of black past their half hour.
+- In a block with leftover-time breaks, as many programs as finish inside it
+  play, each on the clock; the rest of the block is one break. With leftover
+  time off, the last one may run past the block's end.
+- A break never runs into an exact-time block's start, and the channel gets
+  back on its clock after a block that has its own turned off.
+- The XMLTV guide lists a short break as part of the program before it, the
+  way a paper guide does.
+
+### Breaks inside programs
+
+With the clock on, **Breaks inside programs** shares each slot's break time out
+across the program's **act breaks** — the points it cut to commercial when it
+aired — as equal breaks, with the last of it after the program. A multi-part
+broadcast episode breaks between its parts. Each break is at least 45 seconds;
+with too little time to go round, fewer act breaks are used. In the guide it's
+still one program.
+
+Act breaks are found in the background for the channels (and blocks) that use
+them, the programs about to air first: **chapter markers** when a file has
+them, otherwise a **fade to black with silence** (the audio is scanned end to
+end, the video only around those moments). About one break per ten minutes,
+none in the first or last minute and a half. A program with none found breaks
+after, as before. The Schedule tab says how far the search has got, and a
+changed file is looked at again.
+
+## Checking a schedule
+
+The **Schedule** tab warns about what will go wrong before it airs, and says
+what to change:
+
+- a block with **no breaks** running into an **exact-time start** (its own
+  next one included) — its last program overruns, and everything after it runs
+  late;
+- a collection with **nothing it can play**;
+- a block's collection **shorter than the time its blocks get a week**, so it
+  repeats within the week;
+- **season 0** (specials, shorts) airing before season 1 — pick the seasons
+  instead of the whole show to leave them out;
+- an exact-time start **between the lines of the clock**.
+
+The Guide tab's **Weeks ahead** lays the schedule out 2, 4 or 8 weeks past the
+guide, exactly as the next builds will, without saving anything: any day's
+programs, a search for a show, how late each block really starts (usually, and
+at worst), break time per day, time off air, and when each show goes back to
+an earlier episode.
 
 ## The playout (guide)
 
@@ -215,6 +276,11 @@ programs and inserting breaks to land on block boundaries, as far ahead as the
 - **It extends itself** as time passes, whether anyone is watching or not.
 - **Restart from S1E1** starts every show over at episode 1, from the next
   program — the only manual control, and rarely what you want.
+- **What aired** lists what the channel played, a day, a week or a month back,
+  flagging any program that had a stream problem while someone was watching
+  (a program held with a break, or one that carried on on the CPU after the GPU
+  gave out). History is kept for 90 days; a show's page says when each episode
+  last aired.
 
 Each program in the guide remembers where every show stood when it was
 scheduled, which is what lets an edit pick up exactly there — nothing is
