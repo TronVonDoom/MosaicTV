@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import { log } from './logs.js'
 import { activeSessions, sessionSummary } from './sessions.js'
+import type { MetricMarker, MetricSample, MetricSource } from './contract/index.js'
 
 // Resource sampling for diagnosing "what made the box fall over".
 //
@@ -13,26 +14,11 @@ import { activeSessions, sessionSummary } from './sessions.js'
 // Everything here is best-effort and must never throw: it's diagnostics, and a
 // missing cgroup file is not a reason to take a channel down.
 
-export type MetricSample = {
-  ts: number // epoch ms
-  cpuPct: number // percent of ONE core (so 250 = 2.5 cores busy); -1 if unknown
-  memBytes: number // -1 if unknown
-  memLimitBytes: number // -1 if unlimited/unknown
-  ffmpegCount: number // -1 if unknown
-}
-
-export type MetricMarker = {
-  id: number
-  ts: number
-  channel: number
-  kind: 'program' | 'filler' | 'song'
-  label: string
-  detail?: string
-}
-
-// The sampler's own source, reported to the UI so a flat -1 graph is
-// explainable rather than looking like a bug.
-export type MetricSource = 'cgroup2' | 'cgroup1' | 'process' | 'none'
+// A sample: epoch ms; CPU as percent of ONE core (so 250 = 2.5 cores busy);
+// memory and its limit in bytes; how many ffmpeg processes run. -1 anywhere is
+// "unknown here". The source is reported so a flat -1 graph is explainable
+// rather than looking like a bug. (Shapes from the contract: the chart reads them.)
+export type { MetricMarker, MetricSample, MetricSource }
 
 const SAMPLE_MS = 3000
 const MAX_SAMPLES = 1200 // ~1 hour at 3s

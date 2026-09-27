@@ -4,6 +4,9 @@ import { prisma } from '../db.js'
 import { ffprobe } from '../ffprobe.js'
 import { parseMedia, type LibraryKind } from './parse.js'
 import { detectArtwork } from './artwork.js'
+import { log } from '../logs.js'
+import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import type { ScanStatus } from '../contract/index.js'
 
 type DirCache = Map<string, string[] | null>
 
@@ -14,21 +17,8 @@ const VIDEO_EXTS = new Set([
 
 const PROBE_CONCURRENCY = 4
 
-export type ScanStatus = {
-  running: boolean
-  libraryId: number | null
-  libraryName: string | null
-  total: number
-  processed: number
-  added: number
-  updated: number
-  removed: number
-  skipped: number
-  currentPath: string | null
-  startedAt: string | null
-  finishedAt: string | null
-  error: string | null
-}
+// The job's progress, as GET /api/scan/status answers it (a contract shape).
+export type { ScanStatus }
 
 // Single shared scan job — only one scan runs at a time.
 const status: ScanStatus = {
@@ -40,6 +30,7 @@ const status: ScanStatus = {
   added: 0,
   updated: 0,
   removed: 0,
+  moved: 0,
   skipped: 0,
   currentPath: null,
   startedAt: null,
@@ -75,6 +66,39 @@ async function walk(dir: string): Promise<string[]> {
   return out
 }
 
+/** What one scan pass learns beyond each file's own row. */
+type ScanPass = {
+  /** Rows a moved file has already claimed this pass (4 files probe at once). */
+  claimed: Set<number>
+  /** Show titles that changed under a file this pass: old title -> new titles. */
+  retitled: Map<string, Set<string>>
+}
+
+const exists = (p: string) =>
+  fs.access(p).then(
+    () => true,
+    () => false,
+  )
+
+/**
+ * A file new at this path that the library already knows: same name, same
+ * size, and its old path is gone. That's a move or a renamed folder, and
+ * keeping the row keeps everything that points at it — broadcast episodes,
+ * collection picks, the guide — instead of a new row and a missing one.
+ */
+async function movedFrom(filePath: string, size: number, libraryId: number, pass: ScanPass) {
+  const base = path.basename(filePath)
+  const candidates = await prisma.mediaItem.findMany({
+    where: { libraryId, sizeBytes: size, path: { endsWith: base }, id: { notIn: [...pass.claimed] } },
+  })
+  for (const c of candidates) {
+    if (path.basename(c.path) !== base || (await exists(c.path))) continue
+    pass.claimed.add(c.id)
+    return c
+  }
+  return null
+}
+
 /** Process a single file: skip if unchanged, otherwise probe/detect art + upsert. */
 async function processFile(
   filePath: string,
@@ -83,6 +107,7 @@ async function processFile(
   kind: LibraryKind,
   cache: DirCache,
   force: boolean,
+  pass: ScanPass,
 ): Promise<void> {
   status.currentPath = filePath
   const stat = await fs.stat(filePath)
@@ -90,7 +115,9 @@ async function processFile(
   // as SQLite REAL, so an exact float compare would never match. Integer ms
   // round-trips exactly and is more than precise enough for change detection.
   const mtimeMs = Math.floor(stat.mtimeMs)
-  const existing = await prisma.mediaItem.findUnique({ where: { path: filePath } })
+  const atPath = await prisma.mediaItem.findUnique({ where: { path: filePath } })
+  const moved = atPath ? null : await movedFrom(filePath, stat.size, libraryId, pass)
+  const existing = atPath ?? moved
   const parsed = parseMedia(filePath, libraryPath, kind)
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
@@ -147,14 +174,57 @@ async function processFile(
     missing: false,
   }
 
-  await prisma.mediaItem.upsert({
-    where: { path: filePath },
-    create: { path: filePath, ...data },
-    update: data,
-  })
+  if (moved) {
+    await prisma.mediaItem.update({ where: { id: moved.id }, data: { path: filePath, ...data } })
+  } else {
+    await prisma.mediaItem.upsert({
+      where: { path: filePath },
+      create: { path: filePath, ...data },
+      update: data,
+    })
+  }
+  if (existing?.showTitle && parsed.showTitle && existing.showTitle !== parsed.showTitle) {
+    const to = pass.retitled.get(existing.showTitle) ?? new Set<string>()
+    to.add(parsed.showTitle)
+    pass.retitled.set(existing.showTitle, to)
+  }
 
-  if (existing) status.updated++
+  if (moved) status.moved++
+  else if (existing) status.updated++
   else status.added++
+}
+
+/**
+ * Carry a show's title change through to everything filed under the old one.
+ * Collection members, broadcast episodes and the show's metadata row refer to
+ * a show by title, so when every one of its files now parses to a new title (a
+ * renamed folder, a parser that learned to strip a tag), they follow — rather
+ * than quietly matching nothing. A show whose files split between titles, or
+ * that still has files under the old one, is left alone.
+ */
+async function followRetitledShows(libraryId: number, retitled: Map<string, Set<string>>): Promise<void> {
+  for (const [from, targets] of retitled) {
+    if (targets.size !== 1) continue
+    const [to] = targets
+    const left = await prisma.mediaItem.count({ where: { libraryId, showTitle: from, missing: false } })
+    if (left > 0) continue
+    const inLibrary = { OR: [{ libraryId }, { libraryId: null }] }
+    const [members, airings] = await prisma.$transaction([
+      prisma.collectionItem.updateMany({ where: { showTitle: from, ...inLibrary }, data: { showTitle: to } }),
+      prisma.airing.updateMany({ where: { libraryId, showTitle: from }, data: { showTitle: to } }),
+      prisma.collectionItem.updateMany({ where: { label: from, showTitle: to }, data: { label: to } }),
+      prisma.collection.updateMany({ where: { filterShow: from, ...inLibrary }, data: { filterShow: to } }),
+    ])
+    // Its artwork and TMDB match move too, unless the new title already has its own.
+    if (!(await prisma.show.findUnique({ where: { libraryId_title: { libraryId, title: to } } }))) {
+      await prisma.show.updateMany({ where: { libraryId, title: from }, data: { title: to } })
+    }
+    log(
+      'info',
+      'system',
+      `"${from}" is now "${to}" — ${members.count} collection pick(s) and ${airings.count} broadcast episode(s) followed it`,
+    )
+  }
 }
 
 /** Run tasks with bounded concurrency. */
@@ -190,6 +260,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     added: 0,
     updated: 0,
     removed: 0,
+    moved: 0,
     skipped: 0,
     currentPath: null,
     startedAt: new Date().toISOString(),
@@ -208,8 +279,9 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     status.total = found.length
 
     const dirCache: DirCache = new Map()
+    const pass: ScanPass = { claimed: new Set(), retitled: new Map() }
     await runPool(found, PROBE_CONCURRENCY, ({ file, root }) =>
-      processFile(file, library.id, root, library.kind as LibraryKind, dirCache, force),
+      processFile(file, library.id, root, library.kind as LibraryKind, dirCache, force, pass),
     )
 
     // Anything in this library not seen in this scan pass is now missing.
@@ -226,6 +298,9 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       })
       status.removed = goneIds.length
     }
+    await followRetitledShows(library.id, pass.retitled)
+    // New, changed or vanished files change what the channels can air.
+    if (status.added + status.updated + status.removed + status.moved > 0) await scheduleChangedEverywhere()
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {

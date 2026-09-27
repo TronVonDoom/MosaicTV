@@ -12,9 +12,6 @@ datasource db {
 model Library {
   id        Int             @id @default(autoincrement())
   name      String
-  // Legacy single path (pre-multi-folder). Kept nullable only so existing rows
-  // can be backfilled into LibraryFolder on startup; new code ignores it.
-  path      String?
   kind      String // "tv" | "movie" | "other"
   createdAt DateTime        @default(now())
   folders   LibraryFolder[]
@@ -181,7 +178,6 @@ model Collection {
   filterGenre  String? // genre contains
   createdAt    DateTime         @default(now())
   items        CollectionItem[]
-  fillers      Filler[]
   rotationItems RotationItem[]
   timeBlocks   TimeBlock[]
 
@@ -193,16 +189,11 @@ model Collection {
 // channel (channelId). Where it plays is its assignments — one channel-level
 // row means "everywhere else" (blocks without idents of their own, time
 // outside blocks, holds), block rows mean "only during these blocks", and none
-// means it plays nowhere. timeBlockId/collectionId are retired owner columns,
-// kept nullable so `prisma db push` doesn't drop data.
+// means it plays nowhere.
 model Filler {
   id           Int         @id @default(autoincrement())
   channel      Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
   channelId    Int?
-  timeBlock    TimeBlock?  @relation(fields: [timeBlockId], references: [id], onDelete: Cascade)
-  timeBlockId  Int?
-  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  collectionId Int?
   name         String?
   style        String      @default("frosted") // "animated" | "frosted" | "custom"
   assetId      Int? // custom visual (Asset kind "filler"); null for generated styles
@@ -211,16 +202,6 @@ model Filler {
   // the block: whichever logo is on air where the break falls.
   logo         Logo?       @relation(fields: [logoId], references: [id], onDelete: SetNull)
   logoId       Int?
-  generatedAssetId Int? // unused: the old Studio preview copy (previews are now rendered on demand)
-  // Unused: a filler's clip used to be this long (or its track's length). Clips
-  // are now seamless loops of a length each style picks, and the music plays
-  // over the break, so nothing reads these. Kept so existing databases push.
-  durationMode String      @default("fixed")
-  durationSec  Int         @default(30)
-  // Render resolution of the generated clip: "auto" (the size of the channel it
-  // airs on — what every ident uses now) or a fixed "720p" | "1080p" | "1440p"
-  // from before the setting was retired.
-  resolution   String      @default("auto")
   // Multiplier on the branded logo's size in the generated styles (1 = default).
   logoScale    Float       @default(1)
   // Frosted glass: draw a divider between the channel's half and MosaicTV's.
@@ -231,8 +212,6 @@ model Filler {
   assignments  FillerAssignment[]
 
   @@index([channelId])
-  @@index([timeBlockId])
-  @@index([collectionId])
 }
 
 // Where an ident plays: a channel-level row ("everywhere else") or one row per
@@ -246,8 +225,6 @@ model FillerAssignment {
   channelId   Int?
   timeBlock   TimeBlock? @relation(fields: [timeBlockId], references: [id], onDelete: Cascade)
   timeBlockId Int?
-  // Unused: breaks take turns in the ident's own order (Filler.order).
-  order       Int        @default(0)
 
   @@unique([fillerId, channelId])
   @@unique([fillerId, timeBlockId])
@@ -348,7 +325,6 @@ model TimeBlock {
   // Per-block override of the channel's "coming up next" caption (JSON
   // ComingUpConfig); null = inherit the channel's setting.
   comingUp      String?
-  fillers       Filler[] // legacy per-block ownership (see FillerAssignment)
   fillerAssignments FillerAssignment[]
 
   @@index([channelId])
@@ -369,6 +345,12 @@ model PlayoutItem {
   // can collapse them into a single programme. Unique per scheduled airing
   // ("channelId:startMs"); null for a normal single-file program or filler.
   groupKey    String?
+  // Where every collection and the rotation stood just before this program was
+  // scheduled (JSON, the playout builder's State) — a checkpoint. Set on the
+  // first segment of each program; null on later segments and on filler. A
+  // schedule edit cuts the timeline at the next checkpoint and rebuilds from
+  // it, so the guide follows the edit without skipping or repeating episodes.
+  state       String?
 
   @@index([channelId, startTime])
 }

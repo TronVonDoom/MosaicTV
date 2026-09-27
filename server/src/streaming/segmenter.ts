@@ -113,6 +113,7 @@ function identItem(channelId: number, startMs: number, stopMs: number): PlayoutI
     startTime: new Date(startMs),
     stopTime: new Date(stopMs),
     groupKey: null,
+    state: null,
     mediaItem: null,
   }
 }
@@ -687,6 +688,13 @@ export function segmenterViewers(n: number): number {
     else seg.viewers.delete(ip)
   }
   return live
+}
+
+/** Viewers on every channel that's streaming, by channel number. */
+export function allSegmenterViewers(): Record<number, number> {
+  const out: Record<number, number> = {}
+  for (const n of [...channels.keys()].sort((a, b) => a - b)) out[n] = segmenterViewers(n)
+  return out
 }
 
 /** Wipe stale segmenter output from a previous run (called at boot). */

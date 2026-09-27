@@ -7,7 +7,8 @@ import MediaDetailModal from '../components/MediaDetailModal'
 import ResourceChart from '../components/ResourceChart'
 import { api, type Channel, type ChannelNow, type Playout, type Stats } from '../lib/api'
 import { formatLongDuration, greeting } from '../lib/format'
-import { useNow, usePolling } from '../lib/hooks'
+import { useNow } from '../lib/hooks'
+import { useLiveRefresh } from '../lib/events'
 import { EmptyState, SectionHeading, Skeleton, StatTile, buttonClass } from '../components/ui'
 import Icon from '../components/Icon'
 
@@ -35,7 +36,7 @@ export default function Dashboard() {
   useEffect(() => {
     load()
   }, [load])
-  usePolling(load, 20000)
+  useLiveRefresh(load, ['onAir', 'viewers', 'guide'], { fallbackMs: 20000 })
 
   const onAir = (channels ?? []).filter((c) => c.number != null)
 
@@ -53,7 +54,7 @@ export default function Dashboard() {
   useEffect(() => {
     loadGuides()
   }, [loadGuides])
-  usePolling(loadGuides, 300000)
+  useLiveRefresh(loadGuides, ['guide'], { fallbackMs: 300000 })
 
   const viewers = onAir.reduce((n, c) => n + c.viewers, 0)
   // Rows that come out even — never one orphan under a row of three — and
@@ -85,6 +86,11 @@ export default function Dashboard() {
           <p className="mt-1 text-sm text-ink-muted">{summary.join(' · ') || ' '}</p>
         </div>
         <div className="flex items-center gap-2">
+          {onAir.length > 0 && (
+            <Link to="/watch" className={buttonClass('secondary', 'md')}>
+              <Icon name="tv" size={16} /> Watch TV
+            </Link>
+          )}
           <Link to="/channels" className={buttonClass('primary', 'md')}>
             <Icon name="channels" size={16} /> Channels &amp; guide
           </Link>

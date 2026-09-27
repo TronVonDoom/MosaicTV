@@ -1,6 +1,9 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
+import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { AiringsReplace } from '../contract/index.js'
+import { readBody } from '../validate.js'
 
 export const airingsRouter = Router()
 
@@ -197,21 +200,13 @@ airingsRouter.get('/suggest', async (req, res) => {
 // ids may reference episodes of OTHER shows (a borrowed segment); order within a
 // group is preserved. Returns the show's full airing list afterwards.
 airingsRouter.put('/', async (req, res) => {
-  const body = req.body ?? {}
-  const libraryId = Number(body.libraryId)
-  const showTitle = typeof body.showTitle === 'string' ? body.showTitle : ''
-  const season = parseSeason(body.season)
-  const groups: unknown = body.groups
-  if (!Number.isFinite(libraryId) || !showTitle || season === undefined) {
-    return res.status(400).json({ error: 'libraryId, showTitle and season are required' })
-  }
-  if (!Array.isArray(groups)) {
-    return res.status(400).json({ error: 'groups must be an array of id arrays' })
-  }
+  const body = readBody(AiringsReplace, req, res)
+  if (!body) return
+  const { libraryId, showTitle, season, groups } = body
 
   // A segment id is valid if it's a playable episode in this library (any show —
   // that's what allows cross-show blocks). Each file appears in one airing.
-  const allIds = [...new Set(groups.flatMap((g) => (Array.isArray(g) ? g.map(Number) : [])))]
+  const allIds = [...new Set(groups.flat())]
   const playable = allIds.length
     ? await prisma.mediaItem.findMany({
         where: { id: { in: allIds }, libraryId, type: 'episode', missing: false, durationSec: { gt: 0 } },
@@ -222,8 +217,7 @@ airingsRouter.put('/', async (req, res) => {
   const used = new Set<number>()
   const clean: number[][] = []
   for (const g of groups) {
-    if (!Array.isArray(g)) continue
-    const ids = g.map(Number).filter((id) => valid.has(id) && !used.has(id))
+    const ids = g.filter((id) => valid.has(id) && !used.has(id))
     if (ids.length >= 2) {
       ids.forEach((id) => used.add(id))
       clean.push(ids)
@@ -250,6 +244,9 @@ airingsRouter.put('/', async (req, res) => {
     include: airingInclude,
     orderBy: [{ season: 'asc' }, { number: 'asc' }],
   })
+  // Episodes now air grouped (or loose) differently, on any channel airing
+  // the show — or a borrowed segment's own show, or a smart filter's pick.
+  await scheduleChangedEverywhere()
   res.json({ airings: saved.map(airingDto) })
 })
 
@@ -257,6 +254,7 @@ airingsRouter.put('/', async (req, res) => {
 airingsRouter.delete('/:id', async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' })
-  await prisma.airing.deleteMany({ where: { id } })
+  const { count } = await prisma.airing.deleteMany({ where: { id } })
+  if (count) await scheduleChangedEverywhere()
   res.status(204).end()
 })

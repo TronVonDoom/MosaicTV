@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clapperboard,
   Clock3,
   Command,
@@ -48,6 +49,8 @@ import {
   LibraryBig,
   Link2,
   List,
+  Maximize,
+  Minimize,
   ListVideo,
   Menu,
   MonitorPlay,
@@ -72,6 +75,8 @@ import {
   Trash2,
   Tv,
   Upload,
+  Volume2,
+  VolumeX,
   Users,
   Wand2,
   X,
@@ -155,6 +160,11 @@ export type IconName =
   | 'calendar'
   | 'sliders'
   | 'tv'
+  | 'chevronUp'
+  | 'fullscreen'
+  | 'exitFullscreen'
+  | 'volume'
+  | 'muted'
 
 const GLYPH: Record<IconName, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -229,6 +239,11 @@ const GLYPH: Record<IconName, LucideIcon> = {
   calendar: CalendarRange,
   sliders: SlidersHorizontal,
   tv: MonitorPlay,
+  chevronUp: ChevronUp,
+  fullscreen: Maximize,
+  exitFullscreen: Minimize,
+  volume: Volume2,
+  muted: VolumeX,
 }
 
 // Identity hues, a notch lighter than the brand's own so they sit comfortably

@@ -39,16 +39,18 @@ function fields(): { key: string; line: string }[] {
 const LEGACY_NO_DEFAULT = new Set(['Show.updatedAt', 'MediaItem.updatedAt'])
 
 test('every @updatedAt column has a default', () => {
-  // `db push` runs on every container start, against databases that already
-  // have rows. A NOT NULL column with no default cannot be added to a populated
-  // table, so push aborts — and since the entrypoint pushes before the server
-  // starts, that takes the whole install down rather than degrading it. This
-  // shipped once (0.8.3, Logo.updatedAt) and stopped every existing instance.
+  // Migrations run at startup against databases that already have rows. A NOT
+  // NULL column with no default cannot be added to a populated table, so the
+  // migration fails and the server doesn't start (the database is restored,
+  // but the upgrade is stuck). This shipped once (0.8.3, Logo.updatedAt, back
+  // when startup ran `db push`) and stopped every existing instance. The
+  // migration rehearsal (npm run db:rehearse) catches the general case; this
+  // is the cheap early warning for the shape that bit.
   for (const { key, line } of fields()) {
     if (!line.includes('@updatedAt') || LEGACY_NO_DEFAULT.has(key)) continue
     assert.ok(
       line.includes('@default('),
-      `${key} is @updatedAt with no @default — "prisma db push" cannot add it to a table that already has rows`,
+      `${key} is @updatedAt with no @default — a migration cannot add it to a table that already has rows`,
     )
   }
 })

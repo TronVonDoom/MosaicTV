@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { planIdentMigration, type MigChannel, type MigFiller } from './identMigration.js'
+import { planIdentMigration, type MigChannel, type MigFiller } from './identPlan.js'
 
 const ch = (id: number, name: string, logoId: number | null = null, blocks: MigChannel['blocks'] = [], number: number | null = id): MigChannel => ({
   id,

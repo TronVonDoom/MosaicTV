@@ -3,6 +3,7 @@ import { api, type Playout } from '../../lib/api'
 import { errorMessage } from '../../lib/errors'
 import { programLabel } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
+import { guideFor, useLiveRefresh, useServerEvent } from '../../lib/events'
 import GuideGrid from '../GuideGrid'
 import MediaDetailModal from '../MediaDetailModal'
 import { Button, Card, EmptyState, InfoHint, LiveBadge, Segmented, Skeleton, cx } from '../ui'
@@ -13,14 +14,22 @@ function fmtClock(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/** "8:30 PM", or "Sat 8:30 PM" when it isn't today. */
+function fmtWhen(iso: string, nowMs: number): string {
+  const d = new Date(iso)
+  const today = new Date(nowMs).toDateString() === d.toDateString()
+  return d.toLocaleString([], { ...(today ? {} : { weekday: 'short' }), hour: 'numeric', minute: '2-digit' })
+}
+
 function fmtDur(sec: number | null): string {
   if (!sec) return ''
   const m = Math.round(sec / 60)
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
 
-/** The built schedule: a 24h timeline or a running list, plus the controls that
- *  build, rebuild, and restart it. */
+/** The built schedule: a 24h timeline or a running list. It follows schedule
+ *  edits by itself (the server rebuilds it from the next program on); the one
+ *  control left is starting every show over. */
 export default function GuideTab({
   channelId,
   ch,
@@ -37,6 +46,8 @@ export default function GuideTab({
   // The configured horizon, so the button names the depth it will build.
   const [horizon, setHorizon] = useState<number | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
+  // Where the last schedule change took effect, to say so under the header.
+  const [updatedFrom, setUpdatedFrom] = useState<string | null>(null)
   const nowMs = useNow(30000)
 
   const hasSchedule = ch.rotationItems.length > 0 || ch.timeBlocks.length > 0
@@ -54,6 +65,11 @@ export default function GuideTab({
   useEffect(() => {
     loadPlayout()
   }, [loadPlayout])
+  // A schedule edit (here or in another tab) rebuilds the guide on the server.
+  useLiveRefresh(loadPlayout, ['guide'], { when: guideFor(channelId), fallbackMs: 60_000 })
+  useServerEvent(['guide'], (e) => {
+    if (e.type === 'guide' && !('resync' in e) && e.channelId === channelId && e.from) setUpdatedFrom(e.from)
+  })
 
   useEffect(() => {
     api
@@ -81,21 +97,21 @@ export default function GuideTab({
   const depth = horizon == null ? '' : horizon % 24 === 0 ? `${horizon / 24}d` : `${horizon}h`
   const buildLabel = building ? 'Building…' : depth ? `Build ${depth}` : 'Build'
 
-  const reset = async (hard = false) => {
+  const restart = async () => {
     if (
-      hard &&
       !(await confirmDialog({
         title: 'Restart every show from episode 1?',
-        message: 'Every collection on this channel starts over from the beginning. Saved playback positions are lost.',
+        message:
+          'From the next program on, every collection on this channel starts over from the beginning. What’s on now finishes first. Saved playback positions are lost.',
         confirmLabel: 'Restart from S1E1',
         danger: true,
       }))
     )
       return
     return run(async () => {
-      await api.resetPlayout(channelId, hard)
-      await api.buildPlayout(channelId, 48)
-    }, 'Reset failed')
+      const { from } = await api.resetPlayout(channelId, true)
+      setUpdatedFrom(from)
+    }, 'Restart failed')
   }
 
   return (
@@ -114,28 +130,24 @@ export default function GuideTab({
           />
           <InfoHint>
             The guide is generated ahead of time, as far out as the schedule horizon in Settings.
-            It's what the XMLTV feed publishes and what the channel actually plays.
+            It's what the XMLTV feed publishes and what the channel actually plays. Change the
+            schedule and it's rebuilt from the next program on — what's on now finishes first,
+            and every show carries on from the episode it was up to.
           </InfoHint>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button icon="bolt" onClick={build} disabled={building || !hasSchedule} loading={building}>
-            {buildLabel}
-          </Button>
-          <Button
-            variant="secondary"
-            icon="refresh"
-            onClick={() => reset(false)}
-            disabled={building || !hasSchedule}
-            title="Clears the schedule and rebuilds — shows continue where they left off"
-          >
-            Rebuild
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {updatedFrom && (
+            <span className="text-[12.5px] text-ink-faint">
+              Updated from {fmtWhen(updatedFrom, nowMs)}
+            </span>
+          )}
           <Button
             variant="subtle"
-            onClick={() => reset(true)}
+            onClick={restart}
             disabled={building || !hasSchedule}
-            title="Restart every show from episode 1"
+            loading={building}
+            title="Start every show over at episode 1, from the next program"
           >
             Restart from S1E1
           </Button>
@@ -146,15 +158,15 @@ export default function GuideTab({
         <EmptyState
           icon="clock"
           title="Nothing scheduled yet"
-          description="Add a rotation item or a time block on the Schedule tab, then build the guide here."
+          description="Add a rotation item or a time block on the Schedule tab — the guide builds itself."
         />
       ) : loading ? (
         <Skeleton className="h-40 rounded-xl" />
       ) : !playout || playout.items.length === 0 ? (
         <EmptyState
           icon="upnext"
-          title="No guide built yet"
-          description="Build the schedule to see what this channel will play — and to publish it to the XMLTV guide."
+          title="No guide yet"
+          description="It builds on its own after a schedule change; build it now to see what this channel will play."
           action={
             <Button onClick={build} disabled={building}>
               {buildLabel}

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Logo, Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
@@ -18,7 +19,7 @@ const EXT: Record<string, string> = {
 logosRouter.get('/', async (_req, res) => {
   const logos = await prisma.logo.findMany({ orderBy: { createdAt: 'desc' } })
   res.json(
-    logos.map((l) => ({
+    logos.map((l): Stored<Logo> => ({
       id: l.id,
       name: l.name,
       mime: l.mime,

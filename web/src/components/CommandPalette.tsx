@@ -84,6 +84,7 @@ export default function CommandPalette({
     const statics: Command[] = [
       { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Go to', run: go('/'), keywords: 'home overview status live now' },
       { id: 'channels', label: 'Channels', icon: 'channels', group: 'Go to', run: go('/channels') },
+      { id: 'watch', label: 'Watch TV', icon: 'tv', group: 'Go to', run: go('/watch'), keywords: 'tv mode full screen surf flip channels lean back play' },
       { id: 'guide', label: 'TV Guide', context: 'Channels', icon: 'guide', group: 'Go to', run: go('/channels#guide'), keywords: 'epg listings schedule what is on tonight' },
       { id: 'library', label: 'Library', context: 'Browse', icon: 'libraries', group: 'Go to', run: go('/library#browse'), keywords: 'shows movies media' },
       { id: 'sources', label: 'Library', context: 'Sources', icon: 'folder', group: 'Go to', run: go('/library#sources'), keywords: 'scan folders add library tmdb metadata' },

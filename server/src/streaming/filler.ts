@@ -32,8 +32,6 @@ const RESOLUTIONS: Record<string, Dims> = {
   '1080p': { w: 1920, h: 1080 },
   '1440p': { w: 2560, h: 1440 },
 }
-/** Every resolution a filler can ask for; "auto" is Match channel. */
-export const FILLER_RESOLUTIONS = ['auto', ...Object.keys(RESOLUTIONS)]
 
 /**
  * A filler's render size. "auto" matches the channel it airs on: the smallest
@@ -770,7 +768,6 @@ type FillerRow = {
   assetId: number | null
   audioAssetId: number | null
   logoId: number | null
-  resolution: string
   logoScale: number
   divider: boolean
 }
@@ -786,7 +783,7 @@ const identName = (f: FillerRow) => f.name?.trim() || `${f.style} ident`
  * the style can't be drawn here (see planClip).
  */
 async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight?: number): Promise<{ upload?: string; plan: ClipPlan | null; dims: Dims }> {
-  const dims = dimsFor(f.resolution, channelHeight)
+  const dims = dimsFor('auto', channelHeight)
   if (f.style === 'custom') {
     const upload = await assetFilePath(f.assetId)
     if (upload) return { upload, plan: null, dims }

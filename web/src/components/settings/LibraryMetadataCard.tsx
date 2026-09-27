@@ -3,6 +3,7 @@ import { api, type Library, type LibraryKind, type MetadataStatus } from '../../
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
 import { toast } from '../../lib/toast'
+import { useLiveRefresh } from '../../lib/events'
 import { type IconName } from '../Icon'
 import { Button, Card, CardHeader, IconTile, Menu, ProgressPanel } from '../ui'
 
@@ -30,12 +31,8 @@ export default function LibraryMetadataCard({ configured }: { configured: boolea
     api.libraries().then(setLibs).catch(() => {})
     poll()
   }, [poll])
-  // Only poll while a fetch is running.
-  useEffect(() => {
-    if (!status?.running) return
-    const t = setInterval(poll, 1000)
-    return () => clearInterval(t)
-  }, [status?.running, poll])
+  // The server says when a fetch moves on (polled only if the live link is down).
+  useLiveRefresh(poll, ['activity'], { fallbackMs: status?.running ? 1000 : 60_000 })
 
   async function start(lib: Library, force: boolean) {
     if (

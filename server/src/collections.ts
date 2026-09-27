@@ -1,5 +1,6 @@
 import type { Prisma, MediaItem, Airing, AiringSegment } from '@prisma/client'
 import { prisma } from './db.js'
+import { asPlaybackOrder, type PlaybackOrder } from './contract/domain.js'
 
 type AiringWithSegments = Airing & {
   segments: (AiringSegment & { mediaItem: MediaItem })[]
@@ -15,36 +16,9 @@ export type CollectionFilter = {
 
 export type CollectionWithItems = Prisma.CollectionGetPayload<{ include: { items: true } }>
 
-export type PlaybackOrder =
-  | 'chronological'
-  | 'shuffle'
-  | 'shuffleShows'
-  | 'rotate'
-  | 'custom'
-
-export const PLAYBACK_ORDERS: PlaybackOrder[] = [
-  'chronological',
-  'custom',
-  'rotate',
-  'shuffle',
-  'shuffleShows',
-]
-
-export function asPlaybackOrder(v: unknown): PlaybackOrder {
-  return PLAYBACK_ORDERS.includes(String(v) as PlaybackOrder)
-    ? (String(v) as PlaybackOrder)
-    : 'chronological'
-}
-
-/**
- * A rotation item's / time block's order setting, which may defer to the
- * collection's own default. Stored as "inherit"; resolve with `effectiveOrder`.
- */
-export type OrderSetting = PlaybackOrder | 'inherit'
-
-export function asOrderSetting(v: unknown): OrderSetting {
-  return String(v) === 'inherit' ? 'inherit' : asPlaybackOrder(v)
-}
+// The playback orders and the order setting ("inherit" or one of them) are
+// part of the API's vocabulary, defined in the contract.
+export { PLAYBACK_ORDERS, asOrderSetting, asPlaybackOrder, type OrderSetting, type PlaybackOrder } from './contract/domain.js'
 
 /** The order to actually play with, resolving "inherit" against the collection. */
 export function effectiveOrder(

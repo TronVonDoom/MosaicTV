@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, ACTIVITY_EVENT, type Activity } from '../lib/api'
 import { toast } from '../lib/toast'
+import { useLiveRefresh } from '../lib/events'
 import Icon, { type IconName } from './Icon'
 import { cx } from './ui'
 
@@ -37,8 +38,8 @@ function ago(iso: string): string {
 /**
  * The bell in the top bar: background work (ident builds, library scans,
  * metadata fetches) with live progress, and a toast when something finishes.
- * It polls quickly while anything runs and slowly otherwise, and looks straight
- * away when the app starts a job (ACTIVITY_EVENT).
+ * The server says when any of it moves on; the bell also looks straight away
+ * when the app starts a job (ACTIVITY_EVENT).
  */
 export default function NotificationBell() {
   const [items, setItems] = useState<Activity[]>([])
@@ -75,13 +76,10 @@ export default function NotificationBell() {
   const running = items.some((a) => a.state === 'running')
   useEffect(() => {
     refresh()
-    const t = setInterval(refresh, running ? 2000 : 15000)
     window.addEventListener(ACTIVITY_EVENT, refresh)
-    return () => {
-      clearInterval(t)
-      window.removeEventListener(ACTIVITY_EVENT, refresh)
-    }
-  }, [refresh, running])
+    return () => window.removeEventListener(ACTIVITY_EVENT, refresh)
+  }, [refresh])
+  useLiveRefresh(refresh, ['activity'], { fallbackMs: running ? 2000 : 15000 })
 
   // Close on a click elsewhere.
   useEffect(() => {

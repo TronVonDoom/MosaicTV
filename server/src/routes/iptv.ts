@@ -45,10 +45,14 @@ iptvRouter.get(/^\/channel\/(\d+)\.ts$/, (req, res) => {
 // Shared HLS (one transcode per channel, many viewers): the playlist starts the
 // channel's producer on demand; segments are served straight off disk.
 // GET /iptv/channel/1/index.m3u8  and  /iptv/channel/1/seg_N.ts
+// ?warm=1 is TV mode keeping the channels either side of the one being watched
+// running, so flipping to them is instant: it starts (or keeps) the producer
+// without counting as someone watching.
 iptvRouter.get(/^\/channel\/(\d+)\/index\.m3u8$/, async (req, res) => {
   const n = Number((req.params as unknown as string[])[0])
+  const warm = req.query.warm === '1'
   try {
-    const status = await ensureSegmenter(n, clientIp(req), clientName(req))
+    const status = warm ? await ensureSegmenter(n) : await ensureSegmenter(n, clientIp(req), clientName(req))
     if (status === 'unavailable') return res.status(409).end() // missing / nothing scheduled
     if (status === 'starting') {
       res.setHeader('Retry-After', '2')

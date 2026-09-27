@@ -1,336 +1,181 @@
-export type Health = {
-  status: string
-  version: string
-  uptimeSeconds: number
-  node: string
-  ffmpeg: boolean
+// The web app's side of the API: fetch helpers for every endpoint, and the
+// types they carry. The types come from the contract the server builds its
+// answers against (server/src/contract), read through Wire<> — dates arrive as
+// ISO strings — so a field the server renames is a type error here too.
+import {
+  DEFAULT_COMINGUP as COMINGUP_OFF,
+  sanitizeComingUp,
+  type Wire,
+  type AiringsReplace,
+  type BlockCreate,
+  type ChannelCreate,
+  type ChannelUpdate,
+  type CollectionCreate,
+  type CollectionUpdate,
+  type MemberCreate,
+  type RotationCreate,
+  type Activity as ActivityDTO,
+  type Airing as AiringDTO,
+  type AiringAppearance as AiringAppearanceDTO,
+  type AiringSegmentInfo as AiringSegmentInfoDTO,
+  type Asset as AssetDTO,
+  type Channel as ChannelDTO,
+  type ChannelDetail as ChannelDetailDTO,
+  type ChannelNow as ChannelNowDTO,
+  type Collection as CollectionDTO,
+  type CollectionItem as CollectionItemDTO,
+  type Ident as IdentDTO,
+  type Library as LibraryDTO,
+  type Logo as LogoDTO,
+  type MediaItem as MediaItemDTO,
+  type MediaItemDetail as MediaItemDetailDTO,
+  type MediaPage as MediaPageDTO,
+  type NextBreak as NextBreakDTO,
+  type NowUnit as NowUnitDTO,
+  type Playout as PlayoutDTO,
+  type PlayoutEntry as PlayoutEntryDTO,
+  type RotationItem as RotationItemDTO,
+  type SeasonGroup as SeasonGroupDTO,
+  type ShowDetail as ShowDetailDTO,
+  type TimeBlock as TimeBlockDTO,
+} from '@contract'
+
+// Shapes with no dates in them come straight from the contract.
+import type {
+  ActivityKind,
+  StartMode,
+  RotationMode,
+  PlaybackOrder,
+  OrderSetting,
+  FillerMode,
+  AssetKind,
+  CardPosition,
+  ComingUpConfig,
+  EncodingProfile,
+  FsListing,
+  Health,
+  IdentInput,
+  IdentPlays,
+  IdentStyle as IdentLook,
+  LibraryFolder,
+  LibraryKind,
+  LibrarySample,
+  LogCategory,
+  LogEntry,
+  LogLevel,
+  LogsResponse,
+  MediaSearchResult,
+  MediaSort,
+  MemberKind,
+  MetadataStatus,
+  MetricMarker,
+  MetricSample,
+  MetricSource,
+  MetricsResponse,
+  ProfileFields,
+  ProfileInput,
+  ScanStatus,
+  SettingsInfo,
+  Show,
+  Stats,
+  StreamMode,
+  WatermarkConfig,
+} from '@contract'
+export type {
+  ActivityKind,
+  StartMode,
+  RotationMode,
+  PlaybackOrder,
+  OrderSetting,
+  FillerMode,
+  AssetKind,
+  CardPosition,
+  ComingUpConfig,
+  EncodingProfile,
+  FsListing,
+  Health,
+  IdentInput,
+  IdentPlays,
+  IdentLook,
+  LibraryFolder,
+  LibraryKind,
+  LibrarySample,
+  LogCategory,
+  LogEntry,
+  LogLevel,
+  LogsResponse,
+  MediaSearchResult,
+  MediaSort,
+  MemberKind,
+  MetadataStatus,
+  MetricMarker,
+  MetricSample,
+  MetricSource,
+  MetricsResponse,
+  ProfileFields,
+  ProfileInput,
+  ScanStatus,
+  SettingsInfo,
+  Show,
+  Stats,
+  StreamMode,
+  WatermarkConfig,
 }
 
-export type Stats = {
-  libraries: number
-  items: number
-  missing: number
-  byType: Record<string, number>
-  totalDurationSec: number
-}
+export type Activity = Wire<ActivityDTO>
+export type Airing = Wire<AiringDTO>
+export type AiringAppearance = Wire<AiringAppearanceDTO>
+export type AiringSegmentInfo = Wire<AiringSegmentInfoDTO>
+export type Asset = Wire<AssetDTO>
+export type Channel = Wire<ChannelDTO>
+export type ChannelDetail = Wire<ChannelDetailDTO>
+export type ChannelNow = Wire<ChannelNowDTO>
+export type Collection = Wire<CollectionDTO>
+export type CollectionItem = Wire<CollectionItemDTO>
+export type Ident = Wire<IdentDTO>
+export type Library = Wire<LibraryDTO>
+export type Logo = Wire<LogoDTO>
+export type MediaItem = Wire<MediaItemDTO>
+export type MediaItemDetail = Wire<MediaItemDetailDTO>
+export type MediaPage = Wire<MediaPageDTO>
+export type NextBreak = Wire<NextBreakDTO>
+export type NowUnit = Wire<NowUnitDTO>
+export type Playout = Wire<PlayoutDTO>
+export type PlayoutEntry = Wire<PlayoutEntryDTO>
+export type RotationItem = Wire<RotationItemDTO>
+export type SeasonGroup = Wire<SeasonGroupDTO>
+export type ShowDetail = Wire<ShowDetailDTO>
+export type TimeBlock = Wire<TimeBlockDTO>
 
-export type LibraryKind = 'tv' | 'movie' | 'music' | 'other'
+// What the writes send: the contract's canonical request shapes, with the
+// fields the server fills in left optional.
+type WithRequired<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>
+export type ChannelInput = WithRequired<ChannelCreate, 'name'>
+export type ChannelChanges = ChannelUpdate
+export type RotationInput = WithRequired<RotationCreate, 'collectionId'>
+export type BlockInput = WithRequired<BlockCreate, 'collectionId' | 'days' | 'startMinute' | 'endMinute'>
+export type CollectionInput = WithRequired<CollectionCreate, 'name'>
+export type CollectionChanges = CollectionUpdate
+export type MemberInput = WithRequired<MemberCreate, 'kind'>
+export type AiringsInput = AiringsReplace
 
-export type LibraryFolder = {
-  id: number
-  path: string
-}
-
-export type Library = {
-  id: number
-  name: string
-  kind: LibraryKind
-  createdAt: string
-  folders: LibraryFolder[]
-  itemCount: number
-}
-
-export type MediaItem = {
-  id: number
-  libraryId: number
-  path: string
-  type: 'movie' | 'episode' | 'music' | 'other'
-  title: string
-  showTitle: string | null
-  season: number | null
-  episode: number | null
-  year: number | null
-  artist: string | null
-  album: string | null
-  durationSec: number | null
-  width: number | null
-  height: number | null
-  videoCodec: string | null
-  audioCodec: string | null
-  container: string | null
-  sizeBytes: number | null
-  posterPath: string | null
-  showPosterPath: string | null
-  seasonPosterPath: string | null
-  tmdbId: number | null
-  overview: string | null
-  genres: string | null
-  rating: number | null
-  tmdbPosterPath: string | null
-  tmdbBackdropPath: string | null
-  missing: boolean
-}
-
-export type MediaItemDetail = MediaItem & {
-  library: { name: string; kind: LibraryKind }
-}
-
-export type MediaPage = {
-  total: number
-  page: number
-  pageSize: number
-  items: MediaItem[]
-}
-
-export type Show = {
-  showTitle: string
-  year: number | null
-  seasonCount: number
-  episodeCount: number
-  totalDurationSec: number
-  libraryId: number
-  posterItemId: number | null
-  /** An episode to request the show's (TMDB) poster by, via /api/artwork. */
-  artItemId?: number
-  tmdbPosterPath: string | null
-  overview: string | null
-  rating: number | null
-  genres: string | null
-}
-
-export type SeasonGroup = {
-  season: number | null
-  episodes: MediaItem[]
-  tmdbPosterPath: string | null
-}
-
-export type ShowDetail = {
-  showTitle: string
-  year: number | null
-  episodeCount: number
-  overview: string | null
-  genres: string | null
-  rating: number | null
-  tmdbPosterPath: string | null
-  /** Whether the show has a TMDB backdrop, and an episode to request it by. */
-  hasBackdrop?: boolean
-  artItemId?: number | null
-  seasons: SeasonGroup[]
-}
-
-// One segment of a broadcast episode — enough to render it even when it's
-// borrowed from another show (so the current season's episode list wouldn't
-// carry it).
-export type AiringSegmentInfo = {
-  mediaItemId: number
-  showTitle: string | null
-  season: number | null
-  episode: number | null
-  title: string
-  durationSec: number | null
-  missing: boolean
-}
-
-// A broadcast episode: the ordered episode files that aired together as one
-// program. Stored per show; the files keep their canonical S/E numbering, and a
-// segment may come from another show (2 Stupid Dogs pulling in Secret Squirrel).
-export type Airing = {
-  id: number
-  season: number | null
-  number: number
-  title: string | null
-  segments: AiringSegmentInfo[]
-}
-
-// The reverse view of an airing: one of THIS show's episodes airing as a segment
-// inside another show's broadcast episode (Secret Squirrel borrowed into 2 Stupid
-// Dogs). `mediaItemId` is this show's episode; `host` is the borrowing airing.
-export type AiringAppearance = {
-  mediaItemId: number
-  season: number | null
-  episode: number | null
-  title: string
-  host: { showTitle: string; airingId: number; number: number; season: number | null }
-}
-
-export type WatermarkConfig = {
-  mode: 'permanent' | 'intermittent' | 'none'
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-  widthPercent: number
-  horizontalMarginPercent: number
-  verticalMarginPercent: number
-  opacityPercent: number
-  frequencyMinutes: number
-  durationSeconds: number
-  fadeSeconds: number
-  constrainToMedia: boolean
-}
-
-export type ComingUpConfig = {
-  enabled: boolean
-  timing: 'middle' | 'beforeEnd' | 'both'
-  leadSeconds: number
-  holdSeconds: number
-  fadeSeconds: number // slide + fade in/out (0 = pop)
-  style: 'glass' | 'broadcast'
-  position: CardPosition
-  size: 'small' | 'medium' | 'large'
-}
-
-/** Any edge or corner of the picture — clear of wherever the logo sits. */
-export type CardPosition =
-  | 'top-left'
-  | 'top-center'
-  | 'top-right'
-  | 'middle-left'
-  | 'middle-right'
-  | 'bottom-left'
-  | 'bottom-center'
-  | 'bottom-right'
-
-// Starting point when a channel/block first enables the up-next card.
-export const DEFAULT_COMINGUP: ComingUpConfig = {
-  enabled: true,
-  timing: 'beforeEnd',
-  leadSeconds: 300,
-  holdSeconds: 12,
-  fadeSeconds: 0.6,
-  style: 'glass',
-  position: 'bottom-left',
-  size: 'medium',
-}
-
-const CARD_POSITIONS: CardPosition[] = ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
-/** A stored position, including the first card version's "top"/"bottom". */
-function cardPosition(v: unknown): CardPosition {
-  if (v === 'top') return 'top-left'
-  if (v === 'bottom') return 'bottom-left'
-  return CARD_POSITIONS.includes(v as CardPosition) ? (v as CardPosition) : 'bottom-left'
-}
+/** Where a channel or block starts from when its up-next card is switched on. */
+export const DEFAULT_COMINGUP: ComingUpConfig = { ...COMINGUP_OFF, enabled: true }
 
 /**
- * Parse a stored comingUp JSON string into a config (null/invalid → null).
- * Only today's fields are kept, so a config saved for the old text caption
- * (with its template and font size) doesn't carry them back on the next save.
+ * A stored comingUp JSON string as a config (null/invalid → null), through the
+ * same clamping the server applies — so a config saved by an older version
+ * (the text caption's template and font size) comes back in today's shape.
  */
 export function parseComingUp(json: string | null | undefined): ComingUpConfig | null {
   if (!json) return null
   try {
-    const c = { ...DEFAULT_COMINGUP, ...(JSON.parse(json) as Partial<ComingUpConfig>) }
-    return {
-      enabled: c.enabled,
-      timing: c.timing,
-      leadSeconds: c.leadSeconds,
-      holdSeconds: c.holdSeconds,
-      fadeSeconds: c.fadeSeconds,
-      style: c.style === 'broadcast' ? 'broadcast' : 'glass',
-      position: cardPosition(c.position),
-      size: ['small', 'medium', 'large'].includes(c.size) ? c.size : 'medium',
-    }
+    return sanitizeComingUp(JSON.parse(json))
   } catch {
     return null
   }
 }
 
-export type StreamMode = 'mpegts' | 'hls'
-export type SettingsInfo = {
-  tmdbConfigured: boolean
-  watermark: WatermarkConfig
-  streamMode: StreamMode
-  tunerCount: number
-  hdhrDeviceId: string
-  hdhrFriendlyName: string
-  playoutHorizonHours: number
-  audioLanguage: string
-}
-
-export type MetadataStatus = {
-  running: boolean
-  libraryId: number | null
-  libraryName: string | null
-  total: number
-  processed: number
-  matched: number
-  unmatched: number
-  currentTitle: string | null
-  startedAt: string | null
-  finishedAt: string | null
-  error: string | null
-}
-
-export type FsListing = {
-  path: string
-  parent: string | null
-  dirs: { name: string; path: string }[]
-}
-
-export type ScanStatus = {
-  running: boolean
-  libraryId: number | null
-  libraryName: string | null
-  total: number
-  processed: number
-  added: number
-  updated: number
-  removed: number
-  skipped: number
-  currentPath: string | null
-  startedAt: string | null
-  finishedAt: string | null
-  error: string | null
-}
-
-export type MemberKind = 'show' | 'season' | 'episode' | 'movie'
-export type CollectionItem = {
-  id: number
-  kind: MemberKind
-  showTitle: string | null
-  libraryId: number | null
-  season: number | null
-  mediaItemId: number | null
-  label: string | null
-  order: number
-  /** What the editor draws for this member (see memberMeta on the server). */
-  meta?: {
-    artId: number | null
-    artType: 'poster' | 'show' | 'season' | null
-    year: number | null
-    episodes: number | null
-    seasons: number | null
-    missing: boolean
-  } | null
-}
-
-/** An ident's look: a generated style, or `custom` (an uploaded clip). The
- *  rest are retired styles older idents may still carry. */
-export type IdentLook = 'animated' | 'frosted' | 'spotlight' | 'custom' | 'logowall' | 'pulse' | 'retro' | 'vintage'
-/** Where an ident plays: everywhere else on its channel, only during some of
- *  its blocks, or (left over from an upgrade) nowhere yet. */
-export type IdentPlays = 'any' | 'blocks' | 'none'
-/** What a channel airs during a break. Belongs to one channel. */
-export type Ident = {
-  id: number
-  channelId: number
-  channel: { id: number; name: string; number: number | null } | null
-  name: string
-  style: IdentLook
-  assetId: number | null
-  audioAssetId: number | null
-  /** Pinned logo; null = the logo of whichever block is on. */
-  logoId: number | null
-  logoScale: number
-  /** Frosted glass: a divider between the two halves. */
-  divider: boolean
-  order: number
-  plays: IdentPlays
-  blockIds: number[]
-  /** Built for everywhere it plays — only on a channel's own list (else null). */
-  ready: boolean | null
-  building: boolean
-}
-export type IdentInput = {
-  /** An existing ident's id, when previewing it. */
-  id?: number
-  name: string
-  style: IdentLook
-  assetId: number | null
-  audioAssetId: number | null
-  logoId: number | null
-  logoScale: number
-  divider: boolean
-  plays: IdentPlays
-  blockIds: number[]
-}
 /** A still of a saved ident showing `logoId` (null: its channel's logo). The
  *  URL carries the look, so an edited ident asks for its new picture. */
 export function identThumbUrl(
@@ -339,63 +184,6 @@ export function identThumbUrl(
 ): string {
   const v = [i.style, i.assetId, i.logoId, i.logoScale, i.divider].join('-')
   return `/api/fillers/${i.id}/thumb?${logoId != null ? `logoId=${logoId}&` : ''}v=${encodeURIComponent(v)}`
-}
-/** A channel's next break, for the Breaks tab. */
-export type NextBreak = {
-  start: string
-  stop: string
-  onAir: boolean
-  /** The block on air when it starts (null = outside blocks). */
-  blockId: number | null
-  /** Whose turn it will be. */
-  identId: number | null
-  /** How many idents that break picks from. */
-  turns: number
-  logoId: number | null
-  built: boolean
-  /** The program it leads into, and that program's block when it's a different one. */
-  before: string | null
-  beforeBlock: string | null
-}
-export type Collection = {
-  id: number
-  name: string
-  channelId: number | null
-  logoId: number | null
-  // The order used wherever a rotation item or block says "inherit".
-  defaultOrder: string
-  libraryId: number | null
-  filterType: string | null
-  filterShow: string | null
-  filterSearch: string | null
-  filterGenre: string | null
-  items: CollectionItem[]
-  itemCount: number
-}
-
-export type MediaSearchResult =
-  | { kind: 'show'; showTitle: string; libraryId: number; libraryName: string; episodeCount: number }
-  | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
-  | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
-  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null }
-
-export type RotationItem = {
-  id: number
-  collectionId: number
-  order: number
-  playbackOrder: string
-  mode: string
-  count: number
-  collection: { id: number; name: string; defaultOrder: string }
-}
-
-export type Logo = {
-  id: number
-  name: string
-  mime: string
-  /** When the image was last replaced — the cache-buster for logoImageUrl. */
-  updatedAt?: string
-  watermark: WatermarkConfig
 }
 /** Pass the logo (not just its id) after a replace, so the swapped image shows
  *  immediately instead of waiting out the response's cache lifetime. */
@@ -420,205 +208,9 @@ export const AUDIO_LANGUAGES = [
   { value: 'rus', label: 'Russian' },
 ] as const
 
-export type AssetKind = 'audio' | 'filler'
-export type Asset = {
-  id: number
-  name: string
-  kind: AssetKind
-  mime: string
-  sizeBytes: number | null
-  createdAt: string
-}
+
 export function assetFileUrl(id: number): string {
   return `/api/assets/${id}/file`
-}
-
-export type TimeBlock = {
-  id: number
-  collectionId: number
-  days: string
-  startMinute: number
-  endMinute: number
-  playbackOrder: string
-  logoUrl: string | null
-  logoId: number | null
-  fillerMode: string
-  startMode: string
-  comingUp: string | null // JSON ComingUpConfig; null = inherit channel
-  collection: { id: number; name: string; defaultOrder: string; logoId?: number | null }
-}
-
-// What a time block accepts on write. Omitted fields keep the schema default on
-// create, and are left untouched on update.
-export type BlockInput = {
-  collectionId: number
-  days: string
-  startMinute: number
-  endMinute: number
-  playbackOrder: string
-  logoUrl?: string | null
-  logoId?: number | null
-  fillerMode?: string
-  startMode?: string
-  comingUp?: ComingUpConfig | null
-}
-
-export type Channel = {
-  id: number
-  number: number | null
-  name: string
-  group: string | null
-  logoUrl: string | null
-  logoId: number | null
-  rotationCount: number
-  blockCount: number
-  playoutCount: number
-  playoutCursor: string | null
-  viewers: number
-  nowPlaying: string | null
-}
-
-export type ChannelDetail = {
-  id: number
-  number: number | null
-  name: string
-  group: string | null
-  logoUrl: string | null
-  logoId: number | null
-  profileId: number | null
-  comingUp: string | null // JSON ComingUpConfig; null = off
-  audioLanguage: string | null // null = inherit the global setting
-  /** Keep the corner logo on screen during breaks. */
-  logoOnBreaks: boolean
-  rotationItems: RotationItem[]
-  timeBlocks: TimeBlock[]
-}
-
-export type EncodingProfile = {
-  id: number
-  name: string
-  width: number
-  height: number
-  fps: number
-  quality: 'low' | 'medium' | 'high'
-  hwaccel: 'auto' | 'nvidia' | 'qsv' | 'vaapi' | 'amf' | 'videotoolbox' | 'cpu'
-  audioBitrate: number
-  preset: string
-  videoBitrateK: number
-  videoBufferK: number
-  scalingMode: 'pad' | 'stretch' | 'crop'
-  deinterlace: boolean
-  threads: number
-  audioChannels: number
-  normalizeLoudness: boolean
-  burnSubtitles: boolean
-}
-export type ProfileFields = Omit<EncodingProfile, 'id' | 'name'>
-export type ProfileInput = { name: string } & ProfileFields
-
-export type PlayoutEntry = {
-  id: number
-  startTime: string
-  stopTime: string
-  kind: string
-  title: string | null
-  /** Shared by the segments of one multi-part airing; null for a lone item. */
-  groupKey?: string | null
-  mediaItem: {
-    id: number
-    title: string
-    showTitle: string | null
-    season: number | null
-    episode: number | null
-    type: string
-    artist?: string | null
-    durationSec: number | null
-    posterPath: string | null
-    tmdbPosterPath: string | null
-  } | null
-}
-
-export type Playout = { now: string; items: PlayoutEntry[] }
-
-/** One program as the "what's on" views show it (see server/src/nowPlaying.ts).
- *  A multi-part airing arrives as a single unit. */
-export type NowUnit = {
-  kind: 'program' | 'filler'
-  startTime: string
-  stopTime: string
-  mediaItemId: number | null
-  type: string | null
-  title: string
-  subtitle: string | null
-  year: number | null
-  overview: string | null
-  genres: string | null
-  rating: number | null
-  art: 'poster' | 'show' | null
-  hasBackdrop: boolean
-  parts: number
-}
-export type ChannelNow = {
-  channelId: number
-  number: number | null
-  viewers: number
-  now: NowUnit | null
-  next: NowUnit[]
-}
-export type LibrarySample = { items: { id: number; title: string; art: 'poster' | 'show' }[] }
-export type MediaSort = 'title' | 'year' | 'added' | 'rating'
-
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-export type LogCategory = 'stream' | 'ffmpeg' | 'playout' | 'system'
-export type LogEntry = {
-  id: number
-  ts: string
-  level: LogLevel
-  category: LogCategory
-  message: string
-  detail?: string
-  session?: string // which viewer stream this line belongs to, e.g. "V3 Plex"
-}
-export type LogsResponse = { entries: LogEntry[]; lastId: number; total: number }
-
-// Resource sampling. `cpuPct` is percent of ONE core, so it can exceed 100 on a
-// multi-core box; divide by `cores` for a whole-machine figure. Any field may
-// be -1, meaning "not measurable here" (see `source`).
-export type MetricSource = 'cgroup2' | 'cgroup1' | 'process' | 'none'
-export type MetricSample = {
-  ts: number
-  cpuPct: number
-  memBytes: number
-  memLimitBytes: number
-  ffmpegCount: number
-}
-export type MetricMarker = {
-  id: number
-  ts: number
-  channel: number
-  kind: 'program' | 'filler' | 'song'
-  label: string
-  detail?: string
-}
-export type MetricsResponse = {
-  source: MetricSource
-  cores: number
-  sampleMs: number
-  samples: MetricSample[]
-  markers: MetricMarker[]
-}
-
-/** Background work the server is doing, for the notification bell (see /api/activity). */
-export type Activity = {
-  id: string
-  kind: 'filler' | 'scan' | 'metadata'
-  title: string
-  detail: string | null
-  state: 'running' | 'done' | 'error'
-  progress: number | null
-  startedAt: string
-  finishedAt: string | null
-  href: string
 }
 
 // Starting background work tells the notification bell to look now, rather
@@ -735,12 +327,7 @@ export const api = {
         `&season=${season ?? -1}&targetSec=${targetSec}`,
     ),
   // Replace one season's airings. `groups` are ordered id lists; only 2+ are kept.
-  saveAirings: (data: {
-    libraryId: number
-    showTitle: string
-    season: number | null
-    groups: number[][]
-  }) =>
+  saveAirings: (data: AiringsInput) =>
     request<{ airings: Airing[] }>('/api/airings', {
       method: 'PUT',
       body: JSON.stringify({ ...data, season: data.season ?? -1 }),
@@ -785,31 +372,10 @@ export const api = {
   // --- collections ---
   collections: (channelId?: number) =>
     request<Collection[]>(`/api/collections${channelId != null ? `?channelId=${channelId}` : ''}`),
-  addCollection: (data: {
-    name: string
-    channelId?: number | null
-    logoId?: number | null
-    libraryId?: number | null
-    defaultOrder?: string
-    filterType?: string | null
-    filterShow?: string | null
-    filterSearch?: string | null
-    filterGenre?: string | null
-  }) => request<Collection>('/api/collections', { method: 'POST', body: JSON.stringify(data) }),
+  addCollection: (data: CollectionInput) => request<Collection>('/api/collections', { method: 'POST', body: JSON.stringify(data) }),
   deleteCollection: (id: number) =>
     request<void>(`/api/collections/${id}`, { method: 'DELETE' }),
-  updateCollection: (
-    id: number,
-    data: {
-      name?: string
-      logoId?: number | null
-      libraryId?: number | null
-      defaultOrder?: string
-      filterType?: string | null
-      filterSearch?: string | null
-      filterGenre?: string | null
-    },
-  ) => request<Collection>(`/api/collections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateCollection: (id: number, data: CollectionChanges) => request<Collection>(`/api/collections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   // No order = what the collection plays by default.
   collectionPreview: (id: number, order?: string) =>
     request<{ count: number; order: string; sample: MediaItem[] }>(
@@ -817,14 +383,7 @@ export const api = {
     ),
   searchMedia: (q: string) =>
     request<{ results: MediaSearchResult[] }>(`/api/collections/search?q=${encodeURIComponent(q)}`),
-  addCollectionItem: (
-    collectionId: number,
-    member:
-      | { kind: 'show'; showTitle: string; libraryId: number; label: string }
-      | { kind: 'season'; showTitle: string; libraryId: number; season: number; label: string }
-      | { kind: 'episode'; mediaItemId: number; label: string }
-      | { kind: 'movie'; mediaItemId: number; label: string },
-  ) =>
+  addCollectionItem: (collectionId: number, member: MemberInput) =>
     request<CollectionItem>(`/api/collections/${collectionId}/items`, {
       method: 'POST',
       body: JSON.stringify(member),
@@ -862,7 +421,7 @@ export const api = {
   // --- channels ---
   channels: () => request<Channel[]>('/api/channels'),
   channelsNow: () => request<ChannelNow[]>('/api/channels/now'),
-  addChannel: (data: { number?: number | null; name: string; group?: string | null; logoId?: number | null }) =>
+  addChannel: (data: ChannelInput) =>
     request<Channel>('/api/channels', { method: 'POST', body: JSON.stringify(data) }),
   channel: (id: number) => request<ChannelDetail>(`/api/channels/${id}`),
   /** The up-next card this channel's next program would get, as it airs (a PNG), for unsaved settings. */
@@ -876,7 +435,7 @@ export const api = {
     if (!res.ok) throw new Error(`Preview failed (${res.status})`)
     return res.blob()
   },
-  updateChannel: (id: number, data: { number?: number | null; name?: string; group?: string | null; logoUrl?: string | null; logoId?: number | null; profileId?: number | null; comingUp?: ComingUpConfig | null; audioLanguage?: string | null; logoOnBreaks?: boolean }) =>
+  updateChannel: (id: number, data: ChannelChanges) =>
     request<Channel>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // --- encoding profiles ---
@@ -891,10 +450,7 @@ export const api = {
     request<Logo>(`/api/logos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLogo: (id: number) => request<void>(`/api/logos/${id}`, { method: 'DELETE' }),
   deleteChannel: (id: number) => request<void>(`/api/channels/${id}`, { method: 'DELETE' }),
-  addRotation: (
-    channelId: number,
-    data: { collectionId: number; mode: string; count: number; playbackOrder: string },
-  ) => request<RotationItem>(`/api/channels/${channelId}/rotation`, { method: 'POST', body: JSON.stringify(data) }),
+  addRotation: (channelId: number, data: RotationInput) => request<RotationItem>(`/api/channels/${channelId}/rotation`, { method: 'POST', body: JSON.stringify(data) }),
   deleteRotation: (channelId: number, itemId: number) =>
     request<void>(`/api/channels/${channelId}/rotation/${itemId}`, { method: 'DELETE' }),
   addBlock: (channelId: number, data: BlockInput) =>
@@ -910,8 +466,9 @@ export const api = {
       `/api/channels/${channelId}/build${hours ? `?hours=${hours}` : ''}`,
       { method: 'POST' },
     ),
+  /** Rebuild the guide from the next program on (hard: every show from episode 1). */
   resetPlayout: (channelId: number, hard = false) =>
-    request<{ ok: boolean }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
+    request<{ ok: boolean; from: string | null }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
   playout: (channelId: number, hours = 24) =>
     request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}`),
 

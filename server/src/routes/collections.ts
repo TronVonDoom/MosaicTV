@@ -1,8 +1,12 @@
 import { Router } from 'express'
+import type { Collection, Stored } from '../contract/index.js'
 import type { CollectionItem } from '@prisma/client'
 import { prisma } from '../db.js'
 import { warmFiller } from '../streaming/filler.js'
 import { asPlaybackOrder, collectionCount, resolveCollection } from '../collections.js'
+import { scheduleChanged } from '../scheduleChanges.js'
+import { CollectionCreate, CollectionUpdate, MemberCreate, Reorder } from '../contract/index.js'
+import { readBody } from '../validate.js'
 
 export const collectionsRouter = Router()
 
@@ -83,7 +87,7 @@ collectionsRouter.get('/', async (req, res) => {
   })
   const meta = await memberMeta(cols.flatMap((c) => c.items))
   const withCounts = await Promise.all(
-    cols.map(async (c) => ({
+    cols.map(async (c): Promise<Stored<Collection>> => ({
       ...c,
       items: c.items.map((i) => ({ ...i, meta: meta.get(i.id) ?? null })),
       itemCount: await collectionCount(c),
@@ -93,22 +97,9 @@ collectionsRouter.get('/', async (req, res) => {
 })
 
 collectionsRouter.post('/', async (req, res) => {
-  const { name, channelId, logoId, libraryId, defaultOrder, filterType, filterShow, filterSearch, filterGenre } = req.body ?? {}
-  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' })
-  const c = await prisma.collection.create({
-    data: {
-      name: String(name).trim(),
-      channelId: channelId != null ? Number(channelId) : null,
-      logoId: logoId != null ? Number(logoId) : null,
-      defaultOrder: asPlaybackOrder(defaultOrder),
-      libraryId: libraryId ? Number(libraryId) : null,
-      filterType: filterType || null,
-      filterShow: filterShow || null,
-      filterSearch: filterSearch || null,
-      filterGenre: filterGenre || null,
-    },
-    include: { items: true },
-  })
+  const body = readBody(CollectionCreate, req, res)
+  if (!body) return
+  const c = await prisma.collection.create({ data: body, include: { items: true } })
   res.status(201).json(c)
 })
 
@@ -190,29 +181,17 @@ collectionsRouter.get('/search', async (req, res) => {
 
 collectionsRouter.patch('/:id', async (req, res) => {
   const id = Number(req.params.id)
-  const { name, logoId, libraryId, defaultOrder, filterType, filterShow, filterSearch, filterGenre } = req.body ?? {}
-  const data: {
-    name?: string
-    logoId?: number | null
-    libraryId?: number | null
-    defaultOrder?: string
-    filterType?: string | null
-    filterShow?: string | null
-    filterSearch?: string | null
-    filterGenre?: string | null
-  } = {}
-  if (name !== undefined) data.name = String(name).trim()
-  if (logoId !== undefined) data.logoId = logoId ? Number(logoId) : null
-  if (libraryId !== undefined) data.libraryId = libraryId ? Number(libraryId) : null
-  if (defaultOrder !== undefined) data.defaultOrder = asPlaybackOrder(defaultOrder)
-  if (filterType !== undefined) data.filterType = filterType || null
-  if (filterShow !== undefined) data.filterShow = filterShow || null
-  if (filterSearch !== undefined) data.filterSearch = filterSearch || null
-  if (filterGenre !== undefined) data.filterGenre = filterGenre || null
+  const data = readBody(CollectionUpdate, req, res)
+  if (!data) return
+  const { logoId } = data
+  const before = await prisma.collection.findUnique({ where: { id } })
   const c = await prisma.collection.update({ where: { id }, data }).catch(() => null)
-  if (!c) return res.status(404).json({ error: 'Not found' })
+  if (!c || !before) return res.status(404).json({ error: 'Not found' })
   // A block with no logo of its own airs its collection's: new filler clips.
   if (logoId !== undefined) warmFiller().catch(() => {})
+  // What it airs, and in what order (its name and logo don't change the guide).
+  const airs = (x: typeof c) => [x.defaultOrder, x.libraryId, x.filterType, x.filterShow, x.filterSearch, x.filterGenre].join('|')
+  if (airs(before) !== airs(c)) scheduleChanged(c.channelId)
   res.json(c)
 })
 
@@ -236,9 +215,9 @@ collectionsRouter.get('/:id/preview', async (req, res) => {
 // new order; any member missing from `ids` keeps its place at the end.
 collectionsRouter.patch('/:id/items/reorder', async (req, res) => {
   const collectionId = Number(req.params.id)
-  const raw: unknown = req.body?.ids
-  if (!Array.isArray(raw)) return res.status(400).json({ error: 'ids must be an array of member ids' })
-  const ids: number[] = raw.map(Number)
+  const body = readBody(Reorder, req, res)
+  if (!body) return
+  const { ids } = body
 
   const existing = await prisma.collectionItem.findMany({
     where: { collectionId },
@@ -257,23 +236,15 @@ collectionsRouter.patch('/:id/items/reorder', async (req, res) => {
     where: { collectionId },
     orderBy: { order: 'asc' },
   })
+  await collectionChanged(collectionId)
   res.json(items)
 })
 
 // Add a member: a whole show, one season of it, a single episode, or a movie.
-const MEMBER_KINDS = ['show', 'season', 'episode', 'movie']
 collectionsRouter.post('/:id/items', async (req, res) => {
   const collectionId = Number(req.params.id)
-  const { kind, showTitle, libraryId, season, mediaItemId, label } = req.body ?? {}
-  if (!MEMBER_KINDS.includes(kind)) {
-    return res.status(400).json({ error: `kind must be one of ${MEMBER_KINDS.join(', ')}` })
-  }
-  const byShow = kind === 'show' || kind === 'season'
-  if (byShow && !showTitle) return res.status(400).json({ error: 'showTitle is required' })
-  if (kind === 'season' && season == null) {
-    return res.status(400).json({ error: 'season is required' })
-  }
-  if (!byShow && !mediaItemId) return res.status(400).json({ error: 'mediaItemId is required' })
+  const member = readBody(MemberCreate, req, res)
+  if (!member) return
 
   const col = await prisma.collection.findUnique({ where: { id: collectionId } })
   if (!col) return res.status(404).json({ error: 'Collection not found' })
@@ -283,24 +254,23 @@ collectionsRouter.post('/:id/items', async (req, res) => {
     _max: { order: true },
   })
   const item = await prisma.collectionItem.create({
-    data: {
-      collectionId,
-      kind,
-      showTitle: byShow ? String(showTitle) : null,
-      libraryId: libraryId ? Number(libraryId) : null,
-      season: kind === 'season' ? Number(season) : null,
-      mediaItemId: byShow ? null : Number(mediaItemId),
-      label: label ? String(label) : byShow ? String(showTitle) : null,
-      order: (max._max.order ?? -1) + 1,
-    },
+    data: { ...member, collectionId, order: (max._max.order ?? -1) + 1 },
   })
+  scheduleChanged(col.channelId)
   res.status(201).json(item)
 })
 
 collectionsRouter.delete('/:id/items/:itemId', async (req, res) => {
   await prisma.collectionItem.delete({ where: { id: Number(req.params.itemId) } }).catch(() => {})
+  await collectionChanged(Number(req.params.id))
   res.status(204).end()
 })
+
+/** A collection's members changed: replan the channel that owns it. */
+async function collectionChanged(collectionId: number): Promise<void> {
+  const c = await prisma.collection.findUnique({ where: { id: collectionId }, select: { channelId: true } })
+  scheduleChanged(c?.channelId)
+}
 
 collectionsRouter.delete('/:id', async (req, res) => {
   const id = Number(req.params.id)

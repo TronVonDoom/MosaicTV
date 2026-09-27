@@ -6,7 +6,11 @@ import {
   type ChannelDetail,
   type Collection,
   type ComingUpConfig,
+  type FillerMode,
   type Ident,
+  type OrderSetting,
+  type RotationMode,
+  type StartMode,
 } from '../../lib/api'
 import { poolFor } from '../../lib/breaks'
 import { formatDays, minutesToTime } from '../../lib/format'
@@ -43,11 +47,11 @@ type BlockForm = {
   days: number[]
   start: string
   end: string
-  playbackOrder: string
+  playbackOrder: OrderSetting
   logoUrl: string
   logoId: number | null
-  startMode: string
-  fillerMode: string
+  startMode: StartMode
+  fillerMode: FillerMode
   comingUp: ComingUpConfig | null
 }
 
@@ -101,9 +105,9 @@ export default function ScheduleTab({
 }) {
   const [rot, setRot, clearRotDraft] = useDraft(drafts, 'schedule.rotation', () => ({
     collectionId: '',
-    mode: 'one',
+    mode: 'one' as RotationMode,
     count: '1',
-    playbackOrder: 'inherit',
+    playbackOrder: 'inherit' as OrderSetting,
   }))
   const [blk, setBlk, clearBlkDraft] = useDraft<BlockForm>(drafts, 'schedule.block', emptyBlock)
   const [editingBlock, setEditingBlock, clearEditingDraft] = useDraft<number | null>(
@@ -275,7 +279,7 @@ export default function ScheduleTab({
               </option>
             ))}
           </Select>
-          <Select value={rot.mode} onChange={(e) => setRot({ ...rot, mode: e.target.value })}>
+          <Select value={rot.mode} onChange={(e) => setRot({ ...rot, mode: e.target.value as RotationMode })}>
             <option value="one">1 at a time</option>
             <option value="multiple">multiple</option>
           </Select>
@@ -290,7 +294,7 @@ export default function ScheduleTab({
           )}
           <Select
             value={rot.playbackOrder}
-            onChange={(e) => setRot({ ...rot, playbackOrder: e.target.value })}
+            onChange={(e) => setRot({ ...rot, playbackOrder: e.target.value as OrderSetting })}
           >
             {ORDER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -508,7 +512,7 @@ export default function ScheduleTab({
             />
             <Select
               value={blk.playbackOrder}
-              onChange={(e) => setBlk({ ...blk, playbackOrder: e.target.value })}
+              onChange={(e) => setBlk({ ...blk, playbackOrder: e.target.value as OrderSetting })}
             >
               {ORDER_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>

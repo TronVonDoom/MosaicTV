@@ -1,4 +1,5 @@
 import express, { Router } from 'express'
+import type { Asset, Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
@@ -29,7 +30,7 @@ function extFor(mime: string): string {
   return map[mime.toLowerCase()] || (mime.startsWith('audio/') ? 'audio' : 'mp4')
 }
 
-function shape(a: { id: number; name: string; kind: string; mime: string; sizeBytes: number | null; createdAt: Date }) {
+function shape(a: { id: number; name: string; kind: string; mime: string; sizeBytes: number | null; createdAt: Date }): Stored<Asset> {
   return { id: a.id, name: a.name, kind: a.kind, mime: a.mime, sizeBytes: a.sizeBytes, createdAt: a.createdAt }
 }
 

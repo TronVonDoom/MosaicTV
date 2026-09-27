@@ -8,13 +8,14 @@ import NotificationBell from './NotificationBell'
 import ConfirmHost from './ConfirmHost'
 import { api, type Health } from '../lib/api'
 import { usePolling } from '../lib/hooks'
+import { useLiveRefresh } from '../lib/events'
 import { Button, IconButton, Kbd, cx } from './ui'
 
 /** Mac gets ⌘K, everyone else Ctrl-K — label it to match the actual keyboard. */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
 const PALETTE_HINT = IS_MAC ? '⌘K' : 'Ctrl K'
 
-// Six destinations in three groups. The grouping answers "is this a feature
+// Seven destinations in three groups. The grouping answers "is this a feature
 // or plumbing?" at a glance: Broadcast is what airs, Content is what it's made
 // of, System keeps it running.
 type NavItem = { to: string; label: string; icon: IconName; end?: boolean }
@@ -24,6 +25,7 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Dashboard', icon: 'dashboard', end: true },
       { to: '/channels', label: 'Channels', icon: 'channels' },
+      { to: '/watch', label: 'Watch', icon: 'tv' },
     ],
   },
   {
@@ -335,7 +337,7 @@ export default function Layout() {
     loadHealth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  usePolling(loadLive, 10000)
+  useLiveRefresh(loadLive, ['viewers', 'onAir'], { fallbackMs: 10000 })
   usePolling(loadHealth, 30000)
 
   // Remember only an explicit choice, so the width default keeps applying

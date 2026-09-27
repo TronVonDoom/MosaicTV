@@ -8,7 +8,8 @@ import { api, type Channel, type ChannelNow, type Playout } from '../lib/api'
 import { copyText } from '../lib/clipboard'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
-import { useNow, usePolling } from '../lib/hooks'
+import { useNow } from '../lib/hooks'
+import { useLiveRefresh } from '../lib/events'
 import { toast } from '../lib/toast'
 import {
   Banner,
@@ -135,7 +136,8 @@ export default function Channels() {
   useEffect(() => {
     refresh()
   }, [refresh])
-  usePolling(refresh, 15000) // keep now-playing / viewers fresh
+  // Now-playing and viewers, kept fresh as they change.
+  useLiveRefresh(refresh, ['onAir', 'viewers', 'guide'], { fallbackMs: 15000 })
 
   async function del(c: Channel) {
     const ok = await confirmDialog({
@@ -166,7 +168,7 @@ export default function Channels() {
   const shown = filter === 'live' ? live : filter === 'drafts' ? drafts : all
 
   // The guide below the cards: fetched when the on-air set or the span
-  // changes, and refreshed every few minutes — listings change slowly.
+  // changes, and again whenever a channel's guide does.
   const liveKey = live.map((c) => c.id).join(',')
   const loadGuides = useCallback(() => {
     const ids = liveKey ? liveKey.split(',').map(Number) : []
@@ -181,7 +183,7 @@ export default function Channels() {
   useEffect(() => {
     loadGuides()
   }, [loadGuides])
-  usePolling(loadGuides, 300000)
+  useLiveRefresh(loadGuides, ['guide'], { fallbackMs: 300000 })
 
   // "/channels#guide" (the dashboard's Full guide link, the old /guide route)
   // lands on the guide once there's a guide to land on.

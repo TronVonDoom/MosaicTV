@@ -4,7 +4,7 @@ From a fresh install to your first live TV channel. Each step builds on the
 last; the whole thing takes about ten minutes plus scan time.
 
 **The flow:** add a **library** → **scan** it → build a **channel** with
-**collections** → **build the guide** → point your **player** at the M3U.
+**collections** → check its **guide** → point your **player** at the M3U.
 
 ---
 
@@ -98,17 +98,24 @@ On the **Schedule** tab:
 A channel can be rotation-only, blocks-only, or both. Episode positions are
 remembered — shows resume where they left off, across days and rebuilds.
 
-## 7. Build the guide
+## 7. Check the guide
 
-**Guide** tab → **Build 48h**. This generates the playout timeline — what airs
-when. Preview it as a timeline or list. It rebuilds automatically as time
-passes; **Rebuild** re-anchors to now (positions kept), **Restart from S1E1**
+The **Guide** tab shows the playout timeline — what airs when, as a timeline or
+a list. It builds itself as soon as the channel has a rotation or a block,
+extends itself as time passes, and follows every schedule change from the next
+program on, with each show carrying on where it was. **Restart from S1E1**
 starts every show over.
 
 ## 8. Watch!
 
-**Live TV setup** (in the top bar, and on **Channels**) has your two URLs,
-with copy buttons:
+**Watch** in the sidebar is TV mode: your channels full screen in the browser.
+Flip with **↑ / ↓** (or swipe), type a channel number, **⌫** for the last
+channel, **G** for the channel guide. Turn on **instant flipping** (the ⚡
+button) and the channels either side keep running, so a flip lands on a live
+picture — at the cost of an encoder each.
+
+For your TV and apps, **Live TV setup** (in the top bar, and on **Channels**)
+has your two URLs, with copy buttons:
 
 - **M3U**: `http://YOUR-SERVER:8688/iptv/channels.m3u`
 - **XMLTV**: `http://YOUR-SERVER:8688/iptv/xmltv.xml`

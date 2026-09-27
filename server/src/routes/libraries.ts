@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { Library, Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
@@ -17,7 +18,7 @@ librariesRouter.get('/', async (_req, res) => {
     },
   })
   res.json(
-    libs.map((l) => ({
+    libs.map((l): Stored<Library> => ({
       id: l.id,
       name: l.name,
       kind: l.kind,

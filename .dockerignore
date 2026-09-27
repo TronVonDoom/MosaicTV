@@ -10,6 +10,9 @@ server/public
 .gitattributes
 *.log
 data
+# A local dev database must never ride into the image with prisma/.
+server/prisma/*.db*
+server/prisma/backups
 
 # Docs, branding sources, and deploy helpers — none are copied into the image.
 README.md

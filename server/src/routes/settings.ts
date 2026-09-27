@@ -1,9 +1,20 @@
 import { Router } from 'express'
 import { getTmdbKey, setTmdbKey, validateKey } from '../tmdb.js'
-import { loadWatermark, sanitizeWatermark } from '../streaming/overlays.js'
+import { loadWatermark } from '../streaming/overlays.js'
+import {
+  AudioLanguageSave,
+  StreamModeSave,
+  TmdbKeySave,
+  WatermarkSave,
+  horizonSave,
+  tunerCountSave,
+  tunerNameSave,
+  type SettingsInfo,
+} from '../contract/index.js'
+import { readBody } from '../validate.js'
 import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, MIN_HORIZON_HOURS, horizonHours } from '../playout.js'
-import { NO_AUDIO_PREFERENCE, globalAudioLanguage } from '../audio.js'
+import { globalAudioLanguage } from '../audio.js'
 import {
   MAX_FRIENDLY_NAME,
   MAX_TUNER_COUNT,
@@ -28,7 +39,7 @@ settingsRouter.get('/', async (_req, res) => {
   res.json({
     tmdbConfigured: !!key,
     watermark: await loadWatermark(),
-    streamMode: modeRow?.value === 'hls' ? 'hls' : 'mpegts',
+    streamMode: modeRow?.value === 'hls' ? ('hls' as const) : ('mpegts' as const),
     tunerCount: await tunerCount(),
     // Read-only in the UI, but surfaced so you can tell which device Plex is
     // talking to. Reading it mints the ID if this instance has never served a
@@ -37,11 +48,12 @@ settingsRouter.get('/', async (_req, res) => {
     hdhrFriendlyName: await friendlyName(),
     playoutHorizonHours: await horizonHours(),
     audioLanguage: await globalAudioLanguage(),
-  })
+  } satisfies SettingsInfo)
 })
 
 settingsRouter.post('/watermark', async (req, res) => {
-  const wm = sanitizeWatermark(req.body)
+  const wm = readBody(WatermarkSave, req, res)
+  if (!wm) return
   await setSetting('watermark', JSON.stringify(wm))
   res.json({ ok: true, watermark: wm })
 })
@@ -50,21 +62,20 @@ settingsRouter.post('/watermark', async (req, res) => {
 // many viewers); 'mpegts' = per-client. Only affects which URL the M3U hands
 // out; both endpoints stay live regardless.
 settingsRouter.post('/stream-mode', async (req, res) => {
-  const mode = req.body?.mode === 'hls' ? 'hls' : 'mpegts'
+  const body = readBody(StreamModeSave, req, res)
+  if (!body) return
+  const { mode } = body
   await setSetting('streamMode', mode)
   res.json({ ok: true, streamMode: mode })
 })
 
 // How many concurrent streams the emulated HDHomeRun tuner advertises to
 // Plex/Emby — one tuner slot = one concurrent Live TV stream from their side.
+const TunerCountSave = tunerCountSave(MIN_TUNER_COUNT, MAX_TUNER_COUNT)
 settingsRouter.post('/tuner-count', async (req, res) => {
-  const n = Number(req.body?.tunerCount)
-  if (!Number.isFinite(n) || n < MIN_TUNER_COUNT || n > MAX_TUNER_COUNT) {
-    return res
-      .status(400)
-      .json({ error: `tunerCount must be a number between ${MIN_TUNER_COUNT} and ${MAX_TUNER_COUNT}` })
-  }
-  const count = Math.round(n)
+  const body = readBody(TunerCountSave, req, res)
+  if (!body) return
+  const count = body.tunerCount
   await setSetting('tunerCount', String(count))
   res.json({ ok: true, tunerCount: count })
 })
@@ -72,26 +83,22 @@ settingsRouter.post('/tuner-count', async (req, res) => {
 // The name Plex lists the tuner under. Safe to change at any time — Plex keys
 // the device on its ID, not this — though it may keep showing the old name
 // until the DVR entry is re-added.
+const TunerNameSave = tunerNameSave(MAX_FRIENDLY_NAME)
 settingsRouter.post('/tuner-name', async (req, res) => {
-  const name = String(req.body?.friendlyName ?? '').trim()
-  if (!name) return res.status(400).json({ error: 'friendlyName is required' })
-  if (name.length > MAX_FRIENDLY_NAME) {
-    return res.status(400).json({ error: `friendlyName must be ${MAX_FRIENDLY_NAME} characters or fewer` })
-  }
+  const body = readBody(TunerNameSave, req, res)
+  if (!body) return
+  const name = body.friendlyName
   await setSetting('hdhrFriendlyName', name)
   res.json({ ok: true, hdhrFriendlyName: name })
 })
 
 // How far ahead every channel builds its timeline. This is also the depth of
 // the published XMLTV guide, since the guide only shows what has been built.
+const HorizonSave = horizonSave(MIN_HORIZON_HOURS, MAX_HORIZON_HOURS)
 settingsRouter.post('/playout-horizon', async (req, res) => {
-  const n = Number(req.body?.playoutHorizonHours)
-  if (!Number.isFinite(n) || n < MIN_HORIZON_HOURS || n > MAX_HORIZON_HOURS) {
-    return res.status(400).json({
-      error: `playoutHorizonHours must be a number between ${MIN_HORIZON_HOURS} and ${MAX_HORIZON_HOURS}`,
-    })
-  }
-  const hours = Math.round(n)
+  const body = readBody(HorizonSave, req, res)
+  if (!body) return
+  const hours = body.playoutHorizonHours
   await setSetting('playoutHorizonHours', String(hours))
   res.json({ ok: true, playoutHorizonHours: hours })
 })
@@ -99,19 +106,18 @@ settingsRouter.post('/playout-horizon', async (req, res) => {
 // Which audio track channels air when a file carries more than one: an ISO 639
 // language tag, or 'first' to keep whatever order the file lists.
 settingsRouter.post('/audio-language', async (req, res) => {
-  const raw = String(req.body?.audioLanguage ?? '').trim().toLowerCase()
-  if (!raw) return res.status(400).json({ error: 'audioLanguage is required' })
-  if (raw !== NO_AUDIO_PREFERENCE && !/^[a-z]{2,3}$/.test(raw)) {
-    return res.status(400).json({ error: "audioLanguage must be a 2- or 3-letter language code, or 'first'" })
-  }
+  const body = readBody(AudioLanguageSave, req, res)
+  if (!body) return
+  const raw = body.audioLanguage
   await setSetting('audioLanguage', raw)
   res.json({ ok: true, audioLanguage: raw })
 })
 
 // Validate and save the TMDB API key in one step.
 settingsRouter.post('/tmdb', async (req, res) => {
-  const apiKey = String(req.body?.apiKey ?? '').trim()
-  if (!apiKey) return res.status(400).json({ error: 'apiKey is required' })
+  const body = readBody(TmdbKeySave, req, res)
+  if (!body) return
+  const { apiKey } = body
   const valid = await validateKey(apiKey)
   if (!valid) {
     return res.status(400).json({ error: 'TMDB rejected that key. Double-check it and try again.' })

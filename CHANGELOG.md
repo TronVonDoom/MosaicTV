@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+A guide that follows your edits, TV mode, and a sturdier foundation under both.
+
+- **The guide follows the schedule.** Change the rotation, a block, a
+  collection's shows or order, or a show's broadcast episodes, and every
+  affected channel rebuilds its guide from the next program on: what's on now
+  finishes first, and each show carries on from exactly the episode it was up
+  to. There's no Build or Rebuild any more — the Guide tab says where a change
+  took effect. (The old Rebuild restarted from where the *built* guide ended,
+  so it skipped up to a horizon's worth of episodes.) Changing the container's
+  `TZ` rebuilds every guide at the next start, and a library scan that adds,
+  removes or moves files updates the guides too.
+- **A turn is never cut short.** A rotation item that plays N programs a turn
+  finishes its turn across a guide top-up; before, a top-up that landed
+  mid-turn moved straight on to the next item.
+- **TV mode.** **Watch** in the sidebar puts your channels full screen: flip
+  with ↑/↓ or a swipe, type a channel number, ⌫ for the last channel, **G**
+  for a channel guide with what's on now and next. A banner shows what's on as
+  you tune in. **Instant flipping** keeps the channels either side running, so
+  a flip lands on a live picture in a fraction of a second (at the cost of an
+  encoder each). The preview window has a button to go full screen.
+- **Pages update themselves.** The dashboard, channel list, guide, Breaks tab,
+  notification bell and library jobs update the moment something changes on
+  the server, instead of each polling on its own timer.
+- **Renamed folders keep their links.** A file that moved (same name and size,
+  old path gone) keeps its place in collections, broadcast episodes and the
+  guide, and when every file of a show now parses to a new title, its
+  collection picks and broadcast episodes follow it.
+- **Versioned database migrations.** Schema changes are now numbered
+  migrations instead of a `db push` at every start. Before applying any, the
+  server saves a copy of the database to `backups/` in the data folder; if a
+  migration fails, it puts the copy back so the previous image still starts.
+  Retired columns from earlier releases are dropped. An install on any version
+  from 0.8.1 on upgrades in one step.
+- **Checked before it ships.** CI now runs the server tests and replays the
+  startup migration against databases from earlier releases (with rows in
+  every table), and an image is only published if both pass.
+- **One contract between server and app.** What each API write accepts and
+  each read answers is defined once, shared by the server (which validates
+  requests with it) and the web app (which is typed by it), including the
+  up-next card's defaults, which had drifted apart.
+
 ## 0.12.0 — Breaks, and what's on next (2026-09-26)
 
 A Breaks tab for everything that plays between programs, a poster card for

@@ -7,22 +7,12 @@ import {
   searchMovie,
   searchTv,
 } from './tmdb.js'
+import type { MetadataStatus } from './contract/index.js'
 
 const CONCURRENCY = 4
 
-export type MetadataStatus = {
-  running: boolean
-  libraryId: number | null
-  libraryName: string | null
-  total: number
-  processed: number
-  matched: number
-  unmatched: number
-  currentTitle: string | null
-  startedAt: string | null
-  finishedAt: string | null
-  error: string | null
-}
+// The job's progress, as GET /api/metadata/status answers it (a contract shape).
+export type { MetadataStatus }
 
 const status: MetadataStatus = {
   running: false,

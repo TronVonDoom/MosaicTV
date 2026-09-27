@@ -10,6 +10,7 @@ import {
   renderIdentStill,
   warmFiller,
 } from '../streaming/filler.js'
+import { IdentLook, IdentOrder, IdentPlacement, type Ident, type Stored } from '../contract/index.js'
 
 // Idents — what a channel airs during a break (the Breaks tab). Each belongs to
 // one channel. Where it plays is its assignments: a channel-level row is
@@ -18,8 +19,7 @@ import {
 // something the Breaks tab lists.
 export const fillersRouter = Router()
 
-const STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'logowall', 'pulse', 'retro', 'vintage']
-type Plays = 'any' | 'blocks' | 'none'
+type Plays = IdentPlacement['plays']
 
 /** A request refused with a status and a message the UI shows as-is. */
 class Refused extends Error {
@@ -41,23 +41,10 @@ const handle = (fn: (req: Request, res: Response) => Promise<unknown>) => async 
   }
 }
 
-// Clamp an incoming ident's look. (Picture size always matches the channel,
-// and the old length settings stay as they were — nothing reads them.)
-function lookData(body: Record<string, unknown>) {
-  const style = STYLES.includes(String(body?.style)) ? String(body.style) : 'frosted'
-  const scale = Number(body?.logoScale)
-  const id = (v: unknown) => (v != null && v !== '' ? Number(v) : null)
-  return {
-    name: String(body?.name ?? '').trim(),
-    style,
-    assetId: style === 'custom' ? id(body?.assetId) : null,
-    audioAssetId: id(body?.audioAssetId),
-    logoId: id(body?.logoId),
-    logoScale: Math.max(0.4, Math.min(2, Number.isFinite(scale) ? scale : 1)),
-    divider: body?.divider === true || body?.divider === 'true',
-  }
-}
-type Look = ReturnType<typeof lookData>
+// An incoming ident's look, clamped by the contract (it never refuses one: an
+// unknown style is frosted, a wild logo scale is pulled into range).
+const lookData = (body: unknown): IdentLook => IdentLook.parse(body ?? {})
+type Look = IdentLook
 
 const IDENT_INCLUDE = {
   assignments: { select: { channelId: true, timeBlockId: true } },
@@ -86,7 +73,7 @@ function shape({ assignments, channel, ...f }: IdentRow, readiness?: { ready: bo
     blockIds,
     ready: readiness?.ready ?? null,
     building: readiness?.building ?? false,
-  }
+  } satisfies Stored<Ident>
 }
 
 const loadIdent = (id: number) => prisma.filler.findUnique({ where: { id }, include: IDENT_INCLUDE })
@@ -108,11 +95,10 @@ async function keepsEverywhereElse(channelId: number, losing: number | null): Pr
 // Where an ident plays, checked: blocks must be the channel's own, "only
 // during" needs at least one, and a channel can't be left with nothing to play
 // "everywhere else".
-async function placement(channelId: number, body: Record<string, unknown>, identId: number | null): Promise<{ plays: Plays; blockIds: number[] }> {
-  const plays: Plays = body?.plays === 'blocks' ? 'blocks' : body?.plays === 'none' ? 'none' : 'any'
+async function placement(channelId: number, body: unknown, identId: number | null): Promise<{ plays: Plays; blockIds: number[] }> {
+  const { plays, blockIds: asked } = IdentPlacement.parse(body ?? {})
   let blockIds: number[] = []
   if (plays === 'blocks') {
-    const asked = Array.isArray(body?.blockIds) ? (body.blockIds as unknown[]).map(Number).filter(Number.isInteger) : []
     const mine = await prisma.timeBlock.findMany({ where: { channelId, id: { in: asked } }, select: { id: true } })
     blockIds = mine.map((b) => b.id)
     if (blockIds.length === 0) throw new Refused(400, 'Pick at least one block for it to play during.')
@@ -160,8 +146,8 @@ fillersRouter.get(
 fillersRouter.post(
   '/order',
   handle(async (req, res) => {
-    const channelId = Number(req.body?.channelId)
-    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(Number) : []
+    const parsed = IdentOrder.safeParse(req.body ?? {})
+    const { channelId, ids } = parsed.success ? parsed.data : { channelId: NaN, ids: [] }
     await prisma.$transaction(ids.map((id, order) => prisma.filler.updateMany({ where: { id, channelId }, data: { order } })))
     res.status(204).end()
   }),
@@ -185,7 +171,7 @@ function previewDraft(req: Request) {
   if (!Number.isInteger(channelId)) throw new Refused(400, 'channelId is required')
   const logoId = req.query.logoId != null && req.query.logoId !== '' ? Number(req.query.logoId) : null
   const id = Number(req.body?.id)
-  return { ident: { ...look, id: Number.isInteger(id) ? id : 0, resolution: 'auto' }, ctx: { channelId, logoId } }
+  return { ident: { ...look, id: Number.isInteger(id) ? id : 0 }, ctx: { channelId, logoId } }
 }
 
 // POST /api/fillers/preview?channelId=&logoId= { …draft } -> the first few
@@ -242,7 +228,7 @@ fillersRouter.post(
     const where = await placement(channelId, req.body ?? {}, null)
     const order = await nextOrder(channelId)
     const f = await prisma.$transaction(async (tx) => {
-      const f = await tx.filler.create({ data: { ...look, channelId, order, resolution: 'auto' } })
+      const f = await tx.filler.create({ data: { ...look, channelId, order } })
       await writePlacement(tx, f.id, channelId, where)
       return f
     })
@@ -273,7 +259,7 @@ fillersRouter.patch(
     // stand-in until they're ready.
     if (restyled(before, look)) removeFillerCache(id)
     await prisma.$transaction(async (tx) => {
-      await tx.filler.update({ where: { id }, data: { ...look, resolution: 'auto' } })
+      await tx.filler.update({ where: { id }, data: look })
       await writePlacement(tx, id, channelId, where)
     })
     warmFiller().catch(() => {})
@@ -309,7 +295,6 @@ fillersRouter.post(
           logoId: same ? src.logoId : null,
           logoScale: src.logoScale,
           divider: src.divider,
-          resolution: 'auto',
           order,
         },
       })

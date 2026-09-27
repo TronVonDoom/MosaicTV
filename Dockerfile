@@ -6,6 +6,9 @@ WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
+# The server/web contract the app imports as @contract (see web/vite.config.ts),
+# at the same place relative to web/ as in the repo.
+COPY server/src/contract /server/src/contract
 RUN npm run build
 
 # ---- Stage 2: compile the Express backend + generate Prisma client ----
@@ -14,7 +17,7 @@ WORKDIR /server
 COPY server/package*.json ./
 RUN npm ci
 COPY server/prisma ./prisma
-RUN npx prisma generate
+RUN npm run prisma:generate
 COPY server/ ./
 RUN npm run build
 
@@ -36,11 +39,13 @@ ENV NODE_ENV=production
 ENV DATABASE_URL=file:/app/data/mosaictv.db
 WORKDIR /app
 
-# Production dependencies (includes prisma CLI + client) + generated client
+# Production dependencies (includes prisma CLI + client) + generated clients:
+# the app's, and the frozen 0.12.0 baseline one the legacy data migrations use.
+# prisma/ carries the versioned migrations the server applies at startup.
 COPY server/package*.json ./
 RUN npm ci --omit=dev
 COPY server/prisma ./prisma
-RUN npx prisma generate
+RUN npm run prisma:generate
 
 # Compiled backend + built frontend, and the fonts the info cards render with
 # (card.ts finds them at ../../assets from dist/streaming)

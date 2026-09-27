@@ -3,7 +3,7 @@ import { api, identThumbUrl, type Asset, type Ident, type IdentLook, type Logo, 
 import { airsIn, blocksOf, identColor, logosOf, lookLabel, nameBlocks, whenSummary } from '../../lib/breaks'
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
-import { usePolling } from '../../lib/hooks'
+import { guideFor, useLiveRefresh } from '../../lib/events'
 import { toast } from '../../lib/toast'
 import Icon from '../Icon'
 import IdentEditor from '../IdentEditor'
@@ -59,8 +59,11 @@ export default function BreaksTab({
     api.logos().then(setLogos).catch(() => {})
     api.assets('audio').then(setMusic).catch(() => {})
   }, [])
-  // While a build runs, keep the Ready / Building badges honest.
-  usePolling(load, 10_000, !!idents?.some((i) => i.ready === false))
+  // Ready / Building badges follow ident builds; the next break follows the guide.
+  useLiveRefresh(load, ['activity', 'guide'], {
+    when: (e) => e.type === 'activity' || guideFor(channelId)(e),
+    fallbackMs: idents?.some((i) => i.ready === false) ? 10_000 : 60_000,
+  })
 
   const list = idents ?? []
   const colorOf = (id: number) => identColor(Math.max(0, list.findIndex((i) => i.id === id)))

@@ -3,7 +3,7 @@ import Icon from './Icon'
 import { Link } from 'react-router-dom'
 import { api, type Library, type LibraryKind } from '../lib/api'
 import { errorMessage } from '../lib/errors'
-import { useJobStatus } from '../lib/hooks'
+import { useJobStatus } from '../lib/events'
 import { toast } from '../lib/toast'
 import DirectoryPicker from './DirectoryPicker'
 import { Badge, Banner, Button, Card, Field, InfoHint, Input, ProgressPanel, Select } from './ui'
@@ -156,6 +156,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
             <>
               <span className="text-emerald-400">+{scan.added} new</span>
               <span className="text-sky-400">{scan.updated} updated</span>
+              {scan.moved > 0 && <span className="text-sky-400">{scan.moved} moved</span>}
               <span>{scan.skipped} unchanged</span>
               {scan.removed > 0 && <span className="text-amber-400">{scan.removed} missing</span>}
             </>

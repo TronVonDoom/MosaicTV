@@ -1,9 +1,12 @@
 // Playback orders, shared by the collection editor (which sets a collection's
 // default) and the rotation/block forms (which can defer to that default).
 // The stored values predate the names: "chronological" is Release order,
-// "custom" is Your order and "shuffleShows" is Rotate shows, mixed.
+// "custom" is Your order and "shuffleShows" is Rotate shows, mixed. The values
+// themselves are the contract's; this adds the words for them.
+import type { PlaybackOrder } from './api'
+
 export type PlaybackOrderInfo = {
-  value: string
+  value: PlaybackOrder
   label: string
   /** One sentence on what it airs, for the order picker. */
   description: string
@@ -44,7 +47,12 @@ export const PLAYBACK_ORDERS: PlaybackOrderInfo[] = [
   },
 ]
 
-export const INHERIT = { value: 'inherit', label: 'Collection default' }
+export const INHERIT = { value: 'inherit' as const, label: 'Collection default' }
+
+// Every order the server knows has words here: a new one is a type error
+// until it's described.
+type Missing = Exclude<PlaybackOrder, (typeof PLAYBACK_ORDERS)[number]['value']>
+export const EVERY_ORDER_DESCRIBED: Missing extends never ? true : Missing = true
 
 export function orderLabel(value: string): string {
   if (value === INHERIT.value) return INHERIT.label

@@ -8,8 +8,10 @@ import { warmFiller } from './streaming/filler.js'
 import { warmCapabilities } from './streaming/capabilities.js'
 import { startMetrics } from './metrics.js'
 import { startGuideKeeper } from './guideKeeper.js'
-import { resetSegments } from './streaming/segmenter.js'
-import { migrateCollectionOwnership, migrateFillersToLibrary, migrateIdentsToChannels } from './migrate.js'
+import { allSegmenterViewers, resetSegments } from './streaming/segmenter.js'
+import { eventStream, watch } from './events.js'
+import { migrateDatabase } from './dbMigrate.js'
+import { replanIfTimezoneChanged } from './scheduleChanges.js'
 import { seedDefaultAudio } from './seedDefaults.js'
 import { librariesRouter } from './routes/libraries.js'
 import { mediaRouter } from './routes/media.js'
@@ -23,7 +25,7 @@ import { metadataRouter } from './routes/metadata.js'
 import { collectionsRouter } from './routes/collections.js'
 import { channelsRouter } from './routes/channels.js'
 import { iptvRouter } from './routes/iptv.js'
-import { activityRouter } from './routes/activity.js'
+import { activityItems, activityRouter } from './routes/activity.js'
 import { hdhrRouter } from './routes/hdhr.js'
 import { logosRouter } from './routes/logos.js'
 import { logsRouter } from './routes/logs.js'
@@ -108,6 +110,9 @@ app.get('/api/stats', async (_req, res) => {
   })
 })
 
+// Live updates for the web app (see events.ts).
+app.get('/api/events', eventStream)
+
 app.use('/api/libraries', librariesRouter)
 app.use('/api/media', mediaRouter)
 app.use('/api/scan', scanRouter)
@@ -154,29 +159,29 @@ process.on('unhandledRejection', (reason) => {
 })
 
 // --- Boot -------------------------------------------------------------------
-// One-time migration: turn any legacy single-path library into a folder row.
-async function backfillLibraryFolders(): Promise<void> {
-  const libs = await prisma.library.findMany({
-    where: { path: { not: null } },
-    include: { _count: { select: { folders: true } } },
-  })
-  for (const lib of libs) {
-    if (lib._count.folders === 0 && lib.path) {
-      await prisma.libraryFolder
-        .create({ data: { libraryId: lib.id, path: path.resolve(lib.path) } })
-        .catch(() => {})
-    }
-  }
-}
-
 async function boot(): Promise<void> {
+  // Schema first: nothing may query a database its code doesn't match yet.
+  await migrateDatabase()
   await initDb()
-  await backfillLibraryFolders()
-  await migrateCollectionOwnership().catch((e) => log('error', 'system', 'Collection ownership migration failed', String(e?.stack || e)))
-  await migrateFillersToLibrary().catch((e) => log('error', 'system', 'Filler library migration failed', String(e?.stack || e)))
-  await migrateIdentsToChannels().catch((e) => log('error', 'system', 'Moving idents to their channels failed', String(e?.stack || e)))
+  await replanIfTimezoneChanged().catch((e) => log('error', 'playout', 'Timezone check failed', String(e?.stack || e)))
   await seedDefaultAudio().catch((e) => log('error', 'system', 'Default audio seed failed', String(e?.stack || e)))
   resetSegments() // clear any stale segmenter output from a previous run
+  // What open pages hear about without asking (only checked while one is open).
+  watch(1000, activityItems, { type: 'activity' })
+  watch(3000, allSegmenterViewers, { type: 'viewers' })
+  watch(
+    5000,
+    async () => {
+      const now = new Date()
+      const onAir = await prisma.playoutItem.findMany({
+        where: { startTime: { lte: now }, stopTime: { gt: now } },
+        select: { id: true },
+        orderBy: { id: 'asc' },
+      })
+      return onAir.map((it) => it.id)
+    },
+    { type: 'onAir' },
+  )
   const metricSource = startMetrics()
   startGuideKeeper() // keep every channel's guide built out, watched or not
   await checkFfmpeg()
@@ -202,4 +207,10 @@ async function boot(): Promise<void> {
   }
 }
 
-boot()
+boot().catch((e) => {
+  const msg = String((e as Error)?.stack || e)
+  log('error', 'system', 'MosaicTV could not start', msg)
+  console.error(`MosaicTV could not start:
+${msg}`)
+  process.exit(1)
+})

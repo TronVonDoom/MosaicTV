@@ -345,8 +345,8 @@ export default function Settings() {
                   <br />
                   <br />
                   Deeper costs nothing at playback — it is rows in a table, built in seconds —
-                  but a schedule change only affects what has not been built yet, so a week-deep
-                  guide needs a Rebuild to pick up edits.
+                  and a schedule change rebuilds it from the next program on, however far ahead
+                  it reaches.
                 </InfoHint>
               </>
             }

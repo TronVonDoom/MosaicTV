@@ -130,8 +130,15 @@ npm run dev           # backend on :8688, frontend on :5173
 ```
 
 Open <http://localhost:5173>. The dev server proxies `/api/*` to the backend.
-First run creates `server/prisma/dev.db` (run `npm --prefix server run db:push`
-if it's missing).
+The server creates `server/prisma/dev.db` on first run and applies any new
+migrations each time it starts.
+
+Changing the schema: edit `server/prisma/schema.prisma`, then
+`npm --prefix server run db:migrate -- --name what_changed` writes the
+migration (and applies it to the dev database). Commit it with the schema;
+`npm --prefix server run db:rehearse` replays it against databases from earlier
+releases, as CI does. Never edit `prisma/baseline.prisma` or a migration that
+has shipped.
 
 ---
 

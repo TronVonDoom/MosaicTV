@@ -17,8 +17,10 @@ adminRouter.get('/backup', async (_req, res) => {
   const name = `mosaictv-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.tar.gz`
   res.setHeader('Content-Type', 'application/gzip')
   res.setHeader('Content-Disposition', `attachment; filename="${name}"`)
-  // Tar the contents of the data dir (portable across container recreations).
-  const tar = spawn('tar', ['czf', '-', '-C', dir, '.'])
+  // Tar the contents of the data dir (portable across container recreations),
+  // less the automatic pre-migration copies of the database — whole databases
+  // that would multiply the archive for nothing the live one doesn't have.
+  const tar = spawn('tar', ['czf', '-', '--exclude=./backups', '-C', dir, '.'])
   let err = ''
   tar.stderr.on('data', (d) => (err += d))
   tar.stdout.pipe(res)

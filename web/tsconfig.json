@@ -15,7 +15,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    // The server/web contract lives with the server (server/src/contract) and
+    // is imported as @contract; zod resolves from here, whoever imports it.
+    "paths": {
+      "@contract": ["../server/src/contract/index.ts"],
+      "zod": ["./node_modules/zod"]
+    }
   },
   "include": ["src"]
 }

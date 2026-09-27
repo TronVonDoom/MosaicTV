@@ -1,23 +1,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { dataDir } from './paths.js'
+import type { LogCategory, LogEntry, LogLevel } from './contract/index.js'
 
 // Lightweight app log: a live in-memory ring buffer (fast to read from the UI)
 // backed by a size-rotated file under the data dir (survives restarts/crashes,
 // so an ffmpeg error that killed a stream is still there afterwards).
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-export type LogCategory = 'stream' | 'ffmpeg' | 'playout' | 'system'
-
-export type LogEntry = {
-  id: number
-  ts: string // ISO timestamp
-  level: LogLevel
-  category: LogCategory
-  message: string
-  detail?: string // longer context (e.g. ffmpeg stderr tail)
-  session?: string // which viewer stream this belongs to, e.g. "V3 Plex"
-}
+// An entry: an ISO timestamp, a level and category, the message, an optional
+// longer detail (e.g. ffmpeg's stderr tail) and the viewer stream it belongs
+// to. The shapes are the contract's, since the Logs page reads them as-is.
+export type { LogCategory, LogEntry, LogLevel }
 
 const MAX_ENTRIES = 3000 // in-memory ring buffer size
 const MAX_DETAIL = 8000 // clamp a single detail blob

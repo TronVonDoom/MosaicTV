@@ -1,10 +1,43 @@
+// The one-time data migrations from before versioned migrations (0.8-0.12).
+//
+// Each used to run on every boot behind a Setting flag, straight after `db
+// push`. They now run once, only while a database is at the 0_init baseline —
+// the moment an install from before migrations is adopted — and before the
+// migrations after 0_init apply, because some of what they read (Filler's old
+// owner columns, FillerAssignment.order, Library.path) is dropped by those.
+//
+// That is also why they use the frozen baseline client (BaselineDb, generated
+// from prisma/baseline.prisma) rather than the app's: its models are the
+// database exactly as it stands at that moment, retired columns included, and
+// nothing a later release adds to the live schema can break them.
 import fs from 'node:fs'
 import path from 'node:path'
-import { prisma } from './db.js'
-import { log } from './logs.js'
-import { assetsDir } from './paths.js'
-import { planIdentMigration } from './identMigration.js'
-import { loadWatermark, parseWatermark } from './streaming/overlays.js'
+import { log } from '../logs.js'
+import { assetsDir } from '../paths.js'
+import { planIdentMigration } from './identPlan.js'
+import { DEFAULT_WATERMARK, parseWatermark } from '../streaming/overlays.js'
+import type { BaselineDb } from './baselineClient.js'
+
+/** Run every legacy migration that hasn't run yet, oldest first. */
+export async function runLegacyDataMigrations(db: BaselineDb): Promise<void> {
+  await backfillLibraryFolders(db)
+  await migrateCollectionOwnership(db)
+  await migrateFillersToLibrary(db)
+  await migrateIdentsToChannels(db)
+}
+
+/** Turn any single-path library (before libraries had folders) into a folder row. */
+async function backfillLibraryFolders(db: BaselineDb): Promise<void> {
+  const libs = await db.library.findMany({
+    where: { path: { not: null } },
+    include: { _count: { select: { folders: true } } },
+  })
+  for (const lib of libs) {
+    if (lib._count.folders === 0 && lib.path) {
+      await db.libraryFolder.create({ data: { libraryId: lib.id, path: path.resolve(lib.path) } }).catch(() => {})
+    }
+  }
+}
 
 const FLAG = 'migrated_collection_ownership'
 
@@ -16,26 +49,26 @@ const FLAG = 'migrated_collection_ownership'
  * repointed to their own copy. Collections referenced by no channel are left
  * unassigned. Idempotent — guarded by a Setting flag.
  */
-export async function migrateCollectionOwnership(): Promise<void> {
-  if (await prisma.setting.findUnique({ where: { key: FLAG } })) return
+async function migrateCollectionOwnership(db: BaselineDb): Promise<void> {
+  if (await db.setting.findUnique({ where: { key: FLAG } })) return
 
-  const collections = await prisma.collection.findMany({ include: { items: true } })
+  const collections = await db.collection.findMany({ include: { items: true } })
   let duplicated = 0
 
   for (const col of collections) {
     const [rots, blks] = await Promise.all([
-      prisma.rotationItem.findMany({ where: { collectionId: col.id }, select: { channelId: true } }),
-      prisma.timeBlock.findMany({ where: { collectionId: col.id }, select: { channelId: true } }),
+      db.rotationItem.findMany({ where: { collectionId: col.id }, select: { channelId: true } }),
+      db.timeBlock.findMany({ where: { collectionId: col.id }, select: { channelId: true } }),
     ])
     const channelIds = [...new Set([...rots.map((r) => r.channelId), ...blks.map((b) => b.channelId)])]
     if (channelIds.length === 0) continue // orphan — leave unassigned
 
     // The first referencing channel keeps the original.
-    await prisma.collection.update({ where: { id: col.id }, data: { channelId: channelIds[0] } })
+    await db.collection.update({ where: { id: col.id }, data: { channelId: channelIds[0] } })
 
     // Each additional channel gets its own duplicate.
     for (const chId of channelIds.slice(1)) {
-      const dup = await prisma.collection.create({
+      const dup = await db.collection.create({
         data: {
           name: col.name,
           channelId: chId,
@@ -47,7 +80,7 @@ export async function migrateCollectionOwnership(): Promise<void> {
         },
       })
       if (col.items.length) {
-        await prisma.collectionItem.createMany({
+        await db.collectionItem.createMany({
           data: col.items.map((it) => ({
             collectionId: dup.id,
             kind: it.kind,
@@ -59,13 +92,13 @@ export async function migrateCollectionOwnership(): Promise<void> {
           })),
         })
       }
-      await prisma.rotationItem.updateMany({ where: { channelId: chId, collectionId: col.id }, data: { collectionId: dup.id } })
-      await prisma.timeBlock.updateMany({ where: { channelId: chId, collectionId: col.id }, data: { collectionId: dup.id } })
+      await db.rotationItem.updateMany({ where: { channelId: chId, collectionId: col.id }, data: { collectionId: dup.id } })
+      await db.timeBlock.updateMany({ where: { channelId: chId, collectionId: col.id }, data: { collectionId: dup.id } })
       duplicated++
     }
   }
 
-  await prisma.setting.create({ data: { key: FLAG, value: new Date().toISOString() } })
+  await db.setting.create({ data: { key: FLAG, value: new Date().toISOString() } })
   log('info', 'system', `Collection ownership migration complete — ${collections.length} collection(s), ${duplicated} duplicated for shared use`)
 }
 
@@ -78,10 +111,10 @@ const FILLER_FLAG = 'migrated_fillers_to_library'
  * filler gets an assignment mirroring its old owner, then its legacy owner
  * columns are cleared. Idempotent — guarded by a Setting flag.
  */
-export async function migrateFillersToLibrary(): Promise<void> {
-  if (await prisma.setting.findUnique({ where: { key: FILLER_FLAG } })) return
+async function migrateFillersToLibrary(db: BaselineDb): Promise<void> {
+  if (await db.setting.findUnique({ where: { key: FILLER_FLAG } })) return
 
-  const owned = await prisma.filler.findMany({
+  const owned = await db.filler.findMany({
     where: { OR: [{ channelId: { not: null } }, { timeBlockId: { not: null } }] },
   })
   for (const f of owned) {
@@ -91,15 +124,15 @@ export async function migrateFillersToLibrary(): Promise<void> {
       f.channelId != null
         ? { fillerId_channelId: { fillerId: f.id, channelId: f.channelId } }
         : { fillerId_timeBlockId: { fillerId: f.id, timeBlockId: f.timeBlockId! } }
-    await prisma.fillerAssignment.upsert({
+    await db.fillerAssignment.upsert({
       where,
       create: { fillerId: f.id, channelId: f.channelId, timeBlockId: f.timeBlockId, order: f.order },
       update: {},
     })
-    await prisma.filler.update({ where: { id: f.id }, data: { channelId: null, timeBlockId: null } })
+    await db.filler.update({ where: { id: f.id }, data: { channelId: null, timeBlockId: null } })
   }
 
-  await prisma.setting.create({ data: { key: FILLER_FLAG, value: new Date().toISOString() } })
+  await db.setting.create({ data: { key: FILLER_FLAG, value: new Date().toISOString() } })
   if (owned.length > 0) log('info', 'system', `Filler library migration complete — ${owned.length} filler(s) assigned`)
 }
 
@@ -108,23 +141,23 @@ const IDENTS_FLAG = 'migrated_idents_to_channels'
 /**
  * One-time migration from the shared filler library to idents owned by a
  * channel — the Breaks tab. What goes where is decided by planIdentMigration
- * (identMigration.ts); this applies it. Along the way: every ident matches its
+ * (identPlan.ts); this applies it. Along the way: every ident matches its
  * channel's size (the resolution setting is gone), the default station ident
  * setting is removed (the channels that relied on it now have their own copy),
  * the Studio's stored preview copies are deleted (previews render on demand),
  * and "show the logo on filler" moves from the watermark to each channel.
  * Idempotent — guarded by a Setting flag.
  */
-export async function migrateIdentsToChannels(): Promise<void> {
-  if (await prisma.setting.findUnique({ where: { key: IDENTS_FLAG } })) return
+async function migrateIdentsToChannels(db: BaselineDb): Promise<void> {
+  if (await db.setting.findUnique({ where: { key: IDENTS_FLAG } })) return
 
-  const fillers = await prisma.filler.findMany({
+  const fillers = await db.filler.findMany({
     include: { assignments: { include: { timeBlock: { select: { channelId: true } } } } },
   })
-  const channels = await prisma.channel.findMany({
+  const channels = await db.channel.findMany({
     include: { logo: true, timeBlocks: { include: { collection: { select: { logoId: true } } } } },
   })
-  const defaultRow = await prisma.setting.findUnique({ where: { key: 'defaultFillerId' } })
+  const defaultRow = await db.setting.findUnique({ where: { key: 'defaultFillerId' } })
   const defaultId = Number(defaultRow?.value)
 
   const plan = planIdentMigration({
@@ -150,11 +183,11 @@ export async function migrateIdentsToChannels(): Promise<void> {
   })
 
   // The corner logo during breaks: what the channel's own logo was set to.
-  const globalWm = await loadWatermark()
+  const globalWm = parseWatermark((await db.setting.findUnique({ where: { key: 'watermark' } }))?.value, DEFAULT_WATERMARK)
   const previews = fillers.map((f) => f.generatedAssetId).filter((id): id is number => id != null)
-  const previewFiles = await prisma.asset.findMany({ where: { id: { in: previews } }, select: { filename: true } })
+  const previewFiles = await db.asset.findMany({ where: { id: { in: previews } }, select: { filename: true } })
 
-  await prisma.$transaction(
+  await db.$transaction(
     async (tx) => {
       // Where every ident plays is rewritten from the plan, so start clean.
       await tx.fillerAssignment.deleteMany({})

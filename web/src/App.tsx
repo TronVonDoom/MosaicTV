@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -9,6 +10,10 @@ import Channels from './pages/Channels'
 import ChannelEditor from './pages/ChannelEditor'
 import Studio from './pages/Studio'
 import Logs from './pages/Logs'
+
+// TV mode carries the video player (hls.js), so it loads when first opened
+// rather than with every page.
+const Watch = lazy(() => import('./pages/Watch'))
 
 /**
  * Rewrite the leading segment of the current path and redirect there, keeping
@@ -23,6 +28,15 @@ function LegacyRedirect({ from, to }: { from: string; to: string }) {
 export default function App() {
   return (
     <Routes>
+      {/* TV mode is the whole screen: no sidebar, no top bar. */}
+      <Route
+        path="watch/:number?"
+        element={
+          <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+            <Watch />
+          </Suspense>
+        }
+      />
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         {/* The TV Guide became a section of the Channels page. */}

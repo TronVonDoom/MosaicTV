@@ -25,7 +25,8 @@ simple to run and pleasant to configure.
 ## At a glance
 
 - 📺 **Real live-TV channels** — tune in mid-program like broadcast TV; every channel resumes where it left off, forever.
-- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation plus day/time blocks with soft or exact-time starts, and five playback orders.
+- 🛋 **TV mode** — your channels full screen in the browser: flip with the arrow keys or a swipe, punch in a number, pull up the channel guide.
+- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation plus day/time blocks with soft or exact-time starts, and five playback orders. Edit it any time: the guide follows from the next program on.
 - 🧩 **Multi-segment episodes, aired as broadcast** — cartoons split into 7-minute shorts play as the half-hour episodes they aired as, even with a short borrowed from another show.
 - 🎬 **Broadcast polish** — station logos and watermarks, station breaks with generated idents and music, and a frosted-glass "up next" card with the next show's poster.
 - 🔍 **A library built in** — scanner, TMDB artwork and metadata, show pages and a searchable poster wall.
@@ -112,7 +113,9 @@ and times (*Weekdays 6–9pm → Cartoons*), shown on a weekly grid. A **soft**
 start waits for the current program to finish; a **hard** start begins on the
 dot, with a station break covering the gap. Each block can carry its own
 playback order, logo, breaks and up-next card. Guides are built ahead to your chosen horizon and
-topped up automatically, so listings never run dry.
+topped up automatically, so listings never run dry — and there's nothing to rebuild after an
+edit: the guide changes from the next program on, and every show carries on from the episode it
+was up to.
 
 <img src="docs/screenshots/schedule.webp" alt="A channel's rotation and weekly time-block grid" width="100%" />
 
@@ -179,6 +182,14 @@ The default watermark (for logos without settings of their own) has the same
 live preview over a frame from your library.
 
 <img src="docs/screenshots/settings-watermark.webp" alt="Settings: the default watermark with a live preview" width="100%" />
+
+### TV mode
+
+**Watch** turns the browser into a TV: the channels full screen, a banner with
+what's on and what's next as you tune in, and a channel guide over the picture.
+Flip with **↑ / ↓** or a swipe, type a number to jump straight to a channel,
+**⌫** for the last one. With **instant flipping** on, the channels either side
+keep running, so a flip lands on a live picture in a fraction of a second.
 
 ### Search, notifications and casting
 

@@ -2,24 +2,11 @@ import { Router } from 'express'
 import { getMetadataStatus } from '../metadata.js'
 import { getScanStatus } from '../scanner/scanner.js'
 import { identBuilds } from '../streaming/filler.js'
+import type { Activity } from '../contract/index.js'
 
 export const activityRouter = Router()
 
-/** One piece of background work, for the notification bell. */
-export type Activity = {
-  /** Stable for one run of one job, so the client can tell runs apart. */
-  id: string
-  kind: 'filler' | 'scan' | 'metadata'
-  title: string
-  detail: string | null
-  state: 'running' | 'done' | 'error'
-  /** 0–1 while running, when it's known. */
-  progress: number | null
-  startedAt: string
-  finishedAt: string | null
-  /** Where in the app to follow it up. */
-  href: string
-}
+export type { Activity }
 
 // A finished job stays listed this long, so a page opened later still hears how it went.
 const KEEP_MS = 60 * 60_000
@@ -28,9 +15,13 @@ const recent = (finishedAt: string | null) => !finishedAt || Date.now() - new Da
 const fraction = (done: number, total: number) => (total > 0 ? Math.min(1, done / total) : null)
 
 // GET /api/activity — what's working in the background: ident builds,
-// library scans and metadata fetches, running or recently finished. Each is
-// read from the state its own job already keeps, newest first.
-activityRouter.get('/', async (_req, res) => {
+// library scans and metadata fetches, running or recently finished.
+activityRouter.get('/', (_req, res) => {
+  res.json(activityItems())
+})
+
+/** Every job's state, as its own job already keeps it, newest first. */
+export function activityItems(): Activity[] {
   const items: Activity[] = []
 
   // Idents building in the background (after an edit, a new logo, a boot).
@@ -70,7 +61,7 @@ activityRouter.get('/', async (_req, res) => {
       id: `scan:${scan.startedAt}`,
       kind: 'scan',
       title: scan.running ? `Scanning ${lib}` : scan.error ? `Scan of ${lib} failed` : `Scanned ${lib}`,
-      detail: scan.error ?? (scan.running ? `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files` : `${scan.added} added · ${scan.updated} updated · ${scan.removed} removed`),
+      detail: scan.error ?? (scan.running ? `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files` : `${scan.added} added · ${scan.updated} updated · ${scan.removed} removed${scan.moved ? ` · ${scan.moved} moved` : ''}`),
       state: scan.running ? 'running' : scan.error ? 'error' : 'done',
       progress: scan.running ? fraction(scan.processed, scan.total) : null,
       startedAt: scan.startedAt,
@@ -96,5 +87,5 @@ activityRouter.get('/', async (_req, res) => {
   }
 
   items.sort((a, b) => (b.finishedAt ?? b.startedAt).localeCompare(a.finishedAt ?? a.startedAt))
-  res.json(items)
-})
+  return items
+}

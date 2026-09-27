@@ -8,6 +8,7 @@ import {
   type ResolvedList,
 } from './collections.js'
 import { log } from './logs.js'
+import { publish } from './events.js'
 
 const MAX_ITERATIONS = 50000
 
@@ -63,16 +64,29 @@ export async function topUpPlayout(channel: {
   if (channel.rotationItems.length === 0 && blocks === 0) return { scheduled: false, built: 0 }
   await prunePlayout(channel.id).catch(() => {})
   const built = await buildPlayout(channel.id, new Date(now + horizonMs))
+  if (built > 0) publish({ type: 'guide', channelId: channel.id, from: null })
   return { scheduled: true, built }
 }
 
 type BlockWithCollection = TimeBlock & { collection: CollectionWithItems }
-type State = {
+/**
+ * Where a channel's schedule stands. Channel.playoutState holds it as of the
+ * end of the built timeline; each program's PlayoutItem.state holds it as of
+ * that program's start (a checkpoint — see replanPlayout).
+ */
+export type State = {
   rotationIndex: number
   positions: Record<string, number>
   // Each show's turns in a rotating order, by position key (see RotationProgress).
   shows?: Record<string, Record<string, number>>
+  // A rotation turn still under way: `left` more programs of rotation item
+  // `id` before the rotation moves on. Set when a build stops at the horizon
+  // mid-turn, and in the checkpoints inside a turn, so a turn is never cut
+  // short by where a build or a schedule edit happened to fall.
+  turn?: { id: number; left: number }
 }
+
+const freshState = (): State => ({ rotationIndex: 0, positions: {} })
 
 function truncateToMinute(d: Date): Date {
   return new Date(Math.floor(d.getTime() / 60000) * 60000)
@@ -167,9 +181,7 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
   let cursor = channel.playoutCursor ?? anchor
   if (cursor >= until) return 0
 
-  const state: State = channel.playoutState
-    ? (JSON.parse(channel.playoutState) as State)
-    : { rotationIndex: 0, positions: {} }
+  const state: State = channel.playoutState ? (JSON.parse(channel.playoutState) as State) : freshState()
 
   // Position for a collection, adopting the pre-refactor per-block/per-rotation
   // key the first time so nothing restarts at episode 1 on upgrade.
@@ -206,6 +218,16 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     if (shows) (state.shows ??= {})[key] = shows
     for (const [ck, other] of cache) if (ck.startsWith(`${collectionId}:`) && other !== list) cache.delete(ck)
   }
+  // The state a build would hold if it stopped right before the unit at `pos`
+  // of `list` — what resuming from this program needs. Positions only advance
+  // in `state` once a turn or block finishes, so this program's collection is
+  // put at `pos` here; `turn` is what's left of a rotation turn, this included.
+  const checkpoint = (key: string, list: ResolvedList, pos: number, turn?: State['turn']): string => {
+    const snap: State = { ...state, positions: { ...state.positions, [key]: pos }, turn }
+    const shows = list.progressAt?.(pos)
+    if (shows) snap.shows = { ...state.shows, [key]: shows }
+    return JSON.stringify(snap)
+  }
 
   const created: {
     mediaItemId: number | null
@@ -214,11 +236,12 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
     startTime: Date
     stopTime: Date
     groupKey: string | null
+    state: string | null
   }[] = []
-  const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null = null) =>
-    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey })
+  const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null, state: string | null) =>
+    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state })
   const pushFiller = (start: Date, stop: Date) =>
-    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey: null })
+    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey: null, state: null })
 
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
@@ -226,15 +249,19 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
   // Schedule one unit's segments back-to-back starting at startMs, returning the
   // end time in ms. A multi-segment unit tags every segment with one groupKey
   // ("channelId:startMs" — unique per airing on this channel) so the guide can
-  // collapse them into a single programme; a unit of one stays untagged.
-  const pushUnit = (u: ProgramUnit, startMs: number): number => {
+  // collapse them into a single programme; a unit of one stays untagged. The
+  // checkpoint goes on the unit's first segment only: a schedule edit resumes
+  // at a program's start, never between its segments.
+  const pushUnit = (u: ProgramUnit, startMs: number, cp: string): number => {
     const groupKey = u.length > 1 ? `${channelId}:${startMs}` : null
     let c = startMs
+    let first = true
     for (const seg of u) {
       const sdur = seg.durationSec ?? 0
       if (sdur <= 0) continue
       const stop = c + sdur * 1000
-      pushProgram(seg.id, new Date(c), new Date(stop), groupKey)
+      pushProgram(seg.id, new Date(c), new Date(stop), groupKey, first ? cp : null)
+      first = false
       c = stop
     }
     return c
@@ -263,16 +290,19 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
         // Soft boundary: one program (unit) per iteration; may overrun the end.
         const pos = posOf(key, legacy)
         const u = items.at(pos)
+        const cp = checkpoint(key, items, pos)
         advance(key, block.collectionId, items, pos + 1)
-        const end = pushUnit(u, cursor.getTime())
+        const end = pushUnit(u, cursor.getTime(), cp)
         if (end > cursor.getTime()) cursor = new Date(end)
       } else {
         // Pack as many program units as fit, then filler to land on blockEnd. A
         // multi-part airing counts as one unit — it never straddles the end.
         const availSec = (blockEnd.getTime() - cursor.getTime()) / 1000
+        // Resuming from a checkpoint inside a packed block re-packs the rest of
+        // it from there: the same programs fit, and the gaps come out the same.
         let pos = posOf(key, legacy)
         const startPos = pos
-        const fit: ProgramUnit[] = []
+        const fit: { u: ProgramUnit; cp: string }[] = []
         let used = 0
         for (let g = 0; g < 20000; g++) {
           const u = items.at(pos)
@@ -282,24 +312,25 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
             continue
           }
           if (used + dur > availSec) break
-          fit.push(u)
+          fit.push({ u, cp: checkpoint(key, items, pos) })
           used += dur
           pos++
         }
-        advance(key, block.collectionId, items, pos)
 
         if (fit.length === 0) {
           // A single unit is longer than the whole block — play it (overruns).
           const u = items.at(pos)
+          const cp = checkpoint(key, items, pos)
           advance(key, block.collectionId, items, pos + 1)
-          const end = pushUnit(u, cursor.getTime())
+          const end = pushUnit(u, cursor.getTime(), cp)
           cursor = new Date(Math.max(end, cursor.getTime() + 1000))
         } else {
+          advance(key, block.collectionId, items, pos)
           const gapSec = Math.max(0, availSec - used)
           let c = cursor.getTime()
           const perGap = fillerMode === 'between' ? gapSec / fit.length : 0
-          for (const u of fit) {
-            c = pushUnit(u, c)
+          for (const { u, cp } of fit) {
+            c = pushUnit(u, c, cp)
             if (perGap > 0.5) {
               const fEnd = c + perGap * 1000
               pushFiller(new Date(c), new Date(fEnd))
@@ -316,14 +347,29 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
         }
       }
     } else if (channel.rotationItems.length > 0) {
-      const ri = channel.rotationItems[state.rotationIndex % channel.rotationItems.length]
-      state.rotationIndex = state.rotationIndex + 1
+      // "play N" counts units, so a multi-part airing is one of the N.
+      const turnSize = (r: (typeof channel.rotationItems)[number]) => (r.mode === 'multiple' ? Math.max(1, r.count) : 1)
+      // A turn left unfinished carries on first (see State.turn), unless its
+      // rotation item has since been removed; an edit that shrank the turn
+      // caps what's left of it.
+      const resumed = state.turn?.left ? channel.rotationItems.find((r) => r.id === state.turn?.id) : undefined
+      let ri: (typeof channel.rotationItems)[number]
+      let take: number
+      if (resumed && state.turn) {
+        ri = resumed
+        take = Math.min(state.turn.left, turnSize(resumed))
+      } else {
+        ri = channel.rotationItems[state.rotationIndex % channel.rotationItems.length]
+        state.rotationIndex = state.rotationIndex + 1
+        take = turnSize(ri)
+      }
+      // Cleared however this turn ends: a block or a hard start ending it early
+      // drops the rest, as it always has. Only stopping at the horizon keeps it.
+      state.turn = undefined
       const key = 'c' + ri.collectionId
       const legacy = 'r' + ri.id
       const items = await listFor(ri.collection, ri.playbackOrder, key, legacy)
       if (items.length > 0) {
-        // "play N" counts units, so a multi-part airing is one of the N.
-        const take = ri.mode === 'multiple' ? Math.max(1, ri.count) : 1
         let pos = posOf(key, legacy)
         for (let k = 0; k < take; k++) {
           const u = items.at(pos)
@@ -345,9 +391,13 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
               break
             }
           }
+          const cp = checkpoint(key, items, pos, { id: ri.id, left: take - k })
           pos++
-          cursor = new Date(pushUnit(u, cursor.getTime()))
-          if (cursor >= until) break
+          cursor = new Date(pushUnit(u, cursor.getTime(), cp))
+          if (cursor >= until) {
+            if (k + 1 < take) state.turn = { id: ri.id, left: take - k - 1 }
+            break
+          }
           if (activeBlock(channel.timeBlocks, cursor)) break // enter the block promptly
         }
         advance(key, ri.collectionId, items, pos)
@@ -377,21 +427,78 @@ async function buildPlayoutInner(channelId: number, until: Date): Promise<number
   return created.length
 }
 
+// How far ahead of now a replan may start. The segmenter encodes ~8s ahead of
+// the clock and commits to a program as it starts it, so a program about to
+// begin is left alone and the edit takes effect from the one after.
+const REPLAN_MARGIN_MS = 20_000
+
+export type ReplanResult = {
+  /** Where the timeline was rebuilt from; null if it was only extended. */
+  from: Date | null
+  built: number
+}
+
 /**
- * Clear a channel's future timeline and re-anchor it to now. By default this
- * KEEPS each rotation/block's saved position, so shows continue where they
- * left off instead of restarting at episode 1 — pass hard=true to also wipe
- * positions and start every item over from the beginning.
+ * Rebuild a channel's timeline from the next program on, to pick up a schedule
+ * edit. What's on air (and anything about to start) is kept; from the next
+ * checkpoint on, the timeline is thrown away and rebuilt from the state saved
+ * there — so every collection carries on from exactly the episode it would
+ * have aired next. (Resetting to the end-of-timeline state instead, as Rebuild
+ * used to, skipped everything that was built but hadn't aired.)
+ *
+ * `restart` rebuilds from the same point with every position back at the start
+ * (episode 1 of everything), and needs no checkpoint: it cuts at the next
+ * program of any kind. A timeline built before checkpoints existed has none to
+ * resume from, so a replan there starts at the first one there is — the edit
+ * shows up once the older part has aired.
  */
-export async function resetPlayout(channelId: number, hard = false): Promise<void> {
-  const anchor = truncateToMinute(new Date())
-  await prisma.$transaction([
-    prisma.playoutItem.deleteMany({ where: { channelId } }),
-    prisma.channel.update({
-      where: { id: channelId },
-      data: { playoutAnchor: anchor, playoutCursor: anchor, ...(hard ? { playoutState: null } : {}) },
-    }),
-  ])
+export function replanPlayout(channelId: number, opts: ReplanOptions = {}): Promise<ReplanResult> {
+  const prev = buildChain.get(channelId) ?? Promise.resolve()
+  const next = prev.catch(() => {}).then(() => replanInner(channelId, opts))
+  buildChain.set(channelId, next.catch(() => {}))
+  return next
+}
+
+type ReplanOptions = {
+  restart?: boolean
+  /** The time to replan as of (tests); defaults to now. */
+  now?: number
+}
+
+async function replanInner(channelId: number, opts: ReplanOptions): Promise<ReplanResult> {
+  const now = opts.now ?? Date.now()
+  const after = { channelId, startTime: { gte: new Date(now + REPLAN_MARGIN_MS) } }
+  const cut = opts.restart
+    ? // The start of any program — a broadcast episode's first segment, whose
+      // groupKey is its own start (see pushUnit), never one of its later ones.
+      (
+        await prisma.playoutItem.findMany({
+          where: { ...after, kind: 'program' },
+          orderBy: { startTime: 'asc' },
+          take: 50,
+          select: { startTime: true, state: true, groupKey: true },
+        })
+      ).find((it) => it.state != null || it.groupKey == null || it.groupKey === `${channelId}:${it.startTime.getTime()}`)
+    : await prisma.playoutItem.findFirst({
+        where: { ...after, state: { not: null } },
+        orderBy: { startTime: 'asc' },
+        select: { startTime: true, state: true },
+      })
+  const until = new Date(now + (await horizonHours()) * 3600 * 1000)
+  if (cut) {
+    const state = opts.restart ? JSON.stringify(freshState()) : cut.state
+    await prisma.$transaction([
+      prisma.playoutItem.deleteMany({ where: { channelId, startTime: { gte: cut.startTime } } }),
+      prisma.channel.update({ where: { id: channelId }, data: { playoutCursor: cut.startTime, playoutState: state } }),
+    ])
+    return { from: cut.startTime, built: await buildPlayoutInner(channelId, until) }
+  }
+  // Nothing ahead to cut at: the timeline is empty or was never built. Extend
+  // it from wherever it got to (a restart there begins at episode 1 too).
+  if (opts.restart) {
+    await prisma.channel.update({ where: { id: channelId }, data: { playoutState: JSON.stringify(freshState()) } })
+  }
+  return { from: null, built: await buildPlayoutInner(channelId, until) }
 }
 
 /** Drop already-finished programs to keep the table small. */

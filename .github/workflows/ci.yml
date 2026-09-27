@@ -1,17 +1,20 @@
 name: CI
 
-# Typecheck and build both packages on every push, mirroring the Dockerfile's
-# build stages (web: tsc + vite build; server: prisma generate + tsc). This
-# catches a broken build on any branch before the Docker image job — which only
-# runs on main — ever starts.
+# Typecheck, build and test both packages on every push, mirroring the
+# Dockerfile's build stages (web: tsc + vite build; server: prisma generate +
+# tsc), then rehearse the startup migration against databases from earlier
+# releases. The image workflow calls this too and only publishes if it passes
+# — a push to main reaches the live box within minutes, so this is the gate.
 
 on:
   push:
   workflow_dispatch:
+  workflow_call:
 
 # One run per branch: a newer push cancels an in-flight run on the same ref.
+# (Called from the image workflow, it runs in that workflow's group instead.)
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,6 +23,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The migration rehearsal builds databases from earlier release tags.
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -40,5 +47,13 @@ jobs:
         working-directory: server
         run: |
           npm ci
-          npx prisma generate
+          npm run prisma:generate
           npm run build
+
+      - name: Test server
+        working-directory: server
+        run: npm test
+
+      - name: Rehearse database migrations
+        working-directory: server
+        run: npm run db:rehearse

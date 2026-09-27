@@ -1,5 +1,5 @@
 // The decisions behind the move from a shared filler library to idents owned by
-// a channel (see migrateIdentsToChannels in migrate.ts), as a pure function so
+// a channel (see migrateIdentsToChannels in dataMigrations.ts), as a pure function so
 // every case can be tested without a database.
 //
 // The old model: a filler is a library item, assigned to channels (their

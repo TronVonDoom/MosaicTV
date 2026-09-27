@@ -117,9 +117,9 @@ A broadcast episode is scheduled as one program:
   for later, and a hard start never cuts one in half.
 - A segment that belongs to a group never also airs on its own.
 
-Changes apply the next time a channel builds its schedule. The guide already
-built keeps its old running order until it extends past it; use **Rebuild**
-on the channel's **Guide** tab to apply them now (positions are kept).
+Changes apply straight away: every channel airing the show rebuilds its guide
+from the next program on (what's on air finishes first), and each show carries
+on from its place.
 
 A channel counts its place in a show in programs, so grouping a show partway
 through its run moves that place. With three segments to an episode, a
@@ -201,17 +201,26 @@ empty.
 
 ## The playout (guide)
 
-**Guide** tab → **Build 48h** generates the timeline. The engine walks
-forward from the anchor point, applying blocks when active and the rotation
-otherwise, packing programs and inserting breaks to land on block boundaries.
+The **Guide** tab shows the channel's timeline — exactly what airs when, as a
+timeline or a list. There's nothing to build: the engine walks forward,
+applying blocks when they're active and the rotation otherwise, packing
+programs and inserting breaks to land on block boundaries, as far ahead as the
+**Schedule horizon** (Settings → Streaming).
 
-- **Timeline / list view** — preview exactly what airs when.
-- **Rebuild** — clears and regenerates the schedule anchored to *now*.
-  **Positions are kept** — shows continue where they were.
-- **Restart from S1E1** — the nuclear option: also resets every position.
+- **It follows your edits.** Change the rotation, a block, a collection's
+  shows or order, or a show's broadcast episodes, and the guide is rebuilt from
+  the next program on: what's on now finishes first (and so does one about to
+  start), and every show carries on from the episode it was up to. The tab
+  says where the change took effect ("Updated from 8:30 PM").
+- **It extends itself** as time passes, whether anyone is watching or not.
+- **Restart from S1E1** starts every show over at episode 1, from the next
+  program — the only manual control, and rarely what you want.
 
-The playout extends itself automatically as time passes; you don't need to
-rebuild manually unless you've changed the schedule.
+Each program in the guide remembers where every show stood when it was
+scheduled, which is what lets an edit pick up exactly there — nothing is
+skipped and nothing repeats. (A guide built by 0.12 or earlier has no such
+bookmarks, so right after upgrading an edit takes effect from where the new
+version started building: at most a horizon away, usually a day.)
 
 ## Streams
 

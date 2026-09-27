@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom'
 import { api, type ChannelDetail, type ChannelNow, type Collection } from '../lib/api'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
-import { useHashTab, useNow, usePolling, type DraftCache } from '../lib/hooks'
+import { useHashTab, useNow, type DraftCache } from '../lib/hooks'
+import { guideFor, useLiveRefresh } from '../lib/events'
 import { formatClock, formatRemaining } from '../lib/format'
 import ChannelLogo from '../components/ChannelLogo'
 import { ProgramArt } from '../components/ChannelCard'
@@ -70,7 +71,10 @@ export default function ChannelEditor() {
   useEffect(() => {
     loadNow()
   }, [loadNow])
-  usePolling(loadNow, 20000)
+  useLiveRefresh(loadNow, ['onAir', 'viewers', 'guide'], {
+    when: (e) => e.type !== 'guide' || guideFor(channelId)(e),
+    fallbackMs: 20000,
+  })
 
   /** Run a mutation, refresh the channel, and route any failure to the banner. */
   const guard = useCallback(

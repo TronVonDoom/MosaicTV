@@ -7,6 +7,7 @@
 
 import { prisma } from './db.js'
 import { episodeCode } from './labels.js'
+import type { ChannelNow as ChannelNowDTO, NowUnit } from './contract/index.js'
 
 type MediaForNow = {
   id: number
@@ -44,27 +45,8 @@ type ShowMeta = {
   tmdbBackdropPath: string | null
 }
 
-/** One program as the UI shows it. A multi-part airing is a single unit. */
-export type NowUnit = {
-  kind: 'program' | 'filler'
-  startTime: string
-  stopTime: string
-  /** The item artwork is requested for (the first segment of an airing). */
-  mediaItemId: number | null
-  type: string | null
-  /** "Doug" for an episode, the film's title for a movie. */
-  title: string
-  /** "S04E07 · Doug's Halloween Adventure", a movie's year, a song's artist. */
-  subtitle: string | null
-  year: number | null
-  overview: string | null
-  genres: string | null
-  rating: number | null
-  /** Which artwork request answers for this program, or null if none will. */
-  art: 'poster' | 'show' | null
-  hasBackdrop: boolean
-  parts: number
-}
+/** One program as the UI shows it (a contract shape). A multi-part airing is a single unit. */
+export type { NowUnit }
 
 /**
  * Fold consecutive playout rows into program units: rows that share a
@@ -168,11 +150,8 @@ const MEDIA_SELECT = {
   tmdbBackdropPath: true,
 } as const
 
-export type ChannelNow = {
-  channelId: number
-  now: NowUnit | null
-  next: NowUnit[]
-}
+/** A channel's now and next; the route adds its number and viewers. */
+export type ChannelNow = Omit<ChannelNowDTO, 'number' | 'viewers'>
 
 /** The current program and the next `nextCount` programs on each channel. */
 export async function channelsNow(channelIds: number[], nextCount = 3): Promise<ChannelNow[]> {

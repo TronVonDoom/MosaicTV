@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
-import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout, resetPlayout } from '../playout.js'
-import { sanitizeComingUp } from '../streaming/overlays.js'
+import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout } from '../playout.js'
+import { replanChannel, scheduleChanged } from '../scheduleChanges.js'
+import { sanitizeComingUp, type ComingUpConfig } from '../streaming/overlays.js'
 import { comingUpPreview } from '../streaming/cardPreview.js'
 import path from 'node:path'
 import { identBuilt, peekTurn, poolFor, warmFiller } from '../streaming/filler.js'
@@ -9,19 +10,30 @@ import { restyleSegmenter, segmenterViewers } from '../streaming/segmenter.js'
 import { activeBlockAt, localLogo, logoFor } from '../streaming/logo.js'
 import { resolveProfile } from '../streaming/profile.js'
 import { logosDir } from '../paths.js'
-import { asOrderSetting } from '../collections.js'
+import {
+  BlockCreate,
+  BlockUpdate,
+  ChannelCreate,
+  ChannelUpdate,
+  RotationCreate,
+  type Channel,
+  type ChannelDetail,
+  type ChannelNow,
+  type NextBreak,
+  type Playout,
+  type Stored,
+} from '../contract/index.js'
+import { readBody } from '../validate.js'
 import { programLabel } from '../labels.js'
 import { channelsNow } from '../nowPlaying.js'
 
 export const channelsRouter = Router()
 
-const FILLERS = ['none', 'between', 'end']
-const asFiller = (v: unknown) => (FILLERS.includes(String(v)) ? String(v) : 'none')
-const asStartMode = (v: unknown) => (String(v) === 'hard' ? 'hard' : 'soft')
-// A "coming up next" config to store: null/'' clears it (channel = off, block =
-// inherit); an object is clamped and stored as JSON.
-const asComingUp = (v: unknown): string | null =>
-  v == null || v === '' ? null : JSON.stringify(sanitizeComingUp(v))
+// A body as stored: its "coming up next" config as JSON (null clears it —
+// channel = off, block = inherit; the contract has already clamped it).
+function forStorage<T extends { comingUp?: ComingUpConfig | null }>({ comingUp, ...rest }: T) {
+  return comingUp === undefined ? rest : { ...rest, comingUp: comingUp && JSON.stringify(comingUp) }
+}
 
 // Expand a block into intervals on a weekly minute timeline [0, 10080),
 // splitting any that cross the week boundary. Handles midnight wrap.
@@ -69,7 +81,7 @@ channelsRouter.get('/', async (_req, res) => {
   })
   const nowBy = new Map(airing.map((it) => [it.channelId, it]))
   res.json(
-    chs.map((c) => {
+    chs.map((c): Stored<Channel> => {
       const cur = nowBy.get(c.id)
       return {
         id: c.id,
@@ -90,25 +102,16 @@ channelsRouter.get('/', async (_req, res) => {
 })
 
 channelsRouter.post('/', async (req, res) => {
-  const { number, name, group, logoId } = req.body ?? {}
-  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' })
   // Number is optional — a channel with no number is a draft.
-  const num = number == null || number === '' ? null : Number(number)
-  if (num != null && !Number.isInteger(num)) return res.status(400).json({ error: 'number must be a whole number' })
+  const body = readBody(ChannelCreate, req, res)
+  if (!body) return
   try {
     // Every channel starts with an ident that plays everywhere else — frosted
     // glass from its logo — so a break always has something its Breaks tab
     // lists, and there's something to edit rather than a hidden default.
     const c = await prisma.$transaction(async (tx) => {
-      const c = await tx.channel.create({
-        data: {
-          number: num,
-          name: String(name).trim(),
-          group: group || null,
-          logoId: logoId != null ? Number(logoId) : null,
-        },
-      })
-      const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'frosted', resolution: 'auto', order: 0 } })
+      const c = await tx.channel.create({ data: body })
+      const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'frosted', order: 0 } })
       await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
       return c
     })
@@ -129,7 +132,7 @@ channelsRouter.get('/now', async (_req, res) => {
   })
   const rows = await channelsNow(chs.map((c) => c.id))
   res.json(
-    rows.map((r, i) => ({ ...r, number: chs[i].number, viewers: segmenterViewers(chs[i].number as number) })),
+    rows.map((r, i): Stored<ChannelNow> => ({ ...r, number: chs[i].number, viewers: segmenterViewers(chs[i].number as number) })),
   )
 })
 
@@ -142,23 +145,15 @@ channelsRouter.get('/:id', async (req, res) => {
     },
   })
   if (!c) return res.status(404).json({ error: 'Not found' })
-  res.json(c)
+  res.json(c satisfies Stored<ChannelDetail>)
 })
 
 channelsRouter.patch('/:id', async (req, res) => {
   const id = Number(req.params.id)
-  const { name, group, logoUrl, number, logoId, profileId, comingUp, audioLanguage, logoOnBreaks } = req.body ?? {}
-  const data: { name?: string; group?: string | null; logoUrl?: string | null; number?: number | null; logoId?: number | null; profileId?: number | null; comingUp?: string | null; audioLanguage?: string | null; logoOnBreaks?: boolean } = {}
-  if (name !== undefined) data.name = String(name).trim()
-  if (group !== undefined) data.group = group || null
-  if (logoUrl !== undefined) data.logoUrl = logoUrl || null
-  if (logoId !== undefined) data.logoId = logoId ? Number(logoId) : null
-  if (profileId !== undefined) data.profileId = profileId ? Number(profileId) : null
-  if (number !== undefined) data.number = number === null || number === '' ? null : Number(number)
-  if (comingUp !== undefined) data.comingUp = asComingUp(comingUp)
-  // '' from a cleared <select> means "inherit the global setting", not "no audio".
-  if (audioLanguage !== undefined) data.audioLanguage = audioLanguage ? String(audioLanguage) : null
-  if (logoOnBreaks !== undefined) data.logoOnBreaks = logoOnBreaks === true || logoOnBreaks === 'true'
+  const body = readBody(ChannelUpdate, req, res)
+  if (!body) return
+  const data = forStorage(body)
+  const { logoId, logoUrl, profileId } = body
   try {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
@@ -204,8 +199,7 @@ channelsRouter.get('/:id/breaks', async (req, res) => {
     include: { mediaItem: true },
   })
   const afterBlock = activeBlockAt(ch.timeBlocks, slot.stopTime)
-  res.json({
-    next: {
+  const next: Stored<NextBreak> = {
       start: slot.startTime,
       stop: slot.stopTime,
       onAir: slot.startTime <= now,
@@ -216,8 +210,8 @@ channelsRouter.get('/:id/breaks', async (req, res) => {
       built,
       before: after?.mediaItem ? programLabel(after.mediaItem) : null,
       beforeBlock: afterBlock && afterBlock.id !== block?.id ? afterBlock.collection.name : null,
-    },
-  })
+    }
+  res.json({ next })
 })
 
 // POST /api/channels/:id/coming-up/preview { comingUp } -> PNG of the up-next
@@ -243,91 +237,44 @@ channelsRouter.delete('/:id', async (req, res) => {
 // --- rotation items ---
 channelsRouter.post('/:id/rotation', async (req, res) => {
   const channelId = Number(req.params.id)
-  const { collectionId, playbackOrder, mode, count } = req.body ?? {}
-  if (!collectionId) return res.status(400).json({ error: 'collectionId is required' })
+  const body = readBody(RotationCreate, req, res)
+  if (!body) return
   const max = await prisma.rotationItem.aggregate({ where: { channelId }, _max: { order: true } })
-  const item = await prisma.rotationItem.create({
-    data: {
-      channelId,
-      collectionId: Number(collectionId),
-      order: (max._max.order ?? -1) + 1,
-      playbackOrder: asOrderSetting(playbackOrder),
-      mode: mode === 'multiple' ? 'multiple' : 'one',
-      count: count ? Math.max(1, Number(count)) : 1,
-    },
-  })
+  const item = await prisma.rotationItem.create({ data: { ...body, channelId, order: (max._max.order ?? -1) + 1 } })
+  scheduleChanged(channelId)
   res.status(201).json(item)
 })
 
 channelsRouter.delete('/:id/rotation/:itemId', async (req, res) => {
   await prisma.rotationItem.delete({ where: { id: Number(req.params.itemId) } }).catch(() => {})
+  scheduleChanged(Number(req.params.id))
   res.status(204).end()
 })
 
 // --- time blocks ---
 channelsRouter.post('/:id/blocks', async (req, res) => {
   const channelId = Number(req.params.id)
-  const { collectionId, days, startMinute, endMinute, playbackOrder, logoUrl, fillerMode, logoId, startMode, comingUp } = req.body ?? {}
-  if (!collectionId || !days || startMinute == null || endMinute == null) {
-    return res.status(400).json({ error: 'collectionId, days, startMinute, endMinute are required' })
-  }
-  if (Number(endMinute) === Number(startMinute)) {
-    return res.status(400).json({ error: 'Start and end time cannot be the same.' })
-  }
-  const newIv = toIntervals(String(days).split(',').map(Number), Number(startMinute), Number(endMinute))
+  const body = readBody(BlockCreate, req, res)
+  if (!body) return
+  const newIv = toIntervals(body.days.split(',').map(Number), body.startMinute, body.endMinute)
   const siblings = await prisma.timeBlock.findMany({ where: { channelId } })
   for (const s of siblings) {
     if (intervalsOverlap(newIv, toIntervals(s.days.split(',').map(Number), s.startMinute, s.endMinute))) {
       return res.status(409).json({ error: 'That block overlaps an existing time block on this channel.' })
     }
   }
-  const b = await prisma.timeBlock.create({
-    data: {
-      channelId,
-      collectionId: Number(collectionId),
-      days: String(days),
-      startMinute: Number(startMinute),
-      endMinute: Number(endMinute),
-      playbackOrder: asOrderSetting(playbackOrder),
-      logoUrl: logoUrl || null,
-      logoId: logoId ? Number(logoId) : null,
-      fillerMode: asFiller(fillerMode),
-      startMode: asStartMode(startMode),
-      comingUp: asComingUp(comingUp),
-    },
-  })
+  const b = await prisma.timeBlock.create({ data: { ...forStorage(body), channelId } })
   warmFiller().catch(() => {}) // fillers for its logo, built ahead
+  scheduleChanged(channelId)
   res.status(201).json(b)
 })
 
 channelsRouter.patch('/:id/blocks/:blockId', async (req, res) => {
   const blockId = Number(req.params.blockId)
-  const { collectionId, days, startMinute, endMinute, playbackOrder, logoUrl, fillerMode, logoId, startMode, comingUp } = req.body ?? {}
-  const data: {
-    collectionId?: number
-    days?: string
-    startMinute?: number
-    endMinute?: number
-    playbackOrder?: string
-    logoUrl?: string | null
-    fillerMode?: string
-    logoId?: number | null
-    startMode?: string
-    comingUp?: string | null
-  } = {}
-  if (collectionId !== undefined) data.collectionId = Number(collectionId)
-  if (days !== undefined) data.days = String(days)
-  if (startMinute !== undefined) data.startMinute = Number(startMinute)
-  if (endMinute !== undefined) data.endMinute = Number(endMinute)
-  if (playbackOrder !== undefined) data.playbackOrder = asOrderSetting(playbackOrder)
-  if (logoUrl !== undefined) data.logoUrl = logoUrl || null
-  if (logoId !== undefined) data.logoId = logoId ? Number(logoId) : null
-  if (fillerMode !== undefined) data.fillerMode = asFiller(fillerMode)
-  if (startMode !== undefined) data.startMode = asStartMode(startMode)
-  if (comingUp !== undefined) data.comingUp = asComingUp(comingUp)
-  if (data.startMinute != null && data.endMinute != null && data.endMinute === data.startMinute) {
-    return res.status(400).json({ error: 'Start and end time cannot be the same.' })
-  }
+  const body = readBody(BlockUpdate, req, res)
+  if (!body) return
+  const data = forStorage(body)
+  const { collectionId, logoId, logoUrl } = body
   const current = await prisma.timeBlock.findUnique({ where: { id: blockId } })
   if (!current) return res.status(404).json({ error: 'Block not found.' })
   const eDays = (data.days ?? current.days).split(',').map(Number)
@@ -344,6 +291,9 @@ channelsRouter.patch('/:id/blocks/:blockId', async (req, res) => {
   }
   const b = await prisma.timeBlock.update({ where: { id: blockId }, data }).catch(() => null)
   if (!b) return res.status(404).json({ error: 'Block not found.' })
+  // When and what it airs, as opposed to how it looks (handled below).
+  const airs = (t: typeof b) => [t.collectionId, t.days, t.startMinute, t.endMinute, t.playbackOrder, t.fillerMode, t.startMode].join('|')
+  if (airs(current) !== airs(b)) scheduleChanged(b.channelId)
   // Only a block governing the program on air has a look to refresh. That's
   // the block the program *started* in (the stream styles it by its start
   // time), which after a soft overrun isn't the block the clock is in.
@@ -365,6 +315,7 @@ channelsRouter.patch('/:id/blocks/:blockId', async (req, res) => {
 channelsRouter.delete('/:id/blocks/:blockId', async (req, res) => {
   await prisma.timeBlock.delete({ where: { id: Number(req.params.blockId) } }).catch(() => {})
   warmFiller().catch(() => {})
+  scheduleChanged(Number(req.params.id))
   res.status(204).end()
 })
 
@@ -385,10 +336,13 @@ channelsRouter.post('/:id/build', async (req, res) => {
   }
 })
 
+// Rebuild the guide from the next program on — straight away rather than
+// after the usual settle. ?hard=1 also starts every collection over from its
+// first episode. `from` is where the rebuilt part begins.
 channelsRouter.post('/:id/reset', async (req, res) => {
   const hard = req.query.hard === '1' || req.query.hard === 'true'
-  await resetPlayout(Number(req.params.id), hard)
-  res.json({ ok: true })
+  const { from } = await replanChannel(Number(req.params.id), hard)
+  res.json({ ok: true, from })
 })
 
 channelsRouter.get('/:id/playout', async (req, res) => {
@@ -419,5 +373,5 @@ channelsRouter.get('/:id/playout', async (req, res) => {
       },
     },
   })
-  res.json({ now: now.toISOString(), items })
+  res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
 })

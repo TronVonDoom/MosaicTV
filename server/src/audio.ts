@@ -11,7 +11,8 @@ import { prisma } from './db.js'
 export const DEFAULT_AUDIO_LANGUAGE = 'eng'
 
 /** Stored instead of a language tag to mean "whatever the file lists first". */
-export const NO_AUDIO_PREFERENCE = 'first'
+export { NO_AUDIO_PREFERENCE } from './contract/domain.js'
+import { NO_AUDIO_PREFERENCE } from './contract/domain.js'
 
 /** The instance-wide preference, as stored (a language tag, or 'first'). */
 export async function globalAudioLanguage(): Promise<string> {

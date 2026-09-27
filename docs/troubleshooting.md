@@ -64,12 +64,13 @@ client gets its own stream, and in shared-HLS mode they all read one.
 
 ### Schedule times are off by hours
 Set the `TZ` environment variable to your timezone and restart the container.
-Rebuild the guide afterwards.
+Every channel's guide is rebuilt for the new timezone when it starts.
 
 ### I edited my schedule but the stream still plays the old one
-Open the channel's **Guide** tab and **Rebuild** — it re-anchors to now while
-keeping every show's position. (**Restart from S1E1** also resets positions —
-usually not what you want.)
+Edits take effect from the next program: the one on now plays out first, and
+so does one starting within about 20 seconds. The channel's **Guide** tab says
+where the change took effect ("Updated from …"). If nothing changes after
+that, look in **Logs** for "couldn't rebuild the guide".
 
 ### GPU isn't being used
 Check the [Hardware Acceleration](hardware-acceleration.md) setup for your
@@ -112,6 +113,15 @@ touched.
 
 **Restore:** stop the container, extract/copy the backup into the data folder,
 start it again.
+
+**Upgrades take their own copy.** When a new version changes the database, it
+first saves a copy of it to `backups/` in the data folder
+(`pre-migration-<date>-<change>.db`, the newest five are kept). If the change
+fails, the database is put back from that copy automatically and the log says
+so — the previous image will start on it. To go back to a version from before
+an upgrade that *did* apply, stop the container, copy that file over
+`mosaictv.db` (delete `mosaictv.db-wal` and `-shm` beside it), and run the older
+image.
 
 **Reset:** **Settings → Maintenance → Reset to clean slate** wipes the
 database (optionally also uploaded logos, music and clips) for a fresh start — take a

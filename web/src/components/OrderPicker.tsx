@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { PlaybackOrder } from '../lib/api'
 import { api, type MediaItem } from '../lib/api'
 import { programLabel } from '../lib/format'
 import { PLAYBACK_ORDERS } from '../lib/playback'
@@ -21,7 +22,7 @@ export default function OrderPicker({
 }: {
   collectionId: number
   value: string
-  onChange: (order: string) => void
+  onChange: (order: PlaybackOrder) => void
 }) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [failed, setFailed] = useState(false)
