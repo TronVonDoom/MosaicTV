@@ -772,6 +772,9 @@ export function StatTile({
 
 // ---- Overlays ---------------------------------------------------------------
 
+/** The modals open now, innermost last. */
+const openModals: symbol[] = []
+
 /**
  * A centred modal over a dimmed backdrop. Clicking the backdrop or pressing
  * Escape closes it; clicks inside the panel don't bubble out. The page behind
@@ -794,13 +797,18 @@ export function Modal({
   const close = useRef(onClose)
   close.current = onClose
   useEffect(() => {
+    const me = Symbol('modal')
+    openModals.push(me)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close.current()
+      // Only the modal on top: Escape in a dialog opened from another one
+      // (Fix match over a movie's details) closes just that dialog.
+      if (e.key === 'Escape' && openModals[openModals.length - 1] === me) close.current()
     }
     window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      openModals.splice(openModals.indexOf(me), 1)
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }

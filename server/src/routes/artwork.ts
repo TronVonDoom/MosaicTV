@@ -48,6 +48,18 @@ artworkRouter.get('/random/backdrop', async (_req, res) => {
   res.json({ id: pick?.id ?? null })
 })
 
+// GET /api/artwork/tmdb/:size/:file -> a poster straight from TMDB, by its
+// path, cached like the rest — for Fix match's search results, which aren't
+// anything's artwork yet. Only TMDB's poster sizes and a bare file name.
+const TMDB_SIZES = new Set(['w92', 'w154', 'w185', 'w342'])
+artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
+  const { size, file } = req.params
+  if (!TMDB_SIZES.has(size) || !/^[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(file)) return res.status(400).end()
+  const cached = await cachedTmdbImage('/' + file, size)
+  if (!cached) return res.status(404).end()
+  sendArtwork(res, cached, 604800)
+})
+
 // GET /api/artwork/:id?type=poster|show|season|backdrop&w=
 // Serves local artwork when the scanner found some, else falls back to the
 // item's (or its show's) TMDB poster, downloaded and cached locally. Only paths

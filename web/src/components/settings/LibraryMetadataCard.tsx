@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api, type Library, type LibraryKind, type MetadataStatus } from '../../lib/api'
-import { confirmDialog } from '../../lib/confirm'
-import { errorMessage } from '../../lib/errors'
-import { toast } from '../../lib/toast'
-import { useLiveRefresh } from '../../lib/events'
+import { useEffect, useState } from 'react'
+import { api, type Library, type LibraryKind } from '../../lib/api'
 import { type IconName } from '../Icon'
-import { Button, Card, CardHeader, IconTile, Menu, ProgressPanel } from '../ui'
+import { LibraryJobProgress, useLibraryJobs } from '../LibraryActions'
+import { Button, Card, CardHeader, IconTile, Menu } from '../ui'
 
 const KIND_ICON: Record<LibraryKind, IconName> = { tv: 'show', movie: 'movie', music: 'audio', other: 'clip' }
 
@@ -18,41 +15,18 @@ function ago(iso: string): string {
 }
 
 /**
- * Fetch TMDB artwork and descriptions per library, from Settings — including
- * the forced re-match (which corrects titles an older search matched wrongly)
- * that used to be reachable only through the API.
+ * TMDB artwork and descriptions per library, from Settings — the same two
+ * fetches as each library's own menu (Match unmatched, Refresh all metadata),
+ * asked about the same way. A single wrong match is fixed on the title itself.
  */
 export default function LibraryMetadataCard({ configured }: { configured: boolean | null }) {
   const [libs, setLibs] = useState<Library[]>([])
-  const [status, setStatus] = useState<MetadataStatus | null>(null)
+  const jobs = useLibraryJobs()
+  const status = jobs.meta
 
-  const poll = useCallback(() => api.metadataStatus().then(setStatus).catch(() => {}), [])
   useEffect(() => {
     api.libraries().then(setLibs).catch(() => {})
-    poll()
-  }, [poll])
-  // The server says when a fetch moves on (polled only if the live link is down).
-  useLiveRefresh(poll, ['activity'], { fallbackMs: status?.running ? 1000 : 60_000 })
-
-  async function start(lib: Library, force: boolean) {
-    if (
-      force &&
-      !(await confirmDialog({
-        title: `Re-match everything in ${lib.name}?`,
-        message:
-          'Every title is looked up again on TMDB, replacing its artwork, description and rating — including ones already matched. Takes a minute or two for a big library.',
-        confirmLabel: 'Re-match all',
-      }))
-    )
-      return
-    try {
-      await api.startMetadata(lib.id, force)
-      toast.info(`Fetching metadata for ${lib.name}…`)
-      poll()
-    } catch (e) {
-      toast.error(errorMessage(e, 'Could not start the fetch'))
-    }
-  }
+  }, [])
 
   const running = status?.running ? status : null
   const last = !status?.running && status?.finishedAt ? status : null
@@ -62,27 +36,13 @@ export default function LibraryMetadataCard({ configured }: { configured: boolea
       <CardHeader
         icon="sparkles"
         title="Library metadata"
-        description="Posters, backdrops, descriptions and ratings, fetched from TMDB per library. Only what's missing is fetched — unless you re-match."
+        description="Posters, backdrops, descriptions and ratings from TMDB. What a scan adds is matched straight after it; fix a wrong match from the movie or show itself."
       />
-      {running && (
-        <ProgressPanel
-          tone="violet"
-          className="mb-4"
-          title={`Fetching ${running.libraryName ?? 'metadata'}`}
-          processed={running.processed}
-          total={running.total}
-          stats={
-            <>
-              <span className="text-emerald-300">{running.matched} matched</span>
-              <span>{running.unmatched} not found</span>
-            </>
-          }
-          detail={running.currentTitle}
-        />
-      )}
+      <LibraryJobProgress jobs={jobs} className="mb-4" />
       <ul className="divide-y divide-edge/70 rounded-xl border border-edge bg-sunken/50">
         {libs.map((l) => {
           const busy = running?.libraryId === l.id
+          const off = !configured || jobs.busy || !(l.kind === 'tv' || l.kind === 'movie')
           return (
             <li key={l.id} className="flex items-center gap-3 px-3.5 py-3">
               <IconTile name={KIND_ICON[l.kind]} size="sm" />
@@ -93,22 +53,21 @@ export default function LibraryMetadataCard({ configured }: { configured: boolea
               <Button
                 variant="secondary"
                 size="sm"
-                icon="download"
+                icon="search"
                 loading={busy}
-                disabled={!configured || !!running || l.kind === 'other'}
-                onClick={() => start(l, false)}
-                title={configured ? undefined : 'Save a TMDB key first'}
+                disabled={off}
+                onClick={() => jobs.startMetadata(l, false)}
+                title={configured ? 'Look up what has no TMDB match' : 'Save a TMDB key first'}
               >
-                {busy ? 'Fetching' : 'Fetch missing'}
+                {busy ? 'Matching' : 'Match unmatched'}
               </Button>
               <Menu
                 items={[
                   {
-                    label: 'Re-match everything',
-                    icon: 'refresh',
-                    hint: 'force',
-                    disabled: !configured || !!running || l.kind === 'other',
-                    onSelect: () => start(l, true),
+                    label: 'Refresh all metadata…',
+                    icon: 'download',
+                    disabled: off,
+                    onSelect: () => jobs.startMetadata(l, true),
                   },
                 ]}
               />

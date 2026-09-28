@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { matchDoubt } from '@contract'
 import {
   api,
   ART,
   artworkUrl,
   tmdbImage,
   type Library,
+  type MatchCounts,
+  type MatchFilter,
   type MediaItem,
   type MediaSort,
   type Show,
 } from '../lib/api'
 import PosterCard from '../components/PosterCard'
 import MediaDetailModal from '../components/MediaDetailModal'
+import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import Icon from '../components/Icon'
 import { Breadcrumbs, EmptyState, PageHeader, Select, Skeleton, buttonClass } from '../components/ui'
 import { extraLabel } from '../lib/format'
@@ -20,6 +24,12 @@ const PAGE_SIZE = 60
 type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
 
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7'
+
+// What each review filter shows, said under the toolbar while it's on.
+const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
+  unmatched: 'No TMDB match — so no artwork or description from it. Open one to match it by hand.',
+  doubtful: 'Matched automatically to a title whose year or name doesn’t agree with the files. Open one to fix the match, or keep it.',
+}
 
 export default function LibraryView() {
   const { libraryId } = useParams()
@@ -35,27 +45,56 @@ export default function LibraryView() {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   const [showSort, setShowSort] = useState<ShowSort>('title')
-  // One object, so a new search or sort and "back to page 1" land together —
-  // separately, a stale page-3 fetch could append to the new results.
-  const [params, setParams] = useState<{ page: number; q: string; sort: MediaSort }>({ page: 1, q: '', sort: 'title' })
+  const [tmdbConfigured, setTmdbConfigured] = useState(false)
+  const [counts, setCounts] = useState<MatchCounts | null>(null)
+  // Bumped to fetch the shows again (after a scan or a metadata fetch).
+  const [showsVersion, setShowsVersion] = useState(0)
+  // One object, so a new search, sort or filter and "back to page 1" land
+  // together — separately, a stale page-3 fetch could append to the new results.
+  const [params, setParams] = useState<{ page: number; q: string; sort: MediaSort; match: MatchFilter }>({
+    page: 1,
+    q: '',
+    sort: 'title',
+    match: 'all',
+  })
   const request = useRef(0)
   const sentinel = useRef<HTMLDivElement>(null)
 
-  // Resolve which library this is.
-  useEffect(() => {
+  const isTv = library?.kind === 'tv'
+  const matchable = library?.kind === 'tv' || library?.kind === 'movie'
+
+  const loadLibrary = () =>
     api
       .libraries()
       .then((libs) => setLibrary(libs.find((l) => l.id === id) ?? null))
       .catch(() => {})
+  const loadCounts = () => api.libraryMatches(id).then(setCounts).catch(() => {})
+
+  // Resolve which library this is.
+  useEffect(() => {
+    void loadLibrary()
+    api.settings().then((s) => setTmdbConfigured(s.tmdbConfigured)).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+  useEffect(() => {
+    if (matchable) void loadCounts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, matchable])
+
+  /** Everything again — a scan or a metadata fetch just finished. */
+  function reloadAll() {
+    void loadLibrary()
+    if (matchable) void loadCounts()
+    setShowsVersion((v) => v + 1)
+    setParams((p) => ({ ...p, page: 1 }))
+  }
+  const jobs = useLibraryJobs(reloadAll)
 
   // Server-side search for flat libraries; wait for typing to settle.
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 250)
     return () => clearTimeout(t)
   }, [query])
-
-  const isTv = library?.kind === 'tv'
 
   // TV: one fetch, then filter and sort in the browser.
   useEffect(() => {
@@ -66,7 +105,7 @@ export default function LibraryView() {
       .then((r) => setShows(r.shows))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [library, isTv, id])
+  }, [library, isTv, id, showsVersion])
 
   // Movies and the rest: paged from the server. A new search or sort starts over.
   useEffect(() => {
@@ -78,7 +117,7 @@ export default function LibraryView() {
     setLoading(true)
     const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : 'other'
     api
-      .media({ libraryId: id, type, page: params.page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort })
+      .media({ libraryId: id, type, page: params.page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort, match: params.match })
       .then((r) => {
         if (mine !== request.current) return // superseded by a newer search/sort/page
         setItems((prev) => (params.page === 1 ? r.items : [...prev, ...r.items]))
@@ -102,9 +141,22 @@ export default function LibraryView() {
     return () => io.disconnect()
   }, [isTv, loading, items.length, total])
 
+  /** A movie's match changed in its details: that card, and the counts. It
+   *  stays in a filtered grid until the grid is next loaded, rather than
+   *  vanishing from under the pointer. */
+  function movieChanged(itemId: number) {
+    void loadCounts()
+    api
+      .mediaItem(itemId)
+      .then((it) => setItems((prev) => prev.map((m) => (m.id === it.id ? it : m))))
+      .catch(() => {})
+  }
+
   const visibleShows = useMemo(() => {
     const q = debounced.toLowerCase()
-    const list = q ? shows.filter((s) => s.showTitle.toLowerCase().includes(q)) : [...shows]
+    let list = q ? shows.filter((s) => s.showTitle.toLowerCase().includes(q)) : [...shows]
+    if (params.match === 'unmatched') list = list.filter((s) => s.tmdbId == null)
+    if (params.match === 'doubtful') list = list.filter((s) => matchDoubt({ title: s.showTitle, year: s.fileYear }, s) != null)
     const by: Record<ShowSort, (a: Show, b: Show) => number> = {
       title: (a, b) => a.showTitle.localeCompare(b.showTitle),
       year: (a, b) => (b.year ?? 0) - (a.year ?? 0) || a.showTitle.localeCompare(b.showTitle),
@@ -112,12 +164,14 @@ export default function LibraryView() {
       rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
     }
     return list.sort(by[showSort])
-  }, [shows, debounced, showSort])
+  }, [shows, debounced, showSort, params.match])
 
   const kindLabel = library?.kind === 'tv' ? 'TV Shows' : library?.kind === 'movie' ? 'Movies' : library?.kind === 'music' ? 'Music Videos' : 'Other'
   const count = isTv ? visibleShows.length : total
   const noun = isTv ? (count === 1 ? 'show' : 'shows') : library?.kind === 'movie' ? (count === 1 ? 'movie' : 'movies') : count === 1 ? 'item' : 'items'
   const firstLoad = loading && shows.length === 0 && items.length === 0
+  const filtered = params.match !== 'all'
+  const setMatch = (match: MatchFilter) => setParams((p) => ({ ...p, match, page: 1 }))
 
   return (
     <div>
@@ -127,10 +181,25 @@ export default function LibraryView() {
         icon={isTv ? 'show' : library?.kind === 'movie' ? 'movie' : 'clip'}
         description={
           <span className="tabular-nums">
-            {kindLabel} · {firstLoad ? '…' : `${count.toLocaleString()} ${noun}${debounced ? ` matching “${debounced}”` : ''}`}
+            {kindLabel} ·{' '}
+            {firstLoad
+              ? '…'
+              : `${count.toLocaleString()} ${filtered ? `${params.match === 'unmatched' ? 'unmatched' : 'doubtful'} ` : ''}${noun}${debounced ? ` matching “${debounced}”` : ''}`}
           </span>
         }
+        actions={
+          library && (
+            <LibraryActions
+              lib={library}
+              jobs={jobs}
+              tmdbConfigured={tmdbConfigured}
+              extra={[{ label: 'Folders & what it indexes', icon: 'folder', onSelect: () => navigate('/library#sources') }]}
+            />
+          )
+        }
       />
+
+      <LibraryJobProgress jobs={jobs} libraryId={id} className="mb-5" />
 
       {/* Toolbar */}
       <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap">
@@ -152,7 +221,18 @@ export default function LibraryView() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          {/* Plex's "Unmatched" filter, and one for matches that look wrong. */}
+          {matchable && tmdbConfigured && (
+            <>
+              <Icon name="filter" size={15} className="text-ink-faint" />
+              <Select value={params.match} onChange={(e) => setMatch(e.target.value as MatchFilter)} aria-label="Filter by TMDB match">
+                <option value="all">{isTv ? 'All shows' : 'All movies'}</option>
+                <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched.toLocaleString()})` : ''}</option>
+                <option value="doubtful">Check matches{counts ? ` (${counts.doubtful.toLocaleString()})` : ''}</option>
+              </Select>
+            </>
+          )}
           <Icon name="sort" size={15} className="text-ink-faint" />
           {isTv ? (
             <Select value={showSort} onChange={(e) => setShowSort(e.target.value as ShowSort)} aria-label="Sort shows">
@@ -176,6 +256,13 @@ export default function LibraryView() {
         </div>
       </div>
 
+      {params.match !== 'all' && (
+        <p className="-mt-3 mb-5 flex items-center gap-2 text-[13px] text-ink-muted">
+          <Icon name="info" size={14} className="shrink-0 text-ink-faint" />
+          {FILTER_HINTS[params.match]}
+        </p>
+      )}
+
       {firstLoad ? (
         <div className={GRID}>
           {Array.from({ length: 16 }, (_, i) => (
@@ -187,7 +274,7 @@ export default function LibraryView() {
         </div>
       ) : isTv ? (
         visibleShows.length === 0 ? (
-          <NothingHere searching={!!debounced} />
+          <NothingHere searching={!!debounced} filter={params.match} onShowAll={() => setMatch('all')} />
         ) : (
           <div className={GRID}>
             {visibleShows.map((s) => (
@@ -203,7 +290,7 @@ export default function LibraryView() {
                     ? artworkUrl(s.posterItemId, 'show', ART.poster)
                     : s.tmdbPosterPath
                       ? s.artItemId
-                        ? artworkUrl(s.artItemId, 'show', ART.poster)
+                        ? artworkUrl(s.artItemId, 'show', ART.poster, s.tmdbPosterPath)
                         : tmdbImage(s.tmdbPosterPath)
                       : undefined
                 }
@@ -213,7 +300,7 @@ export default function LibraryView() {
           </div>
         )
       ) : items.length === 0 ? (
-        <NothingHere searching={!!debounced} />
+        <NothingHere searching={!!debounced} filter={params.match} onShowAll={() => setMatch('all')} />
       ) : (
         <>
           <div className={GRID}>
@@ -229,7 +316,7 @@ export default function LibraryView() {
                 badge={m.height ? (m.height >= 2000 ? '4K' : `${m.height >= 1000 ? 1080 : m.height >= 700 ? 720 : m.height}p`) : undefined}
                 rating={m.rating}
                 icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}
-                imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster) : undefined}
+                imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
                 onClick={() => setSelectedId(m.id)}
               />
             ))}
@@ -241,15 +328,33 @@ export default function LibraryView() {
         </>
       )}
 
-      {selectedId != null && <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} />}
+      {selectedId != null && (
+        <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={() => movieChanged(selectedId)} />
+      )}
     </div>
   )
 }
 
-function NothingHere({ searching }: { searching: boolean }) {
-  return searching ? (
-    <EmptyState icon="search" title="No matches" description="Try a shorter search, or check the spelling." />
-  ) : (
+function NothingHere({ searching, filter, onShowAll }: { searching: boolean; filter: MatchFilter; onShowAll: () => void }) {
+  if (searching) return <EmptyState icon="search" title="No matches" description="Try a shorter search, or check the spelling." />
+  if (filter !== 'all')
+    return (
+      <EmptyState
+        icon="success"
+        title={filter === 'unmatched' ? 'Everything’s matched' : 'Every match looks right'}
+        description={
+          filter === 'unmatched'
+            ? 'Every title here has a TMDB match.'
+            : 'No automatic match disagrees with its files. Matches from before this check was added are checked after a Refresh all metadata.'
+        }
+        action={
+          <button onClick={onShowAll} className={buttonClass('secondary', 'md')}>
+            Show everything
+          </button>
+        }
+      />
+    )
+  return (
     <EmptyState
       icon="libraries"
       title="Nothing here yet"

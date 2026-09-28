@@ -111,6 +111,12 @@ model Show {
   rating           Float?
   tmdbPosterPath   String? // TMDB path like "/abc.jpg"
   tmdbBackdropPath String?
+  // How it came by its TMDB match (see TmdbMatch in the contract), and what
+  // TMDB calls the show it matched — shown beside the show's own title, and
+  // what tells an automatic match that looks wrong.
+  tmdbMatch        String?
+  tmdbTitle        String?
+  tmdbYear         Int?
   updatedAt        DateTime         @updatedAt
   seasons          Season[]
   names            ShowName[]
@@ -510,6 +516,10 @@ model MediaItem {
   rating           Float?
   tmdbPosterPath   String?
   tmdbBackdropPath String?
+  // How a movie came by its TMDB match, and what TMDB calls it (see Show).
+  tmdbMatch        String?
+  tmdbTitle        String?
+  tmdbYear         Int?
   // Act breaks: seconds into the file where it cut to commercial when it aired
   // (JSON number[]), where they came from (chapters | detected | none), and
   // when they were looked for (null = not yet; reset when the file changes).

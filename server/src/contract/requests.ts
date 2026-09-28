@@ -269,6 +269,14 @@ export const ShowMerge = z.object({
 })
 export type ShowMerge = z.output<typeof ShowMerge>
 
+// ── Matching ────────────────────────────────────────────────────────────────
+
+/** The TMDB title a movie or show is matched to by hand (Fix match). */
+export const MatchPick = z.object({
+  tmdbId: loose.transform((v) => Number(v)).pipe(z.number({ error: 'tmdbId must be a TMDB id' }).int().positive('tmdbId must be a TMDB id')),
+})
+export type MatchPick = z.output<typeof MatchPick>
+
 // ── Idents ──────────────────────────────────────────────────────────────────
 
 /** An ident's look, clamped. (Picture size always matches the channel.) */

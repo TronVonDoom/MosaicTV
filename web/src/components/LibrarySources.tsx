@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom'
 import { api, type Library, type LibraryIncludes, type LibraryKind } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
-import { useJobStatus } from '../lib/events'
 import { toast } from '../lib/toast'
 import DirectoryPicker from './DirectoryPicker'
-import { Badge, Banner, Button, Card, Field, InfoHint, Input, ProgressPanel, Select } from './ui'
+import { LibraryActions, LibraryJobProgress, useLibraryJobs } from './LibraryActions'
+import { Badge, Banner, Button, Card, Field, InfoHint, Input, Select } from './ui'
 
 const KIND_LABELS: Record<LibraryKind, string> = {
   tv: 'TV Shows',
@@ -74,10 +74,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
 
   const refresh = () => api.libraries().then(setLibraries).catch(() => {})
 
-  const scanJob = useJobStatus(api.scanStatus, refresh)
-  const metaJob = useJobStatus(api.metadataStatus, refresh)
-  const scan = scanJob.status
-  const meta = metaJob.status
+  const jobs = useLibraryJobs(refresh)
 
   useEffect(() => {
     refresh()
@@ -117,24 +114,20 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
     setSubmitting(false)
   }
 
-  const handleScan = (id: number, force = false) =>
-    guard('Failed to start scan', async () => {
-      await api.startScan(id, force)
-      scanJob.start()
+  async function handleDelete(lib: Library) {
+    const ok = await confirmDialog({
+      title: `Delete “${lib.name}”?`,
+      message: `MosaicTV forgets its ${lib.itemCount.toLocaleString()} item${lib.itemCount === 1 ? '' : 's'}, and channels stop airing them. Your files stay on disk.`,
+      confirmLabel: 'Delete library',
+      danger: true,
     })
-
-  const handleFetchMetadata = (id: number) =>
-    guard('Failed to start metadata fetch', async () => {
-      await api.startMetadata(id)
-      metaJob.start()
-    })
-
-  const handleDelete = (id: number) =>
-    guard('Failed to delete library', async () => {
-      await api.deleteLibrary(id)
+    if (!ok) return
+    await guard('Failed to delete library', async () => {
+      await api.deleteLibrary(lib.id)
       toast.success('Library deleted')
       refresh()
     })
+  }
 
   /** Take specials or extras in or out. Out removes what's there, so it asks first. */
   async function handleIncludes(lib: Library, change: LibraryIncludes) {
@@ -158,7 +151,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
       const r = await api.updateLibrary(lib.id, change)
       if (r.removed > 0) toast.success(`Removed ${r.removed} from ${lib.name}`)
       if (r.scanning) {
-        scanJob.start()
+        jobs.watchScan()
         toast.success(`Scanning ${lib.name} to add them`)
       }
       refresh()
@@ -187,9 +180,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
     }
   }
 
-  const scanning = scan?.running ?? false
-  const enriching = meta?.running ?? false
-  const busy = scanning || enriching
+  const busy = jobs.busy
 
   return (
     <div>
@@ -207,43 +198,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
         </Banner>
       )}
 
-      {scan?.running && (
-        <ProgressPanel
-          tone="indigo"
-          className="mb-5"
-          title={`Scanning ${scan.libraryName}…`}
-          processed={scan.processed}
-          total={scan.total}
-          detail={scan.currentPath}
-          stats={
-            <>
-              <span className="text-emerald-400">+{scan.added} new</span>
-              <span className="text-sky-400">{scan.updated} updated</span>
-              {scan.moved > 0 && <span className="text-sky-400">{scan.moved} moved</span>}
-              <span>{scan.skipped} unchanged</span>
-              {scan.leftOut > 0 && <span>{scan.leftOut} left out</span>}
-              {scan.removed > 0 && <span className="text-amber-400">{scan.removed} missing</span>}
-            </>
-          }
-        />
-      )}
-
-      {meta?.running && (
-        <ProgressPanel
-          tone="violet"
-          className="mb-5"
-          title={`Fetching TMDB metadata for ${meta.libraryName}…`}
-          processed={meta.processed}
-          total={meta.total}
-          detail={meta.currentTitle}
-          stats={
-            <>
-              <span className="text-emerald-400">{meta.matched} matched</span>
-              {meta.unmatched > 0 && <span className="text-amber-400">{meta.unmatched} no match</span>}
-            </>
-          }
-        />
-      )}
+      <LibraryJobProgress jobs={jobs} className="mb-5" />
 
       {/* Add-library form */}
       <Card className="p-5 mb-6">
@@ -374,38 +329,12 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                     <span className="text-xs text-ink-faint">{lib.itemCount} items</span>
                   </div>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => handleScan(lib.id)} disabled={busy}>
-                  {scanning ? 'Scanning…' : 'Scan'}
-                </Button>
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  onClick={() => handleScan(lib.id, true)}
-                  disabled={busy}
-                  title="Re-probe every file, ignoring the unchanged-file skip"
-                  className="hover:border-amber-500/50 hover:text-amber-300"
-                >
-                  Force
-                </Button>
-                {lib.kind !== 'other' && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleFetchMetadata(lib.id)}
-                    disabled={busy || !tmdbConfigured}
-                    title={
-                      tmdbConfigured
-                        ? 'Fetch posters, overviews & ratings from TMDB'
-                        : 'Set a TMDB API key in Settings first'
-                    }
-                    className="hover:border-violet-500 hover:text-violet-300"
-                  >
-                    {enriching ? 'Fetching…' : 'Metadata'}
-                  </Button>
-                )}
-                <Button variant="subtle" size="sm" onClick={() => handleDelete(lib.id)} disabled={busy}>
-                  Delete
-                </Button>
+                <LibraryActions
+                  lib={lib}
+                  jobs={jobs}
+                  tmdbConfigured={tmdbConfigured}
+                  extra={[{ label: 'Delete library…', icon: 'trash', danger: true, disabled: busy, onSelect: () => handleDelete(lib) }]}
+                />
               </div>
 
               {/* What it indexes */}

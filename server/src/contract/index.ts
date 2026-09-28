@@ -8,6 +8,7 @@
 // database or the DOM.
 export * from './domain.js'
 export * from './format.js'
+export * from './matching.js'
 export * from './overlays.js'
 export * from './requests.js'
 export type * from './responses.js'

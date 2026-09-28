@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { ShowMerge, ShowRename } from '../contract/index.js'
+import { MatchPick, ShowMerge, ShowRename } from '../contract/index.js'
 import { readBody } from '../validate.js'
-import { mergeShows, renameShow, ShowConflict } from '../shows.js'
+import { mergeShows, renameShow, showCards, ShowConflict } from '../shows.js'
+import { matchShow, refreshShow, unmatchShow } from '../metadata.js'
+import { answerMatch } from './metadata.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { publish } from '../events.js'
 import { episodesAired } from '../aired.js'
@@ -13,101 +15,7 @@ export const showsRouter = Router()
 // GET /api/shows?libraryId=  -> one card per show in a TV library
 showsRouter.get('/', async (req, res) => {
   const libraryId = req.query.libraryId ? Number(req.query.libraryId) : undefined
-  const where: Prisma.MediaItemWhereInput = {
-    type: 'episode',
-    missing: false,
-    showTitle: { not: null },
-  }
-  if (libraryId && !Number.isNaN(libraryId)) where.libraryId = libraryId
-
-  const episodes = await prisma.mediaItem.findMany({
-    where,
-    select: {
-      id: true,
-      showTitle: true,
-      season: true,
-      year: true,
-      durationSec: true,
-      libraryId: true,
-      showPosterPath: true,
-    },
-  })
-
-  type Agg = {
-    showTitle: string
-    year: number | null
-    seasons: Set<number>
-    episodeCount: number
-    totalDurationSec: number
-    libraryId: number
-    posterItemId: number | null
-    anyItemId: number
-  }
-  const map = new Map<string, Agg>()
-  for (const e of episodes) {
-    const key = e.libraryId + ':' + (e.showTitle as string)
-    let agg = map.get(key)
-    if (!agg) {
-      agg = {
-        showTitle: e.showTitle as string,
-        year: e.year,
-        seasons: new Set(),
-        episodeCount: 0,
-        totalDurationSec: 0,
-        libraryId: e.libraryId,
-        posterItemId: null,
-        anyItemId: e.id,
-      }
-      map.set(key, agg)
-    }
-    if (e.season != null) agg.seasons.add(e.season)
-    agg.episodeCount++
-    agg.totalDurationSec += e.durationSec ?? 0
-    if (agg.year == null && e.year != null) agg.year = e.year
-    if (agg.posterItemId == null && e.showPosterPath) agg.posterItemId = e.id
-  }
-
-  // TMDB metadata (if fetched).
-  const metaRows = await prisma.show.findMany({
-    where: libraryId ? { libraryId } : {},
-    select: {
-      id: true,
-      libraryId: true,
-      title: true,
-      year: true,
-      tmdbPosterPath: true,
-      overview: true,
-      rating: true,
-      genres: true,
-    },
-  })
-  const metaMap = new Map(metaRows.map((m) => [m.libraryId + ':' + m.title, m]))
-
-  const shows = [...map.values()]
-    .map((s) => {
-      const m = metaMap.get(s.libraryId + ':' + s.showTitle)
-      return {
-        id: m?.id ?? null,
-        showTitle: s.showTitle,
-        year: s.year ?? m?.year ?? null,
-        seasonCount: s.seasons.size,
-        episodeCount: s.episodeCount,
-        totalDurationSec: s.totalDurationSec,
-        libraryId: s.libraryId,
-        posterItemId: s.posterItemId,
-        // Any episode will do to ask /api/artwork for the show's TMDB poster,
-        // which the server caches — so browsers on a LAN without internet
-        // still get artwork.
-        artItemId: s.anyItemId,
-        tmdbPosterPath: m?.tmdbPosterPath ?? null,
-        overview: m?.overview ?? null,
-        rating: m?.rating ?? null,
-        genres: m?.genres ?? null,
-      }
-    })
-    .sort((a, b) => a.showTitle.localeCompare(b.showTitle))
-
-  res.json({ shows })
+  res.json({ shows: await showCards(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) })
 })
 
 // GET /api/shows/detail?show=NAME&libraryId=  -> seasons, each with its episodes
@@ -159,6 +67,11 @@ showsRouter.get('/detail', async (req, res) => {
     genres: showRow?.genres ?? null,
     rating: showRow?.rating ?? null,
     tmdbPosterPath: showRow?.tmdbPosterPath ?? null,
+    fileYear: episodes.find((e) => e.year != null)?.year ?? null,
+    tmdbId: showRow?.tmdbId ?? null,
+    tmdbMatch: showRow?.tmdbMatch ?? null,
+    tmdbTitle: showRow?.tmdbTitle ?? null,
+    tmdbYear: showRow?.tmdbYear ?? null,
     // The web's hero panel asks /api/artwork/<any episode>?type=backdrop, which
     // resolves to the show's TMDB backdrop — so name an episode, and say
     // whether there's anything to fetch.
@@ -205,6 +118,21 @@ showsRouter.post('/:id/merge', async (req, res) => {
   await scheduleChangedEverywhere()
   res.json(result)
 })
+
+// Fix match, Unmatch and Refresh metadata, as in Plex: a show's TMDB match
+// picked by hand (kept from then on), taken away (and left alone), or fetched
+// afresh. Its episodes go by it.
+
+// POST /api/shows/:id/match  { tmdbId }
+showsRouter.post('/:id/match', async (req, res) => {
+  const body = readBody(MatchPick, req, res)
+  if (!body) return
+  await answerMatch(res, () => matchShow(Number(req.params.id), body.tmdbId))
+})
+// DELETE /api/shows/:id/match
+showsRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchShow(Number(req.params.id))))
+// POST /api/shows/:id/refresh
+showsRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshShow(Number(req.params.id))))
 
 /** Channels with the show in their guide ahead (its episodes are scheduled there). */
 async function channelsAiringShow(showId: number): Promise<number[]> {

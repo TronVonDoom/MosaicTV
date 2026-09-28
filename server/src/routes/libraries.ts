@@ -5,6 +5,7 @@ import path from 'node:path'
 import { prisma } from '../db.js'
 import { dropLeftOut, isScanning, scanLibrary } from '../scanner/scanner.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { matchCounts } from '../metadata.js'
 
 export const librariesRouter = Router()
 
@@ -62,6 +63,12 @@ librariesRouter.patch('/:id', async (req, res) => {
   const added = (lib.includeSpecials && !before.includeSpecials) || (lib.includeExtras && !before.includeExtras)
   if (added) scanLibrary(id).catch(() => {})
   res.json({ removed, scanning: added })
+})
+
+// GET /api/libraries/:id/matches  -> what wants a look: titles with no TMDB
+// match, and automatic matches that don't agree with their files.
+librariesRouter.get('/:id/matches', async (req, res) => {
+  res.json(await matchCounts(Number(req.params.id)))
 })
 
 // A handful of titles with artwork, for the poster mosaic on a library's card.

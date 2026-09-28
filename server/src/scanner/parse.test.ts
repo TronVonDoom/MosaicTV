@@ -111,3 +111,11 @@ test('extras are told from the movie or show they belong to', () => {
   // Only movie and TV libraries have extras.
   assert.equal(parseMedia('/media/mv/Artist/Interviews/Talk.mkv', '/media/mv', 'music').extra, null)
 })
+
+test('id hints come off titles and show names — the match reads them from the path', () => {
+  const m = movie('The Matrix (1999) {tmdb-603}/The Matrix (1999) {tmdb-603}.mkv')
+  assert.deepEqual([m.title, m.year], ['The Matrix', 1999])
+  assert.equal(movie('Heat (1995) [imdbid-tt0113277]/Heat (1995).mkv').title, 'Heat')
+  const e = episode('The Office (2005) {tvdb-73244}/Season 01/The Office - S01E01 - Pilot.mkv')
+  assert.deepEqual([e.showTitle, e.season, e.episode], ['The Office', 1, 1])
+})

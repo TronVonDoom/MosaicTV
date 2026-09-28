@@ -20,6 +20,7 @@ import type {
   StartMode,
   StreamMode,
 } from './domain.js'
+import type { TmdbMatch } from './matching.js'
 import type { WatermarkConfig } from './overlays.js'
 
 // ── System ──────────────────────────────────────────────────────────────────
@@ -193,6 +194,10 @@ export type MediaItem = {
   rating: number | null
   tmdbPosterPath: string | null
   tmdbBackdropPath: string | null
+  /** How it came by its TMDB match, and what TMDB calls it (movies only). */
+  tmdbMatch: TmdbMatch | null
+  tmdbTitle: string | null
+  tmdbYear: number | null
   /** A featurette, trailer, deleted scene… filed with a movie or show; null for the thing itself. */
   extra: ExtraKind | null
   missing: boolean
@@ -202,6 +207,22 @@ export type MediaItemDetail = MediaItem & { library: { name: string; kind: Libra
 
 export type MediaPage = { total: number; page: number; pageSize: number; items: MediaItem[] }
 export type MediaSort = 'title' | 'year' | 'added' | 'rating'
+/** One title TMDB offers for Fix match. */
+export type MatchCandidate = {
+  tmdbId: number
+  kind: 'movie' | 'tv'
+  title: string
+  /** Its title in its own language, when that's different. */
+  originalTitle: string | null
+  year: number | null
+  overview: string | null
+  posterPath: string | null
+}
+
+/** What in a library still wants a look: titles with no TMDB match, and
+ *  automatic matches that don't agree with their files. */
+export type MatchCounts = { unmatched: number; doubtful: number }
+
 export type LibrarySample = { items: { id: number; title: string; art: 'poster' | 'show' }[] }
 
 export type Show = {
@@ -220,6 +241,12 @@ export type Show = {
   overview: string | null
   rating: number | null
   genres: string | null
+  /** The year its files give it (a matched show's `year` falls back to TMDB's). */
+  fileYear: number | null
+  tmdbId: number | null
+  tmdbMatch: TmdbMatch | null
+  tmdbTitle: string | null
+  tmdbYear: number | null
 }
 
 export type SeasonGroup = { season: number | null; episodes: MediaItem[]; tmdbPosterPath: string | null }
@@ -238,6 +265,11 @@ export type ShowDetail = {
   genres: string | null
   rating: number | null
   tmdbPosterPath: string | null
+  fileYear: number | null
+  tmdbId: number | null
+  tmdbMatch: TmdbMatch | null
+  tmdbTitle: string | null
+  tmdbYear: number | null
   /** Whether the show has a TMDB backdrop, and an episode to request it by. */
   hasBackdrop?: boolean
   artItemId?: number | null

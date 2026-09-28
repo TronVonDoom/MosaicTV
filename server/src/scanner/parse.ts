@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { ExtraKind } from '../contract/index.js'
+import { stripIdHints, type ExtraKind } from '../contract/index.js'
 
 export type LibraryKind = 'tv' | 'movie' | 'music' | 'other'
 
@@ -133,9 +133,10 @@ function isReleaseTag(inner: string): boolean {
   return !kinds.includes('other') && kinds.includes('quality')
 }
 
-/** Strip a trailing "(2020)", release tags, and tidy whitespace into a clean title. */
+/** Strip a trailing "(2020)", release tags, id hints ("{tmdb-603}" — see
+ *  pathIdHint), and tidy whitespace into a clean title. */
 function cleanTitle(raw: string): string {
-  return raw
+  return stripIdHints(raw)
     .replace(YEAR_RE, '')
     .replace(/\(([^()]*)\)/g, (whole, inner: string) => (isReleaseTag(inner) ? '' : whole))
     .replace(/[._]/g, ' ')

@@ -35,7 +35,12 @@ Install ffmpeg and make sure it's on the PATH.
   [Getting Started](getting-started.md#1-add-a-library).
 
 ### Shows/movies have no posters
-- Add a **TMDB API key** (Settings) and run **Metadata** on the library.
+- Add a **TMDB API key** (Settings) and run **Match unmatched** from the
+  library's **⋯** menu.
+- Still none? The library's filter → **Unmatched** lists what TMDB didn't find;
+  open one and **Match** it by hand (a TMDB or IMDb link works too).
+- The wrong poster? **Check matches** lists automatic matches that look off;
+  open one and **Fix match**.
 - Local artwork is only picked up during a **scan** — rescan after adding
   `poster.jpg`/`folder.jpg` files.
 
@@ -95,8 +100,8 @@ next program on time. **Logs** says why:
   above each (`encoder exited …`) carries ffmpeg's own error, usually a damaged
   or unreadable file. Check that it plays elsewhere, then rescan the library.
 - `… ended Ns before its slot` — the file is shorter than the length the
-  library recorded for it. The library's **Force** rescan re-reads every
-  file's duration.
+  library recorded for it. **Force rescan**, in the library's **⋯** menu,
+  re-reads every file's duration.
 
 ---
 

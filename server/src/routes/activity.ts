@@ -82,7 +82,8 @@ export function activityItems(): Activity[] {
       progress: meta.running ? fraction(meta.processed, meta.total) : null,
       startedAt: meta.startedAt,
       finishedAt: meta.finishedAt,
-      href: '/settings#metadata',
+      // The library's page: its Unmatched and Check matches filters are there.
+      href: meta.libraryId != null ? '/library/' + meta.libraryId : '/settings#metadata',
     })
   }
 

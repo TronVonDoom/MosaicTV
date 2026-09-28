@@ -72,6 +72,9 @@ import type {
   LogEntry,
   LogLevel,
   LogsResponse,
+  MatchCandidate,
+  MatchCounts,
+  MatchFilter,
   MediaSearchResult,
   MediaSort,
   MemberKind,
@@ -87,6 +90,7 @@ import type {
   Show,
   Stats,
   StreamMode,
+  TmdbMatch,
   WatermarkConfig,
 } from '@contract'
 export type {
@@ -115,6 +119,9 @@ export type {
   LogEntry,
   LogLevel,
   LogsResponse,
+  MatchCandidate,
+  MatchCounts,
+  MatchFilter,
   MediaSearchResult,
   MediaSort,
   MemberKind,
@@ -130,6 +137,7 @@ export type {
   Show,
   Stats,
   StreamMode,
+  TmdbMatch,
   WatermarkConfig,
 }
 
@@ -307,6 +315,8 @@ export const api = {
     libraryId?: number
     q?: string
     sort?: MediaSort
+    /** A movie library's review filters: no TMDB match, or a doubtful one. */
+    match?: MatchFilter
   }) => {
     const qs = new URLSearchParams()
     if (params.page) qs.set('page', String(params.page))
@@ -315,6 +325,7 @@ export const api = {
     if (params.libraryId) qs.set('libraryId', String(params.libraryId))
     if (params.q) qs.set('q', params.q)
     if (params.sort && params.sort !== 'title') qs.set('sort', params.sort)
+    if (params.match && params.match !== 'all') qs.set('match', params.match)
     return request<MediaPage>(`/api/media?${qs.toString()}`)
   },
   mediaItem: (id: number) => request<MediaItemDetail>(`/api/media/${id}`),
@@ -326,6 +337,22 @@ export const api = {
     ),
   renameShow: (id: number, title: string) =>
     request<{ id: number; title: string }>(`/api/shows/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
+  // --- matching (Fix match / Unmatch / Refresh metadata, as in Plex) ---
+  // What in a library wants a look: no TMDB match, or a doubtful automatic one.
+  libraryMatches: (libraryId: number) => request<MatchCounts>(`/api/libraries/${libraryId}/matches`),
+  // TMDB's titles for a title (and year), or the one a TMDB/IMDb/TheTVDB id or link names.
+  searchMatches: (kind: 'movie' | 'tv', q: string, year?: number | null) =>
+    request<{ results: MatchCandidate[] }>(
+      `/api/metadata/search?kind=${kind}&q=${encodeURIComponent(q)}${year ? `&year=${year}` : ''}`,
+    ),
+  matchMovie: (id: number, tmdbId: number) =>
+    request<{ ok: true }>(`/api/media/${id}/match`, { method: 'POST', body: JSON.stringify({ tmdbId }) }),
+  unmatchMovie: (id: number) => request<{ ok: true }>(`/api/media/${id}/match`, { method: 'DELETE' }),
+  refreshMovie: (id: number) => request<{ ok: true }>(`/api/media/${id}/refresh`, { method: 'POST' }),
+  matchShow: (id: number, tmdbId: number) =>
+    request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'POST', body: JSON.stringify({ tmdbId }) }),
+  unmatchShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'DELETE' }),
+  refreshShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/refresh`, { method: 'POST' }),
   mergeShow: (id: number, into: number) =>
     request<{ into: { id: number; title: string }; episodes: number; picks: number; airings: number }>(`/api/shows/${id}/merge`, {
       method: 'POST',
@@ -575,8 +602,21 @@ export function tmdbImage(path: string, size: 'w200' | 'w342' | 'w500' | 'origin
  * at a matching size — so a grid of 150px tiles doesn't pull megabyte posters.
  * Ask for roughly twice the displayed width, for high-DPI screens.
  */
-export function artworkUrl(id: number, type: 'poster' | 'show' | 'season' | 'backdrop', w?: number): string {
-  return `/api/artwork/${id}?type=${type}${w ? `&w=${w}` : ''}`
+export function artworkUrl(
+  id: number,
+  type: 'poster' | 'show' | 'season' | 'backdrop',
+  w?: number,
+  /** Changes when the art does — its TMDB path, say — so a browser that
+   *  cached the old picture (for a week) fetches the new one after Fix match. */
+  version?: string | null,
+): string {
+  const v = version ? `&v=${encodeURIComponent(version.replace(/^\//, ''))}` : ''
+  return `/api/artwork/${id}?type=${type}${w ? `&w=${w}` : ''}${v}`
+}
+
+/** A TMDB poster by its path, through the server's cache (Fix match's results). */
+export function tmdbThumb(path: string, size: 'w92' | 'w154' | 'w185' | 'w342' = 'w154'): string {
+  return `/api/artwork/tmdb/${size}/${path.replace(/^\//, '')}`
 }
 
 /** Thumbnail widths the UI asks for, sized to where the image is shown. */

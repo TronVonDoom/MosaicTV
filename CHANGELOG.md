@@ -53,6 +53,24 @@ TV mode, and a sturdier foundation under all of it.
   page. The dashboard traded its greeting for the same header as every other
   page, page headers line up across the app, and icon buttons (the menu, the
   arrows, every close ×) are full size again instead of squeezed to a sliver.
+- **Fix match, as in Plex.** A movie's details and a show's page have **Fix
+  match**: search TMDB by title and year, or paste a TMDB or IMDb link, and
+  pick the right one — a match you pick is kept through every refresh after.
+  **Unmatch** takes one away for good (home videos TMDB doesn't have), and
+  **Refresh metadata** fetches one afresh. A library's filter lists what's
+  **Unmatched**, and **Check matches** lists automatic matches whose year or
+  title doesn't agree with the files — a remake matched to its original, a
+  reboot to the 1991 show.
+- **A library's menu.** On its page and under Sources: **Scan**, **Force
+  rescan** (every file read again, from scratch), **Match unmatched** and
+  **Refresh all metadata**, which looks everything up again but keeps the
+  matches you fixed. Deleting a library now asks first.
+- **Matched after every scan.** What a scan adds is looked up on TMDB straight
+  after it, when there's a key. A folder can name its match the way Plex and
+  Jellyfin read it — `{tmdb-603}`, `{imdb-tt0133093}`, `{tvdb-73244}`,
+  `[tmdbid-603]` — and the id no longer ends up in the title. A show whose
+  folder year finds nothing is looked up without it, an exact title wins over
+  a more popular near miss, and extras are never looked up as films.
 - **Rename a show, or merge two spellings of one.** A show's page has
   **Rename** and **Merge into another show**. Both stick through every scan
   after: shows are now rows that episodes, collection picks and broadcast

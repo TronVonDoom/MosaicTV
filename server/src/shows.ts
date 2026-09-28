@@ -7,6 +7,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from './db.js'
 import { log } from './logs.js'
+import type { Show, TmdbMatch } from './contract/index.js'
 
 export type ShowRef = { id: number; title: string }
 /** A show as the scanner found it; `created` = this lookup made it. */
@@ -130,6 +131,10 @@ export async function mergeShows(fromId: number, intoId: number): Promise<MergeR
       data: {
         year: into.year ?? from.year,
         tmdbId: into.tmdbId ?? from.tmdbId,
+        // How it was matched goes with the match it keeps.
+        ...(into.tmdbId == null && from.tmdbId != null
+          ? { tmdbMatch: from.tmdbMatch, tmdbTitle: from.tmdbTitle, tmdbYear: from.tmdbYear }
+          : {}),
         overview: into.overview ?? from.overview,
         genres: into.genres ?? from.genres,
         rating: into.rating ?? from.rating,
@@ -141,4 +146,102 @@ export async function mergeShows(fromId: number, intoId: number): Promise<MergeR
   ])
   log('info', 'system', `Merged "${from.title}" into "${into.title}" — ${episodes.count} episode(s), ${moved.count} collection pick(s), ${airings.count} broadcast episode(s)`)
   return { into: { id: into.id, title: into.title }, episodes: episodes.count, picks: moved.count, airings: airings.count }
+}
+
+/**
+ * One card per show with an episode on disk — in one library, or every TV
+ * library: its seasons, episodes and runtime from its files, and what TMDB
+ * says of it once it's matched. What the library grid shows and what its
+ * match counts count.
+ */
+export async function showCards(libraryId?: number): Promise<Show[]> {
+  const where: Prisma.MediaItemWhereInput = { type: 'episode', missing: false, showTitle: { not: null } }
+  if (libraryId) where.libraryId = libraryId
+  const episodes = await prisma.mediaItem.findMany({
+    where,
+    select: { id: true, showTitle: true, season: true, year: true, durationSec: true, libraryId: true, showPosterPath: true },
+  })
+
+  type Agg = {
+    showTitle: string
+    year: number | null
+    seasons: Set<number>
+    episodeCount: number
+    totalDurationSec: number
+    libraryId: number
+    posterItemId: number | null
+    anyItemId: number
+  }
+  const map = new Map<string, Agg>()
+  for (const e of episodes) {
+    const key = e.libraryId + ':' + (e.showTitle as string)
+    let agg = map.get(key)
+    if (!agg) {
+      agg = {
+        showTitle: e.showTitle as string,
+        year: e.year,
+        seasons: new Set(),
+        episodeCount: 0,
+        totalDurationSec: 0,
+        libraryId: e.libraryId,
+        posterItemId: null,
+        anyItemId: e.id,
+      }
+      map.set(key, agg)
+    }
+    if (e.season != null) agg.seasons.add(e.season)
+    agg.episodeCount++
+    agg.totalDurationSec += e.durationSec ?? 0
+    if (agg.year == null && e.year != null) agg.year = e.year
+    if (agg.posterItemId == null && e.showPosterPath) agg.posterItemId = e.id
+  }
+
+  // TMDB metadata (if fetched).
+  const metaRows = await prisma.show.findMany({
+    where: libraryId ? { libraryId } : {},
+    select: {
+      id: true,
+      libraryId: true,
+      title: true,
+      year: true,
+      tmdbId: true,
+      tmdbMatch: true,
+      tmdbTitle: true,
+      tmdbYear: true,
+      tmdbPosterPath: true,
+      overview: true,
+      rating: true,
+      genres: true,
+    },
+  })
+  const metaMap = new Map(metaRows.map((m) => [m.libraryId + ':' + m.title, m]))
+
+  return [...map.values()]
+    .map((s) => {
+      const m = metaMap.get(s.libraryId + ':' + s.showTitle)
+      return {
+        id: m?.id ?? null,
+        showTitle: s.showTitle,
+        year: s.year ?? m?.year ?? null,
+        seasonCount: s.seasons.size,
+        episodeCount: s.episodeCount,
+        totalDurationSec: s.totalDurationSec,
+        libraryId: s.libraryId,
+        posterItemId: s.posterItemId,
+        // Any episode will do to ask /api/artwork for the show's TMDB poster,
+        // which the server caches — so browsers on a LAN without internet
+        // still get artwork.
+        artItemId: s.anyItemId,
+        tmdbPosterPath: m?.tmdbPosterPath ?? null,
+        overview: m?.overview ?? null,
+        rating: m?.rating ?? null,
+        genres: m?.genres ?? null,
+        fileYear: s.year,
+        tmdbId: m?.tmdbId ?? null,
+        tmdbMatch: (m?.tmdbMatch as TmdbMatch | null) ?? null,
+        tmdbTitle: m?.tmdbTitle ?? null,
+        tmdbYear: m?.tmdbYear ?? null,
+      }
+    })
+    .sort((a, b) => a.showTitle.localeCompare(b.showTitle))
 }

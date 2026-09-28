@@ -8,6 +8,7 @@ import { detectArtwork } from './artwork.js'
 import { walk } from './walk.js'
 import { log } from '../logs.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { matchNewTitles } from '../metadata.js'
 import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
 import type { ScanStatus } from '../contract/index.js'
 
@@ -314,6 +315,8 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     status.currentPath = null
     status.finishedAt = new Date().toISOString()
   }
+  // As in Plex, what a scan adds is matched to TMDB straight after.
+  if (!status.error) await matchNewTitles(library.id).catch(() => {})
 }
 
 type LibraryChoices = { id: number; includeSpecials: boolean; includeExtras: boolean }

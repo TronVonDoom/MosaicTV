@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { api, ART, artworkUrl, tmdbImage, type MediaItemDetail } from '../lib/api'
 import { episodeCode, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
-import { Badge, IconButton, Modal, Skeleton } from './ui'
+import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from './FixMatchDialog'
+import { Badge, Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
 
 function Spec({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -14,27 +15,52 @@ function Spec({ label, value, mono = false }: { label: string; value: string; mo
 }
 
 /** The detail view for one file — a movie, an episode, a clip: its artwork,
- *  what TMDB knows about it, and what's on disk. */
-export default function MediaDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
+ *  what TMDB knows about it, and what's on disk. A movie's TMDB match is
+ *  fixed from here (an episode's goes by its show's, on the show's page);
+ *  `onChanged` hears about it, so the grid behind can follow. */
+export default function MediaDetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged?: () => void }) {
   const [item, setItem] = useState<MediaItemDetail | null>(null)
   const [backdropOk, setBackdropOk] = useState(true)
 
+  const load = () => api.mediaItem(id).then(setItem).catch(() => {})
   useEffect(() => {
     setItem(null)
     setBackdropOk(true)
-    api.mediaItem(id).then(setItem).catch(() => {})
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  const target: MatchTarget | null =
+    item?.type === 'movie' && !item.extra
+      ? {
+          kind: 'movie',
+          id: item.id,
+          title: item.title,
+          year: item.year,
+          tmdbId: item.tmdbId,
+          tmdbMatch: item.tmdbMatch,
+          tmdbTitle: item.tmdbTitle,
+          tmdbYear: item.tmdbYear,
+          tmdbPosterPath: item.tmdbPosterPath,
+        }
+      : null
+  const match = useMatchActions(target, () => {
+    setBackdropOk(true)
+    void load()
+    onChanged?.()
+  })
+  const status = target && describeMatch(target)
 
   const isEpisode = item?.type === 'episode'
   const sxe = (item && episodeCode(item)) || null
   const poster = !item
     ? null
     : item.posterPath
-      ? artworkUrl(item.id, 'poster', ART.large)
+      ? artworkUrl(item.id, 'poster', ART.large, item.tmdbPosterPath)
       : item.showPosterPath || isEpisode
         ? artworkUrl(item.id, 'show', ART.large)
         : item.tmdbPosterPath
-          ? artworkUrl(item.id, 'poster', ART.large)
+          ? artworkUrl(item.id, 'poster', ART.large, item.tmdbPosterPath)
           : null
   // Episodes use their show's backdrop; the route resolves that server-side.
   const wantBackdrop = !!item && backdropOk && (item.tmdbBackdropPath != null || isEpisode)
@@ -46,7 +72,7 @@ export default function MediaDetailModal({ id, onClose }: { id: number; onClose:
       <div className="relative h-52 sm:h-60" style={{ background: posterGradient(item?.showTitle || item?.title || 'x') }}>
         {wantBackdrop && (
           <img
-            src={artworkUrl(item!.id, 'backdrop')}
+            src={artworkUrl(item!.id, 'backdrop', undefined, item!.tmdbBackdropPath)}
             alt=""
             onError={() => setBackdropOk(false)}
             className="absolute inset-0 w-full h-full object-cover fade-in"
@@ -70,7 +96,7 @@ export default function MediaDetailModal({ id, onClose }: { id: number; onClose:
           style={{ background: posterGradient(item?.showTitle || item?.title || 'x') }}
         >
           {poster ? (
-            <img src={poster} alt="" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <img key={poster} src={poster} alt="" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
           ) : item?.tmdbPosterPath ? (
             <img src={tmdbImage(item.tmdbPosterPath)} alt="" className="w-full h-full object-cover" />
           ) : (
@@ -120,6 +146,44 @@ export default function MediaDetailModal({ id, onClose }: { id: number; onClose:
               )}
               {item.overview && <p className="mt-4 text-[13.5px] text-ink-soft leading-relaxed">{item.overview}</p>}
 
+              {/* Its TMDB match — the one place to fix it from here. */}
+              {target && status && (
+                <div
+                  className={cx(
+                    'mt-4 flex items-center gap-3 rounded-xl border px-3.5 py-2.5',
+                    status.warn ? 'border-amber-500/30 bg-amber-500/[0.06]' : 'border-edge bg-sunken/60',
+                  )}
+                >
+                  <Icon
+                    name={status.warn ? 'warning' : target.tmdbId != null ? 'success' : 'info'}
+                    size={16}
+                    className={cx('shrink-0', status.warn ? 'text-amber-300' : target.tmdbId != null ? 'text-emerald-400' : 'text-ink-faint')}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] text-ink-soft truncate">
+                      {status.text}
+                      {target.tmdbId != null && (
+                        <a
+                          href={tmdbPage('movie', target.tmdbId)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-1.5 inline-flex items-center text-ink-faint hover:text-indigo-300 align-[-2px]"
+                          aria-label="Open on TMDB"
+                          title="Open on TMDB"
+                        >
+                          <Icon name="external" size={13} />
+                        </a>
+                      )}
+                    </div>
+                    {status.detail && <div className="text-[12px] text-ink-faint">{status.detail}</div>}
+                  </div>
+                  <Button size="sm" variant="secondary" icon="search" disabled={match.busy} onClick={match.openFix}>
+                    {target.tmdbId != null ? 'Fix match' : 'Match'}
+                  </Button>
+                  <Menu label="More match actions" items={match.items.slice(1)} />
+                </div>
+              )}
+
               <dl className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3.5 rounded-xl border border-edge bg-sunken/60 p-4">
                 <Spec label="Library" value={item.library.name} />
                 <Spec label="Last aired" value={item.aired ? formatAired(item.aired) : 'Not in the last 90 days'} />
@@ -136,6 +200,7 @@ export default function MediaDetailModal({ id, onClose }: { id: number; onClose:
           )}
         </div>
       </div>
+      {match.dialog}
     </Modal>
   )
 }

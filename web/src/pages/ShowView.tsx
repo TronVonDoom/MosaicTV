@@ -16,6 +16,7 @@ import MediaDetailModal from '../components/MediaDetailModal'
 import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
 import ShowIdentityDialog from '../components/ShowIdentityDialog'
+import { describeMatch, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
 import Icon from '../components/Icon'
 import { Badge, Banner, Breadcrumbs, Button, Menu, Skeleton, cx } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
@@ -51,10 +52,31 @@ export default function ShowView() {
       .then((r) => setAirings(r.airings))
       .catch(() => setAirings([]))
 
+  const loadDetail = () => api.showDetail(id, showTitle).then(setDetail).catch(() => {})
+
+  // Its TMDB match: fixed, refreshed or taken away from the show's menu.
+  const matchTarget: MatchTarget | null =
+    detail?.id != null
+      ? {
+          kind: 'show',
+          id: detail.id,
+          title: showTitle,
+          year: detail.fileYear,
+          tmdbId: detail.tmdbId,
+          tmdbMatch: detail.tmdbMatch,
+          tmdbTitle: detail.tmdbTitle,
+          tmdbYear: detail.tmdbYear,
+          tmdbPosterPath: detail.tmdbPosterPath,
+          episodeCount: detail.episodeCount,
+        }
+      : null
+  const match = useMatchActions(matchTarget, () => void loadDetail())
+  const matchStatus = matchTarget && describeMatch(matchTarget)
+
   useEffect(() => {
     if (!showTitle) return
     setOpenSeason(undefined)
-    api.showDetail(id, showTitle).then(setDetail).catch(() => {})
+    void loadDetail()
     reloadAirings()
     api
       .airingAppearances(id, showTitle)
@@ -153,13 +175,15 @@ export default function ShowView() {
       .catch(() => {})
   }, [id])
 
+  // Versioned by the match, so a fixed match shows its own art at once.
   const posterSrc =
     detail?.artItemId != null
-      ? artworkUrl(detail.artItemId, 'show', ART.large)
+      ? artworkUrl(detail.artItemId, 'show', ART.large, detail.tmdbPosterPath)
       : detail?.tmdbPosterPath
         ? tmdbImage(detail.tmdbPosterPath)
         : null
-  const backdropSrc = detail?.hasBackdrop && detail.artItemId != null ? artworkUrl(detail.artItemId, 'backdrop') : null
+  const backdropSrc =
+    detail?.hasBackdrop && detail.artItemId != null ? artworkUrl(detail.artItemId, 'backdrop', undefined, String(detail.tmdbId ?? '')) : null
   const totalRuntime = detail
     ? detail.seasons.reduce((a, se) => a + se.episodes.reduce((b, e) => b + (e.durationSec ?? 0), 0), 0)
     : 0
@@ -207,6 +231,8 @@ export default function ShowView() {
                     items={[
                       { label: 'Rename…', icon: 'edit', onSelect: () => setIdentity('rename') },
                       { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
+                      'divider',
+                      ...match.items,
                     ]}
                   />
                 )}
@@ -214,6 +240,20 @@ export default function ShowView() {
               {detail && detail.names.length > 1 && (
                 <div className="mt-1.5 text-[12.5px] text-ink-faint">
                   Filed from {detail.names.map((n) => `“${n}”`).join(', ')}
+                </div>
+              )}
+              {/* Only when the match wants a look (or was taken away): the
+                  show's menu is where it's fixed. */}
+              {matchStatus && (matchStatus.warn || matchTarget?.tmdbId == null) && (
+                <div className={cx('mt-1.5 flex items-center gap-1.5 text-[12.5px]', matchStatus.warn ? 'text-amber-300' : 'text-ink-faint')}>
+                  <Icon name={matchStatus.warn ? 'warning' : 'info'} size={13} className="shrink-0" />
+                  <span>
+                    {matchStatus.text}
+                    {matchStatus.detail && <span className="text-ink-faint"> · {matchStatus.detail}</span>}
+                  </span>
+                  <button onClick={match.openFix} className="ml-1 font-medium text-indigo-300 hover:text-indigo-200">
+                    {matchTarget?.tmdbId != null ? 'Fix match' : 'Match'}
+                  </button>
                 </div>
               )}
               {detail ? (
@@ -415,6 +455,7 @@ export default function ShowView() {
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} />
       )}
+      {match.dialog}
       {identity && detail?.id != null && (
         <ShowIdentityDialog
           mode={identity}

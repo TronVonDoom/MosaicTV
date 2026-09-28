@@ -2,6 +2,10 @@ import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { episodesAired } from '../aired.js'
+import { asMatchFilter, MatchPick } from '../contract/index.js'
+import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata.js'
+import { readBody } from '../validate.js'
+import { answerMatch } from './metadata.js'
 
 export const mediaRouter = Router()
 
@@ -18,6 +22,11 @@ mediaRouter.get('/', async (req, res) => {
   if (q) {
     where.OR = [{ title: { contains: q } }, { showTitle: { contains: q } }]
   }
+  // A movie library's review filters: no TMDB match, or an automatic one
+  // that doesn't agree with the file.
+  const match = asMatchFilter(req.query.match)
+  if (match === 'unmatched') Object.assign(where, unmatchedMovieWhere())
+  if (match === 'doubtful') where.id = { in: await doubtfulMovieIds(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) }
 
   // Title order by default (shows, then season/episode); the library grid also
   // offers newest release, most recently added, and TMDB rating.
@@ -56,3 +65,18 @@ mediaRouter.get('/:id', async (req, res) => {
   const aired = await episodesAired([id])
   res.json({ ...item, aired: aired[id] ?? null })
 })
+
+// Fix match, Unmatch and Refresh metadata for one movie, as in Plex: a TMDB
+// match picked by hand (kept from then on), taken away (and left alone), or
+// fetched afresh.
+
+// POST /api/media/:id/match  { tmdbId }
+mediaRouter.post('/:id/match', async (req, res) => {
+  const body = readBody(MatchPick, req, res)
+  if (!body) return
+  await answerMatch(res, () => matchMovie(Number(req.params.id), body.tmdbId))
+})
+// DELETE /api/media/:id/match
+mediaRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchMovie(Number(req.params.id))))
+// POST /api/media/:id/refresh
+mediaRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshMovie(Number(req.params.id))))
