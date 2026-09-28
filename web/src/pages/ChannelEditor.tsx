@@ -122,7 +122,7 @@ export default function ChannelEditor() {
 
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-3">
         <Breadcrumbs items={[{ label: 'Channels', to: '/channels' }, { label: ch.name }]} />
       </div>
 

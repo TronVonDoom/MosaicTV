@@ -292,15 +292,17 @@ export function IconButton({
   variant?: ButtonVariant
   size?: ButtonSize
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>) {
-  const dims = { sm: 'w-8 px-0', md: 'w-9 px-0', lg: 'w-10 px-0' }[size]
+  // Square, with no padding: not buttonClass's sizes, whose px-3/px-4 outrank a
+  // px-0 added after them and left the glyph squeezed to a sliver.
+  const dims = { sm: 'h-8 w-8', md: 'h-9 w-9', lg: 'h-10 w-10' }[size]
   return (
     <button
       title={label}
       aria-label={label}
-      className={buttonClass(variant, size, cx(dims, className))}
+      className={cx(BUTTON_BASE, BUTTON_VARIANTS[variant], dims, className)}
       {...rest}
     >
-      <Icon name={icon} size={size === 'sm' ? 15 : 17} />
+      <Icon name={icon} size={size === 'sm' ? 16 : size === 'md' ? 18 : 20} className="shrink-0" />
     </button>
   )
 }

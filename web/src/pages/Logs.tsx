@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, logsDownloadUrl, type LogCategory, type LogEntry, type LogLevel } from '../lib/api'
+import { api, logsDownloadUrl, type Health, type LogCategory, type LogEntry, type LogLevel } from '../lib/api'
 import { copyText } from '../lib/clipboard'
 import { usePolling } from '../lib/hooks'
-import { Button, InfoHint, LinkButton, PageHeader, Select } from '../components/ui'
+import { Button, InfoHint, LinkButton, PageHeader, Select, cx } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
 
 const LEVELS: { value: LogLevel | 'all'; label: string }[] = [
@@ -25,6 +25,70 @@ const levelStyle: Record<LogLevel, string> = {
   warn: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
   info: 'text-sky-300 border-sky-500/30 bg-sky-500/10',
   debug: 'text-ink-muted border-ink-ghost/40 bg-ink-ghost/10',
+}
+
+const uptime = (s: number) => {
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`
+}
+
+/** How the server itself is doing — running, for how long, on what — at the
+ *  top of the logs, where a problem report starts. */
+function ServerStatus() {
+  const [health, setHealth] = useState<Health | null>(null)
+  const [reachable, setReachable] = useState<boolean | null>(null)
+  const load = useCallback(
+    () =>
+      api
+        .health()
+        .then((h) => {
+          setHealth(h)
+          setReachable(true)
+        })
+        .catch(() => setReachable(false)),
+    [],
+  )
+  useEffect(() => {
+    load()
+  }, [load])
+  usePolling(load, 30000)
+
+  const ok = reachable === true && !!health?.ffmpeg
+  const tone =
+    reachable === null
+      ? { dot: 'bg-amber-400', label: 'Connecting…' }
+      : !reachable
+        ? { dot: 'bg-rose-500', label: 'Server not answering — is the container running?' }
+        : !health?.ffmpeg
+          ? { dot: 'bg-amber-400', label: 'ffmpeg not found — channels can’t stream' }
+          : { dot: 'bg-emerald-400', label: 'Running normally' }
+  const fact = (label: string, value: string, className = 'text-ink-soft') => (
+    <span className="text-ink-faint">
+      {label} <span className={cx('tabular-nums', className)}>{value}</span>
+    </span>
+  )
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 mb-4 rounded-xl border border-edge bg-surface/60 px-4 py-2.5 text-[13px]">
+      <span className="inline-flex items-center gap-2 font-medium text-ink">
+        <span className="relative flex w-2 h-2">
+          {ok && <span className={cx('absolute inset-0 rounded-full pulse-live', tone.dot)} />}
+          <span className={cx('relative w-2 h-2 rounded-full', tone.dot)} />
+        </span>
+        {tone.label}
+      </span>
+      {health && reachable && (
+        <>
+          {/^\d/.test(health.version) && fact('Version', `v${health.version}`)}
+          {fact('Up', uptime(health.uptimeSeconds))}
+          {fact('Node', health.node)}
+          {fact('ffmpeg', health.ffmpeg ? 'available' : 'not found', health.ffmpeg ? 'text-emerald-300' : 'text-rose-300')}
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function Logs() {
@@ -138,7 +202,7 @@ export default function Logs() {
         icon="logs"
         description={
           <>
-            Stream, ffmpeg, playout and system events — what to copy when reporting a problem.{' '}
+            Stream, ffmpeg, playout and system events — what to send with a bug report.{' '}
             <InfoHint>
               Lines raised while serving a viewer are tagged with that stream (e.g. V3 Plex) — click a tag to
               follow just that one. Copy and Download always take the whole log, debug lines included,
@@ -148,18 +212,20 @@ export default function Logs() {
         }
         actions={
           <>
-            <Button variant="secondary" size="sm" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
+            <Button variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
               {copied ? 'Copied' : 'Copy all'}
             </Button>
-            <LinkButton size="sm" icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
+            <LinkButton icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
               Download
             </LinkButton>
-            <Button variant="danger" size="sm" icon="trash" onClick={clearAll}>
+            <Button variant="danger" icon="trash" onClick={clearAll}>
               Clear
             </Button>
           </>
         }
       />
+
+      <ServerStatus />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select

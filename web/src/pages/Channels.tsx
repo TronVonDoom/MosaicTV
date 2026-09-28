@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ChannelCard from '../components/ChannelCard'
 import GuideGrid from '../components/GuideGrid'
 import LogoPicker from '../components/LogoPicker'
@@ -112,7 +112,6 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
 }
 
 export default function Channels() {
-  const { openConnect } = useOutletContext<{ openConnect: () => void }>()
   const navigate = useNavigate()
   const [channels, setChannels] = useState<Channel[] | null>(null)
   const [nowRows, setNowRows] = useState<Record<number, ChannelNow>>({})
@@ -200,14 +199,9 @@ export default function Channels() {
         icon="channels"
         description="Every channel you run, what it's airing, and the guide your players see."
         actions={
-          <>
-            <Button variant="secondary" icon="link" onClick={openConnect}>
-              Live TV setup
-            </Button>
-            <Button icon="plus" onClick={() => setCreating(true)}>
-              New channel
-            </Button>
-          </>
+          <Button icon="plus" onClick={() => setCreating(true)}>
+            New channel
+          </Button>
         }
       />
 

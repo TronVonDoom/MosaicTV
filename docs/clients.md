@@ -6,7 +6,7 @@ MosaicTV speaks the two standards every IPTV-capable player understands:
 - **XMLTV guide (EPG)** — `http://YOUR-SERVER:8688/iptv/xmltv.xml`
 
 (Both URLs — plus the HDHomeRun tuner address — are one click away under
-**Live TV setup** in the top bar, with copy buttons and per-player steps.)
+**Live TV setup** at the bottom of the sidebar, with copy buttons and per-player steps.)
 
 Tune in mid-program and a channel picks up at the right spot, just like real TV.
 

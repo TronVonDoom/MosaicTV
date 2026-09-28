@@ -142,7 +142,7 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
 
         <p className="text-xs text-ink-faint mt-5">
           Then connect Jellyfin, Plex, Emby or VLC with the <span className="text-ink-soft">Live TV setup</span>{' '}
-          button at the top — or read the{' '}
+          item at the bottom of the sidebar — or read the{' '}
           <a
             href="https://github.com/TronVonDoom/mosaictv/blob/main/docs/getting-started.md"
             target="_blank"

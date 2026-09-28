@@ -234,8 +234,8 @@ columns rather than a narrow strip.
 ### Output and encoding
 
 - **Standard M3U + XMLTV**, plus a built-in **HDHomeRun tuner** that Plex's
-  Live TV adds directly. **Live TV setup** in the top bar has every address
-  with copy buttons and step-by-step instructions per player.
+  Live TV adds directly. **Live TV setup** at the bottom of the sidebar has
+  every address with copy buttons and step-by-step instructions per player.
 - **Shared HLS** (one transcode per channel, however many viewers) or
   per-client **MPEG-TS**.
 - **Per-channel encoding profiles** — resolution, fps, bitrate, deinterlacing,

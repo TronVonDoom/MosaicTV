@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import ToastContainer from './ToastContainer'
@@ -6,10 +6,11 @@ import CommandPalette from './CommandPalette'
 import ConnectPlayers from './ConnectPlayers'
 import NotificationBell from './NotificationBell'
 import ConfirmHost from './ConfirmHost'
-import { api, type Health } from '../lib/api'
+import { api, type Channel, type Health, type Library } from '../lib/api'
+import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
 import { usePolling } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
-import { Button, IconButton, Kbd, cx } from './ui'
+import { IconButton, Kbd, cx } from './ui'
 
 /** Mac gets ⌘K, everyone else Ctrl-K — label it to match the actual keyboard. */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
@@ -59,23 +60,136 @@ function readCollapsed(): boolean {
   return typeof window !== 'undefined' && window.innerWidth < 1280
 }
 
+// Which rail items the user has opened or closed by hand; the rest open
+// while you're in them.
+const OPEN_KEY = 'mosaictv.navOpen'
+
+function readOpen(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}') ?? {}
+  } catch {
+    return {}
+  }
+}
+
+/** What the pages learn from the frame: whether the sidebar is listing their
+ *  sections (open, on a desktop), so they needn't list them again. */
+export type LayoutContext = { railSections: boolean }
+
 type Live = { channels: number; viewers: number }
+
+/** One entry under a rail item: a channel, a library, a page's section. */
+type SubItem = { key: string; to: string; label: ReactNode; title: string; active: boolean }
+
+/** The entries under a rail item — none for the ones without any. */
+function subItems(
+  to: string,
+  where: { pathname: string; hash: string },
+  channels: Channel[] | null,
+  libraries: Library[] | null,
+): SubItem[] {
+  const { pathname, hash } = where
+  const under = (p: string) => pathname === p || pathname.startsWith(p + '/')
+  // A page's #sections; no hash (or one it doesn't know) is its first.
+  const sections = (page: string, list: readonly { id: string; label: string }[]) => {
+    const current = list.find((s) => `#${s.id}` === hash)?.id ?? list[0].id
+    return list.map((s) => ({ key: s.id, to: `${page}#${s.id}`, label: s.label, title: s.label, active: pathname === page && s.id === current }))
+  }
+  switch (to) {
+    case '/channels':
+      // On air by number, then the drafts.
+      return [...(channels ?? [])]
+        .sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.name.localeCompare(b.name))
+        .map((c) => ({
+          key: String(c.id),
+          to: `/channels/${c.id}`,
+          label: (
+            <>
+              <span className="w-7 shrink-0 font-mono text-[11px] text-ink-faint tabular-nums">{c.number ?? '—'}</span>
+              <span className="truncate">{c.name}</span>
+            </>
+          ),
+          title: c.number != null ? `${c.number} · ${c.name}` : `${c.name} (draft)`,
+          active: under(`/channels/${c.id}`),
+        }))
+    case '/library':
+      return [
+        ...(libraries ?? []).map((l) => ({
+          key: `library-${l.id}`,
+          to: `/library/${l.id}`,
+          label: l.name,
+          title: l.name,
+          active: under(`/library/${l.id}`),
+        })),
+        { key: 'sources', to: '/library#sources', label: 'Sources', title: 'Sources', active: pathname === '/library' && hash === '#sources' },
+      ]
+    case '/studio':
+      return sections('/studio', STUDIO_SECTIONS)
+    case '/settings':
+      return sections('/settings', SETTINGS_SECTIONS)
+    default:
+      return []
+  }
+}
+
+/** A rail item's look: the page you're on, a section you're somewhere inside
+ *  (one of its entries is the page), or neither. */
+function navItemClass(state: 'on' | 'within' | 'off', collapsed: boolean): string {
+  return cx(
+    'group relative flex items-center gap-3 h-9 w-full rounded-lg text-[13.5px] font-medium transition-colors',
+    collapsed ? 'justify-center' : 'px-2.5',
+    state === 'on'
+      ? 'bg-white/[0.07] text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]'
+      : state === 'within'
+        ? 'text-ink hover:bg-white/[0.035]'
+        : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
+  )
+}
+
+function NavIcon({ name, active }: { name: IconName; active: boolean }) {
+  return (
+    <Icon
+      name={name}
+      size={18}
+      className={cx('shrink-0 transition-colors', active ? 'text-indigo-300' : 'text-ink-faint group-hover:text-ink-muted')}
+    />
+  )
+}
 
 function Sidebar({
   collapsed,
   onToggle,
   live,
-  version,
+  channels,
+  libraries,
+  health,
   className,
   onNavigate,
+  onConnect,
 }: {
   collapsed: boolean
   onToggle?: () => void
   live: Live | null
-  version: string | null
+  channels: Channel[] | null
+  libraries: Library[] | null
+  health: Health | null
   className?: string
   onNavigate?: () => void
+  onConnect: () => void
 }) {
+  const version = health?.version ?? null
+  const location = useLocation()
+  const [open, setOpen] = useState(readOpen)
+  const toggle = (to: string, value: boolean) =>
+    setOpen((o) => {
+      const next = { ...o, [to]: value }
+      try {
+        localStorage.setItem(OPEN_KEY, JSON.stringify(next))
+      } catch {
+        /* private mode — it just won't stick */
+      }
+      return next
+    })
   return (
     <aside
       className={cx(
@@ -116,48 +230,95 @@ function Sidebar({
               </div>
             )}
             <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  onClick={onNavigate}
-                  title={collapsed ? item.label : undefined}
-                  className={({ isActive }) =>
-                    cx(
-                      'group relative flex items-center gap-3 h-9 rounded-lg text-[13.5px] font-medium transition-colors',
-                      collapsed ? 'justify-center' : 'px-2.5',
-                      isActive
-                        ? 'bg-white/[0.07] text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]'
-                        : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-indigo-400 to-sky-400" />
-                      )}
-                      <Icon
-                        name={item.icon}
-                        size={18}
-                        className={cx(
-                          'shrink-0 transition-colors',
-                          isActive ? 'text-indigo-300' : 'text-ink-faint group-hover:text-ink-muted',
+              {group.items.map((item) => {
+                // Entries only fit beside labels: the collapsed rail has none.
+                const kids = collapsed ? [] : subItems(item.to, location, channels, libraries)
+                const within = item.end
+                  ? location.pathname === item.to
+                  : location.pathname === item.to || location.pathname.startsWith(item.to + '/')
+                const isOpen = kids.length > 0 && (open[item.to] ?? within)
+                const kidActive = kids.some((k) => k.active)
+                return (
+                  <div key={item.to}>
+                    <div className="relative">
+                      <NavLink
+                        to={item.to}
+                        end={item.end}
+                        onClick={onNavigate}
+                        title={collapsed ? item.label : undefined}
+                        className={({ isActive }) =>
+                          cx(navItemClass(!isActive ? 'off' : kidActive ? 'within' : 'on', collapsed), kids.length > 0 && 'pr-9')
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            {isActive && (
+                              <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-indigo-400 to-sky-400" />
+                            )}
+                            <NavIcon name={item.icon} active={isActive} />
+                            {!collapsed && item.label}
+                          </>
                         )}
-                      />
-                      {!collapsed && item.label}
-                    </>
-                  )}
-                </NavLink>
-              ))}
+                      </NavLink>
+                      {kids.length > 0 && (
+                        <button
+                          onClick={() => toggle(item.to, !isOpen)}
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? 'Hide' : 'Show'} what's in ${item.label}`}
+                          title={isOpen ? 'Hide' : 'Show'}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-7 h-7 rounded-md text-ink-faint hover:text-ink hover:bg-white/[0.06] transition-colors"
+                        >
+                          <Icon name="chevronRight" size={16} className={cx('transition-transform duration-150', isOpen && 'rotate-90')} />
+                        </button>
+                      )}
+                    </div>
+                    {isOpen && (
+                      <div className="mt-0.5 mb-1.5 ml-[19px] pl-2.5 border-l border-edge space-y-px">
+                        {kids.map((k) => (
+                          <Link
+                            key={k.key}
+                            to={k.to}
+                            onClick={onNavigate}
+                            title={k.title}
+                            aria-current={k.active ? 'page' : undefined}
+                            className={cx(
+                              'flex items-center gap-1.5 h-8 min-w-0 rounded-md px-2.5 text-[13px] transition-colors',
+                              k.active
+                                ? 'bg-white/[0.07] text-ink font-medium'
+                                : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
+                            )}
+                          >
+                            {typeof k.label === 'string' ? <span className="truncate">{k.label}</span> : k.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         ))}
       </nav>
 
+      {/* Connecting players: the last thing above the line, however long the
+          navigation above it runs. */}
+      <div className="shrink-0 px-3 pb-2">
+        <button
+          onClick={() => {
+            onNavigate?.()
+            onConnect()
+          }}
+          title={collapsed ? 'Live TV setup' : 'The addresses your players tune in with'}
+          className={navItemClass('off', collapsed)}
+        >
+          <NavIcon name="link" active={false} />
+          {!collapsed && 'Live TV setup'}
+        </button>
+      </div>
+
       {/* On-air status — "is it actually broadcasting?" answered from anywhere. */}
-      <div className={cx('shrink-0 border-t border-edge', collapsed ? 'p-3' : 'p-3')}>
+      <div className="shrink-0 border-t border-edge p-3">
         {live && (
           <Link
             to="/channels"
@@ -214,79 +375,6 @@ function Sidebar({
   )
 }
 
-/** Server status in the top bar: a dot, and the details on click. */
-function HealthButton({ health, reachable }: { health: Health | null; reachable: boolean | null }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false)
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
-
-  const ok = reachable === true && (health?.ffmpeg ?? true)
-  const tone =
-    reachable === null
-      ? { dot: 'bg-amber-400', label: 'Connecting…' }
-      : !reachable
-        ? { dot: 'bg-rose-500', label: 'Server unreachable' }
-        : ok
-          ? { dot: 'bg-emerald-400', label: 'All systems normal' }
-          : { dot: 'bg-amber-400', label: 'ffmpeg missing' }
-
-  const uptime = (s: number) => {
-    const d = Math.floor(s / 86400)
-    const h = Math.floor((s % 86400) / 3600)
-    const m = Math.floor((s % 3600) / 60)
-    return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 h-8 rounded-lg px-2.5 text-[12.5px] text-ink-muted hover:text-ink hover:bg-white/[0.05] transition-colors"
-        aria-expanded={open}
-      >
-        <span className="relative flex w-2 h-2">
-          {ok && <span className={cx('absolute inset-0 rounded-full pulse-live', tone.dot)} />}
-          <span className={cx('relative w-2 h-2 rounded-full', tone.dot)} />
-        </span>
-        <span className="hidden md:inline">{tone.label}</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-edge-strong bg-overlay/95 backdrop-blur p-3 shadow-2xl shadow-black/60 modal-in z-50">
-          <div className="text-[13px] font-semibold text-ink mb-2">{tone.label}</div>
-          {health ? (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12.5px]">
-              <dt className="text-ink-faint">Version</dt>
-              <dd className="text-ink-soft tabular-nums">v{health.version}</dd>
-              <dt className="text-ink-faint">Uptime</dt>
-              <dd className="text-ink-soft tabular-nums">{uptime(health.uptimeSeconds)}</dd>
-              <dt className="text-ink-faint">Node</dt>
-              <dd className="text-ink-soft tabular-nums">{health.node}</dd>
-              <dt className="text-ink-faint">ffmpeg</dt>
-              <dd className={health.ffmpeg ? 'text-emerald-300' : 'text-rose-300'}>
-                {health.ffmpeg ? 'Available' : 'Not found'}
-              </dd>
-            </dl>
-          ) : (
-            <p className="text-[12.5px] text-ink-muted">The MosaicTV server isn't answering. Is the container running?</p>
-          )}
-          <Link
-            to="/logs"
-            onClick={() => setOpen(false)}
-            className="mt-3 flex items-center justify-between rounded-lg px-2 py-1.5 -mx-1 text-[12.5px] text-indigo-300 hover:bg-white/[0.05]"
-          >
-            Open logs <Icon name="chevronRight" size={14} />
-          </Link>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function Layout() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -296,8 +384,10 @@ export default function Layout() {
   // How many channels are actually on air, so the rail can say so at a glance
   // instead of making the user open the Dashboard to find out.
   const [live, setLive] = useState<Live | null>(null)
+  // The channels and libraries the rail lists under Channels and Library.
+  const [channelList, setChannelList] = useState<Channel[] | null>(null)
+  const [libraries, setLibraries] = useState<Library[] | null>(null)
   const [health, setHealth] = useState<Health | null>(null)
-  const [reachable, setReachable] = useState<boolean | null>(null)
 
   // ⌘K / Ctrl-K from anywhere. Bound on the window rather than a focus trap so
   // it works while a form field has focus — which is most of the time.
@@ -319,6 +409,7 @@ export default function Layout() {
     api
       .channels()
       .then((cs) => {
+        setChannelList(cs)
         const onAir = cs.filter((c) => c.number != null)
         setLive({ channels: onAir.length, viewers: onAir.reduce((n, c) => n + c.viewers, 0) })
       })
@@ -326,11 +417,8 @@ export default function Layout() {
   const loadHealth = () =>
     api
       .health()
-      .then((h) => {
-        setHealth(h)
-        setReachable(true)
-      })
-      .catch(() => setReachable(false))
+      .then(setHealth)
+      .catch(() => {})
 
   useEffect(() => {
     loadLive()
@@ -338,6 +426,11 @@ export default function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useLiveRefresh(loadLive, ['viewers', 'onAir'], { fallbackMs: 10000 })
+  // Libraries change only on the Library page, so that's when to look again.
+  const inLibrary = location.pathname.startsWith('/library')
+  useEffect(() => {
+    api.libraries().then(setLibraries).catch(() => {})
+  }, [inLibrary])
   usePolling(loadHealth, 30000)
 
   // Remember only an explicit choice, so the width default keeps applying
@@ -360,7 +453,10 @@ export default function Layout() {
           collapsed={collapsed}
           onToggle={toggleCollapsed}
           live={live}
-          version={health?.version ?? null}
+          channels={channelList}
+          libraries={libraries}
+          health={health}
+          onConnect={() => setConnectOpen(true)}
         />
       </div>
 
@@ -372,8 +468,11 @@ export default function Layout() {
             <Sidebar
               collapsed={false}
               live={live}
-              version={health?.version ?? null}
-              onNavigate={() => setMobileOpen(false)}
+              channels={channelList}
+              libraries={libraries}
+              health={health}
+                  onNavigate={() => setMobileOpen(false)}
+              onConnect={() => setConnectOpen(true)}
             />
           </div>
         </div>
@@ -404,12 +503,7 @@ export default function Layout() {
             </button>
 
             <div className="ml-auto shrink-0 flex items-center gap-1.5">
-              <HealthButton health={health} reachable={reachable} />
               <NotificationBell />
-              <Button variant="secondary" size="sm" icon="link" onClick={() => setConnectOpen(true)}>
-                <span className="hidden sm:inline">Live TV setup</span>
-                <span className="sm:hidden">Live TV</span>
-              </Button>
             </div>
           </div>
         </header>
@@ -421,7 +515,7 @@ export default function Layout() {
             key={location.pathname}
             className="max-w-[1680px] 3xl:max-w-[2160px] 4xl:max-w-[2720px] mx-auto px-4 sm:px-6 lg:px-8 3xl:px-10 py-7 fade-in"
           >
-            <Outlet context={{ openConnect: () => setConnectOpen(true) }} />
+            <Outlet context={{ railSections: !collapsed } satisfies LayoutContext} />
           </div>
         </main>
       </div>

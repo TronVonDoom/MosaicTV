@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useOutletContext } from 'react-router-dom'
 import { api, backupUrl, logoImageUrl, AUDIO_LANGUAGES, type StreamMode, type WatermarkConfig } from '../lib/api'
 import { errorMessage } from '../lib/errors'
 import WatermarkFields from '../components/WatermarkFields'
@@ -7,6 +8,8 @@ import EncodingProfilesCard from '../components/EncodingProfilesCard'
 import LibraryMetadataCard from '../components/settings/LibraryMetadataCard'
 import AboutCard from '../components/settings/AboutCard'
 import SideNav from '../components/SideNav'
+import type { LayoutContext } from '../components/Layout'
+import { SETTINGS_SECTIONS } from '../lib/sections'
 import { toast } from '../lib/toast'
 import { useHashTab } from '../lib/hooks'
 import {
@@ -25,13 +28,7 @@ import {
 } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
 
-const TABS = [
-  { id: 'metadata', label: 'Metadata', icon: 'sparkles', description: 'TMDB artwork & descriptions' },
-  { id: 'streaming', label: 'Streaming', icon: 'cast', description: 'Streams, guide depth, tuner' },
-  { id: 'watermark', label: 'Watermark', icon: 'image', description: 'The default on-screen logo' },
-  { id: 'encoding', label: 'Encoding', icon: 'cpu', description: 'Resolution, bitrate, GPU' },
-  { id: 'maintenance', label: 'Maintenance', icon: 'database', description: 'Backup, reset, about' },
-] as const
+const TABS = SETTINGS_SECTIONS
 
 type SettingsTab = (typeof TABS)[number]['id']
 const TAB_IDS = TABS.map((t) => t.id)
@@ -254,17 +251,25 @@ export default function Settings() {
   }
 
   const current = TABS.find((t) => t.id === tab)!
+  // The sidebar lists the sections itself when it's open on a desktop.
+  const { railSections } = useOutletContext<LayoutContext>()
 
   return (
     <div>
       <PageHeader
         title="Settings"
         icon="settings"
-        description="How this MosaicTV instance finds artwork, streams, brands its channels, and keeps itself backed up."
+        description="How MosaicTV finds artwork, streams, brands its channels and keeps itself backed up."
       />
 
-      <div className="grid gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)]">
-        <SideNav label="Settings sections" items={TABS} active={tab} onChange={setTab} />
+      <div className={cx('grid gap-6 grid-cols-[minmax(0,1fr)]', !railSections && 'lg:grid-cols-[232px_minmax(0,1fr)]')}>
+        <SideNav
+          label="Settings sections"
+          items={TABS}
+          active={tab}
+          onChange={setTab}
+          className={railSections ? 'lg:hidden' : undefined}
+        />
 
         <div className="min-w-0">
           <div className="mb-5">
