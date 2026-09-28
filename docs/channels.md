@@ -43,6 +43,26 @@ resolves to a set of playable items from two sources, combined and deduped:
 
 Only playable items count (files that exist and have a known duration).
 
+**Includes** (in the collection's **Settings**) decides whether whole shows and
+the smart filter bring in two things you may not want on air:
+
+- **Specials (season 0)** — pilots, holiday specials, shorts and promos filed
+  as season 0. They sort before season 1, so a whole show starts with them.
+- **Extras** — featurettes, trailers, interviews, deleted scenes and the like.
+  A library leaves these out altogether unless it's set to keep them
+  (**Library → Sources**, see [Getting started](getting-started.md)); in one
+  that does, this keeps them from airing as programs of their own — a
+  two-minute trailer as a movie.
+
+Both are on for a new collection. A season 0 or an extra you pick on its own
+airs either way — leave specials out, then add *Rugrats — Season 0* as a member
+to keep that one show's. A library that keeps extras labels them
+("Featurette · 2009") so they're easy to tell apart.
+
+To keep season 0 out of *every* channel, turn off **Specials (season 0)** on
+the library instead: it's removed from the library, not just from one
+collection.
+
 **Plays in this order** (in the collection's **Settings**) sets its own playback
 order (below), with each choice explained and the collection's first airings
 previewed as you pick. Every rotation item and time block defaults to
@@ -250,8 +270,9 @@ what to change:
 - a collection with **nothing it can play**;
 - a block's collection **shorter than the time its blocks get a week**, so it
   repeats within the week;
-- **season 0** (specials, shorts) airing before season 1 — pick the seasons
-  instead of the whole show to leave them out;
+- **season 0** (specials, shorts) airing before season 1, and **extras**
+  (featurettes, trailers) airing as programs — each with a button to leave
+  them out of the collection;
 - an exact-time start **between the lines of the clock**.
 
 The Guide tab's **Weeks ahead** lays the schedule out 2, 4 or 8 weeks past the

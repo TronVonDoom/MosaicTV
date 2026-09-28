@@ -19,6 +19,16 @@ last; the whole thing takes about ten minutes plus scan time.
   under `/media`.
 - **Type** — TV Shows, Movies, or Music Videos. This controls how filenames
   are parsed.
+- **Specials (season 0)** — TV only, on by default: pilots, holiday specials,
+  shorts and promos filed as season 0.
+- **Extras** — off by default, so only the movies and episodes themselves are
+  added: featurettes, trailers, interviews and deleted scenes filed with them
+  (an `Extras`, `Featurettes`, `Trailers`, `Behind The Scenes`… folder inside a
+  movie's or show's folder, or a name ending in `-featurette`, `-trailer` and
+  so on) stay out of the library.
+
+Both can be changed later on the library's row. Turning one off removes what
+the library has of it; turning it on scans them in.
 
 MosaicTV expects Plex-style naming, which you likely already have:
 
@@ -114,7 +124,7 @@ channel, **G** for the channel guide. Turn on **instant flipping** (the ⚡
 button) and the channels either side keep running, so a flip lands on a live
 picture — at the cost of an encoder each.
 
-For your TV and apps, **Live TV setup** (in the top bar, and on **Channels**)
+For your TV and apps, **Live TV setup** (at the bottom of the sidebar)
 has your two URLs, with copy buttons:
 
 - **M3U**: `http://YOUR-SERVER:8688/iptv/channels.m3u`

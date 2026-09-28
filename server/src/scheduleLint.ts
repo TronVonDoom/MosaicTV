@@ -3,7 +3,7 @@
 // will happen and what to change.
 
 import { prisma } from './db.js'
-import { collectionCount, effectiveOrder, resolveUnits } from './collections.js'
+import { collectionCount, collectionWhere, effectiveOrder, resolveUnits } from './collections.js'
 import { formatDays, minutesToTime } from './contract/index.js'
 import type { ScheduleWarning } from './contract/index.js'
 
@@ -106,8 +106,9 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   }
 
   // Season 0 (specials, shorts) airs first: every order but shuffle plays a
-  // show's episodes in order.
+  // show's episodes in order. Unless the collection leaves specials out.
   for (const [id, c] of used) {
+    if (!c.includeSpecials) continue
     const orders = [
       ...ch.rotationItems.filter((r) => r.collectionId === id).map((r) => effectiveOrder(r.playbackOrder, c)),
       ...ch.timeBlocks.filter((b) => b.collectionId === id).map((b) => effectiveOrder(b.playbackOrder, c)),
@@ -130,10 +131,39 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
     out.push({
       severity: 'info',
       collectionId: id,
+      leaveOut: 'specials',
       message:
         specials.length === 1
-          ? `In “${c.name}”, season 0 of ${specials[0].showTitle} (${plural(total, 'special or short', 'specials or shorts')}) airs before season 1. Pick its seasons instead of the whole show to leave it out.`
-          : `In “${c.name}”, season 0 of ${specials.length} shows airs before their season 1 — ${list}: ${plural(total, 'special or short', 'specials or shorts')} in all. Pick their seasons instead of the whole shows to leave them out.`,
+          ? `In “${c.name}”, season 0 of ${specials[0].showTitle} (${plural(total, 'special or short', 'specials or shorts')}) airs before season 1. Leave specials out of the collection, or pick the show’s seasons to keep only some.`
+          : `In “${c.name}”, season 0 of ${specials.length} shows airs before their season 1 — ${list}: ${plural(total, 'special or short', 'specials or shorts')} in all. Leave specials out of the collection, or pick a show’s seasons to keep only some.`,
+    })
+  }
+
+  // Extras — featurettes, trailers, interviews — brought in with a whole show
+  // or the smart filter, where they'd air as programs of their own.
+  for (const [id, c] of used) {
+    if (!c.includeExtras) continue
+    const picks = c.items.flatMap((i) =>
+      i.showId == null
+        ? []
+        : i.kind === 'show'
+          ? [{ showId: i.showId }]
+          : i.kind === 'season' && i.season != null
+            ? [{ showId: i.showId, season: i.season }]
+            : [],
+    )
+    const hasFilter = !!(c.libraryId || c.filterType || c.filterShow || c.filterSearch || c.filterGenre)
+    const from = [...picks, ...(hasFilter ? [collectionWhere(c)] : [])]
+    if (from.length === 0) continue
+    const n = await prisma.mediaItem.count({
+      where: { missing: false, durationSec: { gt: 0 }, extra: { not: null }, OR: from },
+    })
+    if (n === 0) continue
+    out.push({
+      severity: 'info',
+      collectionId: id,
+      leaveOut: 'extras',
+      message: `“${c.name}” airs ${plural(n, 'extra', 'extras')} filed with its movies and shows — featurettes, trailers, interviews and the like — as programs of their own. Leave extras out of the collection to air just the movies and episodes.`,
     })
   }
 

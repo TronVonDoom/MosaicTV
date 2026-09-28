@@ -10,15 +10,20 @@ datasource db {
 
 // A library groups one or more root folders to scan (e.g. movies + movies_4k).
 model Library {
-  id        Int             @id @default(autoincrement())
-  name      String
-  kind      String // "tv" | "movie" | "other"
-  createdAt DateTime        @default(now())
-  folders   LibraryFolder[]
-  items     MediaItem[]
-  shows     Show[]
-  showNames ShowName[]
-  airings   Airing[]
+  id              Int             @id @default(autoincrement())
+  name            String
+  kind            String // "tv" | "movie" | "other"
+  // What a TV or movie library indexes: season 0 (specials), and extras
+  // (featurettes, trailers…), which a scan leaves out unless asked — a
+  // featurette isn't a movie. Leaving either out removes what's there.
+  includeSpecials Boolean         @default(true)
+  includeExtras   Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  folders         LibraryFolder[]
+  items           MediaItem[]
+  shows           Show[]
+  showNames       ShowName[]
+  airings         Airing[]
 }
 
 // Simple key/value store (e.g. the TMDB API key).
@@ -185,28 +190,33 @@ model AiringSegment {
 // later, filler). Members are hand-picked shows and movies; the optional smart
 // filter adds a query-based set (unioned in).
 model Collection {
-  id            Int              @id @default(autoincrement())
-  name          String
+  id              Int              @id @default(autoincrement())
+  name            String
   // Owning channel (null = orphan/unassigned). Cascade-deletes with the channel.
-  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId     Int?
+  channel         Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId       Int?
   // The collection's own on-screen logo (falls back to the channel logo).
-  logo          Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
-  logoId        Int?
+  logo            Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logoId          Int?
   // The order this collection plays in when a rotation item or time block asks
   // for "inherit" (which is the default for new ones), so a collection airing in
   // several blocks only needs its order set once.
-  defaultOrder  String           @default("chronological")
+  defaultOrder    String           @default("chronological")
   // Optional smart filter (advanced).
-  libraryId     Int?
-  filterType    String? // "movie" | "episode" | "other"
-  filterShow    String? // exact show title (legacy; prefer members)
-  filterSearch  String? // title/show contains
-  filterGenre   String? // genre contains
-  createdAt     DateTime         @default(now())
-  items         CollectionItem[]
-  rotationItems RotationItem[]
-  timeBlocks    TimeBlock[]
+  libraryId       Int?
+  filterType      String? // "movie" | "episode" | "other"
+  filterShow      String? // exact show title (legacy; prefer members)
+  filterSearch    String? // title/show contains
+  filterGenre     String? // genre contains
+  // Whether whole-show picks and the smart filter bring in season 0
+  // (specials, shorts, promos) and extras (featurettes, trailers…). A season 0
+  // or an extra picked on its own airs either way.
+  includeSpecials Boolean          @default(true)
+  includeExtras   Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  items           CollectionItem[]
+  rotationItems   RotationItem[]
+  timeBlocks      TimeBlock[]
 
   @@index([channelId])
 }
@@ -506,6 +516,9 @@ model MediaItem {
   breaks           String?
   breaksSource     String?
   breaksCheckedAt  DateTime?
+  // A featurette, trailer, deleted scene… filed with a movie or show (see
+  // extraKind in scanner/parse.ts); null for the movie or episode itself.
+  extra            String?
   missing          Boolean         @default(false)
   addedAt          DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

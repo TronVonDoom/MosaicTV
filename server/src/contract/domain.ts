@@ -52,6 +52,11 @@ export type LibraryKind = (typeof LIBRARY_KINDS)[number]
 export const MEDIA_TYPES = ['movie', 'episode', 'music', 'other'] as const
 export type MediaType = (typeof MEDIA_TYPES)[number]
 
+/** The kinds of extra a movie or show can carry — featurettes, trailers,
+ *  deleted scenes… — as Plex names them. */
+export const EXTRA_KINDS = ['behindthescenes', 'deleted', 'featurette', 'interview', 'scene', 'short', 'trailer', 'sample', 'other'] as const
+export type ExtraKind = (typeof EXTRA_KINDS)[number]
+
 /** An ident's look: a generated style, or `custom` (an uploaded clip). The
  *  rest are retired styles older idents may still carry. */
 export const IDENT_STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const

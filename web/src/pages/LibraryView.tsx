@@ -13,7 +13,8 @@ import {
 import PosterCard from '../components/PosterCard'
 import MediaDetailModal from '../components/MediaDetailModal'
 import Icon from '../components/Icon'
-import { Breadcrumbs, EmptyState, IconTile, Select, Skeleton, buttonClass } from '../components/ui'
+import { Breadcrumbs, EmptyState, PageHeader, Select, Skeleton, buttonClass } from '../components/ui'
+import { extraLabel } from '../lib/format'
 
 const PAGE_SIZE = 60
 type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
@@ -120,19 +121,16 @@ export default function LibraryView() {
 
   return (
     <div>
-      <div className="mb-4">
-        <Breadcrumbs items={[{ label: 'Library', to: '/library' }, { label: library?.name ?? '…' }]} />
-      </div>
-
-      <div className="flex items-center gap-4 flex-wrap mb-6">
-        <IconTile name={isTv ? 'show' : library?.kind === 'movie' ? 'movie' : 'clip'} size="md" />
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[26px] font-semibold tracking-[-0.02em] leading-tight">{library?.name ?? 'Library'}</h1>
-          <p className="text-sm text-ink-muted tabular-nums">
+      <PageHeader
+        eyebrow={<Breadcrumbs items={[{ label: 'Library', to: '/library' }, { label: library?.name ?? '…' }]} />}
+        title={library?.name ?? 'Library'}
+        icon={isTv ? 'show' : library?.kind === 'movie' ? 'movie' : 'clip'}
+        description={
+          <span className="tabular-nums">
             {kindLabel} · {firstLoad ? '…' : `${count.toLocaleString()} ${noun}${debounced ? ` matching “${debounced}”` : ''}`}
-          </p>
-        </div>
-      </div>
+          </span>
+        }
+      />
 
       {/* Toolbar */}
       <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap">
@@ -223,7 +221,11 @@ export default function LibraryView() {
               <PosterCard
                 key={m.id}
                 title={m.title}
-                subtitle={m.type === 'music' ? m.artist ?? m.album ?? undefined : m.year ? String(m.year) : undefined}
+                subtitle={
+                  m.type === 'music'
+                    ? m.artist ?? m.album ?? undefined
+                    : [m.extra && extraLabel(m.extra), m.year].filter(Boolean).join(' · ') || undefined
+                }
                 badge={m.height ? (m.height >= 2000 ? '4K' : `${m.height >= 1000 ? 1080 : m.height >= 700 ? 720 : m.height}p`) : undefined}
                 rating={m.rating}
                 icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import type { Collection, Stored } from '../contract/index.js'
+import type { Collection, ExtraKind, Stored } from '../contract/index.js'
 import type { CollectionItem } from '@prisma/client'
 import { prisma } from '../db.js'
 import { warmFiller } from '../streaming/filler.js'
@@ -23,8 +23,10 @@ type MemberMeta = {
 }
 
 /** Artwork and counts for every member, in three queries however many there
- *  are: the single items by id, and one grouped pass over the shows' episodes. */
-async function memberMeta(items: CollectionItem[]): Promise<Map<number, MemberMeta>> {
+ *  are: the single items by id, and one grouped pass over the shows' episodes.
+ *  A whole show in a collection that leaves specials out doesn't count its
+ *  season 0 (`noSpecials`: those collections' ids). */
+async function memberMeta(items: CollectionItem[], noSpecials = new Set<number>()): Promise<Map<number, MemberMeta>> {
   const out = new Map<number, MemberMeta>()
   const singleIds = items.filter((i) => i.mediaItemId != null).map((i) => i.mediaItemId as number)
   const showIds = [...new Set(items.filter((i) => i.showId != null).map((i) => i.showId as number))]
@@ -61,7 +63,9 @@ async function memberMeta(items: CollectionItem[]): Promise<Map<number, MemberMe
     }
     const gs = groups.filter(
       (g) =>
-        it.showId != null && g.showId === it.showId && (it.kind !== 'season' || g.season === it.season),
+        it.showId != null &&
+        g.showId === it.showId &&
+        (it.kind === 'season' ? g.season === it.season : !(g.season === 0 && noSpecials.has(it.collectionId))),
     )
     const ids = gs.map((g) => g._min.id).filter((x): x is number => x != null)
     const years = gs.map((g) => g._min.year).filter((x): x is number => x != null)
@@ -84,7 +88,10 @@ collectionsRouter.get('/', async (req, res) => {
     orderBy: { createdAt: 'asc' },
     include: { items: { orderBy: { order: 'asc' }, include: { show: { select: { title: true } } } } },
   })
-  const meta = await memberMeta(cols.flatMap((c) => c.items))
+  const meta = await memberMeta(
+    cols.flatMap((c) => c.items),
+    new Set(cols.filter((c) => !c.includeSpecials).map((c) => c.id)),
+  )
   const withCounts = await Promise.all(
     cols.map(async (c): Promise<Stored<Collection>> => ({
       ...c,
@@ -134,7 +141,7 @@ collectionsRouter.get('/search', async (req, res) => {
     }),
     prisma.mediaItem.findMany({
       where: { type: 'movie', missing: false, title: { contains: q } },
-      select: { id: true, title: true, year: true },
+      select: { id: true, title: true, year: true, extra: true },
       orderBy: { title: 'asc' },
       take: 8,
     }),
@@ -173,6 +180,7 @@ collectionsRouter.get('/search', async (req, res) => {
       mediaItemId: m.id,
       title: m.title,
       year: m.year,
+      extra: m.extra as ExtraKind | null,
     })),
   ]
   res.json({ results })
@@ -189,7 +197,8 @@ collectionsRouter.patch('/:id', async (req, res) => {
   // A block with no logo of its own airs its collection's: new filler clips.
   if (logoId !== undefined) warmFiller().catch(() => {})
   // What it airs, and in what order (its name and logo don't change the guide).
-  const airs = (x: typeof c) => [x.defaultOrder, x.libraryId, x.filterType, x.filterShow, x.filterSearch, x.filterGenre].join('|')
+  const airs = (x: typeof c) =>
+    [x.defaultOrder, x.libraryId, x.filterType, x.filterShow, x.filterSearch, x.filterGenre, x.includeSpecials, x.includeExtras].join('|')
   if (airs(before) !== airs(c)) scheduleChanged(c.channelId)
   res.json(c)
 })
@@ -204,7 +213,14 @@ collectionsRouter.get('/:id/preview', async (req, res) => {
   if (!c) return res.status(404).json({ error: 'Not found' })
   // No explicit order = show what the collection plays by default.
   const order = asPlaybackOrder(req.query.order ?? c.defaultOrder)
-  const list = await resolveCollection(c, order, id)
+  // Specials and extras in or out as the settings form has them, before they're saved.
+  const flag = (v: unknown, saved: boolean) => (v === '1' ? true : v === '0' ? false : saved)
+  const draft = {
+    ...c,
+    includeSpecials: flag(req.query.specials, c.includeSpecials),
+    includeExtras: flag(req.query.extras, c.includeExtras),
+  }
+  const list = await resolveCollection(draft, order, id)
   // `count` is programs (units); each sample row is a unit's first segment.
   const sample = Array.from({ length: Math.min(12, list.length) }, (_, i) => list.at(i)[0])
   res.json({ count: list.length, order, sample })

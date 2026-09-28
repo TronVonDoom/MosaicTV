@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type { ExtraKind } from '../contract/index.js'
 
 export type LibraryKind = 'tv' | 'movie' | 'music' | 'other'
 
@@ -11,6 +12,74 @@ export type ParsedMedia = {
   year: number | null
   artist: string | null
   album: string | null
+  /** A featurette, trailer, deleted scene… filed with a movie or show, or null
+   *  for the movie or episode itself (see extraKind). */
+  extra: ExtraKind | null
+}
+
+// A folder of extras inside a movie's or show's own folder (Plex, Jellyfin and
+// Kodi all read these names).
+const EXTRA_FOLDERS: Record<string, ExtraKind> = {
+  'behind the scenes': 'behindthescenes',
+  'deleted scenes': 'deleted',
+  featurettes: 'featurette',
+  interviews: 'interview',
+  scenes: 'scene',
+  shorts: 'short',
+  trailers: 'trailer',
+  samples: 'sample',
+  sample: 'sample',
+  clips: 'other',
+  extras: 'other',
+  other: 'other',
+}
+
+// The folder names that only ever hold extras. The generic ones (Other,
+// Extras, Scenes, Shorts, Clips, Samples) sometimes hold real episodes in a TV
+// library — a season filed under "Other" — so a numbered episode only counts
+// as an extra under one of these.
+const SURE_EXTRA_FOLDERS = new Set(['behind the scenes', 'deleted scenes', 'featurettes', 'interviews', 'trailers'])
+
+// An extra kept beside the main file: "Redux-featurette.mkv".
+const EXTRA_SUFFIX_RE = /-(behindthescenes|deletedscene|deleted|featurette|interview|scene|short|trailer|sample|clip|extra|other)$/i
+const EXTRA_SUFFIXES: Record<string, ExtraKind> = {
+  behindthescenes: 'behindthescenes',
+  deletedscene: 'deleted',
+  deleted: 'deleted',
+  featurette: 'featurette',
+  interview: 'interview',
+  scene: 'scene',
+  short: 'short',
+  trailer: 'trailer',
+  sample: 'sample',
+  clip: 'other',
+  extra: 'other',
+  other: 'other',
+}
+
+/**
+ * Whether a file is one of a movie's or show's extras rather than the thing
+ * itself: it sits in an extras folder somewhere inside the title's own folder
+ * ("3 Idiots (2009)/Featurettes/Trailer.mkv"), or its name ends in an extras
+ * suffix ("Redux-featurette.mkv"). The title's own folder — the first one
+ * under the library — never counts, so a folder of movies called "Shorts"
+ * stays a folder of movies; and a numbered episode ("S25E43") in a generic
+ * folder like "Other" stays an episode.
+ */
+export function extraKind(absPath: string, libraryPath: string, kind: LibraryKind): ExtraKind | null {
+  if (kind !== 'tv' && kind !== 'movie') return null
+  const ext = path.extname(absPath)
+  const baseName = path.basename(absPath, ext)
+  const segments = path.relative(libraryPath, absPath).split(/[\\/]/).filter(Boolean)
+  const numbered = kind === 'tv' && SEASON_EP_RE.test(baseName)
+  for (const raw of segments.slice(1, -1)) {
+    const folder = raw.trim().toLowerCase()
+    const k = EXTRA_FOLDERS[folder]
+    if (k && (!numbered || SURE_EXTRA_FOLDERS.has(folder))) return k
+  }
+  const suffix = baseName.match(EXTRA_SUFFIX_RE)
+  if (suffix) return EXTRA_SUFFIXES[suffix[1].toLowerCase()]
+  return baseName.trim().toLowerCase() === 'sample' ? 'sample' : null
 }
 
 // Light cleanup for artist/album folder names (no year/quality stripping —
@@ -98,6 +167,9 @@ export function parseMedia(
   const segments = rel.split(/[\\/]/).filter(Boolean)
   // The topmost folder under the library is usually the show/movie folder.
   const topFolder = segments.length > 1 ? segments[0] : null
+  const extra = extraKind(absPath, libraryPath, kind)
+  // An extra named by suffix goes by the rest of its name: "Redux", not "Redux-featurette".
+  const named = baseName.replace(EXTRA_SUFFIX_RE, '')
 
   if (kind === 'tv') {
     const se = baseName.match(SEASON_EP_RE)
@@ -120,10 +192,11 @@ export function parseMedia(
         year: topFolder ? extractYear(topFolder) : null,
         artist: null,
         album: null,
+        extra,
       }
     }
     // No SxxEyy match — fall through to a generic entry.
-    return { type: 'other', title: cleanTitle(baseName), showTitle: null, season: null, episode: null, year: null, artist: null, album: null }
+    return { type: 'other', title: cleanTitle(named), showTitle: null, season: null, episode: null, year: null, artist: null, album: null, extra }
   }
 
   if (kind === 'music') {
@@ -144,7 +217,7 @@ export function parseMedia(
         title = cleanTitle(dash.slice(1).join(' - '))
       }
     }
-    return { type: 'music', title, showTitle: null, season: null, episode: null, year: extractYear(baseName), artist, album }
+    return { type: 'music', title, showTitle: null, season: null, episode: null, year: extractYear(baseName), artist, album, extra: null }
   }
 
   if (kind === 'movie') {
@@ -152,7 +225,7 @@ export function parseMedia(
     // enclosing *folder* often carries quality tags — e.g.
     // "Catch Me If You Can (2002) (HD) (x264)". Prefer the filename; fall back
     // to the folder only if the filename yields nothing useful.
-    const title = cleanTitle(baseName) || (topFolder ? cleanTitle(topFolder) : baseName)
+    const title = cleanTitle(named) || (topFolder ? cleanTitle(topFolder) : baseName)
     const year = extractYear(baseName) ?? (topFolder ? extractYear(topFolder) : null)
     return {
       type: 'movie',
@@ -163,6 +236,7 @@ export function parseMedia(
       year,
       artist: null,
       album: null,
+      extra,
     }
   }
 
@@ -176,5 +250,6 @@ export function parseMedia(
     year: extractYear(baseName),
     artist: null,
     album: null,
+    extra: null,
   }
 }

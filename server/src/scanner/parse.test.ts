@@ -66,3 +66,48 @@ test('parentheticals that carry meaning are left alone', () => {
   // An all-caps word alone is not a release tag — no quality token beside it.
   assert.equal(movie('Something (BBC).mkv').title, 'Something (BBC)')
 })
+
+test('extras are told from the movie or show they belong to', () => {
+  // Folders inside the title's own folder, as they sit in the real library.
+  const cases: [string, 'movie' | 'tv', string | null][] = [
+    ['3 Idiots (2009) (BR-DISK.x265)/3 Idiots (2009) (BR-DISK.x265).mkv', 'movie', null],
+    ['3 Idiots (2009) (BR-DISK.x265)/Featurettes/Trailer.mkv', 'movie', 'featurette'],
+    ['White Christmas (1954) (HD) (x264)/White Christmas (1954)/White Christmas (1954).mkv', 'movie', null],
+    ['White Christmas (1954) (HD) (x264)/White Christmas (1954)/Interviews/Bing Crosby Christmas Crooner.mkv', 'movie', 'interview'],
+    ['White Christmas (1954) (HD) (x264)/White Christmas (1954)/Trailers/Theatrical Trailer.mkv', 'movie', 'trailer'],
+    ['How the Grinch Stole Christmas! (1966)/Shorts/Rare Grinch Pencil Test.mkv', 'movie', 'short'],
+    ['A Colbert Christmas (2008)/Scenes/Alternative Endings.mkv', 'movie', 'scene'],
+    ['Some Movie (2001)/Behind The Scenes/Making Of.mkv', 'movie', 'behindthescenes'],
+    ['Some Movie (2001)/deleted scenes/Cut.mkv', 'movie', 'deleted'],
+    ['Some Movie (2001)/Extras/Gag Reel.mkv', 'movie', 'other'],
+    // Beside the movie, by suffix.
+    ['Apocalypse Now (1979) (HD) (x264)/Redux-featurette.mkv', 'movie', 'featurette'],
+    ['Some Movie (2001)/Some Movie-trailer.mp4', 'movie', 'trailer'],
+    ['Some Movie (2001)/sample.mkv', 'movie', 'sample'],
+    // A show's extras, even when they're numbered like episodes.
+    ['The Office (US) (2005)/Featurettes/Season 5/100 Episodes 100 Moments.mkv', 'tv', 'featurette'],
+    ['Show (1990)/Featurettes/Show - S01E01 - Making Of.mkv', 'tv', 'featurette'],
+    ['The Office (US) (2005)/Featurettes/Season 1/Deleted Scenes/The Office (US) - S01E01 - Pilot Deleted Scenes.mkv', 'tv', 'featurette'],
+    // …but a numbered episode in a folder whose name only might mean extras
+    // is an episode: real Pokémon episodes are filed under "Other".
+    ['Pokémon (1997)/Other/Pokémon - S25E43 - The Road Most Traveled!.mkv', 'tv', null],
+    ['Looney Tunes (1930)/Shorts/Looney Tunes - S01E01 - Sinkin in the Bathtub.mkv', 'tv', null],
+    ['Pokémon (1997)/Other/Pokémon Promo.mkv', 'tv', 'other'],
+    // Specials are season 0, not extras.
+    ['Rugrats (1991)/Specials/Rugrats - S00E01 - A Rugrats Passover.mkv', 'tv', null],
+    ['Rugrats (1991)/Season 01/Rugrats - S01E01 - Tommy’s First Birthday.mkv', 'tv', null],
+    // The title's own folder never counts, and neither do look-alike names.
+    ['Shorts/For the Birds (2000).mkv', 'movie', null],
+    ['Trailer Park Boys (2001)/Season 01/Trailer Park Boys - S01E01 - Take Your Little Gun.mkv', 'tv', null],
+    ['Face-Off (1997)/Face-Off (1997).mkv', 'movie', null],
+    ['The Other Guys (2010)/The Other Guys (2010).mkv', 'movie', null],
+  ]
+  for (const [p, kind, extra] of cases) {
+    const got = kind === 'movie' ? movie(p) : episode(p)
+    assert.equal(got.extra, extra, p)
+  }
+  // One named by suffix goes by the rest of its name.
+  assert.equal(movie('Apocalypse Now (1979) (HD) (x264)/Redux-featurette.mkv').title, 'Redux')
+  // Only movie and TV libraries have extras.
+  assert.equal(parseMedia('/media/mv/Artist/Interviews/Talk.mkv', '/media/mv', 'music').extra, null)
+})

@@ -163,6 +163,8 @@ function CollectionSettings({
     filterType: collection.filterType ?? '',
     filterSearch: collection.filterSearch ?? '',
     filterGenre: collection.filterGenre ?? '',
+    includeSpecials: collection.includeSpecials,
+    includeExtras: collection.includeExtras,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +181,8 @@ function CollectionSettings({
         filterType: form.filterType || null,
         filterSearch: form.filterSearch || null,
         filterGenre: form.filterGenre || null,
+        includeSpecials: form.includeSpecials,
+        includeExtras: form.includeExtras,
       })
       toast.success('Collection saved')
       onSaved()
@@ -211,7 +215,44 @@ function CollectionSettings({
             collectionId={collection.id}
             value={form.defaultOrder}
             onChange={(order) => setForm({ ...form, defaultOrder: order })}
+            includes={{ specials: form.includeSpecials, extras: form.includeExtras }}
           />
+        </div>
+        <div>
+          <div className="text-[13px] font-medium text-ink mb-0.5">Includes</div>
+          <p className="text-xs text-ink-faint mb-3">
+            What whole shows and the smart filter bring in. A season 0 or an extra you pick on its own airs either way.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-start gap-2.5 select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.includeSpecials}
+                onChange={(e) => setForm({ ...form, includeSpecials: e.target.checked })}
+              />
+              <span className="min-w-0">
+                <span className="text-sm text-ink">Specials (season 0)</span>
+                <span className="block text-xs text-ink-faint leading-snug mt-0.5">
+                  Pilots, holiday specials, shorts and promos filed as season 0 — they air before season 1.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2.5 select-none">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.includeExtras}
+                onChange={(e) => setForm({ ...form, includeExtras: e.target.checked })}
+              />
+              <span className="min-w-0">
+                <span className="text-sm text-ink">Extras</span>
+                <span className="block text-xs text-ink-faint leading-snug mt-0.5">
+                  Featurettes, trailers and deleted scenes — from libraries set to keep them (Library → Sources).
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
         <div className="rounded-xl border border-edge bg-sunken/60 p-4">
           <div className="text-[13px] font-medium text-ink mb-0.5">Smart filter</div>
@@ -497,6 +538,8 @@ export default function CollectionManager({
                 <span className="text-ink-ghost">•</span>
                 <Badge tone="accent">{orderLabel(selected.defaultOrder)}</Badge>
                 {filterSummary(selected) && <Badge tone="info">Smart filter: {filterSummary(selected)}</Badge>}
+                {!selected.includeSpecials && <Badge tone="neutral">No specials</Badge>}
+                {!selected.includeExtras && <Badge tone="neutral">No extras</Badge>}
               </div>
             </div>
             <div className="flex items-center gap-2">

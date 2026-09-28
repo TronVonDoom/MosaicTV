@@ -3,20 +3,26 @@ import type { Library, Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { isScanning } from '../scanner/scanner.js'
+import { dropLeftOut, isScanning, scanLibrary } from '../scanner/scanner.js'
+import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 
 export const librariesRouter = Router()
 
 const KINDS = ['tv', 'movie', 'music', 'other']
 
 librariesRouter.get('/', async (_req, res) => {
-  const libs = await prisma.library.findMany({
-    orderBy: { createdAt: 'asc' },
-    include: {
-      folders: { orderBy: { id: 'asc' }, select: { id: true, path: true } },
-      _count: { select: { items: true } },
-    },
-  })
+  const [libs, specials, extras] = await Promise.all([
+    prisma.library.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: {
+        folders: { orderBy: { id: 'asc' }, select: { id: true, path: true } },
+        _count: { select: { items: true } },
+      },
+    }),
+    prisma.mediaItem.groupBy({ by: ['libraryId'], where: { type: 'episode', season: 0, missing: false }, _count: { _all: true } }),
+    prisma.mediaItem.groupBy({ by: ['libraryId'], where: { extra: { not: null }, missing: false }, _count: { _all: true } }),
+  ])
+  const count = (rows: typeof specials, id: number) => rows.find((r) => r.libraryId === id)?._count._all ?? 0
   res.json(
     libs.map((l): Stored<Library> => ({
       id: l.id,
@@ -25,8 +31,37 @@ librariesRouter.get('/', async (_req, res) => {
       createdAt: l.createdAt,
       folders: l.folders,
       itemCount: l._count.items,
+      includeSpecials: l.includeSpecials,
+      includeExtras: l.includeExtras,
+      specialCount: count(specials, l.id),
+      extraCount: count(extras, l.id),
     })),
   )
+})
+
+// Change what a library indexes. Leaving specials or extras out removes the
+// ones it has (and every channel's guide moves past them); taking them back
+// scans the library to add them.
+librariesRouter.patch('/:id', async (req, res) => {
+  if (isScanning()) {
+    return res.status(409).json({ error: 'Cannot change a library while a scan is running.' })
+  }
+  const id = Number(req.params.id)
+  const before = await prisma.library.findUnique({ where: { id } })
+  if (!before) return res.status(404).json({ error: 'Library not found.' })
+  const data: { includeSpecials?: boolean; includeExtras?: boolean } = {}
+  for (const key of ['includeSpecials', 'includeExtras'] as const) {
+    const v = req.body?.[key]
+    if (v === undefined) continue
+    if (typeof v !== 'boolean') return res.status(400).json({ error: `${key} must be true or false` })
+    data[key] = v
+  }
+  const lib = await prisma.library.update({ where: { id }, data })
+  const removed = await dropLeftOut(lib)
+  if (removed > 0) await scheduleChangedEverywhere()
+  const added = (lib.includeSpecials && !before.includeSpecials) || (lib.includeExtras && !before.includeExtras)
+  if (added) scanLibrary(id).catch(() => {})
+  res.json({ removed, scanning: added })
 })
 
 // A handful of titles with artwork, for the poster mosaic on a library's card.
@@ -99,7 +134,14 @@ librariesRouter.post('/', async (req, res) => {
 
   try {
     const lib = await prisma.library.create({
-      data: { name, kind, folders: { create: paths.map((p) => ({ path: p })) } },
+      data: {
+        name,
+        kind,
+        folders: { create: paths.map((p) => ({ path: p })) },
+        // Chosen before the first scan, so it never indexes what it leaves out.
+        ...(typeof req.body?.includeSpecials === 'boolean' ? { includeSpecials: req.body.includeSpecials } : {}),
+        ...(typeof req.body?.includeExtras === 'boolean' ? { includeExtras: req.body.includeExtras } : {}),
+      },
       include: { folders: true },
     })
     res.status(201).json(lib)

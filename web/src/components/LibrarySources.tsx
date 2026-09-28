@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
-import { api, type Library, type LibraryKind } from '../lib/api'
+import { api, type Library, type LibraryIncludes, type LibraryKind } from '../lib/api'
+import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { useJobStatus } from '../lib/events'
 import { toast } from '../lib/toast'
@@ -13,6 +14,31 @@ const KIND_LABELS: Record<LibraryKind, string> = {
   movie: 'Movies',
   music: 'Music Videos',
   other: 'Other / Bumpers',
+}
+
+/** One thing a library indexes or leaves out, as a checkbox with a line under it. */
+function IncludeOption({
+  label,
+  hint,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string
+  hint: string
+  checked: boolean
+  disabled?: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <label className={`flex items-start gap-2.5 select-none ${disabled ? 'opacity-50' : ''}`}>
+      <input type="checkbox" className="mt-0.5" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className="min-w-0">
+        <span className="text-sm text-ink">{label}</span>
+        <span className="block text-xs text-ink-faint leading-snug mt-0.5">{hint}</span>
+      </span>
+    </label>
+  )
 }
 
 // Where a picked folder path should go.
@@ -27,10 +53,12 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
   const [libraries, setLibraries] = useState<Library[]>([])
   const [tmdbConfigured, setTmdbConfigured] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState<{ name: string; kind: LibraryKind; folders: string[] }>({
+  const [form, setForm] = useState<{ name: string; kind: LibraryKind; folders: string[]; includeSpecials: boolean; includeExtras: boolean }>({
     name: '',
     kind: 'tv',
     folders: [''],
+    includeSpecials: true,
+    includeExtras: false,
   })
   const [submitting, setSubmitting] = useState(false)
   const [picker, setPicker] = useState<PickerTarget | null>(null)
@@ -75,8 +103,14 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
     }
     setSubmitting(true)
     await guard('Failed to add library', async () => {
-      await api.addLibrary({ name: form.name, kind: form.kind, folders })
-      setForm({ name: '', kind: 'tv', folders: [''] })
+      await api.addLibrary({
+        name: form.name,
+        kind: form.kind,
+        folders,
+        includeSpecials: form.includeSpecials,
+        includeExtras: form.includeExtras,
+      })
+      setForm({ name: '', kind: 'tv', folders: [''], includeSpecials: true, includeExtras: false })
       toast.success('Library added')
       refresh()
     })
@@ -101,6 +135,35 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
       toast.success('Library deleted')
       refresh()
     })
+
+  /** Take specials or extras in or out. Out removes what's there, so it asks first. */
+  async function handleIncludes(lib: Library, change: LibraryIncludes) {
+    const specials = change.includeSpecials !== undefined
+    const n = specials ? lib.specialCount : lib.extraCount
+    if (change.includeSpecials === false || change.includeExtras === false) {
+      if (
+        n > 0 &&
+        !(await confirmDialog({
+          title: `Leave ${specials ? 'specials' : 'extras'} out of “${lib.name}”?`,
+          message: specials
+            ? `Its ${n} season 0 episode${n === 1 ? '' : 's'} — pilots, specials, shorts — are removed from the library, and channels stop airing them. Tick it again to scan them back in.`
+            : `Its ${n} extra${n === 1 ? '' : 's'} — featurettes, trailers, interviews — are removed from the library, and channels stop airing them. Tick it again to scan them back in.`,
+          confirmLabel: 'Leave them out',
+          danger: true,
+        }))
+      )
+        return
+    }
+    await guard('Failed to change the library', async () => {
+      const r = await api.updateLibrary(lib.id, change)
+      if (r.removed > 0) toast.success(`Removed ${r.removed} from ${lib.name}`)
+      if (r.scanning) {
+        scanJob.start()
+        toast.success(`Scanning ${lib.name} to add them`)
+      }
+      refresh()
+    })
+  }
 
   const handleRemoveFolder = (libraryId: number, folderId: number) =>
     guard('Failed to remove folder', async () => {
@@ -158,6 +221,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
               <span className="text-sky-400">{scan.updated} updated</span>
               {scan.moved > 0 && <span className="text-sky-400">{scan.moved} moved</span>}
               <span>{scan.skipped} unchanged</span>
+              {scan.leftOut > 0 && <span>{scan.leftOut} left out</span>}
               {scan.removed > 0 && <span className="text-amber-400">{scan.removed} missing</span>}
             </>
           }
@@ -266,6 +330,25 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
             </button>
           </div>
 
+          {(form.kind === 'tv' || form.kind === 'movie') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {form.kind === 'tv' && (
+                <IncludeOption
+                  label="Specials (season 0)"
+                  hint="Pilots, holiday specials, shorts and promos filed as season 0."
+                  checked={form.includeSpecials}
+                  onChange={(v) => setForm({ ...form, includeSpecials: v })}
+                />
+              )}
+              <IncludeOption
+                label="Extras"
+                hint={`Featurettes, trailers, interviews and deleted scenes filed with the ${form.kind === 'tv' ? 'shows' : 'movies'}. Off: only the ${form.kind === 'tv' ? 'episodes' : 'movies'} themselves are added.`}
+                checked={form.includeExtras}
+                onChange={(v) => setForm({ ...form, includeExtras: v })}
+              />
+            </div>
+          )}
+
           <div className="flex justify-end">
             <Button type="submit" size="lg" disabled={submitting}>
               Add library
@@ -324,6 +407,36 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                   Delete
                 </Button>
               </div>
+
+              {/* What it indexes */}
+              {(lib.kind === 'tv' || lib.kind === 'movie') && (
+                <div className="mt-3 pt-3 border-t border-edge/60 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {lib.kind === 'tv' && (
+                    <IncludeOption
+                      label="Specials (season 0)"
+                      hint={
+                        lib.includeSpecials
+                          ? `${lib.specialCount.toLocaleString()} season 0 episode${lib.specialCount === 1 ? '' : 's'} — pilots, specials, shorts.`
+                          : 'Left out: season 0 isn’t added when this library is scanned.'
+                      }
+                      checked={lib.includeSpecials}
+                      disabled={busy}
+                      onChange={(v) => handleIncludes(lib, { includeSpecials: v })}
+                    />
+                  )}
+                  <IncludeOption
+                    label="Extras"
+                    hint={
+                      lib.includeExtras
+                        ? `${lib.extraCount.toLocaleString()} featurette${lib.extraCount === 1 ? '' : 's'}, trailer${lib.extraCount === 1 ? '' : 's'} and the like, added alongside the ${lib.kind === 'tv' ? 'episodes' : 'movies'}.`
+                        : `Left out: only the ${lib.kind === 'tv' ? 'episodes' : 'movies'} themselves are added — no featurettes, trailers or deleted scenes.`
+                    }
+                    checked={lib.includeExtras}
+                    disabled={busy}
+                    onChange={(v) => handleIncludes(lib, { includeExtras: v })}
+                  />
+                </div>
+              )}
 
               {/* Folders */}
               <div className="mt-3 pt-3 border-t border-edge/60 space-y-1.5">

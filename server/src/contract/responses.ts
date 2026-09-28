@@ -5,6 +5,7 @@
 // both sides instead of a blank on a page.
 import type {
   ActivityKind,
+  ExtraKind,
   FillerMode,
   IdentPlays,
   IdentStyle,
@@ -78,6 +79,8 @@ export type ScanStatus = {
   /** Known files found at a new path (a move or a renamed folder). */
   moved: number
   skipped: number
+  /** Files the library leaves out (its extras, or its season 0). */
+  leftOut: number
   currentPath: string | null
   startedAt: string | null
   finishedAt: string | null
@@ -154,6 +157,12 @@ export type Library = {
   createdAt: Date
   folders: LibraryFolder[]
   itemCount: number
+  /** Whether a scan indexes season 0, and extras (featurettes, trailers…). */
+  includeSpecials: boolean
+  includeExtras: boolean
+  /** How many of each it has now (none of what it leaves out). */
+  specialCount: number
+  extraCount: number
 }
 
 export type MediaItem = {
@@ -184,6 +193,8 @@ export type MediaItem = {
   rating: number | null
   tmdbPosterPath: string | null
   tmdbBackdropPath: string | null
+  /** A featurette, trailer, deleted scene… filed with a movie or show; null for the thing itself. */
+  extra: ExtraKind | null
   missing: boolean
 }
 
@@ -342,6 +353,11 @@ export type Collection = {
   filterShow: string | null
   filterSearch: string | null
   filterGenre: string | null
+  /** Whether whole-show picks and the smart filter bring in season 0 — a
+   *  season 0 picked on its own airs either way. */
+  includeSpecials: boolean
+  /** Whether they bring in extras (featurettes, trailers…); one picked on its own airs either way. */
+  includeExtras: boolean
   items: CollectionItem[]
   itemCount: number
 }
@@ -350,7 +366,7 @@ export type MediaSearchResult =
   | { kind: 'show'; showTitle: string; libraryId: number; libraryName: string; episodeCount: number }
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
-  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null }
+  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null; extra: ExtraKind | null }
 
 export type RotationItem = {
   id: number
@@ -580,4 +596,6 @@ export type ScheduleWarning = {
   message: string
   blockId?: number
   collectionId?: number
+  /** What the collection can be set to leave out to fix it (its season 0, or its extras). */
+  leaveOut?: 'specials' | 'extras'
 }

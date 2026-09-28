@@ -4,6 +4,7 @@
 
 // Shared with the server's schedule warnings (contract/format.ts).
 export { formatDays, minutesToTime } from '@contract'
+import type { ExtraKind } from '@contract'
 
 /** "S01E02", or '' when the item isn't a numbered episode. */
 export function episodeCode(m: { season?: number | null; episode?: number | null }): string {
@@ -82,10 +83,21 @@ export function formatRuntime(ms: number): string {
   return m ? `${h} hr ${m} min` : `${h} hr`
 }
 
-/** "Good morning" / "Good afternoon" / "Good evening", by local time. */
-export function greeting(d = new Date()): string {
-  const h = d.getHours()
-  return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+const EXTRA_LABELS: Record<ExtraKind, string> = {
+  behindthescenes: 'Behind the scenes',
+  deleted: 'Deleted scene',
+  featurette: 'Featurette',
+  interview: 'Interview',
+  scene: 'Scene',
+  short: 'Short',
+  trailer: 'Trailer',
+  sample: 'Sample',
+  other: 'Extra',
+}
+
+/** What kind of extra a file is, as a label: "Featurette", "Trailer"… */
+export function extraLabel(kind: ExtraKind): string {
+  return EXTRA_LABELS[kind]
 }
 
 /** A library's total runtime at a glance: "22h 5m", or "403 days" once it's

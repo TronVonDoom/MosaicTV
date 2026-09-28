@@ -306,6 +306,24 @@ export default function ScheduleTab({
                     Edit the block
                   </button>
                 )}
+                {w.leaveOut && w.collectionId != null && (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    onClick={() =>
+                      guard(
+                        () =>
+                          api.updateCollection(
+                            w.collectionId!,
+                            w.leaveOut === 'specials' ? { includeSpecials: false } : { includeExtras: false },
+                          ),
+                        `${w.leaveOut === 'specials' ? 'Specials' : 'Extras'} left out — the guide follows from the next program`,
+                      )
+                    }
+                  >
+                    Leave {w.leaveOut} out
+                  </button>
+                )}
               </span>
             </Banner>
           ))}

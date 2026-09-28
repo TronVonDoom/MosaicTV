@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { api, type MediaSearchResult } from '../lib/api'
-import { episodeCode } from '../lib/format'
+import { episodeCode, extraLabel } from '../lib/format'
 import { Input } from './ui'
 
 export default function MediaSearchInput({
@@ -65,7 +65,8 @@ export default function MediaSearchInput({
           meta: `${r.showTitle ?? ''} ${episodeCode(r) || 'episode'}`.trim(),
         }
       case 'movie':
-        return { icon: 'movie', main: r.title, meta: String(r.year ?? '') }
+        // An extra says so, so a trailer isn't picked for the movie it's of.
+        return { icon: 'movie', main: r.title, meta: [r.extra && extraLabel(r.extra), r.year].filter(Boolean).join(' · ') }
     }
   }
 

@@ -5,7 +5,10 @@ import { programLabel } from '../lib/format'
 import { PLAYBACK_ORDERS } from '../lib/playback'
 import { cx } from './ui'
 
-type Preview = { order: string; count: number; sample: MediaItem[] }
+type Preview = { key: string; count: number; sample: MediaItem[] }
+
+/** Whether the collection takes its specials and extras, as the form has it. */
+export type Includes = { specials: boolean; extras: boolean }
 
 // Orders dealt at random: a preview shows one deal, and each channel deals its own.
 const RANDOM = new Set(['shuffle', 'shuffleShows'])
@@ -19,27 +22,33 @@ export default function OrderPicker({
   collectionId,
   value,
   onChange,
+  includes,
 }: {
   collectionId: number
   value: string
   onChange: (order: PlaybackOrder) => void
+  /** Specials and extras in or out, before that's saved (default: as saved). */
+  includes?: Includes
 }) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [failed, setFailed] = useState(false)
+  const specials = includes?.specials
+  const extras = includes?.extras
+  const key = `${value}|${specials}|${extras}`
 
   useEffect(() => {
     let live = true
     setFailed(false)
     api
-      .collectionPreview(collectionId, value)
-      .then((p) => live && setPreview(p))
+      .collectionPreview(collectionId, value, specials != null && extras != null ? { specials, extras } : undefined)
+      .then((p) => live && setPreview({ ...p, key }))
       .catch(() => live && setFailed(true))
     return () => {
       live = false
     }
-  }, [collectionId, value])
+  }, [collectionId, value, specials, extras, key])
 
-  const loading = !failed && preview?.order !== value
+  const loading = !failed && preview?.key !== key
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)]">

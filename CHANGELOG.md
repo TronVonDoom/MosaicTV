@@ -33,6 +33,26 @@ TV mode, and a sturdier foundation under all of it.
   nothing to play, one shorter than its blocks' week, season 0 specials airing
   first, an exact-time start between the clock's lines — and says what to
   change.
+- **Featurettes aren't movies any more.** The scanner now tells a movie's or
+  show's extras apart — the Plex/Jellyfin extras folders inside its folder
+  (`Featurettes`, `Trailers`, `Deleted Scenes`…), or a name like
+  `Redux-featurette.mkv` — and a library leaves them out unless it's set to
+  keep them. **The extras already in your libraries are removed at the next
+  start**: trailers and menu clips stop showing up as movies, and deleted
+  scenes numbered like episodes stop being episodes. A numbered episode in a
+  generic folder like `Other` is still an episode.
+- **Leave out specials and extras.** Each library has **Specials (season 0)**
+  and **Extras** on **Library → Sources**: turning one off removes what the
+  library has of it, turning it on scans them in. A collection's settings can
+  also leave season 0 (and a keeping library's extras) out of its whole shows
+  and smart filter, while a season 0 picked on its own still airs; the
+  schedule warnings do it in one click.
+- **A tidier frame.** The sidebar gained entries under its items — every
+  channel, each library, the Studio and Settings sections — and took Live TV
+  setup from the top bar; the server status moved to the top of the Logs
+  page. The dashboard traded its greeting for the same header as every other
+  page, page headers line up across the app, and icon buttons (the menu, the
+  arrows, every close ×) are full size again instead of squeezed to a sliver.
 - **Rename a show, or merge two spellings of one.** A show's page has
   **Rename** and **Merge into another show**. Both stick through every scan
   after: shows are now rows that episodes, collection picks and broadcast

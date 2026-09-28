@@ -12,6 +12,10 @@ export type CollectionFilter = {
   filterShow?: string | null
   filterSearch?: string | null
   filterGenre?: string | null
+  /** Whether whole shows and the filter bring in season 0 (default yes). */
+  includeSpecials?: boolean
+  /** Whether they bring in featurettes, trailers and other extras (default yes). */
+  includeExtras?: boolean
 }
 
 export type CollectionWithItems = Prisma.CollectionGetPayload<{ include: { items: true } }>
@@ -62,9 +66,25 @@ export type ResolvedList = {
  */
 export type RotationProgress = { base: number; shows?: Record<string, number> }
 
+/**
+ * What a collection leaves out of what it brings in by the armful — a whole
+ * show, the smart filter: season 0 (specials, shorts, promos) and extras, when
+ * it's set to. A season picked on its own keeps its specials (`specials:
+ * false`), since picking season 0 is asking for them; a single episode or
+ * movie picked on its own isn't filtered at all.
+ */
+export function leftOut(c: CollectionFilter, { specials = true } = {}): Prisma.MediaItemWhereInput {
+  const not: Prisma.MediaItemWhereInput[] = []
+  // Episodes only: a movie's season is null, and NOT (season = 0) on a null
+  // season would leave the movie out too.
+  if (specials && c.includeSpecials === false) not.push({ type: 'episode', season: 0 })
+  if (c.includeExtras === false) not.push({ extra: { not: null } })
+  return not.length > 0 ? { NOT: not } : {}
+}
+
 // Only playable items: present on disk and with a known duration.
 export function collectionWhere(c: CollectionFilter): Prisma.MediaItemWhereInput {
-  const where: Prisma.MediaItemWhereInput = { missing: false, durationSec: { gt: 0 } }
+  const where: Prisma.MediaItemWhereInput = { missing: false, durationSec: { gt: 0 }, ...leftOut(c) }
   if (c.libraryId) where.libraryId = c.libraryId
   if (c.filterType) where.type = c.filterType
   if (c.filterShow) where.showTitle = c.filterShow
@@ -120,13 +140,22 @@ const airingInclude = {
   segments: { orderBy: { order: 'asc' as const }, include: { mediaItem: true } },
 }
 
-/** Airings owned by (filed under) the given shows, with their segments' files. */
-async function airingsForShows(where: { showIds: number[]; season?: number }): Promise<AiringWithSegments[]> {
+/** Airings owned by (filed under) the given shows, with their segments' files —
+ *  one season's, or all but season 0's when specials are left out. */
+async function airingsForShows(where: {
+  showIds: number[]
+  season?: number
+  specials?: boolean
+}): Promise<AiringWithSegments[]> {
   if (where.showIds.length === 0) return []
   return prisma.airing.findMany({
     where: {
       showId: { in: where.showIds },
-      ...(where.season != null ? { season: where.season } : {}),
+      ...(where.season != null
+        ? { season: where.season }
+        : where.specials === false
+          ? { OR: [{ season: null }, { season: { not: 0 } }] }
+          : {}),
     },
     include: airingInclude,
   })
@@ -165,11 +194,11 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
           missing: false,
           durationSec: { gt: 0 },
           showId: it.showId,
-          ...(season != null ? { season } : {}),
+          ...(season != null ? { season, ...leftOut(c, { specials: false }) } : leftOut(c)),
         },
       })
       if (eps.length === 0) continue
-      const airings = await airingsForShows({ showIds: [it.showId], season })
+      const airings = await airingsForShows({ showIds: [it.showId], season, specials: c.includeSpecials })
       for (const u of groupIntoAirings(eps, airings)) out.push(u)
     } else if ((it.kind === 'movie' || it.kind === 'episode') && it.mediaItemId != null) {
       const m = singleById.get(it.mediaItemId)
@@ -181,7 +210,10 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
     const filtered = await prisma.mediaItem.findMany({ where: collectionWhere(c) })
     const eps = filtered.filter((m) => m.type === 'episode' && m.showId != null)
     const others = filtered.filter((m) => !(m.type === 'episode' && m.showId != null))
-    const airings = await airingsForShows({ showIds: [...new Set(eps.map((e) => e.showId as number))] })
+    const airings = await airingsForShows({
+      showIds: [...new Set(eps.map((e) => e.showId as number))],
+      specials: c.includeSpecials,
+    })
     // Show by show, A–Z: the filter has no member order of its own, and grouped
     // this way its shows follow the hand-picked ones in a rotation too.
     const units = groupIntoAirings(eps, airings).sort(
@@ -223,7 +255,7 @@ export async function collectionCount(c: CollectionWithItems): Promise<number> {
     .filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null)
     .map((i) => ({
       showId: i.showId as number,
-      ...(i.kind === 'season' && i.season != null ? { season: i.season } : {}),
+      ...(i.kind === 'season' && i.season != null ? { season: i.season, ...leftOut(c, { specials: false }) } : leftOut(c)),
     }))
   const singleIds = c.items
     .filter((i) => (i.kind === 'movie' || i.kind === 'episode') && i.mediaItemId != null)

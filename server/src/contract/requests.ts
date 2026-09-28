@@ -166,6 +166,8 @@ export const CollectionCreate = z.object({
   logoId: loose.transform((v): number | null => (v != null ? Number(v) : null)),
   defaultOrder: loose.transform(asPlaybackOrder),
   ...collectionFilter,
+  includeSpecials: flag.optional(),
+  includeExtras: flag.optional(),
 })
 export type CollectionCreate = z.output<typeof CollectionCreate>
 
@@ -178,6 +180,8 @@ export const CollectionUpdate = z.object({
   filterShow: collectionFilter.filterShow.optional(),
   filterSearch: collectionFilter.filterSearch.optional(),
   filterGenre: collectionFilter.filterGenre.optional(),
+  includeSpecials: flag.optional(),
+  includeExtras: flag.optional(),
 })
 export type CollectionUpdate = z.output<typeof CollectionUpdate>
 
