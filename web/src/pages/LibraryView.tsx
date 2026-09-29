@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { matchDoubt } from '@contract'
 import {
   api,
@@ -14,6 +14,7 @@ import {
   type Show,
 } from '../lib/api'
 import PosterCard from '../components/PosterCard'
+import type { LibraryLayerContext } from './MovieView'
 import MediaDetailModal from '../components/MediaDetailModal'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import Icon from '../components/Icon'
@@ -324,7 +325,8 @@ export default function LibraryView() {
                 rating={m.rating}
                 icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}
                 imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
-                onClick={() => setSelectedId(m.id)}
+                // A movie opens its page over the grid; an extra or a clip, a quick look.
+                onClick={() => (library?.kind === 'movie' && !m.extra ? navigate(`/library/${id}/movie/${m.id}`) : setSelectedId(m.id))}
               />
             ))}
           </div>
@@ -338,6 +340,18 @@ export default function LibraryView() {
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={() => movieChanged(selectedId)} />
       )}
+      {/* A movie's or show's page, over the grid (which keeps its place). */}
+      <Outlet
+        context={
+          {
+            movieChanged,
+            showsChanged: () => {
+              void loadCounts()
+              setShowsVersion((v) => v + 1)
+            },
+          } satisfies LibraryLayerContext
+        }
+      />
     </div>
   )
 }

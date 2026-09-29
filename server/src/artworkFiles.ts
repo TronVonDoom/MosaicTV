@@ -84,6 +84,43 @@ export async function localThumb(src: string, w: number): Promise<string | null>
 }
 
 /**
+ * A frame from a video, as its picture where it has none of its own — an
+ * extra, an episode TMDB has no still for: a fifth of the way in (past a cold
+ * open's black), the most typical of the next few dozen frames, shrunk to `w`
+ * and cached like a poster thumbnail. At low priority: it's decoration, and
+ * the live encodes come first.
+ */
+export async function frameThumb(src: string, durationSec: number | null, w: number): Promise<string | null> {
+  const st = await fsp.stat(src).catch(() => null)
+  if (!st) return null
+  const out = path.join(thumbsDir(), createHash('sha1').update(`${src}|${st.mtimeMs}|frame|${w}`).digest('hex') + '.jpg')
+  if (fs.existsSync(out)) return out
+  let job = thumbJobs.get(out)
+  if (!job) {
+    job = withThumbSlot(async () => {
+      const tmp = `${out}.${process.pid}.part.jpg`
+      const at = durationSec && durationSec > 0 ? Math.min(durationSec * 0.2, 600) : 10
+      try {
+        await runFfmpeg(
+          ['-v', 'error', '-y', '-ss', at.toFixed(1), '-i', src, '-frames:v', '1', '-vf', `thumbnail=40,scale='min(${w},iw)':-2`, '-q:v', '4', tmp],
+          undefined,
+          undefined,
+          { background: true },
+        )
+        await fsp.rename(tmp, out)
+        return out
+      } catch (e) {
+        log('debug', 'system', `No frame for ${path.basename(src)}`, String(e))
+        await fsp.rm(tmp, { force: true }).catch(() => {})
+        return null
+      }
+    }).finally(() => thumbJobs.delete(out))
+    thumbJobs.set(out, job)
+  }
+  return job
+}
+
+/**
  * A wide backdrop for an item (a movie's own, an episode's show's) from TMDB,
  * cached — the still behind the up-next card's settings preview.
  */

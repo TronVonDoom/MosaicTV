@@ -609,7 +609,7 @@ export function tmdbImage(path: string, size: 'w200' | 'w342' | 'w500' | 'origin
  */
 export function artworkUrl(
   id: number,
-  type: 'poster' | 'show' | 'season' | 'backdrop' | 'still',
+  type: 'poster' | 'show' | 'season' | 'backdrop' | 'still' | 'frame',
   w?: number,
   /** Changes when the art does — its TMDB path, say — so a browser that
    *  cached the old picture (for a week) fetches the new one after Fix match. */

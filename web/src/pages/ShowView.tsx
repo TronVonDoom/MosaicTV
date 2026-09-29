@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import {
   api,
   ART,
@@ -8,33 +8,164 @@ import {
   type Airing,
   type AiringAppearance,
   type AiringSegmentInfo,
+  type MediaItem,
   type SeasonGroup,
   type ShowDetail,
 } from '../lib/api'
-import { extraLabel, formatAirDate, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
 import CastRow from '../components/CastRow'
 import EpisodeOrderDialog from '../components/EpisodeOrderDialog'
 import MediaDetailModal from '../components/MediaDetailModal'
-import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
 import ShowIdentityDialog from '../components/ShowIdentityDialog'
 import { describeMatch, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
+import TitleLayer from '../components/title/TitleLayer'
+import TitleHero, { RatingChip, Stars, TITLE_WIDTH } from '../components/title/TitleHero'
+import Rail from '../components/title/Rail'
+import ExtrasRail from '../components/title/Extras'
 import Icon from '../components/Icon'
-import { Badge, Banner, Breadcrumbs, Button, Menu, Skeleton, cx } from '../components/ui'
+import { Badge, Banner, Button, Menu, Skeleton, cx } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
+import type { LibraryLayerContext } from './MovieView'
 
 // Season 0 is the show's specials, as Plex calls it.
 function seasonLabel(season: number | null): string {
   return season == null ? 'Unsorted' : season === 0 ? 'Specials' : `Season ${season}`
 }
 
+const pad = (n: number | null) => (n != null ? String(n).padStart(2, '0') : '—')
+
+/** A season in the seasons row: its poster, and which one is open. */
+function SeasonCard({ s, active, onSelect }: { s: SeasonGroup; active: boolean; onSelect: () => void }) {
+  const [broken, setBroken] = useState(false)
+  const posterEp = s.episodes.find((e) => e.seasonPosterPath)
+  const present = s.episodes.filter((e) => !e.missing).length
+  const art = posterEp ? artworkUrl(posterEp.id, 'season', ART.poster) : s.tmdbPosterPath ? tmdbImage(s.tmdbPosterPath) : null
+  const label = seasonLabel(s.season)
+  return (
+    <button type="button" onClick={onSelect} aria-pressed={active} className="group w-[124px] sm:w-[136px] shrink-0 snap-start text-left focus-visible:outline-none">
+      <div
+        className={cx(
+          'relative aspect-[2/3] rounded-xl overflow-hidden grid place-items-center transition-[box-shadow,transform] duration-200',
+          active
+            ? 'ring-2 ring-indigo-400 shadow-[0_0_0_4px_rgb(99_102_241/0.18),0_18px_36px_-16px_rgb(0_0_0/0.9)]'
+            : 'ring-1 ring-inset ring-white/10 group-hover:ring-white/30 group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-indigo-400',
+        )}
+        style={{ background: posterGradient(label) }}
+      >
+        {art && !broken ? (
+          <img src={art} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <span className="text-2xl font-semibold text-white/80">{s.season === 0 ? 'SP' : s.season ?? '?'}</span>
+        )}
+        {!active && <div className="absolute inset-0 bg-black/15 group-hover:bg-transparent transition-colors" />}
+      </div>
+      <div className={cx('mt-2 text-[13px] font-medium truncate', active ? 'text-ink' : 'text-ink-soft group-hover:text-ink')}>{label}</div>
+      <div className="text-[11.5px] text-ink-faint">
+        {present} episode{present === 1 ? '' : 's'}
+      </div>
+    </button>
+  )
+}
+
+/**
+ * One episode as a row: its still (or its number), when it first aired, its
+ * name and summary, and where it airs as part of a broadcast episode.
+ */
+function EpisodeRow({
+  ep,
+  showTitle,
+  group,
+  airsIn,
+  aired,
+  onOpen,
+}: {
+  ep: MediaItem
+  showTitle: string
+  group?: { groupNo: number; index: number; size: number }
+  airsIn?: AiringAppearance[]
+  aired?: ShowDetail['aired'][number]
+  onOpen: () => void
+}) {
+  // TMDB's still, else a frame from the file itself, else its number.
+  const [failed, setFailed] = useState(0)
+  const pictures = [
+    ...(ep.tmdbStillPath ? [artworkUrl(ep.id, 'still', ART.poster, ep.tmdbStillPath)] : []),
+    ...(ep.missing ? [] : [artworkUrl(ep.id, 'frame', ART.poster)]),
+  ]
+  const still = pictures[failed] ?? null
+  const first = formatAirDate(ep.airDate)
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cx(
+        'group relative w-full flex gap-4 p-3 sm:p-3.5 text-left rounded-xl transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400',
+        group && 'bg-indigo-500/[0.05]',
+        ep.missing && 'opacity-55',
+      )}
+    >
+      {group && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-indigo-500" />}
+      <div
+        className="relative w-32 sm:w-44 aspect-video shrink-0 rounded-lg overflow-hidden ring-1 ring-inset ring-white/10"
+        style={{ background: posterGradient(`${showTitle} ${ep.season}`) }}
+      >
+        {still ? (
+          <img key={still} src={still} alt="" loading="lazy" onError={() => setFailed((n) => n + 1)} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
+        ) : (
+          <span className="absolute inset-0 grid place-items-center font-mono text-[22px] font-semibold text-white/70 tabular-nums">{pad(ep.episode)}</span>
+        )}
+        <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 backdrop-blur-sm px-1.5 py-px text-[11px] font-medium text-white/90 tabular-nums">
+          {formatDuration(ep.durationSec)}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1 py-0.5">
+        <div className="flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[12px] text-ink-faint">
+          <span className="font-mono font-semibold text-ink-muted">E{pad(ep.episode)}</span>
+          {first && <span>{first}</span>}
+          {ep.missing && (
+            <Badge tone="warn" dot>
+              Missing
+            </Badge>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 min-w-0">
+          <span className="truncate text-[14.5px] font-medium text-ink">{ep.title}</span>
+          {group && (
+            <Badge tone="accent" className="shrink-0">
+              Broadcast ep {group.groupNo} · {group.index}/{group.size}
+            </Badge>
+          )}
+          {airsIn && (
+            <Badge tone="good" className="shrink-0 hidden sm:inline-flex">
+              Airs in {[...new Set(airsIn.map((x) => x.host.showTitle))].join(', ')}
+            </Badge>
+          )}
+        </div>
+        {ep.overview && <p className="mt-1 text-[13px] leading-snug text-ink-muted line-clamp-2">{ep.overview}</p>}
+        {aired && <div className="mt-1 text-[11.5px] text-ink-faint">{formatAired(aired)}</div>}
+      </div>
+      <Icon name="chevronRight" size={16} className="hidden sm:block self-center shrink-0 text-ink-ghost group-hover:text-ink-muted transition-colors" />
+    </button>
+  )
+}
+
+/**
+ * A show's page, over its library's grid: its backdrop, what it is and who
+ * made it, its cast, its seasons — one open at a time, its episodes listed
+ * under the row, with the broadcast-episode editor for that season — and its
+ * extras.
+ */
 export default function ShowView() {
   const { libraryId, show } = useParams()
   const id = Number(libraryId)
   const showTitle = show ? decodeURIComponent(show) : ''
+  const navigate = useNavigate()
+  const location = useLocation()
+  const grid = useOutletContext<LibraryLayerContext | undefined>()
+  const [params, setParams] = useSearchParams()
 
   const [detail, setDetail] = useState<ShowDetail | null>(null)
-  const [openSeason, setOpenSeason] = useState<number | null | undefined>(undefined)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   // Toggles the season view between the episode list and the airings editor.
   const [grouping, setGrouping] = useState(false)
@@ -48,7 +179,9 @@ export default function ShowView() {
   const [libraryName, setLibraryName] = useState<string | null>(null)
   const [identity, setIdentity] = useState<'rename' | 'merge' | null>(null)
   const [ordering, setOrdering] = useState(false)
-  const navigate = useNavigate()
+  // Files a scan no longer finds (usually an old copy of one it does): hidden
+  // unless asked for.
+  const [showMissing, setShowMissing] = useState(false)
 
   const reloadAirings = () =>
     api
@@ -74,12 +207,16 @@ export default function ShowView() {
           episodeCount: detail.episodeCount,
         }
       : null
-  const match = useMatchActions(matchTarget, () => void loadDetail())
+  const match = useMatchActions(matchTarget, () => {
+    void loadDetail()
+    grid?.showsChanged?.()
+  })
   const matchStatus = matchTarget && describeMatch(matchTarget)
 
   useEffect(() => {
     if (!showTitle) return
-    setOpenSeason(undefined)
+    setDetail(null)
+    setGrouping(false)
     void loadDetail()
     reloadAirings()
     api
@@ -89,13 +226,55 @@ export default function ShowView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, showTitle])
 
+  useEffect(() => {
+    api
+      .libraries()
+      .then((ls) => setLibraryName(ls.find((l) => l.id === id)?.name ?? null))
+      .catch(() => {})
+  }, [id])
+
+  // The open season: the one the address names, else the first real one.
+  const seasonParam = params.get('season')
+  const openSeason: number | null | undefined =
+    seasonParam != null
+      ? seasonParam === 'none'
+        ? null
+        : Number(seasonParam)
+      : (detail?.seasons.find((s) => s.season != null && s.season > 0) ?? detail?.seasons[0])?.season
+  const current: SeasonGroup | undefined = useMemo(() => detail?.seasons.find((s) => s.season === openSeason), [detail, openSeason])
+
   // Leave grouping mode whenever the chosen season changes.
   useEffect(() => setGrouping(false), [openSeason])
 
-  const current: SeasonGroup | undefined = useMemo(
-    () => detail?.seasons.find((s) => s.season === openSeason),
-    [detail, openSeason],
-  )
+  /** Open another season — asking first if its broadcast episodes have unsaved changes. */
+  async function selectSeason(season: number | null) {
+    if (season === openSeason) return
+    if (grouping && !(await confirmLeave())) return
+    setGrouping(false)
+    setEditorDirty(false)
+    setParams(
+      (p) => {
+        p.set('season', season == null ? 'none' : String(season))
+        return p
+      },
+      { replace: true },
+    )
+  }
+
+  const confirmLeave = async () =>
+    !editorDirty ||
+    (await confirmDialog({
+      title: 'Leave without saving?',
+      message: 'Your broadcast-episode groupings for this season have unsaved changes.',
+      confirmLabel: 'Discard changes',
+      danger: true,
+    }))
+
+  const leaveGrouping = async () => {
+    if (!(await confirmLeave())) return
+    setGrouping(false)
+    setEditorDirty(false)
+  }
 
   // Which broadcast episode each grouped file belongs to, for the current season.
   const groupInfo = useMemo(() => {
@@ -103,9 +282,7 @@ export default function ShowView() {
     airings
       .filter((a) => (a.season ?? null) === (current?.season ?? null))
       .forEach((a, gi) =>
-        a.segments.forEach((s, idx) =>
-          map.set(s.mediaItemId, { groupNo: gi + 1, index: idx + 1, size: a.segments.length }),
-        ),
+        a.segments.forEach((s, idx) => map.set(s.mediaItemId, { groupNo: gi + 1, index: idx + 1, size: a.segments.length })),
       )
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,10 +301,7 @@ export default function ShowView() {
   }, [appearances])
 
   // Distinct host shows, for the show-level banner.
-  const borrowHosts = useMemo(
-    () => [...new Set(appearances.map((a) => a.host.showTitle))].sort(),
-    [appearances],
-  )
+  const borrowHosts = useMemo(() => [...new Set(appearances.map((a) => a.host.showTitle))].sort(), [appearances])
 
   // Borrowed (foreign) segments woven into this season's broadcast episodes, hung
   // under the owned episode they follow so the read list shows the full running
@@ -157,27 +331,12 @@ export default function ShowView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airings, current?.season, current?.episodes])
 
-  const leaveGrouping = async () => {
-    if (
-      editorDirty &&
-      !(await confirmDialog({
-        title: 'Leave without saving?',
-        message: 'Your broadcast-episode groupings for this season have unsaved changes.',
-        confirmLabel: 'Discard changes',
-        danger: true,
-      }))
-    )
-      return
-    setGrouping(false)
-    setEditorDirty(false)
+  // Back where you came from, or to the library when this page was opened on its own.
+  const back = async () => {
+    if (grouping && !(await confirmLeave())) return
+    if (location.key !== 'default') navigate(-1)
+    else navigate(`/library/${id}`)
   }
-
-  useEffect(() => {
-    api
-      .libraries()
-      .then((ls) => setLibraryName(ls.find((l) => l.id === id)?.name ?? null))
-      .catch(() => {})
-  }, [id])
 
   // Versioned by the match, so a fixed match shows its own art at once.
   const posterSrc =
@@ -186,346 +345,225 @@ export default function ShowView() {
       : detail?.tmdbPosterPath
         ? tmdbImage(detail.tmdbPosterPath)
         : null
+  // TMDB's backdrop, else a frame from one of its episodes.
   const backdropSrc =
-    detail?.hasBackdrop && detail.artItemId != null ? artworkUrl(detail.artItemId, 'backdrop', undefined, String(detail.tmdbId ?? '')) : null
-  const totalRuntime = detail
-    ? detail.seasons.reduce((a, se) => a + se.episodes.reduce((b, e) => b + (e.durationSec ?? 0), 0), 0)
-    : 0
+    detail?.artItemId == null
+      ? null
+      : detail.hasBackdrop
+        ? artworkUrl(detail.artItemId, 'backdrop', undefined, String(detail.tmdbId ?? ''))
+        : artworkUrl(detail.artItemId, 'frame', ART.card)
+  const onDisk = (eps: MediaItem[]) => eps.filter((e) => !e.missing)
+  const runtime = (eps: MediaItem[]) => eps.reduce((a, e) => a + (e.durationSec ?? 0), 0)
+  const totalRuntime = detail ? detail.seasons.reduce((a, se) => a + runtime(onDisk(se.episodes)), 0) : 0
+  const totalEpisodes = detail ? detail.seasons.reduce((a, se) => a + onDisk(se.episodes).length, 0) : 0
+  const present = current ? onDisk(current.episodes) : []
+  const missingCount = (current?.episodes.length ?? 0) - present.length
+  const listed = current ? (showMissing ? current.episodes : present) : []
   const genres = detail?.genres ? detail.genres.split(',').map((g) => g.trim()).filter(Boolean) : []
+  const groupCount = new Set([...groupInfo.values()].map((g) => g.groupNo)).size
 
   return (
-    <div>
-      {/* Hero: the show's backdrop, full-bleed under the top bar. */}
-      <section className="relative -mx-4 sm:-mx-6 lg:-mx-8 -mt-7 mb-8 overflow-hidden border-b border-edge/60">
-        <div className="absolute inset-0" style={{ background: posterGradient(showTitle) }}>
-          {backdropSrc ? (
-            <img src={backdropSrc} alt="" className="w-full h-full object-cover opacity-50 fade-in" />
-          ) : posterSrc ? (
-            <img src={posterSrc} alt="" className="w-full h-full object-cover blur-3xl scale-125 opacity-40" />
-          ) : null}
-          <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/75 to-canvas/25" />
-          <div className="absolute inset-0 bg-gradient-to-r from-canvas/95 via-canvas/55 to-transparent" />
-        </div>
-
-        <div className="relative px-4 sm:px-6 lg:px-8 pt-6 pb-8">
-          <Breadcrumbs
-            items={[
-              { label: 'Library', to: '/library' },
-              { label: libraryName ?? '…', to: `/library/${id}` },
-              current ? { label: showTitle, onClick: () => setOpenSeason(undefined) } : { label: showTitle },
-              ...(current ? [{ label: seasonLabel(current.season) }] : []),
-            ]}
-          />
-          <div className="mt-6 flex items-end gap-7 flex-wrap sm:flex-nowrap">
-            <div
-              className="hidden sm:block w-40 lg:w-48 shrink-0 aspect-[2/3] rounded-xl overflow-hidden shadow-[0_30px_60px_-20px_rgb(0_0_0/0.9)] ring-1 ring-white/15"
-              style={{ background: posterGradient(showTitle) }}
-            >
-              {posterSrc && <img src={posterSrc} alt="" className="w-full h-full object-cover" />}
-            </div>
-            <div className="min-w-0 flex-1 pb-1">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">TV Series</div>
-              <div className="mt-1 flex items-center gap-2">
-                <h1 className="text-[34px] sm:text-[40px] font-semibold tracking-[-0.03em] leading-[1.05] text-white">
-                  {showTitle}
-                </h1>
-                {detail?.id != null && (
-                  <Menu
-                    label="Show actions"
-                    items={[
-                      { label: 'Rename…', icon: 'edit', onSelect: () => setIdentity('rename') },
-                      { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
-                      'divider',
-                      ...match.items,
-                      ...(detail.tmdbId != null
-                        ? [{ label: 'Episode order…', icon: 'list' as const, onSelect: () => setOrdering(true) }]
-                        : []),
-                    ]}
-                  />
-                )}
-              </div>
-              {detail && detail.names.length > 1 && (
-                <div className="mt-1.5 text-[12.5px] text-ink-faint">
-                  Filed from {detail.names.map((n) => `“${n}”`).join(', ')}
-                </div>
-              )}
-              {/* Only when the match wants a look (or was taken away): the
-                  show's menu is where it's fixed. */}
-              {matchStatus && (matchStatus.warn || matchTarget?.tmdbId == null) && (
-                <div className={cx('mt-1.5 flex items-center gap-1.5 text-[12.5px]', matchStatus.warn ? 'text-amber-300' : 'text-ink-faint')}>
-                  <Icon name={matchStatus.warn ? 'warning' : 'info'} size={13} className="shrink-0" />
-                  <span>
-                    {matchStatus.text}
-                    {matchStatus.detail && <span className="text-ink-faint"> · {matchStatus.detail}</span>}
-                  </span>
-                  <button onClick={match.openFix} className="ml-1 font-medium text-indigo-300 hover:text-indigo-200">
-                    {matchTarget?.tmdbId != null ? 'Fix match' : 'Match'}
-                  </button>
-                </div>
-              )}
-              {detail ? (
-                <div className="mt-3 flex items-center gap-x-3 gap-y-2 flex-wrap text-[13.5px] text-ink-soft">
-                  {detail.rating != null && detail.rating > 0 && (
-                    <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
-                      <Icon name="star" size={14} className="fill-current" /> {detail.rating.toFixed(1)}
-                    </span>
-                  )}
-                  {detail.contentRating && <Badge>{detail.contentRating}</Badge>}
-                  {detail.year && <span className="tabular-nums">{detail.year}</span>}
-                  {detail.network && (
-                    <>
-                      <span className="text-ink-ghost">•</span>
-                      <span>{detail.network}</span>
-                    </>
-                  )}
-                  <span className="text-ink-ghost">•</span>
-                  <span>
-                    {detail.seasons.length} season{detail.seasons.length === 1 ? '' : 's'}
-                  </span>
-                  <span className="text-ink-ghost">•</span>
-                  <span className="tabular-nums">{detail.episodeCount.toLocaleString()} episodes</span>
-                  <span className="text-ink-ghost">•</span>
-                  <span className="tabular-nums">{formatDuration(totalRuntime)}</span>
-                </div>
-              ) : (
-                <Skeleton className="h-4 w-72 mt-3" />
-              )}
-              {genres.length > 0 && (
-                <div className="mt-3 flex gap-1.5 flex-wrap">
-                  {genres.map((g) => (
-                    <span
-                      key={g}
-                      className="rounded-full border border-white/15 bg-white/[0.06] backdrop-blur px-2.5 py-0.5 text-[12px] text-ink-soft"
-                    >
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {detail?.tagline && <p className="mt-4 max-w-3xl text-[14px] italic text-ink-muted">{detail.tagline}</p>}
-              {detail?.overview && (
-                <p className={cx(detail.tagline ? 'mt-1.5' : 'mt-4', 'max-w-3xl text-[14px] leading-relaxed text-ink-soft line-clamp-4')}>{detail.overview}</p>
-              )}
-              {detail && (detail.creators || detail.episodeOrderName) && (
-                <p className="mt-3 text-[12.5px] text-ink-muted">
-                  {detail.creators && (
-                    <>
-                      Created by <span className="text-ink-soft">{detail.creators}</span>
-                    </>
-                  )}
-                  {detail.creators && detail.episodeOrderName && <span className="text-ink-ghost"> · </span>}
-                  {detail.episodeOrderName && (
-                    <button onClick={() => setOrdering(true)} className="hover:text-ink-soft">
-                      Episodes follow <span className="text-ink-soft">{detail.episodeOrderName}</span>
-                    </button>
-                  )}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {detail && !current && <CastRow cast={detail.cast} className="mb-8 max-w-5xl" />}
-
-      {appearances.length > 0 && (
-        <Banner tone="accent" className="mb-6 max-w-3xl">
-          {borrowedInfo.size} episode{borrowedInfo.size === 1 ? '' : 's'} of this show{' '}
-          {borrowedInfo.size === 1 ? 'airs' : 'air'} as segments inside other broadcasts:{' '}
-          <span className="text-ink">{borrowHosts.join(', ')}</span>.
-        </Banner>
-      )}
-
-      {!detail ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="aspect-[2/3] rounded-xl" />
-          ))}
-        </div>
-      ) : current ? (
-        // --- Episodes within a chosen season ---
-        <div>
-          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" icon="back" onClick={() => setOpenSeason(undefined)}>
-                All seasons
-              </Button>
-              <h2 className="text-lg font-semibold tracking-tight">
-                {seasonLabel(current.season)}
-                <span className="ml-2 text-[13px] font-normal text-ink-faint tabular-nums">
-                  {current.episodes.length} episodes
-                </span>
-              </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {!grouping && groupInfo.size > 0 && (
-                <Badge tone="accent">
-                  {new Set([...groupInfo.values()].map((g) => g.groupNo)).size} broadcast episode
-                  {new Set([...groupInfo.values()].map((g) => g.groupNo)).size === 1 ? '' : 's'}
-                </Badge>
-              )}
-              <Button
-                size="sm"
-                variant={grouping ? 'primary' : 'secondary'}
-                onClick={() => (grouping ? leaveGrouping() : setGrouping(true))}
-              >
-                {grouping ? 'Done grouping' : 'Group broadcast episodes'}
-              </Button>
-            </div>
-          </div>
-          {grouping ? (
-            <AiringsEditor
-              libraryId={id}
-              show={showTitle}
-              season={current.season}
-              episodes={current.episodes}
-              onSaved={reloadAirings}
-              onDirtyChange={setEditorDirty}
+    <TitleLayer scrollKey={showTitle}>
+      <TitleHero
+        name={showTitle}
+        backdrop={backdropSrc}
+        poster={posterSrc}
+        posterIcon="show"
+        onBack={back}
+        crumbs={[
+          { label: 'Library', to: '/library' },
+          { label: libraryName ?? '…', to: `/library/${id}` },
+          { label: showTitle },
+        ]}
+        kicker="TV Series"
+        title={showTitle}
+        year={detail?.year}
+        menu={
+          detail?.id != null && (
+            <Menu
+              label="Show actions"
+              items={[
+                { label: 'Rename…', icon: 'edit', onSelect: () => setIdentity('rename') },
+                { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
+                'divider',
+                ...match.items,
+                ...(detail.tmdbId != null ? [{ label: 'Episode order…', icon: 'list' as const, onSelect: () => setOrdering(true) }] : []),
+              ]}
             />
-          ) : (
-          <div className="rounded-2xl border border-edge surface-card overflow-hidden divide-y divide-edge/60">
-            {current.episodes.map((ep) => {
-              const g = groupInfo.get(ep.id)
-              const woven = foreignSegs.get(ep.id)
-              const airsIn = borrowedInfo.get(ep.id)
-              return (
-              <div key={ep.id}>
-              <button
-                onClick={() => setSelectedId(ep.id)}
-                className={cx(
-                  'group w-full flex items-center gap-4 px-4 py-3 hover:bg-white/[0.03] text-left transition-colors',
-                  g && 'border-l-2 border-indigo-500 bg-indigo-500/[0.04]',
-                )}
-              >
-                {ep.tmdbStillPath ? (
-                  <div className="relative w-24 aspect-video shrink-0 rounded-lg overflow-hidden bg-sunken border border-edge">
-                    <img src={artworkUrl(ep.id, 'still', ART.tiny, ep.tmdbStillPath)} alt="" loading="lazy" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-0.5 left-0.5 rounded bg-black/65 px-1 font-mono text-[10.5px] font-semibold text-white/90 tabular-nums">
-                      {ep.episode != null ? String(ep.episode).padStart(2, '0') : '—'}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 shrink-0 grid place-items-center rounded-lg bg-sunken border border-edge font-mono text-[13px] font-semibold text-ink-muted tabular-nums group-hover:text-indigo-300 group-hover:border-indigo-500/40 transition-colors">
-                    {ep.episode != null ? String(ep.episode).padStart(2, '0') : '—'}
-                  </div>
-                )}
-                <div className={'flex-1 min-w-0 ' + (ep.missing ? 'opacity-50' : '')}>
-                  <div className="truncate text-ink flex items-center gap-2">
-                    <span className="truncate text-[14px] font-medium">{ep.title}</span>
-                    {g && (
-                      <Badge tone="accent" className="shrink-0">
-                        Broadcast ep {g.groupNo} · {g.index}/{g.size}
-                      </Badge>
-                    )}
-                    {airsIn && (
-                      <Badge tone="good" className="shrink-0">
-                        Airs in {[...new Set(airsIn.map((x) => x.host.showTitle))].join(', ')}
-                      </Badge>
-                    )}
-                  </div>
-                  {ep.overview && <div className="text-[12.5px] text-ink-muted mt-0.5 line-clamp-1">{ep.overview}</div>}
-                  <div className="text-xs text-ink-faint mt-0.5">
-                    {formatAirDate(ep.airDate) ? `${formatAirDate(ep.airDate)} · ` : ''}
-                    {ep.width && ep.height ? `${ep.width}×${ep.height}` : ''}
-                    {ep.videoCodec ? ` · ${ep.videoCodec}` : ''}
-                    {ep.sizeBytes ? ` · ${formatSize(ep.sizeBytes)}` : ''}
-                    {ep.missing ? ' · missing' : ''}
-                    {detail.aired[ep.id] && <span className="text-ink-muted"> · {formatAired(detail.aired[ep.id])}</span>}
-                  </div>
-                </div>
-                <div className="text-[13px] text-ink-muted shrink-0 tabular-nums">
-                  {formatDuration(ep.durationSec)}
-                </div>
-                <Icon
-                  name="chevronRight"
-                  size={16}
-                  className="shrink-0 text-ink-ghost group-hover:text-ink-muted transition-colors"
-                />
-              </button>
-              {woven?.map(({ seg, groupNo }) => (
-                <button
-                  key={'seg' + seg.mediaItemId}
-                  onClick={() => setSelectedId(seg.mediaItemId)}
-                  className="w-full flex items-center gap-3 pl-12 pr-4 py-2 hover:bg-surface/60 text-left transition-colors bg-indigo-500/5 border-l-2 border-indigo-500"
-                >
-                  <span className="text-ink-faint shrink-0">↳</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm text-ink-soft flex items-center gap-2">
-                      <span className="truncate">{seg.title}</span>
-                      <Badge tone="accent" className="shrink-0">
-                        {seg.showTitle ?? 'Other show'}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-ink-faint">Woven into broadcast ep {groupNo}</div>
-                  </div>
-                  <span className="text-sm text-ink-muted shrink-0">
-                    {formatDuration(seg.durationSec)}
-                  </span>
+          )
+        }
+        meta={
+          detail
+            ? [
+                detail.contentRating && <RatingChip>{detail.contentRating}</RatingChip>,
+                detail.rating ? <Stars value={detail.rating} /> : null,
+                detail.network,
+                `${detail.seasons.length} season${detail.seasons.length === 1 ? '' : 's'}`,
+                <span className="tabular-nums">{totalEpisodes.toLocaleString()} episodes</span>,
+                <span className="tabular-nums">{formatDuration(totalRuntime)}</span>,
+              ]
+            : [<Skeleton className="h-4 w-72" />]
+        }
+        genres={genres}
+        status={
+          <>
+            {detail && detail.names.length > 1 && (
+              <div className="text-[12.5px] text-ink-faint">Filed from {detail.names.map((n) => `“${n}”`).join(', ')}</div>
+            )}
+            {/* Only when the match wants a look (or was taken away): the
+                show's menu is where it's fixed. */}
+            {matchStatus && (matchStatus.warn || matchTarget?.tmdbId == null) && (
+              <div className={cx('mt-1 flex items-center gap-1.5 text-[12.5px]', matchStatus.warn ? 'text-amber-300' : 'text-ink-faint')}>
+                <Icon name={matchStatus.warn ? 'warning' : 'info'} size={13} className="shrink-0" />
+                <span>
+                  {matchStatus.text}
+                  {matchStatus.detail && <span className="text-ink-faint"> · {matchStatus.detail}</span>}
+                </span>
+                <button onClick={match.openFix} className="ml-1 font-medium text-indigo-300 hover:text-indigo-200">
+                  {matchTarget?.tmdbId != null ? 'Fix match' : 'Match'}
                 </button>
-              ))}
               </div>
-              )
-            })}
-          </div>
-          )}
-        </div>
-      ) : (
-        // --- Season tiles ---
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7">
-          {detail.seasons.map((s) => {
-            const totalDur = s.episodes.reduce((a, e) => a + (e.durationSec ?? 0), 0)
-            const posterEp = s.episodes.find((e) => e.seasonPosterPath)
-            return (
-              <PosterCard
-                key={s.season ?? 'none'}
-                title={seasonLabel(s.season)}
-                subtitle={`${s.episodes.length} ep · ${formatDuration(totalDur)}`}
-                icon="show"
-                imageUrl={
-                  posterEp
-                    ? artworkUrl(posterEp.id, 'season', ART.poster)
-                    : s.tmdbPosterPath
-                      ? tmdbImage(s.tmdbPosterPath)
-                      : undefined
-                }
-                onClick={() => setOpenSeason(s.season)}
-              />
-            )
-          })}
-        </div>
-      )}
+            )}
+          </>
+        }
+        tagline={detail?.tagline}
+        overview={detail?.overview}
+        credits={
+          detail &&
+          (detail.creators || detail.episodeOrderName) && (
+            <>
+              {detail.creators && (
+                <>
+                  Created by <span className="text-ink-soft">{detail.creators}</span>
+                </>
+              )}
+              {detail.creators && detail.episodeOrderName && <span className="text-ink-ghost"> · </span>}
+              {detail.episodeOrderName && (
+                <button onClick={() => setOrdering(true)} className="hover:text-ink-soft">
+                  Episodes follow <span className="text-ink-soft">{detail.episodeOrderName}</span>
+                </button>
+              )}
+            </>
+          )
+        }
+      />
 
-      {/* The show's extras — featurettes, deleted scenes… — as Plex lists them
-          under it, apart from its episodes. */}
-      {detail && !current && detail.extras.length > 0 && (
-        <div className="mt-10 max-w-4xl">
-          <h2 className="text-[15px] font-semibold tracking-tight mb-1">
-            Extras <span className="ml-1 text-[13px] font-normal text-ink-faint tabular-nums">{detail.extras.length}</span>
-          </h2>
-          <p className="text-[12.5px] text-ink-faint mb-3">
-            They air after the show’s episodes on a channel whose Extras switch — or this show’s tile — says so.
-          </p>
-          <div className="rounded-2xl border border-edge surface-card overflow-hidden divide-y divide-edge/60">
-            {detail.extras.map((x) => (
-              <button
-                key={x.id}
-                onClick={() => setSelectedId(x.id)}
-                className="group w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/[0.03] text-left transition-colors"
-              >
-                <Icon name="clip" size={15} className="shrink-0 text-ink-faint" />
-                <span className={cx('min-w-0 flex-1 truncate text-[13.5px]', x.missing ? 'text-ink-faint line-through' : 'text-ink')}>{x.title}</span>
-                {x.season != null && <span className="text-[12px] text-ink-faint shrink-0">{seasonLabel(x.season)}</span>}
-                {x.extra && <Badge className="shrink-0">{extraLabel(x.extra)}</Badge>}
-                <span className="w-14 text-right text-[13px] text-ink-muted shrink-0 tabular-nums">{formatDuration(x.durationSec)}</span>
-              </button>
+      <div className={cx(TITLE_WIDTH, 'py-9 space-y-11')}>
+        {appearances.length > 0 && (
+          <Banner tone="accent" className="max-w-3xl">
+            {borrowedInfo.size} episode{borrowedInfo.size === 1 ? '' : 's'} of this show {borrowedInfo.size === 1 ? 'airs' : 'air'} as
+            segments inside other broadcasts: <span className="text-ink">{borrowHosts.join(', ')}</span>.
+          </Banner>
+        )}
+
+        {detail && <CastRow cast={detail.cast} />}
+
+        {!detail ? (
+          <div className="flex gap-4">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="w-[136px] aspect-[2/3] rounded-xl shrink-0" />
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <>
+            {detail.seasons.length > 1 && (
+              <Rail title="Seasons" count={detail.seasons.length}>
+                {detail.seasons.map((s) => (
+                  <SeasonCard key={s.season ?? 'none'} s={s} active={s.season === openSeason} onSelect={() => void selectSeason(s.season)} />
+                ))}
+              </Rail>
+            )}
 
-      {selectedId != null && (
-        <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} />
-      )}
+            {current && (
+              <section>
+                <div className="flex items-end justify-between gap-3 flex-wrap mb-3">
+                  <div>
+                    <h2 className="text-[20px] font-semibold tracking-tight text-ink">{seasonLabel(current.season)}</h2>
+                    <p className="text-[12.5px] text-ink-faint mt-0.5 tabular-nums">
+                      {present.length} episode{present.length === 1 ? '' : 's'} · {formatDuration(runtime(present))}
+                      {missingCount > 0 && (
+                        <>
+                          {' · '}
+                          <button onClick={() => setShowMissing((v) => !v)} className="text-amber-300/90 hover:text-amber-200">
+                            {showMissing ? 'Hide' : 'Show'} {missingCount} missing file{missingCount === 1 ? '' : 's'}
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!grouping && groupCount > 0 && (
+                      <Badge tone="accent">
+                        {groupCount} broadcast episode{groupCount === 1 ? '' : 's'}
+                      </Badge>
+                    )}
+                    <Button size="sm" variant={grouping ? 'primary' : 'secondary'} onClick={() => (grouping ? leaveGrouping() : setGrouping(true))}>
+                      {grouping ? 'Done grouping' : 'Group broadcast episodes'}
+                    </Button>
+                  </div>
+                </div>
+                {grouping ? (
+                  <AiringsEditor
+                    libraryId={id}
+                    show={showTitle}
+                    season={current.season}
+                    episodes={current.episodes}
+                    onSaved={reloadAirings}
+                    onDirtyChange={setEditorDirty}
+                  />
+                ) : (
+                  <div className="rounded-2xl border border-edge bg-surface/50 p-1.5 sm:p-2 space-y-0.5">
+                    {listed.map((ep) => (
+                      <div key={ep.id}>
+                        <EpisodeRow
+                          ep={ep}
+                          showTitle={showTitle}
+                          group={groupInfo.get(ep.id)}
+                          airsIn={borrowedInfo.get(ep.id)}
+                          aired={detail.aired[ep.id]}
+                          onOpen={() => setSelectedId(ep.id)}
+                        />
+                        {/* Segments of other shows woven in after it, under its text. */}
+                        {foreignSegs.get(ep.id)?.map(({ seg, groupNo }) => (
+                          <div key={'seg' + seg.mediaItemId} className="pl-3 sm:pl-[12.5rem] pr-1 pb-1">
+                          <button
+                            onClick={() => setSelectedId(seg.mediaItemId)}
+                            className="w-full flex items-center gap-3 pr-4 py-2 pl-3 rounded-lg hover:bg-white/[0.035] text-left transition-colors border-l-2 border-indigo-500 bg-indigo-500/[0.05]"
+                          >
+                            <span className="text-ink-faint shrink-0">↳</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate text-sm text-ink-soft flex items-center gap-2">
+                                <span className="truncate">{seg.title}</span>
+                                <Badge tone="accent" className="shrink-0">
+                                  {seg.showTitle ?? 'Other show'}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-ink-faint">Woven into broadcast ep {groupNo}</div>
+                            </div>
+                            <span className="text-sm text-ink-muted shrink-0 tabular-nums">{formatDuration(seg.durationSec)}</span>
+                          </button>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* The show's extras — featurettes, deleted scenes… — as Plex lists them
+                under it, apart from its episodes. */}
+            <ExtrasRail
+              extras={detail.extras}
+              onOpen={setSelectedId}
+              sub={(x) => (x.season != null ? seasonLabel(x.season) : null)}
+              note="They air after the show’s episodes on a channel whose Extras switch — or this show’s tile in a collection — says so."
+            />
+          </>
+        )}
+      </div>
+
+      {selectedId != null && <MediaDetailModal id={selectedId} from="show" onClose={() => setSelectedId(null)} />}
       {match.dialog}
       {ordering && detail?.id != null && (
         <EpisodeOrderDialog
@@ -545,10 +583,11 @@ export default function ShowView() {
           onClose={() => setIdentity(null)}
           onDone={(title) => {
             setIdentity(null)
+            grid?.showsChanged?.()
             navigate(`/library/${id}/show/${encodeURIComponent(title)}`, { replace: true })
           }}
         />
       )}
-    </div>
+    </TitleLayer>
   )
 }

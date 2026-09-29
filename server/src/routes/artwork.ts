@@ -3,7 +3,7 @@ import type { Response } from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { cachedTmdbImage, localThumb } from '../artworkFiles.js'
+import { cachedTmdbImage, frameThumb, localThumb } from '../artworkFiles.js'
 
 export const artworkRouter = Router()
 
@@ -60,14 +60,14 @@ artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
   sendArtwork(res, cached, 604800)
 })
 
-// GET /api/artwork/:id?type=poster|show|season|backdrop|still&w=
+// GET /api/artwork/:id?type=poster|show|season|backdrop|still|frame&w=
 // Serves local artwork when the scanner found some, else falls back to the
 // item's (or its show's) TMDB poster, downloaded and cached locally. Only paths
 // recorded on the item are used, so this can't be made to read arbitrary files.
 //
 // `backdrop` is the wide TMDB still behind the web UI's hero panels: a movie's
 // own, or an episode's show's. There's no local equivalent to prefer. `still`
-// is an episode's own frame from TMDB.
+// is an episode's own frame from TMDB; `frame` one taken from the file itself.
 //
 // `w` asks for a thumbnail about that wide — see thumbWidth.
 artworkRouter.get('/:id', async (req, res) => {
@@ -83,6 +83,8 @@ artworkRouter.get('/:id', async (req, res) => {
       tmdbPosterPath: true,
       tmdbBackdropPath: true,
       tmdbStillPath: true,
+      path: true,
+      durationSec: true,
       type: true,
       showTitle: true,
       season: true,
@@ -93,6 +95,12 @@ artworkRouter.get('/:id', async (req, res) => {
 
   const type = req.query.type
   const w = thumbWidth(req.query.w)
+
+  if (type === 'frame') {
+    const frame = await frameThumb(item.path, item.durationSec, w ?? 480)
+    if (!frame) return res.status(404).end()
+    return sendArtwork(res, frame, 604800)
+  }
 
   if (type === 'still') {
     if (!item.tmdbStillPath) return res.status(404).end()

@@ -154,6 +154,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
   const [samples, setSamples] = useState<Record<number, LibrarySample>>({})
   const [loaded, setLoaded] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     api
@@ -229,7 +230,12 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
       })}
     </div>
     {libraries.map((l) => (
-      <LibraryRail key={l.id} library={l} onOpen={setDetailId} />
+      <LibraryRail
+        key={l.id}
+        library={l}
+        // A movie opens its page; anything else, a quick look.
+        onOpen={(mid) => (l.kind === 'movie' ? navigate(`/library/${l.id}/movie/${mid}`) : setDetailId(mid))}
+      />
     ))}
     {detailId != null && <MediaDetailModal id={detailId} onClose={() => setDetailId(null)} />}
     </div>

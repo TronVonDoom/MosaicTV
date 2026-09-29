@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Library from './pages/Library'
 import LibraryView from './pages/LibraryView'
 import ShowView from './pages/ShowView'
+import MovieView from './pages/MovieView'
 import Settings from './pages/Settings'
 import Channels from './pages/Channels'
 import ChannelEditor from './pages/ChannelEditor'
@@ -46,8 +47,11 @@ export default function App() {
         <Route path="channels/:id" element={<ChannelEditor />} />
 
         <Route path="library" element={<Library />} />
-        <Route path="library/:libraryId" element={<LibraryView />} />
-        <Route path="library/:libraryId/show/:show" element={<ShowView />} />
+        {/* A movie's or show's page opens over its library's grid. */}
+        <Route path="library/:libraryId" element={<LibraryView />}>
+          <Route path="movie/:movieId" element={<MovieView />} />
+          <Route path="show/:show" element={<ShowView />} />
+        </Route>
 
         <Route path="studio" element={<Studio />} />
         <Route path="logs" element={<Logs />} />

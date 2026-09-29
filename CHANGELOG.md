@@ -52,6 +52,17 @@ TV mode, and a sturdier foundation under all of it.
   schedule warning about season 0 airing first leaves those shows' specials
   out in one click. A library that left anything out before is scanned once
   at the next start to find it again.
+- **Movie and show pages.** A movie opens its own page, as in Plex — its
+  backdrop and poster, rating, tagline, summary, director and studio, a row
+  of its cast, its extras and the file — and a show's page lists its seasons
+  as a row to pick from, with the season's episodes under it: each with its
+  still, name, first air date and summary. Both open over the library's grid,
+  beside the sidebar, so Back lands exactly where you were in it. Extras and
+  episodes TMDB has no picture for show a frame from the file. Missing files
+  (an old copy of one that's there) are hidden until asked for. The quick
+  look opened from the guide, the dashboard or search is rebuilt too: nothing
+  is cut off, the file's details fold away, and it links on to the movie's or
+  show's page. Poster chips show on hover.
 - **A metadata agent like Plex's.** Each library reads its metadata from
   sources you order on **Sources**: Kodi/Jellyfin **.nfo files** (an .nfo
   that names an id matches by it), **the files' own tags**, and **TMDB** — the

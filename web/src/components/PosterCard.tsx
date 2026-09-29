@@ -14,8 +14,8 @@ function initials(title: string): string {
 }
 
 /**
- * A poster tile for the library grids: 2:3 art that lifts on hover, with a
- * quality/year chip and a TMDB rating when known. No artwork: the title's
+ * A poster tile for the library grids: 2:3 art that lifts on hover, showing
+ * its quality chip and TMDB rating (when known) as it does. No artwork: the title's
  * initials on a colour of its own, so a grid of unmatched titles still reads.
  */
 export default function PosterCard({
@@ -65,8 +65,9 @@ export default function PosterCard({
         )}
         {/* Hover sheen + chips */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        {/* Chips on hover, so a wall of posters reads as posters. */}
         {badge && (
-          <span className="absolute top-2 right-2 rounded-md bg-black/55 backdrop-blur-md ring-1 ring-white/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-white/90 tabular-nums">
+          <span className="absolute top-2 right-2 rounded-md bg-black/55 backdrop-blur-md ring-1 ring-white/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-white/90 tabular-nums opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300">
             {badge}
           </span>
         )}

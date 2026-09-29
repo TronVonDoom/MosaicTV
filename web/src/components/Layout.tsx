@@ -47,6 +47,15 @@ const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
 
 const COLLAPSE_KEY = 'mosaictv.navCollapsed'
 
+/**
+ * Which page a path is, for remounting on navigation. A movie's or show's
+ * page opens over its library's grid (see TitleLayer), so it counts as the
+ * library's: the grid stays where it was underneath.
+ */
+function pageKey(pathname: string): string {
+  return pathname.replace(/^(\/library\/[^/]+)\/(movie|show)\/.*$/, '$1')
+}
+
 /** The rail's collapsed state: the user's own choice once they've made one,
  *  otherwise collapsed on a laptop-width window, where 248px of labels would
  *  squeeze the page itself. */
@@ -445,6 +454,12 @@ export default function Layout() {
       return !c
     })
 
+  // How wide the rail is, for what lies beside it outside this tree: a movie's
+  // or show's page (see TitleLayer) is portalled to <body>.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--rail-w', collapsed ? '72px' : '248px')
+  }, [collapsed])
+
   return (
     <div className="min-h-screen text-ink bg-canvas app-backdrop">
       {/* Desktop rail */}
@@ -512,7 +527,7 @@ export default function Layout() {
           {/* Wider on bigger monitors — the grids inside fill with more columns
               rather than leaving a 1440p screen with empty margins. */}
           <div
-            key={location.pathname}
+            key={pageKey(location.pathname)}
             className="max-w-[1680px] 3xl:max-w-[2160px] 4xl:max-w-[2720px] mx-auto px-4 sm:px-6 lg:px-8 3xl:px-10 py-7 fade-in"
           >
             <Outlet context={{ railSections: !collapsed } satisfies LayoutContext} />
