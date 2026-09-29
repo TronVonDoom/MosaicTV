@@ -414,11 +414,12 @@ export async function tagExtras(): Promise<void> {
 // the migration that moved the choice to channels lists them to scan once.
 const RESCAN_KEY = 'rescanLibraries'
 
-// Bumped when parseMedia reads episodes' names differently (2: a file's
-// second episode number isn't part of its title, "Show 12" names nothing), so
-// TV libraries take the new names at the next start — a scan rewrites them,
-// and their episodes are read again (by their shows' matches) with them.
-const PARSE_RULES = '2'
+// Bumped when episodes' names are read differently (2: a file's second
+// episode number isn't part of its title, "Show 12" names nothing; 3: nor
+// does TMDB's "Episode 16"), so TV libraries take the new names at the next
+// start — a scan rewrites them, and their episodes are read again (by their
+// shows' matches) with them.
+const PARSE_RULES = '3'
 const PARSE_KEY = 'parseRules'
 
 /** At boot: when the episode-name rules have changed, queue each TV library

@@ -113,6 +113,11 @@ const YEAR_RE = /\((\d{4})\)/
 const MORE_EPISODES_RE = /^(?:[\s._-]*(?:S\d{1,2}[\s._-]*)?E\d{1,3}\b|-\d{1,3}(?=[\s._-]|$)|[\s._-]*\d{1,2}x\d{1,3}\b)+/i
 // A name that only numbers the episode — "Show 12", "Episode 5" — gives it no title.
 const GENERIC_TITLE_RE = /^(?:episode|ep|show|part|chapter|program(?:me)?)\.?\s*#?\s*\d+$/i
+
+/** Whether a name only numbers its episode ("Show 1081", TMDB's "Episode #154"). */
+export function placeholderTitle(name: string): boolean {
+  return GENERIC_TITLE_RE.test(name.trim())
+}
 // Matches S01E02, s1e2, 1x02, etc. — and the first of a file's episodes
 // when it holds two back to back ("S03E45E46").
 const SEASON_EP_RE = /\bS(\d{1,2})[\s._-]*E(\d{1,3})(?=\b|E\d)|\b(\d{1,2})x(\d{1,3})\b/i
@@ -227,7 +232,7 @@ export function parseMedia(
       return {
         type: 'episode',
         title,
-        untitled: !epTitle || GENERIC_TITLE_RE.test(epTitle),
+        untitled: !epTitle || placeholderTitle(epTitle),
         showTitle: showTitle || null,
         season: Number.isNaN(season) ? null : season,
         episode: Number.isNaN(episode) ? null : episode,

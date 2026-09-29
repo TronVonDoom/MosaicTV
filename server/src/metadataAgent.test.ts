@@ -61,6 +61,7 @@ const server = http.createServer((req, res) => {
       episodes: [
         { season_number: 1, episode_number: 1, name: 'Tommy’s First Birthday', overview: 'A party.', air_date: '1991-08-11', still_path: '/e1.jpg', crew: [{ name: 'Norton Virgien', job: 'Director' }] },
         { season_number: 1, episode_number: 2, name: 'Barbecue Story', overview: 'A ball.', air_date: '1991-08-18', still_path: '/e2.jpg' },
+        { season_number: 1, episode_number: 3, name: 'Episode 3', overview: 'A trip.', air_date: '1991-08-25' },
       ],
     })
   if (p === '/tv/3022/episode_groups')
@@ -115,6 +116,8 @@ put(
 )
 const e1 = put('tv/Rugrats (1991)/Season 01/Rugrats - S01E01.mkv')
 const e2 = put('tv/Rugrats (1991)/Season 01/Rugrats - S01E02 - The Barbecue.mkv')
+// Numbered, not named, in both: TMDB's "Episode 3" says less than "Show 1081".
+const e4 = put('tv/Rugrats (1991)/Season 01/Rugrats - S01E03 - Show 1081.mkv')
 // A season TMDB doesn't have (the stand-in answers 404): read all the same.
 const e3 = put('tv/Rugrats (1991)/Season 07/Rugrats - S07E01 - Runaway Reptar.mkv')
 
@@ -158,6 +161,8 @@ test('a show’s episodes get TMDB’s names, air dates and stills; a file that 
   const [a2, b2] = await Promise.all([item(e1), item(e2)])
   assert.deepEqual([a2.title, a2.metaTitle, a2.airDate, a2.tmdbStillPath, a2.directors], ['Tommy’s First Birthday', 'Tommy’s First Birthday', '1991-08-11', '/e1.jpg', 'Norton Virgien'])
   assert.deepEqual([b2.title, b2.metaTitle, b2.overview], ['The Barbecue', 'Barbecue Story', 'A ball.'])
+  const d = await item(e4)
+  assert.deepEqual([d.title, d.metaTitle, d.overview], ['Show 1081', null, 'A trip.'])
 
   // A season TMDB doesn't have is read without it, not left for every later fetch.
   const c = await item(e3)

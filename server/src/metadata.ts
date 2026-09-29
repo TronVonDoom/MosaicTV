@@ -45,7 +45,7 @@ import {
 } from './contract/index.js'
 import { cleanDate, nfoReader, type CastMember, type Nfo, type NfoReader } from './nfo.js'
 import { probeTags, type EmbeddedTags } from './ffprobe.js'
-import { parseMedia } from './scanner/parse.js'
+import { parseMedia, placeholderTitle } from './scanner/parse.js'
 import { showCards } from './shows.js'
 import { scheduleChangedEverywhere } from './scheduleChanges.js'
 
@@ -240,7 +240,8 @@ function fromTv(t: TmdbTv): Partial<Details> {
 
 function fromEpisode(e: TmdbEpisode): Partial<Details> {
   return {
-    metaTitle: orNull(e.name),
+    // TMDB's "Episode #154" names nothing — a file's "Show 1081" says more.
+    metaTitle: e.name && !placeholderTitle(e.name) ? e.name : null,
     overview: orNull(e.overview),
     rating: orNull(e.vote_average),
     people: list(directorsOf(e.crew)),
@@ -547,7 +548,9 @@ async function fillEpisodes(a: Agent, showId: number, tvId: number | null, order
     const root = rootOf(a, ep.path)
     const parsed = root ? parseMedia(ep.path, root, 'tv') : null
     const atNumber = tmdb && ep.season != null && ep.episode != null ? tmdb.get(key(ep.season, ep.episode)) ?? null : null
-    const te = atNumber?.name && parsed && !parsed.untitled && !namesAgree(parsed.title, atNumber.name) ? null : atNumber
+    // (A placeholder of TMDB's can't disagree: numbers are all there is to go by.)
+    const named = atNumber?.name && !placeholderTitle(atNumber.name) ? atNumber.name : null
+    const te = named && parsed && !parsed.untitled && !namesAgree(parsed.title, named) ? null : atNumber
     const { details, used } = mergeDetails(a.sources, { nfo: fromNfo(nfo), embedded: fromTags(tags), tmdb: te ? fromEpisode(te) : null })
     updates.push(
       prisma.mediaItem.update({
