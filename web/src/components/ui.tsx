@@ -75,7 +75,7 @@ export function CardHeader({
     <div className={cx('flex items-start gap-3 mb-4', className)}>
       {icon && <IconTile name={icon} size="sm" />}
       <div className="min-w-0 flex-1">
-        <h2 className="font-semibold text-[15px] leading-tight tracking-tight text-ink">{title}</h2>
+        <h2 className="font-display font-bold uppercase text-[16px] leading-tight tracking-[0.12em] text-ink">{title}</h2>
         {description && <p className="text-[13px] text-ink-muted mt-1 leading-relaxed">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
@@ -568,8 +568,8 @@ export function PageHeader({
         {/* The 16rem basis wraps the actions below the text on a phone instead
             of squeezing the description into a narrow column beside them. */}
         <div className="min-w-0 flex-[1_1_16rem]">
-          <h1 className="text-[26px] font-semibold tracking-[-0.02em] leading-tight text-ink">{title}</h1>
-          {description && <p className="text-ink-muted text-sm mt-1 max-w-2xl leading-relaxed">{description}</p>}
+          <h1 className="font-display font-extrabold uppercase text-[36px] sm:text-[44px] leading-[0.9] tracking-[0.005em] text-ink">{title}</h1>
+          {description && <p className="text-ink-muted text-sm mt-2 max-w-2xl leading-relaxed">{description}</p>}
         </div>
         {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
       </div>
@@ -598,7 +598,7 @@ export function SectionHeading({
     // below the title instead of running off the edge.
     <div className={cx('flex flex-wrap items-end gap-x-3 gap-y-2.5 mb-3.5', className)}>
       <div className="min-w-0 flex-[1_1_14rem]">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-ink">
+        <h2 className="flex items-center gap-2 font-display font-bold uppercase text-[16px] leading-tight tracking-[0.16em] text-ink">
           {icon && <Icon name={icon} size={16} className="text-ink-muted" />}
           {title}
         </h2>
@@ -1047,7 +1047,7 @@ export function Tabs<T extends string>({
             aria-selected={on}
             onClick={() => onChange(t.id)}
             className={cx(
-              'relative inline-flex items-center gap-2 h-10 px-3.5 text-[13.5px] font-medium whitespace-nowrap transition-colors rounded-t-lg',
+              'relative inline-flex items-center gap-2 h-10 px-3.5 font-display font-bold uppercase text-[15px] tracking-[0.1em] whitespace-nowrap transition-colors rounded-t-lg',
               on ? 'text-ink' : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.03]',
             )}
           >
@@ -1056,7 +1056,7 @@ export function Tabs<T extends string>({
             {t.badge != null && (
               <span
                 className={cx(
-                  'text-[10.5px] tabular-nums rounded-md px-1.5 leading-[18px] transition-colors',
+                  'font-sans font-medium tracking-normal text-[10.5px] tabular-nums rounded-md px-1.5 leading-[18px] transition-colors',
                   on ? 'bg-indigo-500/20 text-indigo-200' : 'bg-raised text-ink-faint',
                 )}
               >
@@ -1064,7 +1064,7 @@ export function Tabs<T extends string>({
               </span>
             )}
             {on && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-indigo-400 to-sky-400" />
+              <span className="absolute inset-x-2 -bottom-px h-[3px] bg-live" />
             )}
           </button>
         )

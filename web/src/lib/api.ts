@@ -23,6 +23,10 @@ import {
   type AiredProgram as AiredProgramDTO,
   type EpisodeAired as EpisodeAiredDTO,
   type LookAhead as LookAheadDTO,
+  type LibraryHome as LibraryHomeDTO,
+  type OnAirRow as OnAirRowDTO,
+  type OnAirSlot as OnAirSlotDTO,
+  type TitleOnAir as TitleOnAirDTO,
   type LookAheadProgram as LookAheadProgramDTO,
   type Asset as AssetDTO,
   type Channel as ChannelDTO,
@@ -76,6 +80,7 @@ import type {
   MatchCandidate,
   MatchCounts,
   MatchFilter,
+  OnAirChannel,
   CastMember,
   EpisodeOrder,
   MetadataSource,
@@ -126,6 +131,7 @@ export type {
   MatchCandidate,
   MatchCounts,
   MatchFilter,
+  OnAirChannel,
   CastMember,
   EpisodeOrder,
   MetadataSource,
@@ -177,6 +183,10 @@ export type RotationItem = Wire<RotationItemDTO>
 export type SeasonGroup = Wire<SeasonGroupDTO>
 export type ShowDetail = Wire<ShowDetailDTO>
 export type TimeBlock = Wire<TimeBlockDTO>
+export type LibraryHome = Wire<LibraryHomeDTO>
+export type OnAirRow = Wire<OnAirRowDTO>
+export type OnAirSlot = Wire<OnAirSlotDTO>
+export type TitleOnAir = Wire<TitleOnAirDTO>
 
 // What the writes send: the contract's canonical request shapes, with the
 // fields the server fills in left optional.
@@ -296,6 +306,8 @@ export const api = {
   stats: () => request<Stats>('/api/stats'),
   libraries: () => request<Library[]>('/api/libraries'),
   librarySample: (id: number, limit = 12) => request<LibrarySample>(`/api/libraries/${id}/sample?limit=${limit}`),
+  // A movie or TV library's home: what's in it, what of it is on, and what isn't.
+  libraryHome: (id: number) => request<LibraryHome>(`/api/libraries/${id}/home`),
   addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
   // Where its metadata comes from, first to last.
@@ -334,6 +346,9 @@ export const api = {
     return request<MediaPage>(`/api/media?${qs.toString()}`)
   },
   mediaItem: (id: number) => request<MediaItemDetail>(`/api/media/${id}`),
+  // Where a movie (or any one file) airs, and a show's episodes.
+  mediaOnAir: (id: number) => request<TitleOnAir>(`/api/media/${id}/on-air`),
+  showOnAir: (showId: number) => request<TitleOnAir>(`/api/shows/${showId}/on-air`),
   shows: (libraryId: number) =>
     request<{ shows: Show[] }>(`/api/shows?libraryId=${libraryId}`),
   showDetail: (libraryId: number, show: string) =>

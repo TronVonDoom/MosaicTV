@@ -13,7 +13,7 @@ function ExtraCard({ item, sub, onOpen }: { item: MediaItem; sub?: string | null
   return (
     <button type="button" onClick={onOpen} className="group w-56 sm:w-60 shrink-0 snap-start text-left focus-visible:outline-none">
       <div
-        className="relative aspect-video rounded-lg overflow-hidden ring-1 ring-inset ring-white/10 group-hover:ring-indigo-400/60 group-focus-visible:ring-2 group-focus-visible:ring-indigo-400 transition-[box-shadow,transform] duration-300 group-hover:-translate-y-0.5 shadow-[0_12px_28px_-14px_rgb(0_0_0/0.9)]"
+        className="relative aspect-video rounded-lg overflow-hidden ring-1 ring-inset ring-white/10 group-hover:ring-cue/70 group-focus-visible:ring-2 group-focus-visible:ring-cue transition-[box-shadow,transform] duration-300 group-hover:-translate-y-0.5 shadow-[0_12px_28px_-14px_rgb(0_0_0/0.9)]"
         style={{ background: posterGradient(item.title) }}
       >
         {framed !== false && (
@@ -35,11 +35,11 @@ function ExtraCard({ item, sub, onOpen }: { item: MediaItem; sub?: string | null
           </span>
         )}
         {item.extra && (
-          <span className="absolute top-2 left-2 rounded-md bg-black/55 backdrop-blur-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white/90">
+          <span className="absolute top-2 left-0 rounded-r-[3px] bg-black/70 backdrop-blur-md px-2 pt-[3px] pb-[2px] font-display font-bold text-[12px] leading-none uppercase tracking-[0.14em] text-white/90">
             {extraLabel(item.extra)}
           </span>
         )}
-        <span className="absolute bottom-2 right-2 rounded-md bg-black/60 backdrop-blur-md px-1.5 py-0.5 text-[11px] font-medium text-white/90 tabular-nums">
+        <span className="absolute bottom-2 right-2 rounded-[3px] bg-black/65 backdrop-blur-md px-1.5 py-0.5 font-mono text-[11px] uppercase text-white/90 tabular-nums">
           {formatDuration(item.durationSec)}
         </span>
       </div>
@@ -74,7 +74,7 @@ export default function ExtrasRail({
           <ExtraCard key={x.id} item={x} sub={sub?.(x)} onOpen={() => onOpen(x.id)} />
         ))}
       </Rail>
-      {note && <p className="mt-2 text-[12px] text-ink-faint">{note}</p>}
+      {note && <p className="mt-3 text-[13px] text-ink-faint">{note}</p>}
     </div>
   )
 }

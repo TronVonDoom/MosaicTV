@@ -93,7 +93,11 @@ aired, DVD, absolute, production — whatever TMDB has for that show). Only the
 episodes' names, dates and pictures follow it; the files keep their numbers,
 and so do the schedule and your broadcast episodes.
 
-Check your results under **Library → Browse** — drill into shows, seasons, episodes.
+Check your results under **Library**: each library opens on its **Home** — what
+from it is on air now, the next hours of the channels airing it, and how much
+of it no channel airs yet (**Off air**) — with **All** a tab away. Open a movie
+or show for its page: where and when it airs, its story and cast, its seasons
+and episodes. A title no channel airs has **Add to a channel**.
 
 ### Fixing a wrong match
 

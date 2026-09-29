@@ -153,7 +153,7 @@ export function extrasAfterParents(units: ProgramUnit[]): ProgramUnit[] {
   return rest.flatMap((u) => [u, ...(follow.get(u[0].id) ?? [])])
 }
 
-function hasFilter(c: CollectionFilter): boolean {
+export function hasFilter(c: CollectionFilter): boolean {
   return !!(c.libraryId || c.filterType || c.filterShow || c.filterSearch || c.filterGenre)
 }
 

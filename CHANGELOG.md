@@ -52,17 +52,33 @@ TV mode, and a sturdier foundation under all of it.
   schedule warning about season 0 airing first leaves those shows' specials
   out in one click. A library that left anything out before is scanned once
   at the next start to find it again.
-- **Movie and show pages.** A movie opens its own page, as in Plex — its
-  backdrop and poster, rating, tagline, summary, director and studio, a row
-  of its cast, its extras and the file — and a show's page lists its seasons
-  as a row to pick from, with the season's episodes under it: each with its
-  still, name, first air date and summary. Both open over the library's grid,
-  beside the sidebar, so Back lands exactly where you were in it. Extras and
-  episodes TMDB has no picture for show a frame from the file. Missing files
-  (an old copy of one that's there) are hidden until asked for. The quick
-  look opened from the guide, the dashboard or search is rebuilt too: nothing
-  is cut off, the file's details fold away, and it links on to the movie's or
-  show's page. Poster chips show on hover.
+- **Movie and show pages, set as a TV station would set them.** A title
+  opens its own page over the library's grid, beside the sidebar, so Back
+  lands exactly where you were. Its backdrop runs full-bleed with the title
+  as a network's lower-third — a **NEXT** or **LIVE** tally saying when it's
+  on, the name in big condensed caps, its facts in the guide's mono — and the
+  bug of the channel that airs it in the corner. **On air** draws that
+  channel's hours around the airing as the guide does, with the title lit,
+  lists what's coming up (a show's next episodes), and says when it was last
+  on; a title no channel airs says so, with **Add to a channel**, which puts
+  it in one of a channel's collections (that channel replans). Then its story
+  and credits, what's on file, the cast as lower-thirds, and its extras. A
+  show's seasons are a tuner's row of numbered buttons, its episodes a
+  listing — code, name with its segments told apart, first air date, when it
+  last aired, and a NEXT tally on the ones coming up. Extras and episodes
+  TMDB has no picture for show a frame from the file. Missing files (an old
+  copy of one that's there) are hidden until asked for. The quick look opened
+  from the guide, the dashboard or search matches, and links on to the
+  movie's or show's page.
+- **A home for each library.** A movie or TV library opens on **Home**: what
+  from it is **on air now** (with how far in, and what follows it), the next
+  twelve hours of every channel that airs it, drawn as the guide draws them,
+  what was just added, and **Off air** — how many of its titles no channel's
+  collections bring in, by genre, with the grid of them a tab away — and the
+  library by decade as a level meter. **All** is the poster grid as before.
+  The Library page's cards say what's on now from each, and how much is off
+  air. Page titles, section headings and tabs across the app take the same
+  condensed broadcast type.
 - **A metadata agent like Plex's.** Each library reads its metadata from
   sources you order on **Sources**: Kodi/Jellyfin **.nfo files** (an .nfo
   that names an id matches by it), **the files' own tags**, and **TMDB** — the
@@ -71,7 +87,9 @@ TV mode, and a sturdier foundation under all of it.
   first air date, summary and a still. A file's own episode title is kept,
   and one whose name disagrees with TMDB's episode at its number (a cartoon
   split into its segments) goes without TMDB's details rather than showing
-  another episode's. A show can follow another of TMDB's **episode orders**
+  another episode's. A name that only numbers its episode — a file's "Show
+  12", TMDB's "Episode 16" — names nothing: a file with one takes TMDB's real
+  name, and TMDB's never replaces a file's. A show can follow another of TMDB's **episode orders**
   (DVD, absolute, production…) from its menu; the files keep their numbers.
   The guide carries it all: credits, first-aired dates, genres, ratings.
 - **A tidier frame.** The sidebar gained entries under its items — every

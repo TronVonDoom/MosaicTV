@@ -157,3 +157,37 @@ export function describeSources(csv: string | null | undefined): string | null {
   if (names.length === 0) return null
   return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
+
+/**
+ * When an airing is, as a listing puts it: the day ("Tonight", "Today",
+ * "Tomorrow", "Yesterday", "Wed", "Oct 9") and the time ("7:07 PM").
+ */
+export function formatAiring(t: string | number | Date, now = Date.now()): { day: string; time: string } {
+  const d = new Date(t)
+  const n = new Date(now)
+  const dayOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((dayOf(d) - dayOf(n)) / 86400_000)
+  const day =
+    days === 0
+      ? d.getHours() >= 17 && d.getTime() > now
+        ? 'Tonight'
+        : 'Today'
+      : days === 1
+        ? 'Tomorrow'
+        : days === -1
+          ? 'Yesterday'
+          : Math.abs(days) < 6
+            ? d.toLocaleDateString([], { weekday: 'short' })
+            : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return { day, time: formatClock(d) }
+}
+
+/** A broadcast episode's subtitle split as a listing shows it: its code
+ *  ("S5 · E17") and its name(s). A movie's year is its code. */
+export function splitSubtitle(subtitle: string | null | undefined): { code: string | null; name: string | null } {
+  if (!subtitle) return { code: null, name: null }
+  const parts = subtitle.split(' · ')
+  const codeParts: string[] = []
+  while (parts.length && /^(S\d+|E\d+|Special|\d{4}$)/.test(parts[0])) codeParts.push(parts.shift() as string)
+  return { code: codeParts.join(' ') || null, name: parts.join(' · ') || null }
+}

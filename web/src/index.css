@@ -16,6 +16,8 @@
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Titles and labels, as a broadcast sets them: condensed, often in caps. */
+  --font-display: "Barlow Condensed", "Arial Narrow", ui-sans-serif, sans-serif;
 
   /* Two steps past Tailwind's 2xl, for the monitors people actually run a
      media server's UI on: a 1080p desktop at 3xl, 1440p/4K at 4xl. */
@@ -42,6 +44,10 @@
   /* The on-air tally. Red, like every studio's LIVE light — kept apart from
      the error rose so "live" never reads as "broken". */
   --color-live: #ff3b4f;
+  /* What's coming up — "NEXT", a time in a listing. The amber of a studio's
+     standby light, beside the tally's red. */
+  --color-cue: #ffb020;
+  --color-cue-ink: #1a1200;
 
   /* ── Surfaces, back to front ──────────────────────────────────────────
      canvas  the page itself
@@ -165,6 +171,15 @@
   /* Solid rainbow fill for bars, chips, indicators. */
   .bg-gradient-brand {
     background-image: var(--gradient-brand);
+  }
+  /* The brand's colours as hard-edged bars, like a test pattern's: the
+     stripe along the top of a title's or a library's page. */
+  .test-stripe {
+    background-image: linear-gradient(
+      90deg,
+      #a855f7 0 14.3%, #6366f1 14.3% 28.6%, #3b82f6 28.6% 42.9%, #22d3ee 42.9% 57.2%,
+      #34d399 57.2% 71.5%, #fbbf24 71.5% 85.8%, #fb7185 85.8% 100%
+    );
   }
 
   /* The standard panel: a whisper of top-lit sheen and a hairline highlight

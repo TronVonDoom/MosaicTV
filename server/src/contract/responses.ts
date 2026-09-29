@@ -215,6 +215,8 @@ export type MediaItem = {
   tmdbStillPath: string | null
   metaSources: string | null
   missing: boolean
+  /** When a scan first found it. */
+  addedAt: Date
 }
 
 /** A cast member as the metadata gives them; `photo` is a TMDB path or a link. */
@@ -687,4 +689,69 @@ export type ScheduleWarning = {
   collectionId?: number
   /** The show picks whose season 0 can be left out to fix it. */
   leaveOutSpecials?: number[]
+}
+
+// ── On air: where a title, or a library's titles, air ─────────────────────────
+
+/** A channel as the on-air views picture it. */
+export type OnAirChannel = { id: number; number: number | null; name: string; logoId: number | null }
+
+/** One airing: a program on a channel's schedule — a broadcast episode's
+ *  segments, or a program's acts, together as one. */
+export type OnAirSlot = {
+  channel: OnAirChannel
+  start: Date
+  stop: Date
+  /** What the guide calls it: the show, or the movie. */
+  title: string
+  /** An episode's code and name(s) ("S5 · E17 · Uneasy Rider + Where's Grandpa"), a movie's year. */
+  subtitle: string | null
+  /** The first file it plays: for its artwork, and to open it. */
+  mediaItemId: number | null
+  showId: number | null
+  libraryId: number | null
+}
+
+/** A stretch of one channel's schedule, drawn as the guide draws it, with the
+ *  programs the view is about marked. */
+export type OnAirRow = { channel: OnAirChannel; programs: (OnAirSlot & { mine: boolean })[] }
+
+/** Where a movie or a show airs. */
+export type TitleOnAir = {
+  /** The channels whose collections bring it in, and which of their collections. */
+  carriers: { channel: OnAirChannel; collections: { id: number; name: string }[] }[]
+  /** Airing right now, if it is. */
+  now: OnAirSlot | null
+  /** Its next airings, soonest first. */
+  next: OnAirSlot[]
+  /** When it last aired, and how often in the kept history. */
+  last: { at: Date; channel: OnAirChannel | null } | null
+  airedCount: number
+  /** The hours around its airing now or next, on that channel. */
+  evening: { from: Date; to: Date; row: OnAirRow } | null
+}
+
+/** A movie or TV library's home: what's in it, what of it is on, and what isn't. */
+export type LibraryHome = {
+  kind: LibraryKind
+  /** Movies, or shows. */
+  titles: number
+  episodes: number
+  hours: number
+  extras: number
+  /** Titles some channel's collections bring in; the rest are off air. */
+  onChannel: number
+  offAir: number
+  /** What's airing from it right now, one per channel. */
+  onNow: OnAirSlot[]
+  /** The next hours of each channel that airs something from it. */
+  tonight: { from: Date; to: Date; rows: OnAirRow[] }
+  /** The off-air titles' genres, most first. */
+  offAirGenres: { name: string; count: number }[]
+  /** Its titles by decade (of release, or a show's first year). */
+  decades: { decade: number; count: number }[]
+  /** A TV library's shows with the newest files, newest first. */
+  newShows: { showTitle: string; addedAt: Date; newEpisodes: number }[]
+  /** The shows no channel airs, by id (a TV library's Off air view). */
+  offAirShowIds: number[]
 }

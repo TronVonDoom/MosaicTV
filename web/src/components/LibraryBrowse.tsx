@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, ART, artworkUrl, type Library, type LibraryKind, type LibrarySample, type MediaItem, type Show } from '../lib/api'
+import { api, ART, artworkUrl, type Library, type LibraryHome, type LibraryKind, type LibrarySample, type MediaItem, type Show } from '../lib/api'
 import MediaDetailModal from './MediaDetailModal'
 import PosterCard from './PosterCard'
 import PosterRail, { RailItem } from './PosterRail'
 import { posterGradient } from '../lib/format'
 import { type IconName } from './Icon'
 import Icon from './Icon'
-import { EmptyState, IconTile, Skeleton, buttonClass } from './ui'
+import { EmptyState, Skeleton, buttonClass } from './ui'
+import { Tally } from './onair/OnAir'
 
 const KIND_ICON: Record<LibraryKind, IconName> = { tv: 'show', movie: 'movie', music: 'audio', other: 'clip' }
 const KIND_LABEL: Record<LibraryKind, string> = {
@@ -93,7 +94,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
       <PosterRail
         title={`Top rated in ${library.name}`}
         actions={
-          <Link to={`/library/${library.id}`} className="text-[13px] text-indigo-300 hover:text-indigo-200 mr-1">
+          <Link to={`/library/${library.id}?view=all`} className="font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200 mr-1">
             See all
           </Link>
         }
@@ -126,7 +127,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
     <PosterRail
       title={`Recently added to ${library.name}`}
       actions={
-        <Link to={`/library/${library.id}`} className="text-[13px] text-indigo-300 hover:text-indigo-200 mr-1">
+        <Link to={`/library/${library.id}?view=all`} className="font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200 mr-1">
           See all
         </Link>
       }
@@ -152,6 +153,8 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
 export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => void }) {
   const [libraries, setLibraries] = useState<Library[]>([])
   const [samples, setSamples] = useState<Record<number, LibrarySample>>({})
+  // What's on from each, and what of it no channel airs.
+  const [homes, setHomes] = useState<Record<number, LibraryHome>>({})
   const [loaded, setLoaded] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const navigate = useNavigate()
@@ -161,11 +164,17 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
       .libraries()
       .then((libs) => {
         setLibraries(libs)
-        for (const l of libs)
+        for (const l of libs) {
           api
             .librarySample(l.id, 18)
             .then((s) => setSamples((prev) => ({ ...prev, [l.id]: s })))
             .catch(() => {})
+          if (l.kind === 'tv' || l.kind === 'movie')
+            api
+              .libraryHome(l.id)
+              .then((h) => setHomes((prev) => ({ ...prev, [l.id]: h })))
+              .catch(() => {})
+        }
       })
       .catch(() => {})
       .finally(() => setLoaded(true))
@@ -211,17 +220,32 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
             <div className={`relative ${libraries.length <= 2 ? 'h-60' : 'h-52'}`}>
               <PosterMosaic sample={samples[l.id]} name={l.name} />
             </div>
-            <div className="relative -mt-12 flex items-end gap-4 px-5 pb-5">
-              <IconTile name={KIND_ICON[l.kind]} size="lg" className="backdrop-blur-md" />
+            {homes[l.id] && homes[l.id].onNow.length > 0 && (
+              <Tally tone="live" className="absolute top-4 left-5">
+                {homes[l.id].onNow.length} on now
+              </Tally>
+            )}
+            <div className="relative -mt-14 flex items-end gap-4 px-5 pb-5">
               <div className="min-w-0 flex-1 pb-0.5">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{KIND_LABEL[l.kind]}</div>
-                <div className="text-lg font-semibold tracking-tight truncate">{l.name}</div>
-                <div className="text-[12.5px] text-ink-muted tabular-nums">
-                  {l.itemCount.toLocaleString()} {l.itemCount === 1 ? one : many} · {l.folders.length}{' '}
-                  {l.folders.length === 1 ? 'folder' : 'folders'}
+                <div className="flex items-center gap-2 font-display font-bold text-[13px] uppercase tracking-[0.2em] text-ink-faint">
+                  <Icon name={KIND_ICON[l.kind]} size={14} />
+                  {KIND_LABEL[l.kind]}
+                </div>
+                <div className="mt-1 font-display font-extrabold text-[40px] sm:text-[48px] leading-[0.9] uppercase truncate">{l.name}</div>
+                <div className="mt-2 font-mono text-[12px] uppercase text-ink-muted tabular-nums">
+                  {homes[l.id] ? (
+                    <>
+                      {homes[l.id].titles.toLocaleString()} {l.kind === 'tv' ? 'shows' : many} · {homes[l.id].onChannel.toLocaleString()} on a channel ·{' '}
+                      <span className="text-cue">{homes[l.id].offAir.toLocaleString()} off air</span>
+                    </>
+                  ) : (
+                    <>
+                      {l.itemCount.toLocaleString()} {l.itemCount === 1 ? one : many} · {l.folders.length} {l.folders.length === 1 ? 'folder' : 'folders'}
+                    </>
+                  )}
                 </div>
               </div>
-              <span className="mb-1 grid place-items-center w-8 h-8 rounded-full bg-white/[0.06] text-ink-muted group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+              <span className="mb-1 grid place-items-center w-9 h-9 rounded-full bg-white/[0.06] text-ink-muted group-hover:bg-cue group-hover:text-cue-ink transition-colors">
                 <Icon name="chevronRight" size={16} />
               </span>
             </div>

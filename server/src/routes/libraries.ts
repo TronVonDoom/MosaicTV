@@ -1,10 +1,11 @@
 import { Router } from 'express'
-import { asMetadataSources, LibraryUpdate, type Library, type Stored } from '../contract/index.js'
+import { asMetadataSources, LibraryUpdate, type Library, type LibraryHome, type Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { isScanning } from '../scanner/scanner.js'
 import { matchCounts } from '../metadata.js'
+import { libraryHome } from '../onAir.js'
 import { readBody } from '../validate.js'
 
 export const librariesRouter = Router()
@@ -58,6 +59,15 @@ librariesRouter.patch('/:id', async (req, res) => {
 // match, and automatic matches that don't agree with their files.
 librariesRouter.get('/:id/matches', async (req, res) => {
   res.json(await matchCounts(Number(req.params.id)))
+})
+
+// GET /api/libraries/:id/home -> a movie or TV library's home: its size,
+// what of it airs and what doesn't, what's on from it now, and the next
+// hours of the channels that air it.
+librariesRouter.get('/:id/home', async (req, res) => {
+  const id = Number(req.params.id)
+  if (Number.isNaN(id) || !(await prisma.library.count({ where: { id } }))) return res.status(404).json({ error: 'Library not found' })
+  res.json((await libraryHome(id)) satisfies Stored<LibraryHome>)
 })
 
 // A handful of titles with artwork, for the poster mosaic on a library's card.

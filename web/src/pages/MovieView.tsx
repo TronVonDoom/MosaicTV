@@ -1,24 +1,81 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { api, ART, artworkUrl, type MediaItemDetail } from '../lib/api'
-import { extraLabel, formatDuration } from '../lib/format'
+import { api, ART, artworkUrl, type MediaItemDetail, type OnAirSlot, type TitleOnAir } from '../lib/api'
+import { extraLabel, formatAiring, formatClock, formatDuration } from '../lib/format'
 import MediaDetailModal from '../components/MediaDetailModal'
 import CastRow from '../components/CastRow'
 import TitleLayer from '../components/title/TitleLayer'
-import TitleHero, { RatingChip, Stars, TITLE_WIDTH } from '../components/title/TitleHero'
+import TitleHero, { HeroButton, HeroMenu, Stars, TITLE_WIDTH } from '../components/title/TitleHero'
+import Story, { Slate } from '../components/title/Story'
 import ExtrasRail from '../components/title/Extras'
 import FileDetails from '../components/title/FileDetails'
+import TitleOnAirSection from '../components/onair/TitleOnAirSection'
+import AddToChannel from '../components/onair/AddToChannel'
+import { OnAirHeading, RatingBox, Tally } from '../components/onair/OnAir'
 import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
 import Icon from '../components/Icon'
-import { Badge, Button, EmptyState, Menu, Skeleton, cx, buttonClass } from '../components/ui'
+import { Button, EmptyState, Skeleton, cx, buttonClass } from '../components/ui'
 
 /** What the library grid underneath hears about: a movie whose match changed. */
 export type LibraryLayerContext = { movieChanged?: (id: number) => void; showsChanged?: () => void }
 
+/** A picture's height as its quality: "1080p", "4K". */
+export function qualityOf(height: number | null | undefined): string | null {
+  if (!height) return null
+  return height >= 2000 ? '4K' : `${height >= 1000 ? 1080 : height >= 700 ? 720 : height}p`
+}
+
+/** Where an airing opens: its show's page, or its movie's. */
+export function slotPath(s: OnAirSlot): string | null {
+  if (s.libraryId == null) return null
+  if (s.showId != null) return `/library/${s.libraryId}/show/${encodeURIComponent(s.title)}`
+  return s.mediaItemId != null ? `/library/${s.libraryId}/movie/${s.mediaItemId}` : null
+}
+
+/** The hero's cue line: on now, next on, or off the air. */
+export function OnAirCue({ onAir }: { onAir: TitleOnAir | null }) {
+  if (!onAir) return null
+  const on = onAir.now
+  const next = onAir.next[0]
+  const mono = 'font-mono text-[12.5px] sm:text-[13px] tracking-[0.08em] uppercase text-ink'
+  if (on) {
+    return (
+      <>
+        <Tally tone="live">Live</Tally>
+        <span className={mono}>
+          On {on.channel.number ?? on.channel.name} now · {on.channel.name} · until {formatClock(on.stop)}
+        </span>
+      </>
+    )
+  }
+  if (next) {
+    const { day, time } = formatAiring(next.start)
+    return (
+      <>
+        <Tally tone="next">Next</Tally>
+        <span className={mono}>
+          {day} {time} · CH {next.channel.number ?? '—'} {next.channel.name}
+        </span>
+      </>
+    )
+  }
+  if (onAir.carriers.length > 0) {
+    return (
+      <>
+        <Tally tone="off">Not in the guide yet</Tally>
+        <span className={mono}>On {onAir.carriers.map((c) => c.channel.name).join(', ')}</span>
+      </>
+    )
+  }
+  return <Tally tone="off">Off air</Tally>
+}
+
 /**
- * A movie's page, as Plex has one: its backdrop and poster, what it is, who
- * made it and who's in it, its extras, and the file — opened over its
- * library's grid, which keeps its place underneath.
+ * A movie's page, set as a network's feature on it: its backdrop with the
+ * title as a lower-third and its channel's bug, where and when it airs (its
+ * channel's evening, drawn as the guide draws it), its story and credits,
+ * who's in it, its extras, and the file — opened over its library's grid,
+ * which keeps its place underneath.
  */
 export default function MovieView() {
   const { libraryId, movieId } = useParams()
@@ -27,7 +84,9 @@ export default function MovieView() {
   const location = useLocation()
   const grid = useOutletContext<LibraryLayerContext | undefined>()
   const [item, setItem] = useState<MediaItemDetail | null>(null)
+  const [onAir, setOnAir] = useState<TitleOnAir | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [adding, setAdding] = useState(false)
   // An extra, opened for a quick look.
   const [peek, setPeek] = useState<number | null>(null)
 
@@ -39,9 +98,12 @@ export default function MovieView() {
         setNotFound(false)
       })
       .catch(() => setNotFound(true))
+  const loadOnAir = () => api.mediaOnAir(id).then(setOnAir).catch(() => {})
   useEffect(() => {
     setItem(null)
+    setOnAir(null)
     void load()
+    void loadOnAir()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -92,13 +154,10 @@ export default function MovieView() {
   if (!item) {
     return (
       <TitleLayer scrollKey={id}>
-        <div className={cx(TITLE_WIDTH, 'pt-24 pb-10 flex gap-8 items-end')}>
-          <Skeleton className="w-44 lg:w-52 aspect-[2/3] rounded-xl shrink-0" />
-          <div className="flex-1 space-y-3 pb-2">
-            <Skeleton className="h-10 w-2/3" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-20 w-full max-w-3xl" />
-          </div>
+        <div className={cx(TITLE_WIDTH, 'pt-64 pb-10 space-y-4')}>
+          <Skeleton className="h-5 w-64" />
+          <Skeleton className="h-24 w-2/3" />
+          <Skeleton className="h-4 w-1/3" />
         </div>
       </TitleLayer>
     )
@@ -112,7 +171,13 @@ export default function MovieView() {
     : item.missing
       ? null
       : artworkUrl(item.id, 'frame', ART.card)
-  const quality = item.height ? (item.height >= 2000 ? '4K' : `${item.height >= 1000 ? 1080 : item.height >= 700 ? 720 : item.height}p`) : null
+  const quality = qualityOf(item.height)
+  const airing = onAir?.now ?? onAir?.next[0] ?? null
+  const bug = airing?.channel ?? onAir?.carriers[0]?.channel ?? null
+  const openSlot = (s: OnAirSlot) => {
+    const to = slotPath(s)
+    if (to && s.mediaItemId !== id) navigate(to)
+  }
 
   return (
     <TitleLayer scrollKey={id}>
@@ -127,82 +192,110 @@ export default function MovieView() {
           ...(item.parent ? [{ label: item.parent.title, to: `${toGrid}/movie/${item.parent.id}` }] : []),
           { label: item.title },
         ]}
+        cue={!item.extra && <OnAirCue onAir={onAir} />}
+        bug={bug}
         kicker={
-          item.extra ? (
+          item.extra && (
             <>
               {extraLabel(item.extra)}
               {item.parent && (
                 <>
                   {' of '}
-                  <Link to={`${toGrid}/movie/${item.parent.id}`} className="text-indigo-300 hover:text-indigo-200">
+                  <Link to={`${toGrid}/movie/${item.parent.id}`} className="text-cue hover:text-amber-200">
                     {item.parent.title}
                   </Link>
                 </>
               )}
             </>
-          ) : (
-            'Movie'
           )
         }
         title={item.title}
-        year={item.extra ? null : item.year}
-        menu={target && <Menu label="Movie actions" items={match.items} />}
-        meta={[
-          item.contentRating && <RatingChip>{item.contentRating}</RatingChip>,
+        facts={[
+          !item.extra && item.year,
+          item.contentRating && <RatingBox>{item.contentRating}</RatingBox>,
+          formatDuration(item.durationSec),
+          quality,
           item.rating ? <Stars value={item.rating} /> : null,
-          <span className="tabular-nums">{formatDuration(item.durationSec)}</span>,
-          quality && <Badge>{quality}</Badge>,
-          item.missing && (
-            <Badge tone="warn" dot>
-              Missing on disk
-            </Badge>
-          ),
+          item.missing && <span className="text-amber-300">Missing on disk</span>,
         ]}
         genres={genres}
         status={
           status &&
           (status.warn || target?.tmdbId == null) && (
-            <div className={cx('flex items-center gap-1.5 text-[12.5px]', status.warn ? 'text-amber-300' : 'text-ink-faint')}>
-              <Icon name={status.warn ? 'warning' : 'info'} size={13} className="shrink-0" />
+            <div className={cx('flex items-center gap-1.5 text-[13px]', status.warn ? 'text-amber-300' : 'text-ink-muted')}>
+              <Icon name={status.warn ? 'warning' : 'info'} size={14} className="shrink-0" />
               <span>
                 {status.text}
                 {status.detail && <span className="text-ink-faint"> · {status.detail}</span>}
               </span>
-              <button onClick={match.openFix} className="ml-1 font-medium text-indigo-300 hover:text-indigo-200">
+              <button onClick={match.openFix} className="ml-1 font-medium text-cue hover:text-amber-200">
                 {target?.tmdbId != null ? 'Fix match' : 'Match'}
               </button>
             </div>
           )
         }
-        tagline={item.tagline}
-        overview={item.overview}
-        credits={
-          (item.directors || item.studio) && (
-            <>
-              {item.directors && (
-                <>
-                  Directed by <span className="text-ink-soft">{item.directors}</span>
-                </>
-              )}
-              {item.directors && item.studio && <span className="text-ink-ghost"> · </span>}
-              {item.studio && <span className="text-ink-soft">{item.studio}</span>}
-            </>
-          )
+        actions={
+          <>
+            {onAir?.now && onAir.now.channel.number != null && (
+              <Link
+                to={`/watch/${onAir.now.channel.number}`}
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-md bg-live text-white font-display font-bold text-[17px] tracking-[0.06em] uppercase hover:brightness-110"
+              >
+                <Icon name="play" size={16} className="fill-current" /> Tune in
+              </Link>
+            )}
+            {!item.extra && (
+              <HeroButton icon="plus" onClick={() => setAdding(true)} variant={onAir?.now ? 'secondary' : 'primary'}>
+                Add to a channel
+              </HeroButton>
+            )}
+            {target && (
+              <HeroMenu label="Movie actions" items={match.items} />
+            )}
+          </>
         }
       />
 
-      <div className={cx(TITLE_WIDTH, 'py-9 space-y-11')}>
+      <div className={cx(TITLE_WIDTH, 'pt-6 pb-16 space-y-14')}>
+        {!item.extra && (
+          <TitleOnAirSection onAir={onAir} kind="movie" name={item.title} onAdd={() => setAdding(true)} onOpen={openSlot} />
+        )}
+
+        <Story
+          tagline={item.tagline}
+          overview={item.overview}
+          credits={[
+            { label: 'Directed by', value: item.directors },
+            { label: 'Studio', value: item.studio },
+            { label: 'Rated', value: [item.contentRating, item.rating ? `TMDB ${item.rating.toFixed(1)}` : null].filter(Boolean).join(' · ') },
+            { label: 'Genres', value: genres.join(', ') },
+          ]}
+          aside={
+            <Slate
+              name={item.title}
+              poster={poster}
+              specs={[
+                { label: 'Video', value: [quality, item.videoCodec?.toUpperCase()].filter(Boolean).join(' · ') },
+                { label: 'Frame', value: item.width && item.height ? `${item.width} × ${item.height}` : null },
+                { label: 'Audio', value: item.audioCodec?.toUpperCase() },
+                { label: 'Runtime', value: formatDuration(item.durationSec) },
+              ]}
+            />
+          }
+        />
+
         <CastRow cast={item.cast} />
         <ExtrasRail
           extras={item.extras}
           onOpen={setPeek}
           note="A channel airs them right after the movie when its Extras switch — or the movie’s tile in a collection — says so."
         />
-        <section>
-          <h2 className="text-[15px] font-semibold tracking-tight text-ink mb-3">About the file</h2>
+
+        <section className="space-y-4">
+          <OnAirHeading>The file</OnAirHeading>
           <FileDetails item={item} />
           {target && status && (
-            <div className="mt-3 flex items-center gap-3 flex-wrap rounded-2xl border border-edge bg-surface/60 px-5 py-3.5">
+            <div className="flex items-center gap-3 flex-wrap rounded-xl border border-edge bg-sunken px-5 py-3.5">
               <Icon
                 name={status.warn ? 'warning' : target.tmdbId != null ? 'success' : 'info'}
                 size={16}
@@ -216,7 +309,7 @@ export default function MovieView() {
                       href={tmdbPage('movie', target.tmdbId)}
                       target="_blank"
                       rel="noreferrer"
-                      className="ml-1.5 inline-flex items-center text-ink-faint hover:text-indigo-300 align-[-2px]"
+                      className="ml-1.5 inline-flex items-center text-ink-faint hover:text-cue align-[-2px]"
                       aria-label="Open on TMDB"
                       title="Open on TMDB"
                     >
@@ -235,6 +328,19 @@ export default function MovieView() {
       </div>
 
       {peek != null && <MediaDetailModal id={peek} from="movie" onClose={() => setPeek(null)} />}
+      {adding && (
+        <AddToChannel
+          what={item.title}
+          member={{ kind: 'movie', mediaItemId: item.id }}
+          already={new Set(onAir?.carriers.flatMap((c) => c.collections.map((x) => x.id)) ?? [])}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            // Its channel replans in the background; look again once it has.
+            void loadOnAir()
+            setTimeout(() => void loadOnAir(), 4000)
+          }}
+        />
+      )}
       {match.dialog}
     </TitleLayer>
   )

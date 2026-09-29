@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { EpisodeOrderPick, MatchPick, ShowMerge, ShowRename } from '../contract/index.js'
+import { EpisodeOrderPick, MatchPick, ShowMerge, ShowRename, type Stored, type TitleOnAir } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { mergeShows, renameShow, showCards, ShowConflict } from '../shows.js'
 import { episodeOrders, MatchError, matchShow, refreshShow, setEpisodeOrder, unmatchShow } from '../metadata.js'
@@ -9,6 +9,7 @@ import { answerMatch } from './metadata.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { publish } from '../events.js'
 import { episodesAired } from '../aired.js'
+import { titleOnAir } from '../onAir.js'
 
 export const showsRouter = Router()
 
@@ -146,6 +147,15 @@ showsRouter.post('/:id/match', async (req, res) => {
 showsRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchShow(Number(req.params.id))))
 // POST /api/shows/:id/refresh
 showsRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshShow(Number(req.params.id))))
+
+// GET /api/shows/:id/on-air -> the channels that bring its episodes in, its
+// airings now and next, when it last aired, and the hours around its airing.
+showsRouter.get('/:id/on-air', async (req, res) => {
+  const showId = Number(req.params.id)
+  if (Number.isNaN(showId)) return res.status(400).json({ error: 'invalid id' })
+  if (!(await prisma.show.count({ where: { id: showId } }))) return res.status(404).json({ error: 'Show not found' })
+  res.json((await titleOnAir({ kind: 'show', showId })) satisfies Stored<TitleOnAir>)
+})
 
 // GET /api/shows/:id/orders  -> the orders its episodes can follow, as in
 // Plex: TMDB's as aired, and its episode groups (DVD, absolute…).

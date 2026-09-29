@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
 import { api, ART, artworkUrl, type MediaItemDetail } from '../lib/api'
-import { episodeCode, extraLabel, formatAirDate, formatDuration, posterGradient } from '../lib/format'
+import { episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
 import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import CastRow from './CastRow'
 import FileDetails from './title/FileDetails'
-import { RatingChip, Stars } from './title/TitleHero'
-import { Badge, Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
+import { Stars } from './title/TitleHero'
+import { MonoFacts, OnAirLabel, RatingBox, TestStripe } from './onair/OnAir'
+import { Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
 
 /**
  * A quick look at one file — an episode, a movie, an extra, a clip — from
@@ -125,6 +126,7 @@ export default function MediaDetailModal({
           <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-60" />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-black/10" />
+        <TestStripe className="absolute inset-x-0 top-0 h-[4px]" />
         <IconButton
           icon="close"
           label="Close"
@@ -144,11 +146,8 @@ export default function MediaDetailModal({
             <Skeleton className="h-7 w-2/3" />
           ) : (
             <>
-              {kicker && <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-white/70 truncate">{kicker}</div>}
-              <h2 className="mt-0.5 text-[24px] sm:text-[26px] font-semibold tracking-[-0.02em] leading-tight text-white text-balance">
-                {item.title}
-                {item.year && item.type === 'movie' && !item.extra && <span className="ml-2 text-[0.7em] font-normal text-white/60">{item.year}</span>}
-              </h2>
+              {kicker && <div className="font-mono text-[12px] uppercase tracking-[0.06em] text-white/75 truncate">{kicker}</div>}
+              <h2 className="mt-1 font-display font-extrabold uppercase text-[32px] sm:text-[40px] leading-[0.9] text-white text-balance">{item.title}</h2>
             </>
           )}
         </div>
@@ -162,28 +161,23 @@ export default function MediaDetailModal({
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap text-[13px] text-ink-muted">
-              {item.contentRating && <RatingChip>{item.contentRating}</RatingChip>}
-              {item.rating ? <Stars value={item.rating} /> : null}
-              {isEpisode && formatAirDate(item.airDate) && <span>Aired {formatAirDate(item.airDate)}</span>}
-              <span className="tabular-nums">{formatDuration(item.durationSec)}</span>
-              {quality && <Badge>{quality}</Badge>}
-              {item.missing && (
-                <Badge tone="warn" dot>
-                  Missing on disk
-                </Badge>
-              )}
-            </div>
+            <MonoFacts
+              className="!text-[12.5px]"
+              items={[
+                item.type === 'movie' && !item.extra && item.year,
+                item.contentRating && <RatingBox>{item.contentRating}</RatingBox>,
+                isEpisode && formatAirDate(item.airDate) && `First aired ${formatAirDate(item.airDate)}`,
+                formatDuration(item.durationSec),
+                quality,
+                item.rating ? <Stars value={item.rating} /> : null,
+                item.missing && <span className="text-amber-300">Missing on disk</span>,
+              ]}
+            />
             {genres.length > 0 && (
-              <div className="mt-3 flex gap-1.5 flex-wrap">
-                {genres.map((g) => (
-                  <span key={g} className="rounded-full border border-edge-strong bg-raised/60 px-2.5 py-0.5 text-[11.5px] text-ink-soft">
-                    {g}
-                  </span>
-                ))}
-              </div>
+              <div className="mt-2.5 font-display font-semibold text-[14px] tracking-[0.18em] uppercase text-ink-muted">{genres.join(' / ')}</div>
             )}
-            {item.tagline && <p className="mt-4 text-[13.5px] italic text-ink-muted">{item.tagline}</p>}
+            {item.aired && <div className="mt-2 font-mono text-[11.5px] uppercase text-cue">{formatAired(item.aired)}</div>}
+            {item.tagline && <p className="mt-4 font-display italic font-semibold text-[20px] leading-tight text-ink">{item.tagline}</p>}
             {item.overview && <p className={cx(item.tagline ? 'mt-1.5' : 'mt-4', 'text-[14px] text-ink-soft leading-relaxed')}>{item.overview}</p>}
             {(item.directors || item.studio) && (
               <p className="mt-3 text-[12.5px] text-ink-muted">
@@ -201,8 +195,9 @@ export default function MediaDetailModal({
 
             {item.extras.length > 0 && (
               <div className="mt-6">
-                <div className="text-[13px] font-semibold text-ink mb-2">
-                  Extras <span className="ml-1 font-normal text-ink-faint tabular-nums">{item.extras.length}</span>
+                <div className="mb-2 flex items-baseline gap-2">
+                  <OnAirLabel className="text-ink-muted">Extras</OnAirLabel>
+                  <span className="font-mono text-[11.5px] text-ink-faint tabular-nums">{item.extras.length}</span>
                 </div>
                 <ul className="rounded-xl border border-edge bg-sunken/50 divide-y divide-edge/60 overflow-hidden">
                   {item.extras.map((x) => (
@@ -240,7 +235,7 @@ export default function MediaDetailModal({
                         href={tmdbPage('movie', target.tmdbId)}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-1.5 inline-flex items-center text-ink-faint hover:text-indigo-300 align-[-2px]"
+                        className="ml-1.5 inline-flex items-center text-ink-faint hover:text-cue align-[-2px]"
                         aria-label="Open on TMDB"
                         title="Open on TMDB"
                       >
@@ -263,26 +258,27 @@ export default function MediaDetailModal({
                 type="button"
                 onClick={() => setFileOpen((v) => !v)}
                 aria-expanded={fileOpen}
-                className="flex items-center gap-1.5 text-[13px] font-medium text-ink-muted hover:text-ink transition-colors"
+                className="flex items-center gap-1.5 font-display font-bold text-[14px] uppercase tracking-[0.16em] text-ink-muted hover:text-ink transition-colors"
               >
                 <Icon name="chevronRight" size={15} className={cx('transition-transform duration-150', fileOpen && 'rotate-90')} />
-                File details
+                The file
               </button>
               {fileOpen && <FileDetails item={item} className="mt-3 p-4" />}
             </div>
 
             {page && (
               <div className="mt-6 flex justify-end">
-                <Button
-                  variant="secondary"
-                  iconRight="chevronRight"
+                <button
+                  type="button"
                   onClick={() => {
                     onClose()
                     navigate(page.to)
                   }}
+                  className="inline-flex items-center gap-1.5 h-10 pl-4 pr-3 rounded-md bg-ink text-canvas font-display font-bold text-[16px] tracking-[0.06em] uppercase hover:bg-white"
                 >
                   {page.label}
-                </Button>
+                  <Icon name="chevronRight" size={16} />
+                </button>
               </div>
             )}
           </>

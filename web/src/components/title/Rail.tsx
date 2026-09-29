@@ -51,11 +51,11 @@ export default function Rail({
   return (
     <section className={cx('group/rail', className)}>
       {(title || aside) && (
-        <div className="flex items-baseline gap-2 mb-3">
+        <div className="flex items-baseline gap-2 mb-4">
           {title && (
-            <h2 className="text-[15px] font-semibold tracking-tight text-ink">
+            <h2 className="font-display font-extrabold text-[19px] sm:text-[21px] leading-none tracking-[0.18em] uppercase text-ink">
               {title}
-              {count != null && <span className="ml-2 text-[13px] font-normal text-ink-faint tabular-nums">{count}</span>}
+              {count != null && <span className="ml-3 font-mono text-[12px] font-normal tracking-normal text-ink-faint tabular-nums">{count}</span>}
             </h2>
           )}
           {aside && <div className="ml-auto flex items-center gap-2">{aside}</div>}

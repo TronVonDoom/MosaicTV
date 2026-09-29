@@ -2,8 +2,9 @@ import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { episodesAired } from '../aired.js'
-import { asMatchFilter, MatchPick } from '../contract/index.js'
+import { asMatchFilter, MatchPick, type TitleOnAir, type Stored } from '../contract/index.js'
 import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata.js'
+import { reachedIn, titleOnAir } from '../onAir.js'
 import { readBody } from '../validate.js'
 import { answerMatch } from './metadata.js'
 
@@ -30,6 +31,9 @@ mediaRouter.get('/', async (req, res) => {
   if (match === 'doubtful') where.id = { in: await doubtfulMovieIds(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) }
   if (match === 'loose') Object.assign(where, { extra: { not: null }, parentId: null, showId: null })
   else where.extra = null
+  // What no channel's collections bring in.
+  const offAir = match === 'offair' && libraryId && !Number.isNaN(libraryId) ? await reachedIn(libraryId) : null
+  if (offAir) where.missing = false
 
   // Title order by default (shows, then season/episode); the library grid also
   // offers newest release, most recently added, and TMDB rating.
@@ -42,6 +46,15 @@ mediaRouter.get('/', async (req, res) => {
         : sort === 'rating'
           ? [{ rating: 'desc' }, { title: 'asc' }]
           : [{ showTitle: 'asc' }, { season: 'asc' }, { episode: 'asc' }, { title: 'asc' }]
+
+  if (offAir) {
+    // Paged here rather than by an id list in the query, which SQLite caps.
+    const ids = (await prisma.mediaItem.findMany({ where, orderBy, select: { id: true } })).map((m) => m.id).filter((id) => !offAir.ids.has(id))
+    const pageIds = ids.slice((page - 1) * pageSize, page * pageSize)
+    const rows = await prisma.mediaItem.findMany({ where: { id: { in: pageIds } } })
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    return res.json({ total: ids.length, page, pageSize, items: pageIds.map((id) => byId.get(id)).filter(Boolean) })
+  }
 
   const [total, items] = await Promise.all([
     prisma.mediaItem.count({ where }),
@@ -72,6 +85,15 @@ mediaRouter.get('/:id', async (req, res) => {
   if (!item) return res.status(404).json({ error: 'Not found' })
   const aired = await episodesAired([id])
   res.json({ ...item, aired: aired[id] ?? null })
+})
+
+// GET /api/media/:id/on-air -> the channels that bring it in, its airings now
+// and next, when it last aired, and the hours around its airing.
+mediaRouter.get('/:id/on-air', async (req, res) => {
+  const id = Number(req.params.id)
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
+  if (!(await prisma.mediaItem.count({ where: { id } }))) return res.status(404).json({ error: 'Not found' })
+  res.json((await titleOnAir({ kind: 'movie', id })) satisfies Stored<TitleOnAir>)
 })
 
 // Fix match, Unmatch and Refresh metadata for one movie, as in Plex: a TMDB
