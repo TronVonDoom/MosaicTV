@@ -124,6 +124,26 @@ test('a show’s extras file under the show, and under a season when they sit in
   assert.deepEqual(pick('Doug (1991)/Promo.mkv').slice(0, 4), ['other', null, null, null])
 })
 
+test('a file holding two episodes is titled by its name, not by the second number', () => {
+  const pick = (p: string) => {
+    const e = episode(p)
+    return [e.season, e.episode, e.title, e.untitled]
+  }
+  assert.deepEqual(pick('Rugrats/Season 03/Rugrats - S03E45-E46 - Kid TV + The Sky is Falling.mkv'), [3, 45, 'Kid TV + The Sky is Falling', false])
+  assert.deepEqual(pick('Rugrats/Season 03/Rugrats - S03E45E46 - Kid TV.mkv').slice(2), ['Kid TV', false])
+  assert.deepEqual(pick('Rugrats/Season 01/Rugrats - S01E01-02 - Pilot.mkv').slice(2), ['Pilot', false])
+  // A title that happens to start with a number stays whole.
+  assert.equal(pick('Seinfeld/Season 01/Seinfeld - S01E01 - 100 Days.mkv')[2], '100 Days')
+  assert.equal(pick('Doug/Season 01/Doug - S01E01 - Episode Title.mkv')[2], 'Episode Title')
+})
+
+test('a name that only numbers the episode gives it no title', () => {
+  const e = episode("Mister Rogers' Neighborhood/Season 01/Mister Rogers' Neighborhood - S01E12 - Show 12.mkv")
+  assert.deepEqual([e.title, e.untitled], ['Show 12', true])
+  assert.equal(episode('X/Season 01/X - S01E05 - Episode 5.mkv').untitled, true)
+  assert.equal(episode('X/Season 01/X - S01E05 - Showdown 5.mkv').untitled, false)
+})
+
 test('a movie’s extras belong to the folder their extras folder sits in', () => {
   assert.equal(extraHome('/m/Alien (1979)/Featurettes/Making Of.mkv'), '/m/Alien (1979)')
   assert.equal(extraHome('/m/Alien (1979)/Alien (1979)-trailer.mkv'), '/m/Alien (1979)')

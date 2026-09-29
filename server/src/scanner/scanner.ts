@@ -414,6 +414,28 @@ export async function tagExtras(): Promise<void> {
 // the migration that moved the choice to channels lists them to scan once.
 const RESCAN_KEY = 'rescanLibraries'
 
+// Bumped when parseMedia reads episodes' names differently (2: a file's
+// second episode number isn't part of its title, "Show 12" names nothing), so
+// TV libraries take the new names at the next start — a scan rewrites them,
+// and their episodes are read again (by their shows' matches) with them.
+const PARSE_RULES = '2'
+const PARSE_KEY = 'parseRules'
+
+/** At boot: when the episode-name rules have changed, queue each TV library
+ *  for a scan (see rescanAfterUpgrade) and mark its episodes to be read again. */
+export async function reparseAfterUpgrade(): Promise<void> {
+  const done = await prisma.setting.findUnique({ where: { key: PARSE_KEY } })
+  if (done?.value === PARSE_RULES) return
+  const ids = (await prisma.library.findMany({ where: { kind: 'tv' }, select: { id: true } })).map((l) => l.id)
+  if (ids.length > 0) {
+    await prisma.mediaItem.updateMany({ where: { libraryId: { in: ids }, type: 'episode' }, data: { metaAt: null } })
+    const queued = await prisma.setting.findUnique({ where: { key: RESCAN_KEY } })
+    const all = [...new Set([...(queued?.value.split(',').map(Number) ?? []), ...ids])].filter((n) => n > 0).join(',')
+    await prisma.setting.upsert({ where: { key: RESCAN_KEY }, create: { key: RESCAN_KEY, value: all }, update: { value: all } })
+  }
+  await prisma.setting.upsert({ where: { key: PARSE_KEY }, create: { key: PARSE_KEY, value: PARSE_RULES }, update: { value: PARSE_RULES } })
+}
+
 /** Scan, one after another, the libraries an upgrade asked to (see RESCAN_KEY). */
 export async function rescanAfterUpgrade(): Promise<void> {
   const row = await prisma.setting.findUnique({ where: { key: RESCAN_KEY } })
@@ -422,7 +444,7 @@ export async function rescanAfterUpgrade(): Promise<void> {
   const ids = row.value.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0)
   for (const id of ids) {
     if (!(await prisma.library.count({ where: { id } }))) continue
-    log('info', 'system', `Scanning library ${id} for the specials and extras it used to leave out — channels decide now whether they air`)
+    log('info', 'system', `Scanning library ${id} after the upgrade`)
     await scanLibrary(id).catch((e) => log('error', 'system', `Scan of library ${id} failed`, String(e?.stack || e)))
   }
 }

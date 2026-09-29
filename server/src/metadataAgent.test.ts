@@ -270,6 +270,13 @@ test('an .nfo reads as Kodi and Jellyfin write it', () => {
   assert.deepEqual([cleanRating('US:TV-Y7 / US:TV-Y7'), cleanRating('PG-13')], ['TV-Y7', 'PG-13'])
 })
 
+test('a file’s name agrees with TMDB’s by any one of its segments', () => {
+  assert.ok(metadata.namesAgree('Kid TV + The Sky is Falling', 'KidTV'))
+  assert.ok(metadata.namesAgree('The Barbecue', 'Barbecue Story'))
+  assert.ok(!metadata.namesAgree('Dying for Pie + Imitation Krabs', 'Christmas Who?'))
+  assert.ok(!metadata.namesAgree('Male Unbonding', 'The Stake Out'))
+})
+
 test('each detail comes from the first source that has it, in the library’s order', () => {
   const nfo = { overview: 'From the .nfo', tagline: null }
   const tmdb = { overview: 'From TMDB', tagline: 'TMDB’s tagline' }

@@ -108,8 +108,14 @@ function cleanName(raw: string): string {
 }
 
 const YEAR_RE = /\((\d{4})\)/
-// Matches S01E02, s1e2, 1x02, etc.
-const SEASON_EP_RE = /\bS(\d{1,2})[\s._-]*E(\d{1,3})\b|\b(\d{1,2})x(\d{1,3})\b/i
+// The rest of a file's episodes, named after the first: "S03E45-E46",
+// "S03E45E46", "S01E01-02", "1x01-1x02".
+const MORE_EPISODES_RE = /^(?:[\s._-]*(?:S\d{1,2}[\s._-]*)?E\d{1,3}\b|-\d{1,3}(?=[\s._-]|$)|[\s._-]*\d{1,2}x\d{1,3}\b)+/i
+// A name that only numbers the episode — "Show 12", "Episode 5" — gives it no title.
+const GENERIC_TITLE_RE = /^(?:episode|ep|show|part|chapter|program(?:me)?)\.?\s*#?\s*\d+$/i
+// Matches S01E02, s1e2, 1x02, etc. — and the first of a file's episodes
+// when it holds two back to back ("S03E45E46").
+const SEASON_EP_RE = /\bS(\d{1,2})[\s._-]*E(\d{1,3})(?=\b|E\d)|\b(\d{1,2})x(\d{1,3})\b/i
 
 // One resolution/source/codec token as it appears inside a parenthetical.
 const QUALITY_TOKEN_RE = new RegExp(
@@ -213,14 +219,15 @@ export function parseMedia(
       const showTitle = topFolder
         ? cleanTitle(topFolder)
         : cleanTitle(baseName.slice(0, se.index).replace(/[-–]\s*$/, ''))
-      // Episode title = whatever follows the SxxEyy token, if present.
-      const after = baseName.slice((se.index ?? 0) + se[0].length)
+      // Episode title = whatever follows the SxxEyy token (and any more
+      // episodes the file holds), if present.
+      const after = baseName.slice((se.index ?? 0) + se[0].length).replace(MORE_EPISODES_RE, '')
       const epTitle = cleanTitle(after.replace(/^[\s._-]+/, ''))
       const title = epTitle || `${showTitle} S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
       return {
         type: 'episode',
         title,
-        untitled: !epTitle,
+        untitled: !epTitle || GENERIC_TITLE_RE.test(epTitle),
         showTitle: showTitle || null,
         season: Number.isNaN(season) ? null : season,
         episode: Number.isNaN(episode) ? null : episode,

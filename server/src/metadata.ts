@@ -496,6 +496,12 @@ async function enrichShow(a: Agent, show: ShowRow, research: boolean, guard: boo
   return t != null
 }
 
+/** Whether a file's name for its episode agrees with TMDB's — any one of its
+ *  segments will do: "Kid TV + The Sky is Falling" is TMDB's "KidTV". */
+export function namesAgree(file: string, tmdb: string): boolean {
+  return titlesAgree(file, tmdb) || file.split(/\s+[+/]\s+/).some((part) => titlesAgree(part, tmdb))
+}
+
 /**
  * Every episode of a show gets what the sources say of it: its .nfo, its own
  * tags, and TMDB's episode (`tvId`, in the order the show follows: as aired,
@@ -541,7 +547,7 @@ async function fillEpisodes(a: Agent, showId: number, tvId: number | null, order
     const root = rootOf(a, ep.path)
     const parsed = root ? parseMedia(ep.path, root, 'tv') : null
     const atNumber = tmdb && ep.season != null && ep.episode != null ? tmdb.get(key(ep.season, ep.episode)) ?? null : null
-    const te = atNumber?.name && parsed && !parsed.untitled && !titlesAgree(parsed.title, atNumber.name) ? null : atNumber
+    const te = atNumber?.name && parsed && !parsed.untitled && !namesAgree(parsed.title, atNumber.name) ? null : atNumber
     const { details, used } = mergeDetails(a.sources, { nfo: fromNfo(nfo), embedded: fromTags(tags), tmdb: te ? fromEpisode(te) : null })
     updates.push(
       prisma.mediaItem.update({

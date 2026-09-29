@@ -11,7 +11,7 @@ import { tempDb } from './testDb.js'
 const { prisma } = await tempDb('mosaictv-leaveout-')
 const { collectionCount, resolveCollection, resolveUnits } = await import('./collections.js')
 const { lintSchedule } = await import('./scheduleLint.js')
-const { linkExtras, rescanAfterUpgrade, tagExtras } = await import('./scanner/scanner.js')
+const { linkExtras, reparseAfterUpgrade, rescanAfterUpgrade, tagExtras } = await import('./scanner/scanner.js')
 
 const tv = await prisma.library.create({ data: { name: 'TV', kind: 'tv', folders: { create: [{ path: '/tv' }] } } })
 const movies = await prisma.library.create({ data: { name: 'Movies', kind: 'movie', folders: { create: [{ path: '/movies' }] } } })
@@ -203,5 +203,17 @@ test('extras scanned before they were told apart are tagged at boot, and a movie
 test('an upgrade scans the libraries that used to leave things out, once', async () => {
   await prisma.setting.create({ data: { key: 'rescanLibraries', value: '9999' } })
   await rescanAfterUpgrade()
+  assert.equal(await prisma.setting.count({ where: { key: 'rescanLibraries' } }), 0)
+})
+
+test('new episode-name rules queue the TV libraries for a scan and a fresh read, once', async () => {
+  await prisma.mediaItem.updateMany({ where: { libraryId: tv.id }, data: { metaAt: new Date() } })
+  await prisma.setting.create({ data: { key: 'rescanLibraries', value: '4242' } })
+  await reparseAfterUpgrade()
+  assert.equal((await prisma.setting.findUniqueOrThrow({ where: { key: 'rescanLibraries' } })).value, `4242,${tv.id}`)
+  assert.equal(await prisma.mediaItem.count({ where: { libraryId: tv.id, type: 'episode', metaAt: { not: null } } }), 0)
+  // Once only.
+  await prisma.setting.delete({ where: { key: 'rescanLibraries' } })
+  await reparseAfterUpgrade()
   assert.equal(await prisma.setting.count({ where: { key: 'rescanLibraries' } }), 0)
 })
