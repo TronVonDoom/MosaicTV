@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { api, ART, artworkUrl, tmdbImage, type MediaItemDetail } from '../lib/api'
-import { episodeCode, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { episodeCode, extraLabel, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
 import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import { Badge, Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
 
@@ -17,18 +17,22 @@ function Spec({ label, value, mono = false }: { label: string; value: string; mo
 /** The detail view for one file — a movie, an episode, a clip: its artwork,
  *  what TMDB knows about it, and what's on disk. A movie's TMDB match is
  *  fixed from here (an episode's goes by its show's, on the show's page);
- *  `onChanged` hears about it, so the grid behind can follow. */
+ *  `onChanged` hears about it, so the grid behind can follow. A movie lists
+ *  its extras, as Plex does, and an extra opens in its place. */
 export default function MediaDetailModal({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged?: () => void }) {
   const [item, setItem] = useState<MediaItemDetail | null>(null)
   const [backdropOk, setBackdropOk] = useState(true)
+  // The movie, or one of its extras opened from it.
+  const [shown, setShown] = useState(id)
+  useEffect(() => setShown(id), [id])
 
-  const load = () => api.mediaItem(id).then(setItem).catch(() => {})
+  const load = () => api.mediaItem(shown).then(setItem).catch(() => {})
   useEffect(() => {
     setItem(null)
     setBackdropOk(true)
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [shown])
 
   const target: MatchTarget | null =
     item?.type === 'movie' && !item.extra
@@ -116,6 +120,21 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
               {isEpisode && item.showTitle && (
                 <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{item.showTitle}</div>
               )}
+              {item.extra && (
+                <div className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
+                  {extraLabel(item.extra)}
+                  {item.parent ? (
+                    <>
+                      {' of '}
+                      <button onClick={() => setShown(item.parent!.id)} className="uppercase text-indigo-300 hover:text-indigo-200">
+                        {item.parent.title}
+                      </button>
+                    </>
+                  ) : item.showTitle && !isEpisode ? (
+                    ` of ${item.showTitle}`
+                  ) : null}
+                </div>
+              )}
               <h2 className="text-[22px] font-semibold tracking-tight leading-tight">
                 {item.title}
                 {item.year && !isEpisode && <span className="text-ink-faint font-normal"> ({item.year})</span>}
@@ -145,6 +164,34 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
                 </div>
               )}
               {item.overview && <p className="mt-4 text-[13.5px] text-ink-soft leading-relaxed">{item.overview}</p>}
+
+              {item.extras.length > 0 && (
+                <div className="mt-5">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint mb-2">
+                    Extras · {item.extras.length}
+                  </div>
+                  <ul className="rounded-xl border border-edge bg-sunken/60 divide-y divide-edge/60 overflow-hidden">
+                    {item.extras.map((x) => (
+                      <li key={x.id}>
+                        <button
+                          onClick={() => setShown(x.id)}
+                          className="w-full flex items-center gap-3 px-3.5 py-2 text-left hover:bg-white/[0.035] transition-colors"
+                        >
+                          <Icon name="clip" size={14} className="text-ink-faint shrink-0" />
+                          <span className={cx('min-w-0 flex-1 truncate text-[13px]', x.missing ? 'text-ink-faint line-through' : 'text-ink-soft')}>
+                            {x.title}
+                          </span>
+                          {x.extra && <span className="text-[12px] text-ink-faint shrink-0">{extraLabel(x.extra)}</span>}
+                          <span className="w-14 text-right text-[12px] text-ink-faint tabular-nums shrink-0">{formatDuration(x.durationSec)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 text-[11.5px] text-ink-faint">
+                    A channel airs them right after the movie when its Extras switch — or the movie’s tile — says so.
+                  </p>
+                </div>
+              )}
 
               {/* Its TMDB match — the one place to fix it from here. */}
               {target && status && (

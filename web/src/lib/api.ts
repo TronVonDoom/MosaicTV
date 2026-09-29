@@ -13,6 +13,7 @@ import {
   type CollectionCreate,
   type CollectionUpdate,
   type MemberCreate,
+  type MemberUpdate,
   type RotationCreate,
   type Activity as ActivityDTO,
   type Airing as AiringDTO,
@@ -180,8 +181,6 @@ export type RotationInput = WithRequired<RotationCreate, 'collectionId'>
 export type BlockInput = WithRequired<BlockCreate, 'collectionId' | 'days' | 'startMinute' | 'endMinute'>
 export type CollectionInput = WithRequired<CollectionCreate, 'name'>
 export type CollectionChanges = CollectionUpdate
-/** What a library indexes: its season 0, and its extras. */
-export type LibraryIncludes = { includeSpecials?: boolean; includeExtras?: boolean }
 export type MemberInput = WithRequired<MemberCreate, 'kind'>
 export type AiringsInput = AiringsReplace
 
@@ -291,11 +290,8 @@ export const api = {
   stats: () => request<Stats>('/api/stats'),
   libraries: () => request<Library[]>('/api/libraries'),
   librarySample: (id: number, limit = 12) => request<LibrarySample>(`/api/libraries/${id}/sample?limit=${limit}`),
-  addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] } & LibraryIncludes) =>
+  addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
-  // Leaving one out removes what the library has of it; taking it back starts a scan.
-  updateLibrary: (id: number, data: LibraryIncludes) =>
-    request<{ removed: number; scanning: boolean }>(`/api/libraries/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLibrary: (id: number) =>
     request<void>(`/api/libraries/${id}`, { method: 'DELETE' }),
   addFolder: (libraryId: number, path: string) =>
@@ -432,17 +428,10 @@ export const api = {
     request<void>(`/api/collections/${id}`, { method: 'DELETE' }),
   updateCollection: (id: number, data: CollectionChanges) => request<Collection>(`/api/collections/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   // No order = what the collection plays by default.
-  // `includes` previews specials and extras in or out before that's saved.
-  collectionPreview: (id: number, order?: string, includes?: { specials: boolean; extras: boolean }) => {
-    const q = new URLSearchParams()
-    if (order) q.set('order', order)
-    if (includes) {
-      q.set('specials', includes.specials ? '1' : '0')
-      q.set('extras', includes.extras ? '1' : '0')
-    }
-    const qs = q.toString()
-    return request<{ count: number; order: string; sample: MediaItem[] }>(`/api/collections/${id}/preview${qs ? `?${qs}` : ''}`)
-  },
+  collectionPreview: (id: number, order?: string) =>
+    request<{ count: number; order: string; sample: MediaItem[] }>(
+      `/api/collections/${id}/preview${order ? `?order=${encodeURIComponent(order)}` : ''}`,
+    ),
   searchMedia: (q: string) =>
     request<{ results: MediaSearchResult[] }>(`/api/collections/search?q=${encodeURIComponent(q)}`),
   addCollectionItem: (collectionId: number, member: MemberInput) =>
@@ -452,6 +441,9 @@ export const api = {
     }),
   deleteCollectionItem: (collectionId: number, itemId: number) =>
     request<void>(`/api/collections/${collectionId}/items/${itemId}`, { method: 'DELETE' }),
+  // A show's or movie's own say in its specials and extras (null = the channel's).
+  updateCollectionItem: (collectionId: number, itemId: number, data: MemberUpdate) =>
+    request<CollectionItem>(`/api/collections/${collectionId}/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   // `ids` = the members in their new order; drives the "hand-picked" playback order.
   reorderCollectionItems: (collectionId: number, ids: number[]) =>
     request<CollectionItem[]>(`/api/collections/${collectionId}/items/reorder`, {

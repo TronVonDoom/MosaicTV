@@ -14,7 +14,7 @@ import { eventStream, watch } from './events.js'
 import { migrateDatabase } from './dbMigrate.js'
 import { replanIfTimezoneChanged } from './scheduleChanges.js'
 import { seedDefaultAudio } from './seedDefaults.js'
-import { dropLeftOutEverywhere, tagExtras } from './scanner/scanner.js'
+import { rescanAfterUpgrade, tagExtras } from './scanner/scanner.js'
 import { librariesRouter } from './routes/libraries.js'
 import { mediaRouter } from './routes/media.js'
 import { scanRouter } from './routes/scan.js'
@@ -168,7 +168,8 @@ async function boot(): Promise<void> {
   await replanIfTimezoneChanged().catch((e) => log('error', 'playout', 'Timezone check failed', String(e?.stack || e)))
   await seedDefaultAudio().catch((e) => log('error', 'system', 'Default audio seed failed', String(e?.stack || e)))
   await tagExtras().catch((e) => log('error', 'system', 'Telling extras apart failed', String(e?.stack || e)))
-  await dropLeftOutEverywhere().catch((e) => log('error', 'system', 'Removing what libraries leave out failed', String(e?.stack || e)))
+  // In the background: a library's scan can take a while.
+  rescanAfterUpgrade().catch((e) => log('error', 'system', 'Scanning libraries after the upgrade failed', String(e?.stack || e)))
   resetSegments() // clear any stale segmenter output from a previous run
   // What open pages hear about without asking (only checked while one is open).
   watch(1000, activityItems, { type: 'activity' })

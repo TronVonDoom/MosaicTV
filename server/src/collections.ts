@@ -1,6 +1,6 @@
 import type { Prisma, MediaItem, Airing, AiringSegment } from '@prisma/client'
 import { prisma } from './db.js'
-import { asPlaybackOrder, type PlaybackOrder } from './contract/domain.js'
+import { asPlaybackOrder, EXTRA_KINDS, type PlaybackOrder } from './contract/domain.js'
 
 type AiringWithSegments = Airing & {
   segments: (AiringSegment & { mediaItem: MediaItem })[]
@@ -12,13 +12,33 @@ export type CollectionFilter = {
   filterShow?: string | null
   filterSearch?: string | null
   filterGenre?: string | null
-  /** Whether whole shows and the filter bring in season 0 (default yes). */
-  includeSpecials?: boolean
-  /** Whether they bring in featurettes, trailers and other extras (default yes). */
-  includeExtras?: boolean
 }
 
 export type CollectionWithItems = Prisma.CollectionGetPayload<{ include: { items: true } }>
+
+/**
+ * What a whole show, a movie or the smart filter brings in: season 0
+ * (specials, pilots, shorts), and extras (featurettes, trailers… filed with a
+ * movie or show). The channel says (Channel.includeSpecials / includeExtras),
+ * and a show's or movie's pick can say otherwise (CollectionItem.specials /
+ * extras). A special or an extra picked on its own airs either way.
+ */
+export type Airs = { specials: boolean; extras: boolean }
+
+/** What a collection with no channel brings in: just the shows and movies. */
+const PLAIN: Airs = { specials: false, extras: false }
+
+/** What a channel's collections bring in, unless a pick says otherwise. */
+export async function channelAirs(channelId: number | null | undefined): Promise<Airs> {
+  if (channelId == null) return PLAIN
+  const ch = await prisma.channel.findUnique({ where: { id: channelId }, select: { includeSpecials: true, includeExtras: true } })
+  return ch ? { specials: ch.includeSpecials, extras: ch.includeExtras } : PLAIN
+}
+
+/** What one pick brings in: its own choice where it made one, else the channel's. */
+export function pickAirs(item: { specials?: boolean | null; extras?: boolean | null }, airs: Airs): Airs {
+  return { specials: item.specials ?? airs.specials, extras: item.extras ?? airs.extras }
+}
 
 // The playback orders and the order setting ("inherit" or one of them) are
 // part of the API's vocabulary, defined in the contract.
@@ -67,24 +87,23 @@ export type ResolvedList = {
 export type RotationProgress = { base: number; shows?: Record<string, number> }
 
 /**
- * What a collection leaves out of what it brings in by the armful — a whole
- * show, the smart filter: season 0 (specials, shorts, promos) and extras, when
- * it's set to. A season picked on its own keeps its specials (`specials:
- * false`), since picking season 0 is asking for them; a single episode or
- * movie picked on its own isn't filtered at all.
+ * What's left out of what comes in by the armful — a whole show, a season, the
+ * smart filter: season 0, and extras, unless they air. A season picked on its
+ * own keeps its specials (`specials: false`), since picking season 0 is asking
+ * for them; a single episode or movie picked on its own isn't filtered at all.
  */
-export function leftOut(c: CollectionFilter, { specials = true } = {}): Prisma.MediaItemWhereInput {
+export function leftOut(a: Airs, { specials = true } = {}): Prisma.MediaItemWhereInput {
   const not: Prisma.MediaItemWhereInput[] = []
   // Episodes only: a movie's season is null, and NOT (season = 0) on a null
   // season would leave the movie out too.
-  if (specials && c.includeSpecials === false) not.push({ type: 'episode', season: 0 })
-  if (c.includeExtras === false) not.push({ extra: { not: null } })
+  if (specials && !a.specials) not.push({ type: 'episode', season: 0 })
+  if (!a.extras) not.push({ extra: { not: null } })
   return not.length > 0 ? { NOT: not } : {}
 }
 
 // Only playable items: present on disk and with a known duration.
-export function collectionWhere(c: CollectionFilter): Prisma.MediaItemWhereInput {
-  const where: Prisma.MediaItemWhereInput = { missing: false, durationSec: { gt: 0 }, ...leftOut(c) }
+export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma.MediaItemWhereInput {
+  const where: Prisma.MediaItemWhereInput = { missing: false, durationSec: { gt: 0 }, ...leftOut(airs) }
   if (c.libraryId) where.libraryId = c.libraryId
   if (c.filterType) where.type = c.filterType
   if (c.filterShow) where.showTitle = c.filterShow
@@ -96,6 +115,42 @@ export function collectionWhere(c: CollectionFilter): Prisma.MediaItemWhereInput
     ]
   }
   return where
+}
+
+/** A show pick's files: its episodes and, when they air, its specials and
+ *  extras — the whole show, or one season of it. (Only a show's episodes and
+ *  extras have a show.) */
+function showPickWhere(it: { kind: string; showId: number | null; season: number | null }, a: Airs): Prisma.MediaItemWhereInput {
+  const season = it.kind === 'season' && it.season != null ? it.season : undefined
+  return {
+    missing: false,
+    durationSec: { gt: 0 },
+    showId: it.showId,
+    ...(season != null ? { season, ...leftOut(a, { specials: false }) } : leftOut(a)),
+  }
+}
+
+// A movie's extras in the order they air after it: by kind (the order Plex
+// lists them in), then by title.
+const extraRank = (m: MediaItem) => (m.extra ? EXTRA_KINDS.indexOf(m.extra as (typeof EXTRA_KINDS)[number]) : -1)
+const byExtra = (a: MediaItem, b: MediaItem) => extraRank(a) - extraRank(b) || a.title.localeCompare(b.title)
+
+/**
+ * Each movie's extras straight after the movie, wherever the order put it — a
+ * trailer doesn't air a week before its film. Extras whose movie isn't in the
+ * list stay where they are.
+ */
+export function extrasAfterParents(units: ProgramUnit[]): ProgramUnit[] {
+  const present = new Set(units.map((u) => u[0].id))
+  const follow = new Map<number, ProgramUnit[]>()
+  const rest: ProgramUnit[] = []
+  for (const u of units) {
+    const p = u[0].parentId
+    if (p != null && present.has(p) && u[0].extra != null) follow.set(p, [...(follow.get(p) ?? []), u])
+    else rest.push(u)
+  }
+  if (follow.size === 0) return units
+  return rest.flatMap((u) => [u, ...(follow.get(u[0].id) ?? [])])
 }
 
 function hasFilter(c: CollectionFilter): boolean {
@@ -168,7 +223,7 @@ async function airingsForShows(where: {
  * "movie"/"episode" member a single unit. The smart filter (which has no
  * user-defined position) contributes its units at the end.
  */
-async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]> {
+async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<ProgramUnit[]> {
   const out: ProgramUnit[] = []
   // Sort defensively: not every caller's `include` sets an orderBy.
   const members = [...c.items].sort((a, b) => a.order - b.order || a.id - b.id)
@@ -184,35 +239,40 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
       })
     : []
   const singleById = new Map(singles.map((m) => [m.id, m]))
+  // A movie picked with its extras: they air right after it.
+  const withExtras = members
+    .filter((i) => i.kind === 'movie' && i.mediaItemId != null && pickAirs(i, airs).extras)
+    .map((i) => i.mediaItemId as number)
+  const extras = withExtras.length
+    ? await prisma.mediaItem.findMany({ where: { parentId: { in: withExtras }, missing: false, durationSec: { gt: 0 } } })
+    : []
 
   for (const it of members) {
     if ((it.kind === 'show' || it.kind === 'season') && it.showId != null) {
+      const a = pickAirs(it, airs)
       const season = it.kind === 'season' && it.season != null ? it.season : undefined
-      const eps = await prisma.mediaItem.findMany({
-        where: {
-          type: 'episode',
-          missing: false,
-          durationSec: { gt: 0 },
-          showId: it.showId,
-          ...(season != null ? { season, ...leftOut(c, { specials: false }) } : leftOut(c)),
-        },
-      })
+      const eps = await prisma.mediaItem.findMany({ where: showPickWhere(it, a) })
       if (eps.length === 0) continue
-      const airings = await airingsForShows({ showIds: [it.showId], season, specials: c.includeSpecials })
+      const airings = await airingsForShows({ showIds: [it.showId], season, specials: a.specials })
       for (const u of groupIntoAirings(eps, airings)) out.push(u)
     } else if ((it.kind === 'movie' || it.kind === 'episode') && it.mediaItemId != null) {
       const m = singleById.get(it.mediaItemId)
-      if (m) out.push([m])
+      if (!m) continue
+      out.push([m])
+      if (it.kind === 'movie' && pickAirs(it, airs).extras) {
+        for (const x of extras.filter((x) => x.parentId === m.id).sort(byExtra)) out.push([x])
+      }
     }
   }
 
   if (hasFilter(c)) {
-    const filtered = await prisma.mediaItem.findMany({ where: collectionWhere(c) })
-    const eps = filtered.filter((m) => m.type === 'episode' && m.showId != null)
-    const others = filtered.filter((m) => !(m.type === 'episode' && m.showId != null))
+    const filtered = await prisma.mediaItem.findMany({ where: collectionWhere(c, airs) })
+    // A show's episodes and extras go with the show; everything else stands alone.
+    const eps = filtered.filter((m) => m.showId != null)
+    const others = filtered.filter((m) => m.showId == null)
     const airings = await airingsForShows({
       showIds: [...new Set(eps.map((e) => e.showId as number))],
-      specials: c.includeSpecials,
+      specials: airs.specials,
     })
     // Show by show, A–Z: the filter has no member order of its own, and grouped
     // this way its shows follow the hand-picked ones in a rotation too.
@@ -220,7 +280,8 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
       (a, b) => (a[0].showTitle ?? '').localeCompare(b[0].showTitle ?? '') || byUnit(a, b),
     )
     for (const u of units) out.push(u)
-    for (const m of others.sort((a, b) => a.title.localeCompare(b.title))) out.push([m])
+    const loose = others.sort((a, b) => a.title.localeCompare(b.title) || byExtra(a, b)).map((m) => [m])
+    for (const u of extrasAfterParents(loose)) out.push(u)
   }
   return out
 }
@@ -232,10 +293,10 @@ async function resolveUnitGroups(c: CollectionWithItems): Promise<ProgramUnit[]>
  * item pulled in twice (member + filter) stays where the user first put it; a
  * unit reduced to nothing by dedup is dropped.
  */
-export async function resolveUnits(c: CollectionWithItems): Promise<ProgramUnit[]> {
+export async function resolveUnits(c: CollectionWithItems, airs?: Airs): Promise<ProgramUnit[]> {
   const seen = new Set<number>()
   const out: ProgramUnit[] = []
-  for (const u of await resolveUnitGroups(c)) {
+  for (const u of await resolveUnitGroups(c, airs ?? (await channelAirs(c.channelId)))) {
     const items = u.filter((m) => !seen.has(m.id))
     if (items.length === 0) continue
     for (const m of items) seen.add(m.id)
@@ -249,32 +310,27 @@ export async function resolveUnits(c: CollectionWithItems): Promise<ProgramUnit[
  * queries at most regardless of how many members there are — this runs for
  * every collection on the collections list.
  */
-export async function collectionCount(c: CollectionWithItems): Promise<number> {
+export async function collectionCount(c: CollectionWithItems, airs?: Airs): Promise<number> {
+  const a = airs ?? (await channelAirs(c.channelId))
   // One OR'd query covers every show/season member at once.
   const showWhere = c.items
     .filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null)
-    .map((i) => ({
-      showId: i.showId as number,
-      ...(i.kind === 'season' && i.season != null ? { season: i.season, ...leftOut(c, { specials: false }) } : leftOut(c)),
-    }))
+    .map((i) => showPickWhere(i, pickAirs(i, a)))
   const singleIds = c.items
     .filter((i) => (i.kind === 'movie' || i.kind === 'episode') && i.mediaItemId != null)
     .map((i) => i.mediaItemId as number)
+  const withExtras = c.items
+    .filter((i) => i.kind === 'movie' && i.mediaItemId != null && pickAirs(i, a).extras)
+    .map((i) => i.mediaItemId as number)
+  const playable = { missing: false, durationSec: { gt: 0 } }
 
-  const [filterN, showN, singleN] = await Promise.all([
-    hasFilter(c) ? prisma.mediaItem.count({ where: collectionWhere(c) }) : 0,
-    showWhere.length > 0
-      ? prisma.mediaItem.count({
-          where: { type: 'episode', missing: false, durationSec: { gt: 0 }, OR: showWhere },
-        })
-      : 0,
-    singleIds.length > 0
-      ? prisma.mediaItem.count({
-          where: { id: { in: singleIds }, missing: false, durationSec: { gt: 0 } },
-        })
-      : 0,
+  const [filterN, showN, singleN, extrasN] = await Promise.all([
+    hasFilter(c) ? prisma.mediaItem.count({ where: collectionWhere(c, a) }) : 0,
+    showWhere.length > 0 ? prisma.mediaItem.count({ where: { OR: showWhere } }) : 0,
+    singleIds.length > 0 ? prisma.mediaItem.count({ where: { id: { in: singleIds }, ...playable } }) : 0,
+    withExtras.length > 0 ? prisma.mediaItem.count({ where: { parentId: { in: withExtras }, ...playable } }) : 0,
   ])
-  return filterN + showN + singleN
+  return filterN + showN + singleN + extrasN
 }
 
 // Stable integer hash for deterministic shuffles.
@@ -333,14 +389,17 @@ function seededShuffleUnits(units: ProgramUnit[], seed: number): ProgramUnit[] {
     .map((o) => o.u)
 }
 
-/** Every unit in random order, re-dealt each pass. */
+/** Every unit in random order, re-dealt each pass — a movie's extras still
+ *  straight after it. */
 function shuffled(units: ProgramUnit[], seed: number): ResolvedList {
-  return redealt(units.length, (cycle) => seededShuffleUnits(units, (seed ^ hash(cycle)) >>> 0))
+  return redealt(units.length, (cycle) => extrasAfterParents(seededShuffleUnits(units, (seed ^ hash(cycle)) >>> 0)))
 }
 
-// Order within a single show/group: season, episode, year, title.
+// Order within a single show/group: season, episode, year, title — and a
+// show's extras after its episodes.
 function byEpisode(a: MediaItem, b: MediaItem): number {
   return (
+    (a.extra != null ? 1 : 0) - (b.extra != null ? 1 : 0) ||
     (a.season ?? 0) - (b.season ?? 0) ||
     (a.episode ?? 0) - (b.episode ?? 0) ||
     (a.year ?? 0) - (b.year ?? 0) ||
@@ -381,7 +440,7 @@ function showGroups(units: ProgramUnit[]): ShowGroup[] {
     if (g) g.units.push(u)
     else groups.set(key, { key, legacyKey: m.showId != null && m.showTitle ? 'show:' + m.showTitle : undefined, units: [u] })
   }
-  return [...groups.values()].map((g) => ({ ...g, units: g.units.sort(byUnit) }))
+  return [...groups.values()].map((g) => ({ ...g, units: extrasAfterParents(g.units.sort(byUnit)) }))
 }
 
 /**
@@ -521,9 +580,10 @@ export async function resolveCollection(
   order: PlaybackOrder,
   seed = 0,
   progress?: RotationProgress,
+  airs?: Airs,
 ): Promise<ResolvedList> {
   // `resolveUnits` already returns the hand-picked order.
-  const units = await resolveUnits(c)
+  const units = await resolveUnits(c, airs)
   if (order === 'custom') return looped(units)
   if (order === 'shuffle') return shuffled(units, seed)
   if (order === 'shuffleShows') return mixedRotation(units, seed, progress)

@@ -50,6 +50,8 @@ const requiredNumber = (message: string) =>
   })
 /** A yes/no that also takes "true". */
 const flag = loose.transform((v) => v === true || v === 'true')
+/** A yes/no, or null for "as it comes" (null or ''). */
+const flagOrNull = loose.transform((v): boolean | null => (v == null || v === '' ? null : v === true || v === 'true'))
 /** An up-next card config: null/'' clears it (channel = off, block = inherit). */
 const comingUp = loose.transform((v): ComingUpConfig | null => (v == null || v === '' ? null : sanitizeComingUp(v)))
 
@@ -86,6 +88,9 @@ export const ChannelUpdate = z.object({
   logoOnBreaks: flag.optional(),
   grid: loose.transform(asGrid).optional(),
   actBreaks: flag.optional(),
+  // What its whole shows, movies and smart filters bring in (see Channel).
+  includeSpecials: flag.optional(),
+  includeExtras: flag.optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 
@@ -166,8 +171,6 @@ export const CollectionCreate = z.object({
   logoId: loose.transform((v): number | null => (v != null ? Number(v) : null)),
   defaultOrder: loose.transform(asPlaybackOrder),
   ...collectionFilter,
-  includeSpecials: flag.optional(),
-  includeExtras: flag.optional(),
 })
 export type CollectionCreate = z.output<typeof CollectionCreate>
 
@@ -180,8 +183,6 @@ export const CollectionUpdate = z.object({
   filterShow: collectionFilter.filterShow.optional(),
   filterSearch: collectionFilter.filterSearch.optional(),
   filterGenre: collectionFilter.filterGenre.optional(),
-  includeSpecials: flag.optional(),
-  includeExtras: flag.optional(),
 })
 export type CollectionUpdate = z.output<typeof CollectionUpdate>
 
@@ -219,6 +220,14 @@ export const MemberCreate = z
     }
   })
 export type MemberCreate = z.output<typeof MemberCreate>
+
+/** A show's or movie's own say in what its pick brings in: its specials, its
+ *  extras — true or false, or null to go by the channel. */
+export const MemberUpdate = z.object({
+  specials: flagOrNull.optional(),
+  extras: flagOrNull.optional(),
+})
+export type MemberUpdate = z.output<typeof MemberUpdate>
 
 /** A new order for a list, by id: the members (or idents) in their new places. */
 export const Reorder = z.object({

@@ -11,7 +11,7 @@ import {
   type SeasonGroup,
   type ShowDetail,
 } from '../lib/api'
-import { formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { extraLabel, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
 import MediaDetailModal from '../components/MediaDetailModal'
 import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
@@ -21,8 +21,9 @@ import Icon from '../components/Icon'
 import { Badge, Banner, Breadcrumbs, Button, Menu, Skeleton, cx } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
 
+// Season 0 is the show's specials, as Plex calls it.
 function seasonLabel(season: number | null): string {
-  return season == null ? 'Unsorted' : `Season ${season}`
+  return season == null ? 'Unsorted' : season === 0 ? 'Specials' : `Season ${season}`
 }
 
 export default function ShowView() {
@@ -449,6 +450,34 @@ export default function ShowView() {
               />
             )
           })}
+        </div>
+      )}
+
+      {/* The show's extras — featurettes, deleted scenes… — as Plex lists them
+          under it, apart from its episodes. */}
+      {detail && !current && detail.extras.length > 0 && (
+        <div className="mt-10 max-w-4xl">
+          <h2 className="text-[15px] font-semibold tracking-tight mb-1">
+            Extras <span className="ml-1 text-[13px] font-normal text-ink-faint tabular-nums">{detail.extras.length}</span>
+          </h2>
+          <p className="text-[12.5px] text-ink-faint mb-3">
+            They air after the show’s episodes on a channel whose Extras switch — or this show’s tile — says so.
+          </p>
+          <div className="rounded-2xl border border-edge surface-card overflow-hidden divide-y divide-edge/60">
+            {detail.extras.map((x) => (
+              <button
+                key={x.id}
+                onClick={() => setSelectedId(x.id)}
+                className="group w-full flex items-center gap-4 px-4 py-2.5 hover:bg-white/[0.03] text-left transition-colors"
+              >
+                <Icon name="clip" size={15} className="shrink-0 text-ink-faint" />
+                <span className={cx('min-w-0 flex-1 truncate text-[13.5px]', x.missing ? 'text-ink-faint line-through' : 'text-ink')}>{x.title}</span>
+                {x.season != null && <span className="text-[12px] text-ink-faint shrink-0">{seasonLabel(x.season)}</span>}
+                {x.extra && <Badge className="shrink-0">{extraLabel(x.extra)}</Badge>}
+                <span className="w-14 text-right text-[13px] text-ink-muted shrink-0 tabular-nums">{formatDuration(x.durationSec)}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -80,8 +80,6 @@ export type ScanStatus = {
   /** Known files found at a new path (a move or a renamed folder). */
   moved: number
   skipped: number
-  /** Files the library leaves out (its extras, or its season 0). */
-  leftOut: number
   currentPath: string | null
   startedAt: string | null
   finishedAt: string | null
@@ -158,10 +156,8 @@ export type Library = {
   createdAt: Date
   folders: LibraryFolder[]
   itemCount: number
-  /** Whether a scan indexes season 0, and extras (featurettes, trailers…). */
-  includeSpecials: boolean
-  includeExtras: boolean
-  /** How many of each it has now (none of what it leaves out). */
+  /** How many season 0 episodes, and extras (featurettes, trailers…), it has.
+   *  A library indexes all of them; each channel says whether they air. */
   specialCount: number
   extraCount: number
 }
@@ -200,10 +196,19 @@ export type MediaItem = {
   tmdbYear: number | null
   /** A featurette, trailer, deleted scene… filed with a movie or show; null for the thing itself. */
   extra: ExtraKind | null
+  /** The movie an extra belongs to (a show's extras go by showId instead). */
+  parentId: number | null
   missing: boolean
 }
 
-export type MediaItemDetail = MediaItem & { library: { name: string; kind: LibraryKind }; aired: EpisodeAired | null }
+export type MediaItemDetail = MediaItem & {
+  library: { name: string; kind: LibraryKind }
+  aired: EpisodeAired | null
+  /** A movie's extras, as Plex lists them under it. */
+  extras: MediaItem[]
+  /** The movie an extra belongs to. */
+  parent: { id: number; title: string; year: number | null } | null
+}
 
 export type MediaPage = { total: number; page: number; pageSize: number; items: MediaItem[] }
 export type MediaSort = 'title' | 'year' | 'added' | 'rating'
@@ -273,7 +278,10 @@ export type ShowDetail = {
   /** Whether the show has a TMDB backdrop, and an episode to request it by. */
   hasBackdrop?: boolean
   artItemId?: number | null
+  /** Its episodes by season, season 0 (specials) included. */
   seasons: SeasonGroup[]
+  /** Its extras — featurettes, deleted scenes… — the show's own and its seasons'. */
+  extras: MediaItem[]
 }
 
 /** One segment of a broadcast episode — enough to draw it even when it's
@@ -362,6 +370,10 @@ export type CollectionItem = {
   mediaItemId: number | null
   label: string | null
   order: number
+  /** This show's or movie's own say in whether its specials and extras air;
+   *  null = as the channel has it (Collection.airs). */
+  specials: boolean | null
+  extras: boolean | null
   /** What the editor draws for this member (see memberMeta on the server). */
   meta?: {
     artId: number | null
@@ -370,6 +382,9 @@ export type CollectionItem = {
     episodes: number | null
     seasons: number | null
     missing: boolean
+    /** How many season 0 episodes, and extras, the pick could bring in. */
+    specials: number
+    extras: number
   } | null
 }
 
@@ -385,11 +400,9 @@ export type Collection = {
   filterShow: string | null
   filterSearch: string | null
   filterGenre: string | null
-  /** Whether whole-show picks and the smart filter bring in season 0 — a
-   *  season 0 picked on its own airs either way. */
-  includeSpecials: boolean
-  /** Whether they bring in extras (featurettes, trailers…); one picked on its own airs either way. */
-  includeExtras: boolean
+  /** What its channel's whole shows, movies and smart filters bring in (a
+   *  pick can say otherwise — see CollectionItem.specials / extras). */
+  airs: { specials: boolean; extras: boolean }
   items: CollectionItem[]
   itemCount: number
 }
@@ -398,7 +411,7 @@ export type MediaSearchResult =
   | { kind: 'show'; showTitle: string; libraryId: number; libraryName: string; episodeCount: number }
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
-  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null; extra: ExtraKind | null }
+  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
 
 export type RotationItem = {
   id: number
@@ -464,6 +477,9 @@ export type ChannelDetail = {
   grid: number
   /** Breaks inside programs (on a clock): a program's break time split across its act breaks. */
   actBreaks: boolean
+  /** Whether its whole shows, movies and smart filters bring in season 0, and extras. */
+  includeSpecials: boolean
+  includeExtras: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }
@@ -628,6 +644,6 @@ export type ScheduleWarning = {
   message: string
   blockId?: number
   collectionId?: number
-  /** What the collection can be set to leave out to fix it (its season 0, or its extras). */
-  leaveOut?: 'specials' | 'extras'
+  /** The show picks whose season 0 can be left out to fix it. */
+  leaveOutSpecials?: number[]
 }

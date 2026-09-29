@@ -23,7 +23,7 @@ async function show(title: string, eps: [number, number][], sec: number) {
 const range = (season: number, n: number) => Array.from({ length: n }, (_, i) => [season, i + 1] as [number, number])
 const doug = await show('Doug', [[0, 1], [0, 2], ...range(1, 30)], 22 * 60)
 const snick = await show('Snick', range(1, 3), 25 * 60) // 75 minutes of it
-const ch = await prisma.channel.create({ data: { name: 'Nick', number: 31, grid: 30 } })
+const ch = await prisma.channel.create({ data: { name: 'Nick', number: 31, grid: 30, includeSpecials: true } })
 const col = (name: string, showId: number) =>
   prisma.collection.create({ data: { name, channelId: ch.id, items: { create: [{ kind: 'show', showId, libraryId: lib.id }] } } })
 const dougCol = await col('Doug', doug)
@@ -82,7 +82,7 @@ test('the schedule warnings name the traps, and what to change', async () => {
 })
 
 test('an all-day exact-time block with no breaks runs into its own next start', async () => {
-  const ch2 = await prisma.channel.create({ data: { name: 'Favorites', number: 42 } })
+  const ch2 = await prisma.channel.create({ data: { name: 'Favorites', number: 42, includeSpecials: true } })
   const fav = await prisma.collection.create({ data: { name: 'Favorites', channelId: ch2.id, defaultOrder: 'rotate', items: { create: [{ kind: 'show', showId: doug, libraryId: lib.id }] } } })
   await prisma.timeBlock.create({ data: { channelId: ch2.id, days: every, startMinute: 0, endMinute: 1439, collectionId: fav.id, playbackOrder: 'inherit', fillerMode: 'none', startMode: 'hard' } })
   const text = (await lintSchedule(ch2.id)).map((w) => w.message).join('\n')

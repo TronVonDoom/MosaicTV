@@ -24,17 +24,20 @@ showsRouter.get('/detail', async (req, res) => {
   if (!show) return res.status(400).json({ error: 'show query param is required' })
   const libraryId = req.query.libraryId ? Number(req.query.libraryId) : undefined
 
-  const where: Prisma.MediaItemWhereInput = { type: 'episode', showTitle: show }
+  // Its episodes, and its extras (featurettes, deleted scenes…) apart from them.
+  const where: Prisma.MediaItemWhereInput = { showTitle: show, OR: [{ type: 'episode' }, { extra: { not: null } }] }
   if (libraryId && !Number.isNaN(libraryId)) where.libraryId = libraryId
 
-  const [episodes, showRow] = await Promise.all([
-    prisma.mediaItem.findMany({ where, orderBy: [{ season: 'asc' }, { episode: 'asc' }] }),
+  const [files, showRow] = await Promise.all([
+    prisma.mediaItem.findMany({ where, orderBy: [{ season: 'asc' }, { episode: 'asc' }, { title: 'asc' }] }),
     prisma.show.findFirst({
       where: { title: show, ...(libraryId ? { libraryId } : {}) },
       include: { seasons: true, names: { orderBy: { id: 'asc' } } },
     }),
   ])
 
+  const episodes = files.filter((f) => f.extra == null)
+  const extras = files.filter((f) => f.extra != null)
   const seasonPosterByNumber = new Map(
     (showRow?.seasons ?? []).map((s) => [s.number, s.tmdbPosterPath]),
   )
@@ -78,6 +81,7 @@ showsRouter.get('/detail', async (req, res) => {
     hasBackdrop: !!showRow?.tmdbBackdropPath,
     artItemId: episodes[0]?.id ?? null,
     seasons,
+    extras,
   })
 })
 

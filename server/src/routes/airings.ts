@@ -66,6 +66,7 @@ function parseSeason(raw: unknown): number | null | undefined {
 function episodeWhere(showId: number, season: number | null | undefined): Prisma.MediaItemWhereInput {
   return {
     type: 'episode',
+    extra: null,
     missing: false,
     showId,
     ...(season === undefined ? {} : { season }),
@@ -146,6 +147,7 @@ airingsRouter.get('/search-episodes', async (req, res) => {
     where: {
       libraryId,
       type: 'episode',
+      extra: null,
       missing: false,
       durationSec: { gt: 0 },
       ...(q

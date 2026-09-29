@@ -2,8 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { ffprobe } from '../ffprobe.js'
-import type { Prisma } from '@prisma/client'
-import { extraKind, parseMedia, type LibraryKind, type ParsedMedia } from './parse.js'
+import { extraHome, extraKind, extraStem, parseMedia, type LibraryKind } from './parse.js'
 import { detectArtwork } from './artwork.js'
 import { walk } from './walk.js'
 import { log } from '../logs.js'
@@ -32,7 +31,6 @@ const status: ScanStatus = {
   removed: 0,
   moved: 0,
   skipped: 0,
-  leftOut: 0,
   currentPath: null,
   startedAt: null,
   finishedAt: null,
@@ -257,7 +255,6 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     removed: 0,
     moved: 0,
     skipped: 0,
-    leftOut: 0,
     currentPath: null,
     startedAt: new Date().toISOString(),
     finishedAt: null,
@@ -272,27 +269,24 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       const files = await walk(folder.path)
       for (const f of files) found.push({ file: f, root: folder.path })
     }
-    // What the library leaves out (its extras, or its season 0) isn't indexed.
+    // Everything is indexed, season 0 and extras included, as in Plex: each
+    // channel says whether it airs them.
     const kind = library.kind as LibraryKind
-    const wanted = found.filter(({ file, root }) => !leavesOut(library, parseMedia(file, root, kind)))
-    status.leftOut = found.length - wanted.length
-    status.total = wanted.length
+    status.total = found.length
 
     const dirCache: DirCache = new Map()
     const pass: ScanPass = { claimed: new Set(), refiled: new Map(), shows: new Map(), created: new Set() }
-    await runPool(wanted, PROBE_CONCURRENCY, ({ file, root }) =>
+    await runPool(found, PROBE_CONCURRENCY, ({ file, root }) =>
       processFile(file, library.id, root, kind, dirCache, force, pass),
     )
 
-    // Anything in this library not seen in this scan pass is now missing —
-    // except what it leaves out, which goes.
-    const seen = new Set(wanted.map((f) => f.file))
-    const skipped = new Set(found.filter((f) => !seen.has(f.file)).map((f) => f.file))
+    // Anything in this library not seen in this scan pass is now missing.
+    const seen = new Set(found.map((f) => f.file))
     const known = await prisma.mediaItem.findMany({
       where: { libraryId: library.id },
       select: { id: true, path: true, missing: true },
     })
-    const goneIds = known.filter((k) => !k.missing && !seen.has(k.path) && !skipped.has(k.path)).map((k) => k.id)
+    const goneIds = known.filter((k) => !k.missing && !seen.has(k.path)).map((k) => k.id)
     if (goneIds.length > 0) {
       await prisma.mediaItem.updateMany({
         where: { id: { in: goneIds } },
@@ -300,14 +294,10 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       })
       status.removed = goneIds.length
     }
-    const dropIds = known.filter((k) => skipped.has(k.path)).map((k) => k.id)
-    for (let i = 0; i < dropIds.length; i += 500) {
-      await prisma.mediaItem.deleteMany({ where: { id: { in: dropIds.slice(i, i + 500) } } })
-    }
-    const dropped = dropIds.length + (await dropLeftOut(library))
     await followRefiledShows(library.id, pass)
+    const linked = await linkExtras(library.id)
     // New, changed or vanished files change what the channels can air.
-    if (status.added + status.updated + status.removed + status.moved + dropped > 0) await scheduleChangedEverywhere()
+    if (status.added + status.updated + status.removed + status.moved + linked > 0) await scheduleChangedEverywhere()
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {
@@ -319,42 +309,54 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
   if (!status.error) await matchNewTitles(library.id).catch(() => {})
 }
 
-type LibraryChoices = { id: number; includeSpecials: boolean; includeExtras: boolean }
-
-/** Whether a library leaves a file out: an extra, unless it keeps them, or a
- *  season 0 episode when it doesn't take specials. */
-export function leavesOut(
-  lib: Omit<LibraryChoices, 'id'>,
-  m: Pick<ParsedMedia, 'type' | 'season' | 'extra'>,
-): boolean {
-  return (!lib.includeExtras && m.extra != null) || (!lib.includeSpecials && m.type === 'episode' && m.season === 0)
-}
-
-/** Remove what a library leaves out from what it has indexed; how many went.
- *  A channel airing one moves on at its next replan; its history stays. */
-export async function dropLeftOut(lib: LibraryChoices): Promise<number> {
-  const out: Prisma.MediaItemWhereInput[] = []
-  if (!lib.includeExtras) out.push({ extra: { not: null } })
-  if (!lib.includeSpecials) out.push({ type: 'episode', season: 0 })
-  if (out.length === 0) return 0
-  const { count } = await prisma.mediaItem.deleteMany({ where: { libraryId: lib.id, OR: out } })
-  return count
-}
-
-/** At boot, after tagExtras: each library drops what it leaves out — on the
- *  upgrade that introduced this, the extras that used to be indexed as movies
- *  and episodes. */
-export async function dropLeftOutEverywhere(): Promise<void> {
+/**
+ * Give each of a movie library's extras its movie, as Plex does: the movie in
+ * the folder the extra belongs to (see extraHome) — the one its name starts
+ * with, when the folder holds more than one (editions, parts), else the first.
+ * Loose in the library's own folder, among every movie filed flat, only the
+ * name counts. An extra with no movie of its own is left on its own. How many
+ * changed.
+ */
+export async function linkExtras(libraryId: number): Promise<number> {
+  const library = await prisma.library.findUnique({ where: { id: libraryId }, select: { kind: true, folders: { select: { path: true } } } })
+  if (library?.kind !== 'movie') return 0
+  const roots = new Set(library.folders.map((f) => path.resolve(f.path)))
+  const items = await prisma.mediaItem.findMany({
+    where: { libraryId },
+    select: { id: true, path: true, extra: true, parentId: true },
+    orderBy: { path: 'asc' },
+  })
+  const moviesIn = new Map<string, { id: number; stem: string }[]>()
+  for (const m of items) {
+    if (m.extra != null) continue
+    const dir = path.dirname(m.path)
+    moviesIn.set(dir, [...(moviesIn.get(dir) ?? []), { id: m.id, stem: extraStem(m.path).toLowerCase() }])
+  }
+  const byParent = new Map<number | null, number[]>()
+  for (const x of items) {
+    if (x.extra == null) continue
+    const home = extraHome(x.path)
+    const movies = moviesIn.get(home) ?? []
+    const stem = extraStem(x.path).toLowerCase()
+    const named = movies.find((m) => stem === m.stem) ?? movies.find((m) => stem.startsWith(m.stem))
+    const parent = named ?? (roots.has(path.resolve(home)) ? undefined : movies[0])
+    const parentId = parent?.id ?? null
+    if (parentId === x.parentId) continue
+    byParent.set(parentId, [...(byParent.get(parentId) ?? []), x.id])
+  }
   let n = 0
-  for (const lib of await prisma.library.findMany()) n += await dropLeftOut(lib)
-  if (n === 0) return
-  log('info', 'system', `Removed ${n} file(s) the libraries leave out — extras (featurettes, trailers…) or season 0`)
-  await scheduleChangedEverywhere()
+  for (const [parentId, ids] of byParent) {
+    await prisma.mediaItem.updateMany({ where: { id: { in: ids } }, data: { parentId } })
+    n += ids.length
+  }
+  return n
 }
 
 // Bumped when extraKind learns something new, so libraries already scanned are
 // re-tagged on the next boot rather than waiting for someone to re-scan.
-const EXTRAS_RULES = '1'
+// Rules 2: a show's extras file under the show (and season), a movie's
+// belong to their movie.
+const EXTRAS_RULES = '2'
 const EXTRAS_KEY = 'extrasRules'
 
 const isUnder = (file: string, root: string) => {
@@ -391,13 +393,32 @@ export async function tagExtras(): Promise<void> {
       changed += ids.length
     }
   }
+  // A movie's extras go with their movie.
+  let linked = 0
+  for (const lib of await prisma.library.findMany({ where: { kind: 'movie' }, select: { id: true } })) linked += await linkExtras(lib.id)
   await prisma.setting.upsert({
     where: { key: EXTRAS_KEY },
     create: { key: EXTRAS_KEY, value: EXTRAS_RULES },
     update: { value: EXTRAS_RULES },
   })
-  if (changed === 0) return
-  log('info', 'system', `Told apart ${changed} extra(s) — featurettes, trailers and the like — among files already scanned`)
-  // Only a collection leaving extras out airs any differently.
-  if (await prisma.collection.count({ where: { includeExtras: false } })) await scheduleChangedEverywhere()
+  if (changed > 0) log('info', 'system', `Told apart ${changed} extra(s) — featurettes, trailers and the like — among files already scanned`)
+  if (linked > 0) log('info', 'system', `Filed ${linked} extra(s) with their movies`)
+  if (changed + linked > 0) await scheduleChangedEverywhere()
+}
+
+// Libraries that left specials or extras out (before 0.13) had them deleted;
+// the migration that moved the choice to channels lists them to scan once.
+const RESCAN_KEY = 'rescanLibraries'
+
+/** Scan, one after another, the libraries an upgrade asked to (see RESCAN_KEY). */
+export async function rescanAfterUpgrade(): Promise<void> {
+  const row = await prisma.setting.findUnique({ where: { key: RESCAN_KEY } })
+  if (!row) return
+  await prisma.setting.delete({ where: { key: RESCAN_KEY } })
+  const ids = row.value.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0)
+  for (const id of ids) {
+    if (!(await prisma.library.count({ where: { id } }))) continue
+    log('info', 'system', `Scanning library ${id} for the specials and extras it used to leave out — channels decide now whether they air`)
+    await scanLibrary(id).catch((e) => log('error', 'system', `Scan of library ${id} failed`, String(e?.stack || e)))
+  }
 }

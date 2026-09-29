@@ -7,9 +7,6 @@ import { cx } from './ui'
 
 type Preview = { key: string; count: number; sample: MediaItem[] }
 
-/** Whether the collection takes its specials and extras, as the form has it. */
-export type Includes = { specials: boolean; extras: boolean }
-
 // Orders dealt at random: a preview shows one deal, and each channel deals its own.
 const RANDOM = new Set(['shuffle', 'shuffleShows'])
 
@@ -22,31 +19,26 @@ export default function OrderPicker({
   collectionId,
   value,
   onChange,
-  includes,
 }: {
   collectionId: number
   value: string
   onChange: (order: PlaybackOrder) => void
-  /** Specials and extras in or out, before that's saved (default: as saved). */
-  includes?: Includes
 }) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [failed, setFailed] = useState(false)
-  const specials = includes?.specials
-  const extras = includes?.extras
-  const key = `${value}|${specials}|${extras}`
+  const key = value
 
   useEffect(() => {
     let live = true
     setFailed(false)
     api
-      .collectionPreview(collectionId, value, specials != null && extras != null ? { specials, extras } : undefined)
+      .collectionPreview(collectionId, value)
       .then((p) => live && setPreview({ ...p, key }))
       .catch(() => live && setFailed(true))
     return () => {
       live = false
     }
-  }, [collectionId, value, specials, extras, key])
+  }, [collectionId, value, key])
 
   const loading = !failed && preview?.key !== key
 

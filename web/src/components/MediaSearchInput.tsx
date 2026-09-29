@@ -65,8 +65,14 @@ export default function MediaSearchInput({
           meta: `${r.showTitle ?? ''} ${episodeCode(r) || 'episode'}`.trim(),
         }
       case 'movie':
-        // An extra says so, so a trailer isn't picked for the movie it's of.
-        return { icon: 'movie', main: r.title, meta: [r.extra && extraLabel(r.extra), r.year].filter(Boolean).join(' · ') }
+        // An extra says so, and whose it is, so a trailer isn't picked for the movie it's of.
+        return {
+          icon: 'movie',
+          main: r.title,
+          meta: r.extra
+            ? [extraLabel(r.extra), r.parentTitle && `of ${r.parentTitle}`].filter(Boolean).join(' ')
+            : [r.year].filter(Boolean).join(' · '),
+        }
     }
   }
 

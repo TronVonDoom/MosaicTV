@@ -82,6 +82,22 @@ export function extraKind(absPath: string, libraryPath: string, kind: LibraryKin
   return baseName.trim().toLowerCase() === 'sample' ? 'sample' : null
 }
 
+/**
+ * The folder an extra belongs to: its own, or — when it sits in an extras
+ * folder ("Featurettes", "Trailers"…) — the one that folder is in. A movie's
+ * extras find their movie there.
+ */
+export function extraHome(absPath: string): string {
+  let dir = path.dirname(absPath)
+  while (EXTRA_FOLDERS[path.basename(dir).trim().toLowerCase()] && path.dirname(dir) !== dir) dir = path.dirname(dir)
+  return dir
+}
+
+/** A file's name without its extension or an extras suffix: "Redux" for "Redux-featurette.mkv". */
+export function extraStem(absPath: string): string {
+  return path.basename(absPath, path.extname(absPath)).replace(EXTRA_SUFFIX_RE, '')
+}
+
 // Light cleanup for artist/album folder names (no year/quality stripping —
 // those are meaningful far less often here than in movie/TV names).
 function cleanName(raw: string): string {
@@ -145,6 +161,20 @@ function cleanTitle(raw: string): string {
     .trim()
 }
 
+// "Season 01", "Season 1", "S01", or "Specials" (season 0).
+const SEASON_FOLDER_RE = /^(?:season[\s._-]*|s)(\d{1,3})$/i
+
+/** The season a file's folders put it in, if one of them is a season's folder. */
+function seasonFolder(segments: string[]): number | null {
+  for (const raw of segments.slice(1, -1)) {
+    const name = raw.trim()
+    if (/^specials?$/i.test(name)) return 0
+    const m = name.match(SEASON_FOLDER_RE)
+    if (m) return Number.parseInt(m[1], 10)
+  }
+  return null
+}
+
 function extractYear(s: string): number | null {
   const m = s.match(YEAR_RE)
   return m ? Number.parseInt(m[1], 10) : null
@@ -191,6 +221,21 @@ export function parseMedia(
         season: Number.isNaN(season) ? null : season,
         episode: Number.isNaN(episode) ? null : episode,
         year: topFolder ? extractYear(topFolder) : null,
+        artist: null,
+        album: null,
+        extra,
+      }
+    }
+    // A show's extra files under the show, as in Plex — and under a season,
+    // when it sits in that season's folder.
+    if (extra && topFolder) {
+      return {
+        type: 'other',
+        title: cleanTitle(named),
+        showTitle: cleanTitle(topFolder) || null,
+        season: seasonFolder(segments),
+        episode: null,
+        year: extractYear(topFolder),
         artist: null,
         album: null,
         extra,

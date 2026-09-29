@@ -13,11 +13,6 @@ model Library {
   id              Int             @id @default(autoincrement())
   name            String
   kind            String // "tv" | "movie" | "other"
-  // What a TV or movie library indexes: season 0 (specials), and extras
-  // (featurettes, trailers…), which a scan leaves out unless asked — a
-  // featurette isn't a movie. Leaving either out removes what's there.
-  includeSpecials Boolean         @default(true)
-  includeExtras   Boolean         @default(false)
   createdAt       DateTime        @default(now())
   folders         LibraryFolder[]
   items           MediaItem[]
@@ -214,11 +209,6 @@ model Collection {
   filterShow      String? // exact show title (legacy; prefer members)
   filterSearch    String? // title/show contains
   filterGenre     String? // genre contains
-  // Whether whole-show picks and the smart filter bring in season 0
-  // (specials, shorts, promos) and extras (featurettes, trailers…). A season 0
-  // or an extra picked on its own airs either way.
-  includeSpecials Boolean          @default(true)
-  includeExtras   Boolean          @default(true)
   createdAt       DateTime         @default(now())
   items           CollectionItem[]
   rotationItems   RotationItem[]
@@ -295,6 +285,11 @@ model CollectionItem {
   mediaItemId  Int? // for kind "movie" and "episode"
   label        String? // denormalized display name
   order        Int        @default(0)
+  // Whether this pick brings in the show's season 0, and the show's or the
+  // movie's extras. Null = as its channel has it (Channel.includeSpecials /
+  // includeExtras); set = this show's own choice, whatever the channel's.
+  specials     Boolean?
+  extras       Boolean?
 
   @@index([collectionId])
   @@index([showId])
@@ -339,6 +334,13 @@ model Channel {
   // time is split across its act breaks (MediaItem.breaks) instead of all
   // coming after it. A time block can say otherwise (TimeBlock.actBreaks).
   actBreaks         Boolean            @default(false)
+  // What a whole show, a movie or a smart filter brings in on this channel:
+  // season 0 (specials, pilots, shorts), and extras (featurettes, trailers…
+  // filed with a movie or show). A show's pick can say otherwise
+  // (CollectionItem.specials / extras); a special or an extra picked on its
+  // own airs either way.
+  includeSpecials   Boolean            @default(false)
+  includeExtras     Boolean            @default(false)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -528,7 +530,12 @@ model MediaItem {
   breaksCheckedAt  DateTime?
   // A featurette, trailer, deleted scene… filed with a movie or show (see
   // extraKind in scanner/parse.ts); null for the movie or episode itself.
+  // A show's extras file under the show (showId, and season when they sit in a
+  // season's folder); a movie's belong to the movie (parentId), as in Plex.
   extra            String?
+  parent           MediaItem?      @relation("Extras", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId         Int?
+  extras           MediaItem[]     @relation("Extras")
   missing          Boolean         @default(false)
   addedAt          DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -540,4 +547,5 @@ model MediaItem {
   @@index([type])
   @@index([showTitle])
   @@index([showId])
+  @@index([parentId])
 }

@@ -19,7 +19,7 @@ import LogoPicker from './LogoPicker'
 import OrderPicker from './OrderPicker'
 import { toast } from '../lib/toast'
 import { errorMessage } from '../lib/errors'
-import { Badge, Banner, Button, Card, EmptyState, Field, IconTile, Input, Menu, Modal, ModalHeader, Select, cx } from './ui'
+import { Badge, Banner, Button, Card, EmptyState, Field, IconTile, Input, Menu, Modal, ModalHeader, Select, Switch, cx } from './ui'
 
 /** A member's caption line: what kind of thing it is and how much of it. */
 function memberCaption(it: CollectionItem): string {
@@ -38,6 +38,61 @@ function memberCaption(it: CollectionItem): string {
   }
 }
 
+type Airs = Collection['airs']
+type AirsKey = keyof Airs
+
+/** Whether a pick's specials or extras air: its own say, else the channel's. */
+const airsOf = (it: CollectionItem, airs: Airs, key: AirsKey) => it[key] ?? airs[key]
+
+/**
+ * A tile's switch for its show's specials, or its show's or movie's extras —
+ * only when it has some. It goes by the channel until it's flipped; flipped
+ * back to what the channel does, it goes by the channel again.
+ */
+function AirsChip({
+  it,
+  airs,
+  field,
+  count,
+  onSet,
+}: {
+  it: CollectionItem
+  airs: Airs
+  field: AirsKey
+  count: number
+  onSet: (value: boolean | null) => void
+}) {
+  const on = airsOf(it, airs, field)
+  const own = it[field] != null
+  const what = field === 'specials' ? `${count} special${count === 1 ? '' : 's'}` : `${count} extra${count === 1 ? '' : 's'}`
+  const whose = it.kind === 'movie' ? 'this movie’s' : 'this show’s'
+  const hint = own
+    ? `${on ? 'Airs' : 'Left out'} here, though the channel ${airs[field] ? 'takes' : 'leaves out'} ${field} — click to go by the channel again.`
+    : `${on ? 'Airs' : 'Left out'}, as the channel has it — click to ${on ? 'leave' : 'air'} ${whose} ${field} ${on ? 'out' : 'anyway'}.`
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      title={hint}
+      onClick={(e) => {
+        e.stopPropagation()
+        const next = !on
+        onSet(next === airs[field] ? null : next)
+      }}
+      className={cx(
+        'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium transition-colors',
+        on
+          ? 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/25'
+          : 'border-edge bg-sunken/60 text-ink-faint line-through decoration-ink-ghost hover:text-ink-muted',
+        own && 'ring-1 ring-inset ring-amber-300/40',
+      )}
+    >
+      {on && <Icon name="check" size={10} />}
+      {what}
+    </button>
+  )
+}
+
 const KIND_LABEL: Record<CollectionItem['kind'], string> = {
   show: 'Show',
   season: 'Season',
@@ -45,9 +100,12 @@ const KIND_LABEL: Record<CollectionItem['kind'], string> = {
   episode: 'Episode',
 }
 
-/** One member as a poster tile: drag to reorder, × to remove. */
+/** One member as a poster tile: drag to reorder, × to remove, and switches
+ *  for its specials and extras when it has any. */
 function MemberTile({
   it,
+  airs,
+  onSetAirs,
   index,
   dragging,
   dropTarget,
@@ -58,6 +116,8 @@ function MemberTile({
   onRemove,
 }: {
   it: CollectionItem
+  airs: Airs
+  onSetAirs: (field: AirsKey, value: boolean | null) => void
   index: number
   dragging: boolean
   dropTarget: boolean
@@ -138,6 +198,16 @@ function MemberTile({
           {title}
         </div>
         <div className="text-[11.5px] text-ink-faint truncate">{memberCaption(it)}</div>
+        {(it.kind === 'show' || it.kind === 'movie') && !!(it.meta?.specials || it.meta?.extras) && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {it.kind === 'show' && !!it.meta?.specials && (
+              <AirsChip it={it} airs={airs} field="specials" count={it.meta.specials} onSet={(v) => onSetAirs('specials', v)} />
+            )}
+            {!!it.meta?.extras && (
+              <AirsChip it={it} airs={airs} field="extras" count={it.meta.extras} onSet={(v) => onSetAirs('extras', v)} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -163,8 +233,6 @@ function CollectionSettings({
     filterType: collection.filterType ?? '',
     filterSearch: collection.filterSearch ?? '',
     filterGenre: collection.filterGenre ?? '',
-    includeSpecials: collection.includeSpecials,
-    includeExtras: collection.includeExtras,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -181,8 +249,6 @@ function CollectionSettings({
         filterType: form.filterType || null,
         filterSearch: form.filterSearch || null,
         filterGenre: form.filterGenre || null,
-        includeSpecials: form.includeSpecials,
-        includeExtras: form.includeExtras,
       })
       toast.success('Collection saved')
       onSaved()
@@ -215,44 +281,7 @@ function CollectionSettings({
             collectionId={collection.id}
             value={form.defaultOrder}
             onChange={(order) => setForm({ ...form, defaultOrder: order })}
-            includes={{ specials: form.includeSpecials, extras: form.includeExtras }}
           />
-        </div>
-        <div>
-          <div className="text-[13px] font-medium text-ink mb-0.5">Includes</div>
-          <p className="text-xs text-ink-faint mb-3">
-            What whole shows and the smart filter bring in. A season 0 or an extra you pick on its own airs either way.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="flex items-start gap-2.5 select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={form.includeSpecials}
-                onChange={(e) => setForm({ ...form, includeSpecials: e.target.checked })}
-              />
-              <span className="min-w-0">
-                <span className="text-sm text-ink">Specials (season 0)</span>
-                <span className="block text-xs text-ink-faint leading-snug mt-0.5">
-                  Pilots, holiday specials, shorts and promos filed as season 0 — they air before season 1.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2.5 select-none">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={form.includeExtras}
-                onChange={(e) => setForm({ ...form, includeExtras: e.target.checked })}
-              />
-              <span className="min-w-0">
-                <span className="text-sm text-ink">Extras</span>
-                <span className="block text-xs text-ink-faint leading-snug mt-0.5">
-                  Featurettes, trailers and deleted scenes — from libraries set to keep them (Library → Sources).
-                </span>
-              </span>
-            </label>
-          </div>
         </div>
         <div className="rounded-xl border border-edge bg-sunken/60 p-4">
           <div className="text-[13px] font-medium text-ink mb-0.5">Smart filter</div>
@@ -286,6 +315,48 @@ function CollectionSettings({
         </div>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * What this channel's collections bring in with a whole show, a movie or a
+ * smart filter: season 0, and extras. A show's or movie's tile can say
+ * otherwise; a special or an extra picked on its own airs either way.
+ */
+function ChannelAirs({ channelId, airs, onSaved }: { channelId: number; airs: Airs; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  async function set(field: AirsKey, value: boolean) {
+    setBusy(true)
+    try {
+      await api.updateChannel(channelId, field === 'specials' ? { includeSpecials: value } : { includeExtras: value })
+      toast.success(`${field === 'specials' ? 'Specials' : 'Extras'} ${value ? 'air' : 'left out'} on this channel — the guide follows from the next program`)
+      onSaved()
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not save'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const rows: { field: AirsKey; label: string; hint: string }[] = [
+    { field: 'specials', label: 'Specials', hint: 'Season 0 — pilots, holiday specials, shorts. They air before season 1.' },
+    { field: 'extras', label: 'Extras', hint: 'Featurettes, trailers, deleted scenes — after the show’s episodes, or right after their movie.' },
+  ]
+  return (
+    <div className="mt-3 mx-1 border-t border-edge/60 pt-3 space-y-3">
+      <div className="px-1">
+        <div className="text-[12.5px] font-medium text-ink-soft">On this channel, whole shows and movies bring in</div>
+        <p className="text-[11.5px] text-ink-faint leading-snug">A show’s or movie’s tile can say otherwise.</p>
+      </div>
+      {rows.map((r) => (
+        <div key={r.field} className="flex items-start gap-3 px-1">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] text-ink">{r.label}</div>
+            <div className="text-[11.5px] text-ink-faint leading-snug">{r.hint}</div>
+          </div>
+          <Switch checked={airs[r.field]} disabled={busy} label={`${r.label} on this channel`} onChange={(v) => set(r.field, v)} />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -503,6 +574,7 @@ export default function CollectionManager({
           </ul>
           </>
         )}
+        {cols.length > 0 && <ChannelAirs channelId={channelId} airs={cols[0].airs} onSaved={refresh} />}
       </Card>
 
       {/* ── The selected collection ────────────────────────────────────── */}
@@ -538,8 +610,6 @@ export default function CollectionManager({
                 <span className="text-ink-ghost">•</span>
                 <Badge tone="accent">{orderLabel(selected.defaultOrder)}</Badge>
                 {filterSummary(selected) && <Badge tone="info">Smart filter: {filterSummary(selected)}</Badge>}
-                {!selected.includeSpecials && <Badge tone="neutral">No specials</Badge>}
-                {!selected.includeExtras && <Badge tone="neutral">No extras</Badge>}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -597,6 +667,8 @@ export default function CollectionManager({
                   <MemberTile
                     key={it.id}
                     it={it}
+                    airs={selected.airs}
+                    onSetAirs={(field, value) => guard(() => api.updateCollectionItem(selected.id, it.id, { [field]: value }))}
                     index={i}
                     dragging={dragId === it.id}
                     dropTarget={overId === it.id && dragId !== it.id}

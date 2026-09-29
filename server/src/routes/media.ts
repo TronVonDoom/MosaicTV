@@ -22,11 +22,14 @@ mediaRouter.get('/', async (req, res) => {
   if (q) {
     where.OR = [{ title: { contains: q } }, { showTitle: { contains: q } }]
   }
-  // A movie library's review filters: no TMDB match, or an automatic one
-  // that doesn't agree with the file.
+  // A movie library's review filters: no TMDB match, an automatic one that
+  // doesn't agree with the file, or extras with no movie to go under. Any
+  // other extra sits under its movie, as in Plex, not in the grid.
   const match = asMatchFilter(req.query.match)
   if (match === 'unmatched') Object.assign(where, unmatchedMovieWhere())
   if (match === 'doubtful') where.id = { in: await doubtfulMovieIds(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) }
+  if (match === 'loose') Object.assign(where, { extra: { not: null }, parentId: null, showId: null })
+  else where.extra = null
 
   // Title order by default (shows, then season/episode); the library grid also
   // offers newest release, most recently added, and TMDB rating.
@@ -59,7 +62,12 @@ mediaRouter.get('/:id', async (req, res) => {
   if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' })
   const item = await prisma.mediaItem.findUnique({
     where: { id },
-    include: { library: { select: { name: true, kind: true } } },
+    include: {
+      library: { select: { name: true, kind: true } },
+      parent: { select: { id: true, title: true, year: true } },
+      // A movie's extras, as Plex lists them under it.
+      extras: { orderBy: [{ extra: 'asc' }, { title: 'asc' }] },
+    },
   })
   if (!item) return res.status(404).json({ error: 'Not found' })
   const aired = await episodesAired([id])

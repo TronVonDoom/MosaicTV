@@ -14,17 +14,20 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
 }
 
 /**
- * "Rugrats S01E02" for an episode, the plain title for anything else.
- * `withTitle` appends the episode's own title for places with room for it.
+ * "Rugrats S01E02" for an episode, "The Office — Bloopers" for a show's
+ * extra, the plain title for anything else. `withTitle` appends the episode's
+ * own title for places with room for it.
  *
- * A media item has a showTitle if and only if it's an episode (the scanner sets
- * it nowhere else), so that one check covers both.
+ * A media item has a showTitle if and only if it's an episode or a show's
+ * extra (the scanner sets it nowhere else), so that one check covers both.
  */
 export function programLabel(
-  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null },
+  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null },
   opts: { withTitle?: boolean } = {},
 ): string {
   if (!m.showTitle) return m.title
+  // An extra's number (a deleted scene filed as S02E05) isn't an episode's.
+  if (m.extra) return `${m.showTitle} — ${m.title}`
   const code = episodeCode(m)
   return `${m.showTitle}${code ? ` ${code}` : ''}${opts.withTitle && m.title ? ` — ${m.title}` : ''}`
 }

@@ -29,6 +29,7 @@ const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y
 const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
   unmatched: 'No TMDB match — so no artwork or description from it. Open one to match it by hand.',
   doubtful: 'Matched automatically to a title whose year or name doesn’t agree with the files. Open one to fix the match, or keep it.',
+  loose: 'Featurettes, trailers and the like with no movie to go under — every other extra is listed with its movie. Give one a folder of its own, beside its movie, and scan.',
 }
 
 export default function LibraryView() {
@@ -222,14 +223,20 @@ export default function LibraryView() {
           )}
         </div>
         <div className="flex items-center gap-2 ml-auto flex-wrap">
-          {/* Plex's "Unmatched" filter, and one for matches that look wrong. */}
-          {matchable && tmdbConfigured && (
+          {/* Plex's "Unmatched" filter, one for matches that look wrong, and
+              the extras that found no movie to go under. */}
+          {matchable && (tmdbConfigured || !isTv) && (
             <>
               <Icon name="filter" size={15} className="text-ink-faint" />
-              <Select value={params.match} onChange={(e) => setMatch(e.target.value as MatchFilter)} aria-label="Filter by TMDB match">
+              <Select value={params.match} onChange={(e) => setMatch(e.target.value as MatchFilter)} aria-label="Filter the library">
                 <option value="all">{isTv ? 'All shows' : 'All movies'}</option>
-                <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched.toLocaleString()})` : ''}</option>
-                <option value="doubtful">Check matches{counts ? ` (${counts.doubtful.toLocaleString()})` : ''}</option>
+                {tmdbConfigured && (
+                  <>
+                    <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched.toLocaleString()})` : ''}</option>
+                    <option value="doubtful">Check matches{counts ? ` (${counts.doubtful.toLocaleString()})` : ''}</option>
+                  </>
+                )}
+                {!isTv && <option value="loose">Unattached extras</option>}
               </Select>
             </>
           )}
@@ -341,11 +348,13 @@ function NothingHere({ searching, filter, onShowAll }: { searching: boolean; fil
     return (
       <EmptyState
         icon="success"
-        title={filter === 'unmatched' ? 'Everything’s matched' : 'Every match looks right'}
+        title={filter === 'unmatched' ? 'Everything’s matched' : filter === 'loose' ? 'Every extra has its movie' : 'Every match looks right'}
         description={
           filter === 'unmatched'
             ? 'Every title here has a TMDB match.'
-            : 'No automatic match disagrees with its files. Matches from before this check was added are checked after a Refresh all metadata.'
+            : filter === 'loose'
+              ? 'Each featurette, trailer and deleted scene is listed with the movie it belongs to.'
+              : 'No automatic match disagrees with its files. Matches from before this check was added are checked after a Refresh all metadata.'
         }
         action={
           <button onClick={onShowAll} className={buttonClass('secondary', 'md')}>

@@ -155,7 +155,7 @@ export async function mergeShows(fromId: number, intoId: number): Promise<MergeR
  * match counts count.
  */
 export async function showCards(libraryId?: number): Promise<Show[]> {
-  const where: Prisma.MediaItemWhereInput = { type: 'episode', missing: false, showTitle: { not: null } }
+  const where: Prisma.MediaItemWhereInput = { type: 'episode', extra: null, missing: false, showTitle: { not: null } }
   if (libraryId) where.libraryId = libraryId
   const episodes = await prisma.mediaItem.findMany({
     where,

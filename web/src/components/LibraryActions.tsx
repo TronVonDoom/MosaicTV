@@ -153,7 +153,6 @@ export function LibraryJobProgress({ jobs, libraryId, className }: { jobs: Libra
               <span className="text-sky-400">{scan.updated} updated</span>
               {scan.moved > 0 && <span className="text-sky-400">{scan.moved} moved</span>}
               <span>{scan.skipped} unchanged</span>
-              {scan.leftOut > 0 && <span>{scan.leftOut} left out</span>}
               {scan.removed > 0 && <span className="text-amber-400">{scan.removed} missing</span>}
             </>
           }

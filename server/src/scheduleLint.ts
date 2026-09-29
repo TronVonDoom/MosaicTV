@@ -3,7 +3,7 @@
 // will happen and what to change.
 
 import { prisma } from './db.js'
-import { collectionCount, collectionWhere, effectiveOrder, resolveUnits } from './collections.js'
+import { collectionCount, effectiveOrder, pickAirs, resolveUnits } from './collections.js'
 import { formatDays, minutesToTime } from './contract/index.js'
 import type { ScheduleWarning } from './contract/index.js'
 
@@ -37,6 +37,7 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
     },
   })
   if (!ch) return []
+  const airs = { specials: ch.includeSpecials, extras: ch.includeExtras }
   const out: ScheduleWarning[] = []
   const when = (b: { days: string; startMinute: number; endMinute: number }) =>
     `${formatDays(b.days)} ${minutesToTime(b.startMinute)}–${minutesToTime(b.endMinute)}`
@@ -78,7 +79,7 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   for (const b of ch.timeBlocks) used.set(b.collectionId, b.collection)
   const empty = new Set<number>()
   for (const [id, c] of used) {
-    if ((await collectionCount(c)) === 0) {
+    if ((await collectionCount(c, airs)) === 0) {
       empty.add(id)
       out.push({ severity: 'warn', collectionId: id, message: `“${c.name}” has nothing it can play (no episodes found, or none with a known length), so its slots are skipped.` })
     }
@@ -94,7 +95,7 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   for (const [id, mins] of weekly) {
     if (empty.has(id)) continue
     const c = used.get(id)!
-    const units = await resolveUnits(c)
+    const units = await resolveUnits(c, airs)
     const sec = units.reduce((a, u) => a + u.reduce((x, m) => x + (m.durationSec ?? 0), 0), 0)
     if (sec > 0 && sec < mins * 60) {
       out.push({
@@ -106,19 +107,19 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   }
 
   // Season 0 (specials, shorts) airs first: every order but shuffle plays a
-  // show's episodes in order. Unless the collection leaves specials out.
+  // show's episodes in order. Only where a show's specials air — the channel
+  // takes them, or its pick does.
   for (const [id, c] of used) {
-    if (!c.includeSpecials) continue
     const orders = [
       ...ch.rotationItems.filter((r) => r.collectionId === id).map((r) => effectiveOrder(r.playbackOrder, c)),
       ...ch.timeBlocks.filter((b) => b.collectionId === id).map((b) => effectiveOrder(b.playbackOrder, c)),
     ]
     if (!orders.some((o) => o !== 'shuffle')) continue
-    const shows = c.items.filter((i) => i.kind === 'show' && i.showId != null).map((i) => i.showId as number)
-    if (shows.length === 0) continue
+    const picks = c.items.filter((i) => i.kind === 'show' && i.showId != null && pickAirs(i, airs).specials)
+    if (picks.length === 0) continue
     const specials = await prisma.mediaItem.groupBy({
-      by: ['showTitle'],
-      where: { showId: { in: shows }, season: 0, missing: false },
+      by: ['showId', 'showTitle'],
+      where: { showId: { in: picks.map((i) => i.showId as number) }, type: 'episode', season: 0, extra: null, missing: false },
       _count: { _all: true },
     })
     if (specials.length === 0) continue
@@ -128,42 +129,15 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
       .map((x) => `${x.showTitle} (${x._count._all})`)
     const list = named.length > 6 ? `${named.slice(0, 5).join(', ')} and ${named.length - 5} more` : named.join(', ')
     const total = specials.reduce((a, x) => a + x._count._all, 0)
+    const withSpecials = new Set(specials.map((x) => x.showId))
     out.push({
       severity: 'info',
       collectionId: id,
-      leaveOut: 'specials',
+      leaveOutSpecials: picks.filter((i) => withSpecials.has(i.showId)).map((i) => i.id),
       message:
         specials.length === 1
-          ? `In “${c.name}”, season 0 of ${specials[0].showTitle} (${plural(total, 'special or short', 'specials or shorts')}) airs before season 1. Leave specials out of the collection, or pick the show’s seasons to keep only some.`
-          : `In “${c.name}”, season 0 of ${specials.length} shows airs before their season 1 — ${list}: ${plural(total, 'special or short', 'specials or shorts')} in all. Leave specials out of the collection, or pick a show’s seasons to keep only some.`,
-    })
-  }
-
-  // Extras — featurettes, trailers, interviews — brought in with a whole show
-  // or the smart filter, where they'd air as programs of their own.
-  for (const [id, c] of used) {
-    if (!c.includeExtras) continue
-    const picks = c.items.flatMap((i) =>
-      i.showId == null
-        ? []
-        : i.kind === 'show'
-          ? [{ showId: i.showId }]
-          : i.kind === 'season' && i.season != null
-            ? [{ showId: i.showId, season: i.season }]
-            : [],
-    )
-    const hasFilter = !!(c.libraryId || c.filterType || c.filterShow || c.filterSearch || c.filterGenre)
-    const from = [...picks, ...(hasFilter ? [collectionWhere(c)] : [])]
-    if (from.length === 0) continue
-    const n = await prisma.mediaItem.count({
-      where: { missing: false, durationSec: { gt: 0 }, extra: { not: null }, OR: from },
-    })
-    if (n === 0) continue
-    out.push({
-      severity: 'info',
-      collectionId: id,
-      leaveOut: 'extras',
-      message: `“${c.name}” airs ${plural(n, 'extra', 'extras')} filed with its movies and shows — featurettes, trailers, interviews and the like — as programs of their own. Leave extras out of the collection to air just the movies and episodes.`,
+          ? `In “${c.name}”, season 0 of ${specials[0].showTitle} (${plural(total, 'special or short', 'specials or shorts')}) airs before season 1. Leave its specials out, or switch them off on the show’s tile in the collection.`
+          : `In “${c.name}”, season 0 of ${specials.length} shows airs before their season 1 — ${list}: ${plural(total, 'special or short', 'specials or shorts')} in all. Leave their specials out, or switch them off show by show on their tiles in the collection.`,
     })
   }
 

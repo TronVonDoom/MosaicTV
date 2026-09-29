@@ -64,9 +64,10 @@ export function stripIdHints(name: string): string {
 export const TMDB_MATCHES = ['auto', 'named', 'manual', 'notFound', 'skip'] as const
 export type TmdbMatch = (typeof TMDB_MATCHES)[number]
 
-/** What a library's grid shows: everything, what has no TMDB match, or the
- *  automatic matches that don't agree with their files. */
-export const MATCH_FILTERS = ['all', 'unmatched', 'doubtful'] as const
+/** What a library's grid shows: everything, what has no TMDB match, the
+ *  automatic matches that don't agree with their files, or the extras no
+ *  movie could be found for (the rest sit under their movie). */
+export const MATCH_FILTERS = ['all', 'unmatched', 'doubtful', 'loose'] as const
 export type MatchFilter = (typeof MATCH_FILTERS)[number]
 export const asMatchFilter = (v: unknown): MatchFilter =>
   (MATCH_FILTERS as readonly string[]).includes(String(v)) ? (String(v) as MatchFilter) : 'all'

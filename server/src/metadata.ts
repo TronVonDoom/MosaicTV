@@ -166,13 +166,13 @@ type ShowRow = { id: number; title: string; tmdbId: number | null; tmdbMatch: st
  *  folder (whose name may carry an id). */
 async function showRows(where: object): Promise<ShowRow[]> {
   const shows = await prisma.show.findMany({
-    where: { ...where, episodes: { some: { type: 'episode', missing: false } } },
+    where: { ...where, episodes: { some: { type: 'episode', extra: null, missing: false } } },
     select: {
       id: true,
       title: true,
       tmdbId: true,
       tmdbMatch: true,
-      episodes: { where: { type: 'episode', missing: false }, select: { path: true, year: true } },
+      episodes: { where: { type: 'episode', extra: null, missing: false }, select: { path: true, year: true } },
     },
   })
   return shows.map((s) => ({

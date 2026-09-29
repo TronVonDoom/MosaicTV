@@ -1072,3 +1072,36 @@ export function Tabs<T extends string>({
     </div>
   )
 }
+
+/** An on/off switch — for a setting that saves as it's flipped. */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  /** What it switches, for screen readers. */
+  label: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cx(
+        'relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50',
+        checked ? 'bg-indigo-500' : 'bg-edge-strong',
+      )}
+    >
+      <span
+        className={cx('absolute top-[3px] h-4 w-4 rounded-full bg-white transition-[left] duration-200', checked ? 'left-[19px]' : 'left-[3px]')}
+      />
+    </button>
+  )
+}

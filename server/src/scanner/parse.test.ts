@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseMedia } from './parse.js'
+import { extraHome, extraStem, parseMedia } from './parse.js'
 
 const movie = (p: string) => parseMedia(`/media/movies/${p}`, '/media/movies', 'movie')
 const episode = (p: string) => parseMedia(`/media/tv/${p}`, '/media/tv', 'tv')
@@ -110,6 +110,24 @@ test('extras are told from the movie or show they belong to', () => {
   assert.equal(movie('Apocalypse Now (1979) (HD) (x264)/Redux-featurette.mkv').title, 'Redux')
   // Only movie and TV libraries have extras.
   assert.equal(parseMedia('/media/mv/Artist/Interviews/Talk.mkv', '/media/mv', 'music').extra, null)
+})
+
+test('a show’s extras file under the show, and under a season when they sit in its folder', () => {
+  const pick = (p: string) => {
+    const e = episode(p)
+    return [e.type, e.showTitle, e.season, e.extra, e.title]
+  }
+  assert.deepEqual(pick('The Office (2005)/Featurettes/Blooper Reel.mkv'), ['other', 'The Office', null, 'featurette', 'Blooper Reel'])
+  assert.deepEqual(pick('The Office (2005)/Season 05/Bloopers-featurette.mkv'), ['other', 'The Office', 5, 'featurette', 'Bloopers'])
+  assert.deepEqual(pick('Doug (1991)/Specials/Behind The Scenes/Making Doug.mkv'), ['other', 'Doug', 0, 'behindthescenes', 'Making Doug'])
+  // A loose file that isn't an extra still has no show.
+  assert.deepEqual(pick('Doug (1991)/Promo.mkv').slice(0, 4), ['other', null, null, null])
+})
+
+test('a movie’s extras belong to the folder their extras folder sits in', () => {
+  assert.equal(extraHome('/m/Alien (1979)/Featurettes/Making Of.mkv'), '/m/Alien (1979)')
+  assert.equal(extraHome('/m/Alien (1979)/Alien (1979)-trailer.mkv'), '/m/Alien (1979)')
+  assert.equal(extraStem('/m/Heat (1995)-trailer.mkv'), 'Heat (1995)')
 })
 
 test('id hints come off titles and show names — the match reads them from the path', () => {

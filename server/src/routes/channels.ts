@@ -166,9 +166,10 @@ channelsRouter.patch('/:id', async (req, res) => {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
     if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks)) restyleSegmenter(c.number)
-    // A new broadcast clock, or breaks inside programs turned on or off, lay
-    // the guide out anew from the next program.
-    if (before && (before.grid !== c.grid || before.actBreaks !== c.actBreaks)) scheduleChanged(id)
+    // A new broadcast clock, breaks inside programs turned on or off, or
+    // specials or extras in or out lay the guide out anew from the next program.
+    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras].join('|')
+    if (before && airs(before) !== airs(c)) scheduleChanged(id)
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
     // A new logo or picture size means new filler clips; build them ahead.
     if (logoId !== undefined || logoUrl !== undefined || profileId !== undefined) warmFiller().catch(() => {})
