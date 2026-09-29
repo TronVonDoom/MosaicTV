@@ -38,17 +38,26 @@ async function tmdbGet<T>(
 }
 
 export type TmdbGenre = { id: number; name: string }
+type TmdbCredits = {
+  cast?: { name: string; character?: string; profile_path?: string | null; order?: number }[]
+  crew?: { name: string; job?: string }[]
+}
 export type TmdbMovie = {
   id: number
   title: string
   original_title?: string
   overview?: string
+  tagline?: string
   genres?: TmdbGenre[]
   vote_average?: number
   poster_path?: string | null
   backdrop_path?: string | null
   release_date?: string
   runtime?: number
+  production_companies?: { name: string }[]
+  // Appended (see getMovie).
+  release_dates?: { results?: { iso_3166_1: string; release_dates: { certification?: string; type?: number }[] }[] }
+  credits?: TmdbCredits
 }
 export type TmdbTvSeason = {
   season_number: number
@@ -60,12 +69,72 @@ export type TmdbTv = {
   name: string
   original_name?: string
   overview?: string
+  tagline?: string
   genres?: TmdbGenre[]
   vote_average?: number
   poster_path?: string | null
   backdrop_path?: string | null
   first_air_date?: string
   seasons?: TmdbTvSeason[]
+  networks?: { name: string }[]
+  created_by?: { name: string }[]
+  // Appended (see getTv).
+  content_ratings?: { results?: { iso_3166_1: string; rating?: string }[] }
+  credits?: TmdbCredits
+}
+/** One episode as TMDB lists it — in a season, or in an episode group. */
+export type TmdbEpisode = {
+  season_number: number
+  episode_number: number
+  name?: string
+  overview?: string
+  air_date?: string | null
+  still_path?: string | null
+  vote_average?: number
+  crew?: { name: string; job?: string }[]
+  /** Its place in an episode group's season (0-based). */
+  order?: number
+}
+/** One of a show's other episode orders (DVD, absolute, production…). */
+export type TmdbEpisodeGroupSummary = { id: string; name: string; type: number; episode_count: number; group_count: number; description?: string }
+export type TmdbEpisodeGroup = { id: string; name: string; type: number; groups: { name: string; order: number; episodes: TmdbEpisode[] }[] }
+
+/** The country whose ratings are shown ("US": TV-Y7, PG-13). */
+export const RATING_COUNTRY = process.env.RATING_COUNTRY || 'US'
+
+/** A movie's rating in RATING_COUNTRY: its theatrical one, else any. */
+export function movieRating(m: TmdbMovie): string | null {
+  const dates = m.release_dates?.results?.find((r) => r.iso_3166_1 === RATING_COUNTRY)?.release_dates ?? []
+  const rated = dates.filter((d) => d.certification)
+  return (rated.find((d) => d.type === 3) ?? rated[0])?.certification ?? null
+}
+
+/** A show's rating in RATING_COUNTRY. */
+export function tvRating(t: TmdbTv): string | null {
+  return t.content_ratings?.results?.find((r) => r.iso_3166_1 === RATING_COUNTRY)?.rating || null
+}
+
+/** The first dozen billed, as cast members (photos are TMDB paths). */
+export function castOf(credits: TmdbCredits | undefined): { name: string; role: string | null; photo: string | null }[] {
+  return [...(credits?.cast ?? [])]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .slice(0, 12)
+    .map((c) => ({ name: c.name, role: c.character || null, photo: c.profile_path ?? null }))
+}
+
+/** Who directed, from a crew list. */
+export const directorsOf = (crew: { name: string; job?: string }[] | undefined): string[] =>
+  [...new Set((crew ?? []).filter((c) => c.job === 'Director').map((c) => c.name))]
+
+/** What TMDB calls each kind of episode group. */
+export const EPISODE_GROUP_TYPES: Record<number, string> = {
+  1: 'Original air date',
+  2: 'Absolute',
+  3: 'DVD',
+  4: 'Digital',
+  5: 'Story arc',
+  6: 'Production',
+  7: 'TV',
 }
 
 /** "1999-03-31" -> 1999. */
@@ -169,12 +238,46 @@ export async function resolveRef(key: string, ref: ExternalRef, kind: 'movie' | 
   return (kind === 'movie' ? r?.movie_results : r?.tv_results)?.[0]?.id ?? null
 }
 
+/** A movie's details, with its ratings by country and its credits. */
 export async function getMovie(key: string, id: number): Promise<TmdbMovie | null> {
-  return tmdbGet<TmdbMovie>(key, `/movie/${id}`)
+  return tmdbGet<TmdbMovie>(key, `/movie/${id}`, { append_to_response: 'release_dates,credits' })
 }
 
+/** A show's details, with its ratings by country and its credits. */
 export async function getTv(key: string, id: number): Promise<TmdbTv | null> {
-  return tmdbGet<TmdbTv>(key, `/tv/${id}`)
+  return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits' })
+}
+
+/** One season's episodes, as aired. */
+export async function getSeason(key: string, tvId: number, season: number): Promise<TmdbEpisode[] | null> {
+  const r = await tmdbGet<{ episodes?: TmdbEpisode[] }>(key, `/tv/${tvId}/season/${season}`)
+  return r ? r.episodes ?? [] : null
+}
+
+/** A show's other episode orders. */
+export async function getEpisodeGroups(key: string, tvId: number): Promise<TmdbEpisodeGroupSummary[] | null> {
+  const r = await tmdbGet<{ results?: TmdbEpisodeGroupSummary[] }>(key, `/tv/${tvId}/episode_groups`)
+  return r ? r.results ?? [] : null
+}
+
+/**
+ * An episode order's episodes by the season and number a file in that order
+ * carries: its seasons in turn (a "Specials" one is season 0), each one's
+ * episodes numbered from 1 in the order's own order.
+ */
+export function groupEpisodes(g: TmdbEpisodeGroup): { season: number; episode: number; ep: TmdbEpisode }[] {
+  const out: { season: number; episode: number; ep: TmdbEpisode }[] = []
+  let n = 0
+  for (const grp of [...g.groups].sort((a, b) => a.order - b.order)) {
+    const season = /special/i.test(grp.name) ? 0 : ++n
+    ;[...grp.episodes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).forEach((ep, i) => out.push({ season, episode: i + 1, ep }))
+  }
+  return out
+}
+
+/** One episode order, every season of it. */
+export async function getEpisodeGroup(key: string, groupId: string): Promise<TmdbEpisodeGroup | null> {
+  return tmdbGet<TmdbEpisodeGroup>(key, `/tv/episode_group/${encodeURIComponent(groupId)}`)
 }
 
 export function genresToString(genres?: TmdbGenre[]): string | null {

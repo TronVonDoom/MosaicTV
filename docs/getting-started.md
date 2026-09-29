@@ -19,16 +19,15 @@ last; the whole thing takes about ten minutes plus scan time.
   under `/media`.
 - **Type** — TV Shows, Movies, or Music Videos. This controls how filenames
   are parsed.
-- **Specials (season 0)** — TV only, on by default: pilots, holiday specials,
-  shorts and promos filed as season 0.
-- **Extras** — off by default, so only the movies and episodes themselves are
-  added: featurettes, trailers, interviews and deleted scenes filed with them
-  (an `Extras`, `Featurettes`, `Trailers`, `Behind The Scenes`… folder inside a
-  movie's or show's folder, or a name ending in `-featurette`, `-trailer` and
-  so on) stay out of the library.
 
-Both can be changed later on the library's row. Turning one off removes what
-the library has of it; turning it on scans them in.
+Everything in the folders is indexed, as in Plex — season 0 (shown as
+**Specials**) and **extras** too: featurettes, trailers, interviews and deleted
+scenes filed with a movie or show (an `Extras`, `Featurettes`, `Trailers`,
+`Behind The Scenes`… folder inside its folder, or a name ending in
+`-featurette`, `-trailer` and so on). A movie's extras are listed with the
+movie, a show's on its page; the library's filter → **Unattached extras** finds
+any with no movie of their own. Whether they air is up to each channel (see
+[Channels](channels.md)).
 
 MosaicTV expects Plex-style naming, which you likely already have:
 
@@ -56,19 +55,43 @@ Hit **Scan** on the library. A progress bar tracks files as they're probed
 episodes. Re-scans are incremental — unchanged files are skipped, deleted files
 are flagged missing.
 
-## 3. (Optional but recommended) TMDB metadata
+## 3. (Optional but recommended) Metadata
 
-**Settings** → paste a free [TMDB API key](https://www.themoviedb.org/settings/api)
-→ **Save**. Then **Match unmatched** for each library, on the same page — from
-then on, whatever a scan adds is matched straight after it, as in Plex. You get
-posters, overviews, genres, and ratings — used in the Library and in your
-players' guide data.
+Like Plex's agents, each library reads its metadata from a list of sources,
+first to last — the first to give a detail wins, the rest fill in what it
+doesn't. Set them on the library's row under **Sources** → **Metadata**:
+
+- **.nfo files** (on by default) — Kodi and Jellyfin metadata kept beside the
+  media: `movie.nfo` or `<movie>.nfo`, `tvshow.nfo`, an episode's own
+  `<episode>.nfo`. An .nfo that names a TMDB, IMDb or TheTVDB id matches the
+  title by that id.
+- **The files' own tags** (off by default) — titles and descriptions written
+  into the files. Often left over from a release; worth it if you tag your own.
+- **TMDB** (on by default) — **Settings** → paste a free
+  [TMDB API key](https://www.themoviedb.org/settings/api) → **Save**, then
+  **Match unmatched** for each library. From then on whatever a scan adds is
+  read straight after it, as in Plex.
+
+You get posters, summaries, genres, ratings (TV-Y7, PG-13), taglines,
+studios and networks, directors and creators, cast, and for every episode its
+name, first air date and a still — shown in the Library and sent in your
+players' guide data. An episode whose file names it keeps that name; one whose
+file doesn't ("Show - S01E02.mkv") takes the name its metadata gives. If a file
+names its episode something quite different from TMDB's episode at that number
+— a cartoon split into its segments — TMDB's details are left off it rather than
+showing another episode's.
 Local artwork (`poster.jpg`, `folder.jpg`, Plex/Kodi/Jellyfin naming) is used
 first when present.
 
 A movie or show is found by its title and year — or, like Plex and Jellyfin, by
 an id in its folder name: `The Matrix (1999) {tmdb-603}`, `{imdb-tt0133093}`,
 `The Office {tvdb-73244}`, `[tmdbid-603]`. The id is left out of the title.
+
+**Episode order.** As Plex lets a show pick TheTVDB's DVD or absolute order, a
+show's **⋯** menu → **Episode order…** picks one of TMDB's orders for it (as
+aired, DVD, absolute, production — whatever TMDB has for that show). Only the
+episodes' names, dates and pictures follow it; the files keep their numbers,
+and so do the schedule and your broadcast episodes.
 
 Check your results under **Library → Browse** — drill into shows, seasons, episodes.
 
@@ -86,8 +109,8 @@ check existed are checked after a **Refresh all metadata**.)
 
 A library's **⋯** menu, on its page and under **Sources**, has the rest:
 **Force rescan** (read every file again, from scratch), **Match unmatched**,
-and **Refresh all metadata** (look everything up again, keeping the matches
-you fixed by hand).
+and **Refresh all metadata** (read everything again from the library's sources,
+keeping the matches you fixed by hand).
 
 ## 4. Create a channel
 

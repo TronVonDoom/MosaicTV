@@ -132,8 +132,10 @@ starts.
 ### Your library, with artwork
 
 A Plex-style scanner indexes TV, movies and music videos (incremental,
-ffprobe-backed), and pulls posters, backdrops, descriptions and ratings from
-TMDB — or uses the artwork already beside your files. Browse each library as a
+ffprobe-backed), files each movie's and show's extras under it, and reads
+metadata the way Plex's agents do — .nfo files, the files' own tags and TMDB,
+in the order you set: posters, backdrops, summaries, ratings, cast, and every
+episode's name, air date and still, in the episode order the show follows. Browse each library as a
 poster wall with search and sort, open a show on its backdrop, and fetch or
 re-match metadata per library from Settings. Thumbnails are sized to the tile
 and cached, so big libraries stay quick to browse.

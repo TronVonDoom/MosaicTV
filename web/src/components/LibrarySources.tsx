@@ -1,19 +1,92 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
-import { api, type Library, type LibraryKind } from '../lib/api'
+import { METADATA_SOURCES } from '@contract'
+import { api, type Library, type LibraryKind, type MetadataSource } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import DirectoryPicker from './DirectoryPicker'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from './LibraryActions'
-import { Badge, Banner, Button, Card, Field, InfoHint, Input, Select } from './ui'
+import { Badge, Banner, Button, Card, Field, IconButton, InfoHint, Input, Select, cx } from './ui'
 
 const KIND_LABELS: Record<LibraryKind, string> = {
   tv: 'TV Shows',
   movie: 'Movies',
   music: 'Music Videos',
   other: 'Other / Bumpers',
+}
+
+const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string }> = {
+  nfo: { label: '.nfo files', hint: 'Kodi and Jellyfin metadata kept beside the media: movie.nfo, tvshow.nfo, an episode’s own.' },
+  embedded: {
+    label: 'The files’ own tags',
+    hint: 'Titles and descriptions written into the files. Often left over from a release — worth it only if you tag your own.',
+  },
+  tmdb: { label: 'TMDB', hint: 'The match and posters, summaries, cast, ratings and episode details (needs a key in Settings).' },
+}
+
+/**
+ * Where a library's metadata comes from, first to last, as Plex's agent lists
+ * its sources: each can be switched off, and moved up or down — the first to
+ * give a detail wins. Saved as it's changed; read from the next fetch on.
+ */
+function MetadataSources({ lib, disabled, onSaved }: { lib: Library; disabled: boolean; onSaved: (sources: MetadataSource[]) => void }) {
+  const [saving, setSaving] = useState(false)
+  const on = lib.metadataSources
+  const rows = [...on, ...METADATA_SOURCES.filter((s) => !on.includes(s))]
+  async function save(next: MetadataSource[]) {
+    setSaving(true)
+    try {
+      const r = await api.updateLibrary(lib.id, { metadataSources: next })
+      onSaved(r.metadataSources)
+      toast.success('Saved — Refresh all metadata (the library’s menu) reads every title again')
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not save'))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const move = (s: MetadataSource, by: -1 | 1) => {
+    const i = on.indexOf(s)
+    const next = [...on]
+    ;[next[i], next[i + by]] = [next[i + by], next[i]]
+    void save(next)
+  }
+  return (
+    <div className="mt-3 pt-3 border-t border-edge/60">
+      <div className="text-[12.5px] font-medium text-ink-soft">Metadata</div>
+      <p className="text-[11.5px] text-ink-faint mb-2">Read first to last — the first to give a detail wins, the rest fill in what it doesn’t.</p>
+      <ol className="space-y-1">
+        {rows.map((s) => {
+          const i = on.indexOf(s)
+          const enabled = i >= 0
+          return (
+            <li key={s} className={cx('flex items-center gap-2.5 rounded-lg px-1.5 py-1', !enabled && 'opacity-60')}>
+              <input
+                type="checkbox"
+                checked={enabled}
+                disabled={disabled || saving}
+                aria-label={`Read ${SOURCE_INFO[s].label}`}
+                onChange={() => void save(enabled ? on.filter((x) => x !== s) : [...on, s])}
+              />
+              <span className="w-4 text-[11px] text-ink-faint tabular-nums text-center">{enabled ? i + 1 : ''}</span>
+              <span className="min-w-0 flex-1">
+                <span className="text-[13px] text-ink">{SOURCE_INFO[s].label}</span>
+                <span className="block text-[11.5px] text-ink-faint leading-snug">{SOURCE_INFO[s].hint}</span>
+              </span>
+              {enabled && (
+                <span className="flex shrink-0">
+                  <IconButton icon="chevronUp" label="Read earlier" size="sm" disabled={disabled || saving || i === 0} onClick={() => move(s, -1)} />
+                  <IconButton icon="chevronDown" label="Read later" size="sm" disabled={disabled || saving || i === on.length - 1} onClick={() => move(s, 1)} />
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
 }
 
 // Where a picked folder path should go.
@@ -259,6 +332,14 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                   extra={[{ label: 'Delete library…', icon: 'trash', danger: true, disabled: busy, onSelect: () => handleDelete(lib) }]}
                 />
               </div>
+
+              {(lib.kind === 'tv' || lib.kind === 'movie') && (
+                <MetadataSources
+                  lib={lib}
+                  disabled={busy}
+                  onSaved={(sources) => setLibraries((ls) => ls.map((l) => (l.id === lib.id ? { ...l, metadataSources: sources } : l)))}
+                />
+              )}
 
               {/* What it found beside the shows and movies themselves */}
               {(lib.specialCount > 0 || lib.extraCount > 0) && (

@@ -43,25 +43,23 @@ resolves to a set of playable items from two sources, combined and deduped:
 
 Only playable items count (files that exist and have a known duration).
 
-**Includes** (in the collection's **Settings**) decides whether whole shows and
-the smart filter bring in two things you may not want on air:
+**Specials and extras.** A library keeps everything it finds, as Plex does —
+season 0, and the featurettes, trailers and deleted scenes filed with a movie
+or show (which you'll find under that movie or show, not in the grid). Each
+**channel** decides whether they air, on its **Collections** tab:
 
-- **Specials (season 0)** — pilots, holiday specials, shorts and promos filed
-  as season 0. They sort before season 1, so a whole show starts with them.
-- **Extras** — featurettes, trailers, interviews, deleted scenes and the like.
-  A library leaves these out altogether unless it's set to keep them
-  (**Library → Sources**, see [Getting started](getting-started.md)); in one
-  that does, this keeps them from airing as programs of their own — a
-  two-minute trailer as a movie.
+- **Specials** — pilots, holiday specials, shorts and promos filed as season 0.
+  They sort before season 1, so a whole show starts with them.
+- **Extras** — a show's air after its episodes; a movie's air right after the
+  movie, in every order (shuffles too), so a trailer never runs a week before
+  its film.
 
-Both are on for a new collection. A season 0 or an extra you pick on its own
-airs either way — leave specials out, then add *Rugrats — Season 0* as a member
-to keep that one show's. A library that keeps extras labels them
-("Featurette · 2009") so they're easy to tell apart.
-
-To keep season 0 out of *every* channel, turn off **Specials (season 0)** on
-the library instead: it's removed from the library, not just from one
-collection.
+Both are off for a channel until you turn them on. Each show's tile in a
+collection has its own **Specials** and **Extras** switch (a movie's, **Extras**)
+when it has any: it goes by the channel until you flip it, and a flipped one
+stays put when the channel changes — so Nickelodeon can take specials while Ren
+& Stimpy's season 0 stays off. A season 0 or an extra you pick on its own airs
+either way.
 
 **Plays in this order** (in the collection's **Settings**) sets its own playback
 order (below), with each choice explained and the collection's first airings
@@ -270,9 +268,8 @@ what to change:
 - a collection with **nothing it can play**;
 - a block's collection **shorter than the time its blocks get a week**, so it
   repeats within the week;
-- **season 0** (specials, shorts) airing before season 1, and **extras**
-  (featurettes, trailers) airing as programs — each with a button to leave
-  them out of the collection;
+- **season 0** (specials, shorts) airing before season 1 — with a button to
+  leave those shows' specials out;
 - an exact-time start **between the lines of the clock**.
 
 The Guide tab's **Weeks ahead** lays the schedule out 2, 4 or 8 weeks past the

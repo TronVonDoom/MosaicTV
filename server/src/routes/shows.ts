@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { MatchPick, ShowMerge, ShowRename } from '../contract/index.js'
+import { EpisodeOrderPick, MatchPick, ShowMerge, ShowRename } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { mergeShows, renameShow, showCards, ShowConflict } from '../shows.js'
-import { matchShow, refreshShow, unmatchShow } from '../metadata.js'
+import { episodeOrders, MatchError, matchShow, refreshShow, setEpisodeOrder, unmatchShow } from '../metadata.js'
 import { answerMatch } from './metadata.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { publish } from '../events.js'
@@ -75,6 +75,15 @@ showsRouter.get('/detail', async (req, res) => {
     tmdbMatch: showRow?.tmdbMatch ?? null,
     tmdbTitle: showRow?.tmdbTitle ?? null,
     tmdbYear: showRow?.tmdbYear ?? null,
+    contentRating: showRow?.contentRating ?? null,
+    network: showRow?.network ?? null,
+    tagline: showRow?.tagline ?? null,
+    creators: showRow?.creators ?? null,
+    cast: showRow?.cast ?? null,
+    airDate: showRow?.airDate ?? null,
+    metaSources: showRow?.metaSources ?? null,
+    episodeOrder: showRow?.episodeOrder ?? null,
+    episodeOrderName: showRow?.episodeOrderName ?? null,
     // The web's hero panel asks /api/artwork/<any episode>?type=backdrop, which
     // resolves to the show's TMDB backdrop — so name an episode, and say
     // whether there's anything to fetch.
@@ -137,6 +146,25 @@ showsRouter.post('/:id/match', async (req, res) => {
 showsRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchShow(Number(req.params.id))))
 // POST /api/shows/:id/refresh
 showsRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshShow(Number(req.params.id))))
+
+// GET /api/shows/:id/orders  -> the orders its episodes can follow, as in
+// Plex: TMDB's as aired, and its episode groups (DVD, absolute…).
+showsRouter.get('/:id/orders', async (req, res) => {
+  try {
+    res.json(await episodeOrders(Number(req.params.id)))
+  } catch (e) {
+    if (!(e instanceof MatchError)) throw e
+    res.status(e.status).json({ error: e.message })
+  }
+})
+
+// PUT /api/shows/:id/order  { order }  -> its episodes' details follow that
+// order (null: as aired). Their files keep their numbers.
+showsRouter.put('/:id/order', async (req, res) => {
+  const body = readBody(EpisodeOrderPick, req, res)
+  if (!body) return
+  await answerMatch(res, () => setEpisodeOrder(Number(req.params.id), body.order))
+})
 
 /** Channels with the show in their guide ahead (its episodes are scheduled there). */
 async function channelsAiringShow(showId: number): Promise<number[]> {

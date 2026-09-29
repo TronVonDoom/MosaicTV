@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { api, ART, artworkUrl, tmdbImage, type MediaItemDetail } from '../lib/api'
-import { episodeCode, extraLabel, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { describeSources, episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import CastRow from './CastRow'
 import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import { Badge, Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
 
@@ -66,7 +67,9 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
         : item.tmdbPosterPath
           ? artworkUrl(item.id, 'poster', ART.large, item.tmdbPosterPath)
           : null
-  // Episodes use their show's backdrop; the route resolves that server-side.
+  // An episode shows its own still, else its show's backdrop (the route
+  // resolves that server-side).
+  const still = !!item && isEpisode && item.tmdbStillPath != null
   const wantBackdrop = !!item && backdropOk && (item.tmdbBackdropPath != null || isEpisode)
   const genres = item?.genres ? item.genres.split(',').map((g) => g.trim()).filter(Boolean) : []
 
@@ -76,7 +79,7 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
       <div className="relative h-52 sm:h-60" style={{ background: posterGradient(item?.showTitle || item?.title || 'x') }}>
         {wantBackdrop && (
           <img
-            src={artworkUrl(item!.id, 'backdrop', undefined, item!.tmdbBackdropPath)}
+            src={still ? artworkUrl(item!.id, 'still', ART.card, item!.tmdbStillPath) : artworkUrl(item!.id, 'backdrop', undefined, item!.tmdbBackdropPath)}
             alt=""
             onError={() => setBackdropOk(false)}
             className="absolute inset-0 w-full h-full object-cover fade-in"
@@ -140,7 +143,9 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
                 {item.year && !isEpisode && <span className="text-ink-faint font-normal"> ({item.year})</span>}
               </h2>
               <div className="mt-2 flex items-center gap-2 flex-wrap text-[13px] text-ink-muted">
-                {sxe && <Badge tone="accent">{sxe}</Badge>}
+                {sxe && !item.extra && <Badge tone="accent">{sxe}</Badge>}
+                {item.contentRating && <Badge>{item.contentRating}</Badge>}
+                {isEpisode && formatAirDate(item.airDate) && <span>Aired {formatAirDate(item.airDate)}</span>}
                 {item.rating ? (
                   <span className="inline-flex items-center gap-1 font-semibold text-amber-300">
                     <Icon name="star" size={13} className="fill-current" /> {item.rating.toFixed(1)}
@@ -163,7 +168,20 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
                   ))}
                 </div>
               )}
-              {item.overview && <p className="mt-4 text-[13.5px] text-ink-soft leading-relaxed">{item.overview}</p>}
+              {item.tagline && <p className="mt-4 text-[13.5px] italic text-ink-muted">{item.tagline}</p>}
+              {item.overview && <p className={cx(item.tagline ? 'mt-1.5' : 'mt-4', 'text-[13.5px] text-ink-soft leading-relaxed')}>{item.overview}</p>}
+              {(item.directors || item.studio) && (
+                <p className="mt-3 text-[12.5px] text-ink-muted">
+                  {item.directors && (
+                    <>
+                      Directed by <span className="text-ink-soft">{item.directors}</span>
+                    </>
+                  )}
+                  {item.directors && item.studio && <span className="text-ink-ghost"> · </span>}
+                  {item.studio && <span className="text-ink-soft">{item.studio}</span>}
+                </p>
+              )}
+              <CastRow cast={item.cast} className="mt-5" />
 
               {item.extras.length > 0 && (
                 <div className="mt-5">
@@ -239,6 +257,11 @@ export default function MediaDetailModal({ id, onClose, onChanged }: { id: numbe
                 <Spec label="Container" value={item.container || '—'} />
                 <Spec label="Size" value={formatSize(item.sizeBytes)} />
                 <Spec label="Type" value={item.type} />
+                {describeSources(item.metaSources) && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <Spec label="Details from" value={describeSources(item.metaSources)!} />
+                  </div>
+                )}
                 <div className="col-span-2 sm:col-span-3">
                   <Spec label="Path" value={item.path} mono />
                 </div>

@@ -14,7 +14,8 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
 
 /**
  * How a program reads in a listing: "Rugrats S01E02" for an episode, "The
- * Office — Bloopers" for a show's extra, the plain title for anything else.
+ * Office — Bloopers" for a show's extra, "The Matrix (Trailer)" for a movie's,
+ * the plain title for anything else.
  * `withTitle` appends the episode's own title — "Rugrats S01E02 — Chuckie's
  * Big Day" — for places with room for it.
  *
@@ -25,7 +26,8 @@ export function programLabel(
   m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null },
   opts: { withTitle?: boolean } = {},
 ): string {
-  if (!m.showTitle) return m.title
+  // A movie's extra says what it is: a trailer is often named for its film.
+  if (!m.showTitle) return m.extra ? `${m.title} (${EXTRA_LABELS[m.extra as ExtraKind] ?? 'Extra'})` : m.title
   // An extra's number (a deleted scene filed as S02E05) isn't an episode's.
   if (m.extra) return `${m.showTitle} — ${m.title}`
   const code = episodeCode(m)
@@ -126,4 +128,32 @@ export function formatWhen(t: string | number | Date, now = Date.now()): string 
 export function formatAired(a: { count: number; lastAt: string; channelNumber: number | null; channelName: string | null }, now = Date.now()): string {
   const where = a.channelNumber != null ? ` on ${a.channelNumber}` : a.channelName ? ` on ${a.channelName}` : ''
   return `${a.count > 1 ? `Aired ${a.count}× · last` : 'Aired'} ${formatWhen(a.lastAt, now)}${where}`
+}
+
+/** A first air or release date as metadata gives it ("1991-08-11", or a
+ *  year): "Aug 11, 1991", or the year alone. */
+export function formatAirDate(d: string | null | undefined): string | null {
+  if (!d) return null
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return /^\d{4}$/.test(d) ? d : null
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** A title's cast, as its metadata stores it (JSON), or none. */
+export function parseCast(json: string | null | undefined): { name: string; role: string | null; photo: string | null }[] {
+  if (!json) return []
+  try {
+    const list = JSON.parse(json) as unknown
+    return Array.isArray(list) ? list.filter((c) => c && typeof c.name === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** Where a title's details came from, as a line: "an .nfo file and TMDB". */
+const SOURCE_NAMES: Record<string, string> = { nfo: 'an .nfo file', embedded: 'the file’s own tags', tmdb: 'TMDB' }
+export function describeSources(csv: string | null | undefined): string | null {
+  const names = (csv ?? '').split(',').map((s) => SOURCE_NAMES[s.trim()]).filter(Boolean)
+  if (names.length === 0) return null
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }

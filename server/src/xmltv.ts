@@ -1,7 +1,9 @@
 // The programmes of the XMLTV guide, from the built playout: a broadcast
 // episode's segments folded into one programme, a program split at its act
 // breaks listed once, and a short break after a program listed as part of it.
-import { episodeCode } from './labels.js'
+// A program carries what its metadata says — its credits, first air date,
+// genres and rating — for guide clients to show.
+import { episodeCode, EXTRA_LABELS } from './labels.js'
 
 /** A playout row, with what the guide needs of its file. */
 export type XmltvRow = {
@@ -21,7 +23,56 @@ export type XmltvRow = {
     artist: string | null
     album: string | null
     overview: string | null
+    // What its metadata says (see MediaItem); all optional.
+    extra?: string | null
+    year?: number | null
+    airDate?: string | null
+    contentRating?: string | null
+    directors?: string | null
+    cast?: string | null
+    genres?: string | null
+    rating?: number | null
+    /** An episode's show, for what the episode doesn't carry itself. */
+    show?: { genres: string | null; contentRating: string | null; cast: string | null } | null
+    /** An extra's movie. */
+    parent?: { title: string } | null
   } | null
+}
+
+type Meta = NonNullable<XmltvRow['mediaItem']>
+
+/** "1991-08-11" → "19910811", "1991" as it is: XMLTV's date. */
+const xmltvDate = (d: string | null | undefined) => (d ? d.replace(/-/g, '').slice(0, 8) : null)
+
+/** The parts of a <programme> after its titles and before its icon, and after its
+ *  episode number: its credits, date, genres; whether it's a rerun, its rating. */
+function describe(m: Meta, { episode }: { episode: boolean }): { credits: string; tail: string } {
+  let credits = ''
+  const directors = (m.directors ?? '').split(',').map((d) => d.trim()).filter(Boolean)
+  let actors: string[] = []
+  try {
+    const cast = JSON.parse(m.cast ?? m.show?.cast ?? '[]') as { name: string; role?: string | null }[]
+    actors = cast.slice(0, 6).map((c) => `      <actor${c.role ? ` role="${escapeXml(c.role)}"` : ''}>${escapeXml(c.name)}</actor>\n`)
+  } catch {
+    // Not JSON: no cast.
+  }
+  if (directors.length || actors.length) {
+    credits = '    <credits>\n' + directors.map((d) => `      <director>${escapeXml(d)}</director>\n`).join('') + actors.join('') + '    </credits>\n'
+  }
+  const date = xmltvDate(m.airDate) ?? (m.year ? String(m.year) : null)
+  if (date) credits += `    <date>${date}</date>\n`
+  for (const g of (m.genres ?? m.show?.genres ?? '').split(',').map((x) => x.trim()).filter(Boolean)) {
+    credits += `    <category lang="en">${escapeXml(g)}</category>\n`
+  }
+
+  let tail = ''
+  // An episode first aired on its air date: a rerun, not "new".
+  const first = episode ? xmltvDate(m.airDate) : null
+  if (first && first.length === 8) tail += `    <previously-shown start="${first}" />\n`
+  const rated = m.contentRating ?? m.show?.contentRating
+  if (rated) tail += `    <rating system="${/^TV-/i.test(rated) ? 'VCHIP' : 'MPAA'}">\n      <value>${escapeXml(rated)}</value>\n    </rating>\n`
+  if (m.rating && m.rating > 0) tail += `    <star-rating>\n      <value>${m.rating.toFixed(1)}/10</value>\n    </star-rating>\n`
+  return { credits, tail }
 }
 
 export function escapeXml(s: string): string {
@@ -112,41 +163,54 @@ export function programmesXml<R extends XmltvRow>(
         xml += `    <sub-title>${escapeXml(lines.join(' • '))}</sub-title>\n`
         xml += `    <desc>${escapeXml(`Aired as ${lines.length} segments:\n${lines.join('\n')}`)}</desc>\n`
       }
+      const about = m ? describe(m, { episode: true }) : { credits: '', tail: '' }
+      xml += about.credits
       const icon = programmeIcon(m)
       if (icon) xml += `    <icon src="${escapeXml(icon)}" />\n`
       if (m && m.season != null && m.episode != null) {
         xml += `    <episode-num system="onscreen">${episodeCode(m)}</episode-num>\n`
         xml += `    <episode-num system="xmltv_ns">${m.season - 1}.${m.episode - 1}.0</episode-num>\n`
       }
+      xml += about.tail
       xml += '  </programme>\n'
       i += run + (foldsBreak(i + run) ? 1 : 0)
       continue
     }
 
     const m = it.mediaItem
-    const isEp = !!m && m.type === 'episode' && !!m.showTitle
+    // An episode, or a show's extra: the show is the title.
+    const ofShow = !!m && !!m.showTitle
+    const isEp = ofShow && m!.type === 'episode' && !m!.extra
     const isMusic = !!m && m.type === 'music'
+    // An extra says what it is, under its movie's or show's name.
+    const extraName = m?.extra ? `${EXTRA_LABELS[m.extra] ?? 'Extra'}: ${m.title}` : null
     // Music: "Artist – Title" as the title, album as the sub-title. Episodes:
     // show name as the title, episode name as the sub-title.
     const title = !m
       ? 'Station break'
       : isMusic && m.artist
         ? `${m.artist} – ${m.title}`
-        : isEp
+        : ofShow
           ? (m.showTitle as string)
-          : m.title
+          : m.parent
+            ? m.parent.title
+            : m.title
+    const subtitle = !m ? null : extraName && (ofShow || m.parent) ? extraName : isEp ? m.title : isMusic ? m.album : null
     xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(it.kind === 'program' ? listedStop(i + run) : it.stopTime)}" channel="${chno}">\n`
     xml += `    <title>${escapeXml(title)}</title>\n`
-    if (isEp && m && m.title) xml += `    <sub-title>${escapeXml(m.title)}</sub-title>\n`
-    else if (isMusic && m && m.album) xml += `    <sub-title>${escapeXml(m.album)}</sub-title>\n`
-    if (isMusic) xml += `    <category>Music</category>\n`
+    if (subtitle) xml += `    <sub-title>${escapeXml(subtitle)}</sub-title>\n`
     if (m && m.overview) xml += `    <desc>${escapeXml(m.overview)}</desc>\n`
+    const about = m ? describe(m, { episode: isEp }) : { credits: '', tail: '' }
+    xml += about.credits
+    if (isMusic) xml += `    <category>Music</category>\n`
     const icon = programmeIcon(m)
     if (icon) xml += `    <icon src="${escapeXml(icon)}" />\n`
-    if (m && m.type === 'episode' && m.season != null && m.episode != null) {
+    // An extra's number (a deleted scene filed as S02E05) isn't an episode's.
+    if (m && isEp && m.season != null && m.episode != null) {
       xml += `    <episode-num system="onscreen">${episodeCode(m)}</episode-num>\n`
       xml += `    <episode-num system="xmltv_ns">${m.season - 1}.${m.episode - 1}.0</episode-num>\n`
     }
+    xml += about.tail
     xml += '  </programme>\n'
     i += run + (it.kind === 'program' && foldsBreak(i + run) ? 1 : 0)
   }

@@ -57,6 +57,19 @@ export type MediaType = (typeof MEDIA_TYPES)[number]
 export const EXTRA_KINDS = ['behindthescenes', 'deleted', 'featurette', 'interview', 'scene', 'short', 'trailer', 'sample', 'other'] as const
 export type ExtraKind = (typeof EXTRA_KINDS)[number]
 
+/** Where a library's metadata can come from, as Plex's agent lists its
+ *  sources: Kodi/Jellyfin .nfo files beside the media, the files' own tags,
+ *  and TMDB. A library reads the ones it has on, first to last. */
+export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb'] as const
+export type MetadataSource = (typeof METADATA_SOURCES)[number]
+export const DEFAULT_METADATA_SOURCES: MetadataSource[] = ['nfo', 'tmdb']
+
+/** A library's sources as stored ("nfo,tmdb"): known ones, in order, once each. */
+export function asMetadataSources(v: unknown): MetadataSource[] {
+  const list = Array.isArray(v) ? v.map(String) : String(v ?? '').split(',')
+  return [...new Set(list.map((x) => x.trim()).filter((x): x is MetadataSource => (METADATA_SOURCES as readonly string[]).includes(x)))]
+}
+
 /** An ident's look: a generated style, or `custom` (an uploaded clip). The
  *  rest are retired styles older idents may still carry. */
 export const IDENT_STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const

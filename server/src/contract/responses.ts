@@ -10,6 +10,7 @@ import type {
   IdentPlays,
   IdentStyle,
   LibraryKind,
+  MetadataSource,
   LogCategory,
   LogLevel,
   MediaType,
@@ -156,6 +157,8 @@ export type Library = {
   createdAt: Date
   folders: LibraryFolder[]
   itemCount: number
+  /** Where its metadata comes from, first to last (see METADATA_SOURCES). */
+  metadataSources: MetadataSource[]
   /** How many season 0 episodes, and extras (featurettes, trailers…), it has.
    *  A library indexes all of them; each channel says whether they air. */
   specialCount: number
@@ -198,7 +201,34 @@ export type MediaItem = {
   extra: ExtraKind | null
   /** The movie an extra belongs to (a show's extras go by showId instead). */
   parentId: number | null
+  /** What its metadata sources say beyond TMDB's match (see the schema):
+   *  an episode's name, first air or release date ("1991-08-11"), rating
+   *  ("TV-Y7"), tagline, studio, directors, cast (JSON CastMember[]), an
+   *  episode's TMDB still, and which sources said it ("nfo,tmdb"). */
+  metaTitle: string | null
+  airDate: string | null
+  contentRating: string | null
+  tagline: string | null
+  studio: string | null
+  directors: string | null
+  cast: string | null
+  tmdbStillPath: string | null
+  metaSources: string | null
   missing: boolean
+}
+
+/** A cast member as the metadata gives them; `photo` is a TMDB path or a link. */
+export type CastMember = { name: string; role: string | null; photo: string | null }
+
+/** One of the orders a show's episodes can follow: a TMDB episode group. */
+export type EpisodeOrder = {
+  id: string
+  name: string
+  /** What TMDB calls its kind: "DVD", "Absolute", "Production"… */
+  type: string
+  episodes: number
+  seasons: number
+  description: string | null
 }
 
 export type MediaItemDetail = MediaItem & {
@@ -278,6 +308,17 @@ export type ShowDetail = {
   /** Whether the show has a TMDB backdrop, and an episode to request it by. */
   hasBackdrop?: boolean
   artItemId?: number | null
+  /** What its metadata sources say beyond TMDB's match (see MediaItem). */
+  contentRating: string | null
+  network: string | null
+  tagline: string | null
+  creators: string | null
+  cast: string | null
+  airDate: string | null
+  metaSources: string | null
+  /** The TMDB order its episodes' details follow (null: as aired), and its name. */
+  episodeOrder: string | null
+  episodeOrderName: string | null
   /** Its episodes by season, season 0 (specials) included. */
   seasons: SeasonGroup[]
   /** Its extras — featurettes, deleted scenes… — the show's own and its seasons'. */

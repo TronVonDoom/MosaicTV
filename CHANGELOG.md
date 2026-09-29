@@ -33,20 +33,36 @@ TV mode, and a sturdier foundation under all of it.
   nothing to play, one shorter than its blocks' week, season 0 specials airing
   first, an exact-time start between the clock's lines — and says what to
   change.
-- **Featurettes aren't movies any more.** The scanner now tells a movie's or
-  show's extras apart — the Plex/Jellyfin extras folders inside its folder
-  (`Featurettes`, `Trailers`, `Deleted Scenes`…), or a name like
-  `Redux-featurette.mkv` — and a library leaves them out unless it's set to
-  keep them. **The extras already in your libraries are removed at the next
-  start**: trailers and menu clips stop showing up as movies, and deleted
-  scenes numbered like episodes stop being episodes. A numbered episode in a
-  generic folder like `Other` is still an episode.
-- **Leave out specials and extras.** Each library has **Specials (season 0)**
-  and **Extras** on **Library → Sources**: turning one off removes what the
-  library has of it, turning it on scans them in. A collection's settings can
-  also leave season 0 (and a keeping library's extras) out of its whole shows
-  and smart filter, while a season 0 picked on its own still airs; the
-  schedule warnings do it in one click.
+- **Extras live under their movie or show, as in Plex.** The scanner tells a
+  movie's or show's extras apart — the Plex/Jellyfin extras folders inside its
+  folder (`Featurettes`, `Trailers`, `Deleted Scenes`…), or a name like
+  `Redux-featurette.mkv` — and files them with it: a movie's details list its
+  extras (and an extra links back to its movie), a show's page lists its own
+  apart from the episodes. The grid shows only the movies; its filter →
+  **Unattached extras** finds any with no movie of their own. Deleted scenes
+  numbered like episodes stop being episodes; a numbered episode in a generic
+  folder like `Other` is still an episode. Season 0 reads **Specials**.
+- **Specials and extras, channel by channel.** Libraries keep everything they
+  find; each channel's **Collections** tab says whether whole shows, movies
+  and smart filters bring in **Specials** (season 0) and **Extras** — both off
+  to start with. A show's tile has its own Specials and Extras switch (a
+  movie's, Extras), which goes by the channel until it's flipped. A show's
+  extras air after its episodes; a movie's right after the movie, in every
+  order. A special or an extra picked on its own airs either way, and the
+  schedule warning about season 0 airing first leaves those shows' specials
+  out in one click. A library that left anything out before is scanned once
+  at the next start to find it again.
+- **A metadata agent like Plex's.** Each library reads its metadata from
+  sources you order on **Sources**: Kodi/Jellyfin **.nfo files** (an .nfo
+  that names an id matches by it), **the files' own tags**, and **TMDB** — the
+  first to give a detail wins. Titles gain content ratings, taglines, studios
+  and networks, directors, creators and cast; every episode gets its name,
+  first air date, summary and a still. A file's own episode title is kept,
+  and one whose name disagrees with TMDB's episode at its number (a cartoon
+  split into its segments) goes without TMDB's details rather than showing
+  another episode's. A show can follow another of TMDB's **episode orders**
+  (DVD, absolute, production…) from its menu; the files keep their numbers.
+  The guide carries it all: credits, first-aired dates, genres, ratings.
 - **A tidier frame.** The sidebar gained entries under its items — every
   channel, each library, the Studio and Settings sections — and took Live TV
   setup from the top bar; the server status moved to the top of the Logs

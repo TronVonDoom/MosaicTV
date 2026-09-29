@@ -14,6 +14,11 @@ model Library {
   name            String
   kind            String // "tv" | "movie" | "other"
   createdAt       DateTime        @default(now())
+  // Where its metadata comes from, first to last, as Plex's agent lists its
+  // sources: "nfo" (Kodi/Jellyfin .nfo files beside the media), "embedded"
+  // (the files' own tags) and "tmdb". A detail the first gives wins; the
+  // rest fill in what it doesn't have. One left out isn't read.
+  metadataSources String          @default("nfo,tmdb")
   folders         LibraryFolder[]
   items           MediaItem[]
   shows           Show[]
@@ -112,6 +117,25 @@ model Show {
   tmdbMatch        String?
   tmdbTitle        String?
   tmdbYear         Int?
+  // What the metadata sources say of it beyond the above (see
+  // Library.metadataSources): its rating ("TV-Y7"), network, tagline,
+  // creators (comma-separated), cast (JSON [{ name, role, photo }]) and
+  // first air date ("1991-08-11").
+  contentRating    String?
+  network          String?
+  tagline          String?
+  creators         String?
+  cast             String?
+  airDate          String?
+  // Which of TMDB's orders its episodes' details follow, as Plex lets a show
+  // pick one: null = as aired, else a TMDB episode group (DVD, absolute,
+  // production…) by id, and that order's name. Its files keep their numbers.
+  episodeOrder     String?
+  episodeOrderName String?
+  // The sources its details came from ("nfo,tmdb"), and when they were last
+  // read (null = never — the next fetch reads them).
+  metaSources      String?
+  metaAt           DateTime?
   updatedAt        DateTime         @updatedAt
   seasons          Season[]
   names            ShowName[]
@@ -522,6 +546,25 @@ model MediaItem {
   tmdbMatch        String?
   tmdbTitle        String?
   tmdbYear         Int?
+  // What the metadata sources say beyond the above (see Show): its title as
+  // they give it — an episode's name, shown when the file's own name has none —
+  // its first air or release date ("1991-08-11"), rating ("PG-13"), tagline,
+  // studio, directors (comma-separated), cast (JSON [{ name, role, photo }])
+  // and, for an episode, TMDB's still.
+  metaTitle        String?
+  airDate          String?
+  contentRating    String?
+  tagline          String?
+  studio           String?
+  directors        String?
+  cast             String?
+  tmdbStillPath    String?
+  // The file's own tags (JSON { title, description, date, genre }), read when
+  // it's probed; null = not read yet.
+  embedded         String?
+  // The sources its details came from, and when they were last read (see Show).
+  metaSources      String?
+  metaAt           DateTime?
   // Act breaks: seconds into the file where it cut to commercial when it aired
   // (JSON number[]), where they came from (chapters | detected | none), and
   // when they were looked for (null = not yet; reset when the file changes).

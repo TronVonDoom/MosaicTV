@@ -109,6 +109,8 @@ async function processFile(
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
   const art = await detectArtwork(filePath, libraryPath, kind, parsed.season, cache)
+  // An episode whose name gives no title keeps the one its metadata gave it.
+  const title = parsed.untitled && existing?.metaTitle ? existing.metaTitle : parsed.title
 
   // Skip only if the file is unchanged, already probed, artwork matches, and
   // the name still parses to what's stored. That last check is what lets an
@@ -124,7 +126,7 @@ async function processFile(
     existing.posterPath === art.posterPath &&
     existing.showPosterPath === art.showPosterPath &&
     existing.seasonPosterPath === art.seasonPosterPath &&
-    existing.title === parsed.title &&
+    existing.title === title &&
     existing.showId === (show?.id ?? null) &&
     existing.showTitle === (show?.title ?? null) &&
     existing.season === parsed.season &&
@@ -142,7 +144,7 @@ async function processFile(
   const data = {
     libraryId,
     type: parsed.type,
-    title: parsed.title,
+    title,
     showId: show?.id ?? null,
     showTitle: show?.title ?? null,
     season: parsed.season,
@@ -157,6 +159,8 @@ async function processFile(
     videoCodec: unchanged ? existing!.videoCodec : probe?.videoCodec ?? null,
     audioCodec: unchanged ? existing!.audioCodec : probe?.audioCodec ?? null,
     container: unchanged ? existing!.container : probe?.container ?? null,
+    // Its own tags, one of the metadata sources (null = not read).
+    embedded: unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null,
     posterPath: art.posterPath,
     showPosterPath: art.showPosterPath,
     seasonPosterPath: art.seasonPosterPath,

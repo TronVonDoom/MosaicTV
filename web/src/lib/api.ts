@@ -76,6 +76,9 @@ import type {
   MatchCandidate,
   MatchCounts,
   MatchFilter,
+  CastMember,
+  EpisodeOrder,
+  MetadataSource,
   MediaSearchResult,
   MediaSort,
   MemberKind,
@@ -123,6 +126,9 @@ export type {
   MatchCandidate,
   MatchCounts,
   MatchFilter,
+  CastMember,
+  EpisodeOrder,
+  MetadataSource,
   MediaSearchResult,
   MediaSort,
   MemberKind,
@@ -292,6 +298,9 @@ export const api = {
   librarySample: (id: number, limit = 12) => request<LibrarySample>(`/api/libraries/${id}/sample?limit=${limit}`),
   addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
+  // Where its metadata comes from, first to last.
+  updateLibrary: (id: number, data: { metadataSources: MetadataSource[] }) =>
+    request<{ id: number; metadataSources: MetadataSource[] }>(`/api/libraries/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteLibrary: (id: number) =>
     request<void>(`/api/libraries/${id}`, { method: 'DELETE' }),
   addFolder: (libraryId: number, path: string) =>
@@ -349,6 +358,10 @@ export const api = {
     request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'POST', body: JSON.stringify({ tmdbId }) }),
   unmatchShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'DELETE' }),
   refreshShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/refresh`, { method: 'POST' }),
+  // The orders a show's episodes can follow (TMDB's episode groups), and picking one (null: as aired).
+  showOrders: (id: number) => request<{ current: string | null; orders: EpisodeOrder[] }>(`/api/shows/${id}/orders`),
+  setShowOrder: (id: number, order: string | null) =>
+    request<{ ok: true }>(`/api/shows/${id}/order`, { method: 'PUT', body: JSON.stringify({ order }) }),
   mergeShow: (id: number, into: number) =>
     request<{ into: { id: number; title: string }; episodes: number; picks: number; airings: number }>(`/api/shows/${id}/merge`, {
       method: 'POST',
@@ -596,7 +609,7 @@ export function tmdbImage(path: string, size: 'w200' | 'w342' | 'w500' | 'origin
  */
 export function artworkUrl(
   id: number,
-  type: 'poster' | 'show' | 'season' | 'backdrop',
+  type: 'poster' | 'show' | 'season' | 'backdrop' | 'still',
   w?: number,
   /** Changes when the art does — its TMDB path, say — so a browser that
    *  cached the old picture (for a week) fetches the new one after Fix match. */

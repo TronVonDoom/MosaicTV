@@ -43,7 +43,7 @@ export function useLibraryJobs(onFinish?: () => void) {
       force &&
       !(await confirmDialog({
         title: `Refresh all metadata for “${lib.name}”?`,
-        message: `Every ${noun} is looked up on TMDB again by its title and year, and its artwork, description and rating replaced. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a minute or two for a big library.`,
+        message: `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic TMDB matches are looked up again by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
         confirmLabel: 'Refresh all',
       }))
     )
@@ -62,8 +62,6 @@ export function useLibraryJobs(onFinish?: () => void) {
     busy: !!(scan?.running || meta?.running),
     startScan,
     startMetadata,
-    /** Follow a scan the server started on its own (taking specials back in). */
-    watchScan: scanJob.start,
   }
 }
 
@@ -85,6 +83,9 @@ export function LibraryActions({
   const scanning = !!jobs.scan?.running && jobs.scan.libraryId === lib.id
   const matchable = lib.kind === 'tv' || lib.kind === 'movie'
   const noKey = tmdbConfigured ? undefined : 'needs a TMDB key'
+  // A library that reads .nfo files or the files' tags has something to
+  // refresh from without TMDB.
+  const readsLocal = lib.metadataSources.some((s) => s !== 'tmdb')
   const items: MenuItem[] = [
     {
       label: 'Force rescan…',
@@ -106,8 +107,8 @@ export function LibraryActions({
           {
             label: 'Refresh all metadata…',
             icon: 'download',
-            hint: noKey,
-            disabled: jobs.busy || !tmdbConfigured,
+            hint: readsLocal ? undefined : noKey,
+            disabled: jobs.busy || !(tmdbConfigured || readsLocal),
             onSelect: () => jobs.startMetadata(lib, true),
           },
         ] satisfies MenuItem[])

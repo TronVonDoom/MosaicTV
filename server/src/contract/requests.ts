@@ -13,6 +13,7 @@ import {
   NO_AUDIO_PREFERENCE,
   asFillerMode,
   asGrid,
+  asMetadataSources,
   asOrderSetting,
   asPlaybackOrder,
   asStartMode,
@@ -228,6 +229,18 @@ export const MemberUpdate = z.object({
   extras: flagOrNull.optional(),
 })
 export type MemberUpdate = z.output<typeof MemberUpdate>
+
+/** Where a library's metadata comes from, first to last. */
+export const LibraryUpdate = z.object({
+  metadataSources: loose.transform(asMetadataSources).optional(),
+})
+export type LibraryUpdate = z.output<typeof LibraryUpdate>
+
+/** The TMDB order a show's episodes follow: an episode group's id, or null for as aired. */
+export const EpisodeOrderPick = z.object({
+  order: loose.transform((v): string | null => (v == null || v === '' ? null : String(v))),
+})
+export type EpisodeOrderPick = z.output<typeof EpisodeOrderPick>
 
 /** A new order for a list, by id: the members (or idents) in their new places. */
 export const Reorder = z.object({

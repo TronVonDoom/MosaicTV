@@ -11,7 +11,9 @@ import {
   type SeasonGroup,
   type ShowDetail,
 } from '../lib/api'
-import { extraLabel, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import { extraLabel, formatAirDate, formatAired, formatDuration, formatSize, posterGradient } from '../lib/format'
+import CastRow from '../components/CastRow'
+import EpisodeOrderDialog from '../components/EpisodeOrderDialog'
 import MediaDetailModal from '../components/MediaDetailModal'
 import PosterCard from '../components/PosterCard'
 import AiringsEditor from '../components/AiringsEditor'
@@ -45,6 +47,7 @@ export default function ShowView() {
   // Only for the breadcrumb — the show payload doesn't carry its library's name.
   const [libraryName, setLibraryName] = useState<string | null>(null)
   const [identity, setIdentity] = useState<'rename' | 'merge' | null>(null)
+  const [ordering, setOrdering] = useState(false)
   const navigate = useNavigate()
 
   const reloadAirings = () =>
@@ -234,6 +237,9 @@ export default function ShowView() {
                       { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
                       'divider',
                       ...match.items,
+                      ...(detail.tmdbId != null
+                        ? [{ label: 'Episode order…', icon: 'list' as const, onSelect: () => setOrdering(true) }]
+                        : []),
                     ]}
                   />
                 )}
@@ -264,7 +270,14 @@ export default function ShowView() {
                       <Icon name="star" size={14} className="fill-current" /> {detail.rating.toFixed(1)}
                     </span>
                   )}
+                  {detail.contentRating && <Badge>{detail.contentRating}</Badge>}
                   {detail.year && <span className="tabular-nums">{detail.year}</span>}
+                  {detail.network && (
+                    <>
+                      <span className="text-ink-ghost">•</span>
+                      <span>{detail.network}</span>
+                    </>
+                  )}
                   <span className="text-ink-ghost">•</span>
                   <span>
                     {detail.seasons.length} season{detail.seasons.length === 1 ? '' : 's'}
@@ -289,13 +302,31 @@ export default function ShowView() {
                   ))}
                 </div>
               )}
+              {detail?.tagline && <p className="mt-4 max-w-3xl text-[14px] italic text-ink-muted">{detail.tagline}</p>}
               {detail?.overview && (
-                <p className="mt-4 max-w-3xl text-[14px] leading-relaxed text-ink-soft line-clamp-4">{detail.overview}</p>
+                <p className={cx(detail.tagline ? 'mt-1.5' : 'mt-4', 'max-w-3xl text-[14px] leading-relaxed text-ink-soft line-clamp-4')}>{detail.overview}</p>
+              )}
+              {detail && (detail.creators || detail.episodeOrderName) && (
+                <p className="mt-3 text-[12.5px] text-ink-muted">
+                  {detail.creators && (
+                    <>
+                      Created by <span className="text-ink-soft">{detail.creators}</span>
+                    </>
+                  )}
+                  {detail.creators && detail.episodeOrderName && <span className="text-ink-ghost"> · </span>}
+                  {detail.episodeOrderName && (
+                    <button onClick={() => setOrdering(true)} className="hover:text-ink-soft">
+                      Episodes follow <span className="text-ink-soft">{detail.episodeOrderName}</span>
+                    </button>
+                  )}
+                </p>
               )}
             </div>
           </div>
         </div>
       </section>
+
+      {detail && !current && <CastRow cast={detail.cast} className="mb-8 max-w-5xl" />}
 
       {appearances.length > 0 && (
         <Banner tone="accent" className="mb-6 max-w-3xl">
@@ -366,9 +397,18 @@ export default function ShowView() {
                   g && 'border-l-2 border-indigo-500 bg-indigo-500/[0.04]',
                 )}
               >
-                <div className="w-10 h-10 shrink-0 grid place-items-center rounded-lg bg-sunken border border-edge font-mono text-[13px] font-semibold text-ink-muted tabular-nums group-hover:text-indigo-300 group-hover:border-indigo-500/40 transition-colors">
-                  {ep.episode != null ? String(ep.episode).padStart(2, '0') : '—'}
-                </div>
+                {ep.tmdbStillPath ? (
+                  <div className="relative w-24 aspect-video shrink-0 rounded-lg overflow-hidden bg-sunken border border-edge">
+                    <img src={artworkUrl(ep.id, 'still', ART.tiny, ep.tmdbStillPath)} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0.5 left-0.5 rounded bg-black/65 px-1 font-mono text-[10.5px] font-semibold text-white/90 tabular-nums">
+                      {ep.episode != null ? String(ep.episode).padStart(2, '0') : '—'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 shrink-0 grid place-items-center rounded-lg bg-sunken border border-edge font-mono text-[13px] font-semibold text-ink-muted tabular-nums group-hover:text-indigo-300 group-hover:border-indigo-500/40 transition-colors">
+                    {ep.episode != null ? String(ep.episode).padStart(2, '0') : '—'}
+                  </div>
+                )}
                 <div className={'flex-1 min-w-0 ' + (ep.missing ? 'opacity-50' : '')}>
                   <div className="truncate text-ink flex items-center gap-2">
                     <span className="truncate text-[14px] font-medium">{ep.title}</span>
@@ -383,7 +423,9 @@ export default function ShowView() {
                       </Badge>
                     )}
                   </div>
+                  {ep.overview && <div className="text-[12.5px] text-ink-muted mt-0.5 line-clamp-1">{ep.overview}</div>}
                   <div className="text-xs text-ink-faint mt-0.5">
+                    {formatAirDate(ep.airDate) ? `${formatAirDate(ep.airDate)} · ` : ''}
                     {ep.width && ep.height ? `${ep.width}×${ep.height}` : ''}
                     {ep.videoCodec ? ` · ${ep.videoCodec}` : ''}
                     {ep.sizeBytes ? ` · ${formatSize(ep.sizeBytes)}` : ''}
@@ -485,6 +527,17 @@ export default function ShowView() {
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} />
       )}
       {match.dialog}
+      {ordering && detail?.id != null && (
+        <EpisodeOrderDialog
+          showId={detail.id}
+          showTitle={showTitle}
+          onClose={() => setOrdering(false)}
+          onSaved={() => {
+            setOrdering(false)
+            void loadDetail()
+          }}
+        />
+      )}
       {identity && detail?.id != null && (
         <ShowIdentityDialog
           mode={identity}

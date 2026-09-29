@@ -18,7 +18,12 @@ export type ProbeResult = {
   videoCodec: string | null
   audioCodec: string | null
   container: string | null
+  /** The file's own tags (see embeddedTags). */
+  tags: EmbeddedTags
 }
+
+/** What a file's own tags say of it — one of a library's metadata sources. */
+export type EmbeddedTags = { title?: string; description?: string; date?: string; genre?: string }
 
 type FfprobeStream = {
   codec_type?: string
@@ -32,6 +37,37 @@ type FfprobeJson = {
   format?: {
     duration?: string
     format_name?: string
+    tags?: Record<string, string>
+  }
+}
+
+// Where each detail lives among the names containers give their tags: MP4's
+// iTunes atoms, Matroska's upper-case names, ffmpeg's own.
+const TAG_KEYS: Record<keyof EmbeddedTags, string[]> = {
+  title: ['title'],
+  description: ['description', 'synopsis', 'summary', 'comment', 'ldes', 'desc'],
+  date: ['date_released', 'date', 'year', 'originaldate'],
+  genre: ['genre'],
+}
+
+/** The details a file's tags carry, from ffprobe's format tags (any case). */
+export function embeddedTags(raw: Record<string, string> | undefined): EmbeddedTags {
+  const lower = new Map(Object.entries(raw ?? {}).map(([k, v]) => [k.toLowerCase(), String(v).trim()]))
+  const out: EmbeddedTags = {}
+  for (const [field, keys] of Object.entries(TAG_KEYS) as [keyof EmbeddedTags, string[]][]) {
+    const v = keys.map((k) => lower.get(k)).find((x) => !!x)
+    if (v) out[field] = v
+  }
+  return out
+}
+
+/** Just a file's own tags, for a file probed before they were kept. */
+export async function probeTags(filePath: string): Promise<EmbeddedTags> {
+  const out = await ffprobeText(['-v', 'quiet', '-print_format', 'json', '-show_entries', 'format_tags', filePath])
+  try {
+    return embeddedTags((JSON.parse(out) as FfprobeJson).format?.tags)
+  } catch {
+    return {}
   }
 }
 
@@ -71,6 +107,7 @@ export function ffprobe(filePath: string): Promise<ProbeResult | null> {
           videoCodec: video?.codec_name ?? null,
           audioCodec: audio?.codec_name ?? null,
           container: json.format?.format_name ?? null,
+          tags: embeddedTags(json.format?.tags),
         })
       } catch {
         resolve(null)

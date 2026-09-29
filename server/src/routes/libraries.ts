@@ -1,10 +1,11 @@
 import { Router } from 'express'
-import type { Library, Stored } from '../contract/index.js'
+import { asMetadataSources, LibraryUpdate, type Library, type Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { isScanning } from '../scanner/scanner.js'
 import { matchCounts } from '../metadata.js'
+import { readBody } from '../validate.js'
 
 export const librariesRouter = Router()
 
@@ -31,10 +32,26 @@ librariesRouter.get('/', async (_req, res) => {
       createdAt: l.createdAt,
       folders: l.folders,
       itemCount: l._count.items,
+      metadataSources: asMetadataSources(l.metadataSources),
       specialCount: count(specials, l.id),
       extraCount: count(extras, l.id),
     })),
   )
+})
+
+// PATCH /api/libraries/:id  { metadataSources }  -> where its metadata comes
+// from, first to last. Read from the next fetch on (Refresh all metadata reads
+// every title again).
+librariesRouter.patch('/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  const body = readBody(LibraryUpdate, req, res)
+  if (!body) return
+  const lib = await prisma.library.update({
+    where: { id },
+    data: body.metadataSources ? { metadataSources: body.metadataSources.join(',') } : {},
+  }).catch(() => null)
+  if (!lib) return res.status(404).json({ error: 'Library not found.' })
+  res.json({ id: lib.id, metadataSources: asMetadataSources(lib.metadataSources) })
 })
 
 // GET /api/libraries/:id/matches  -> what wants a look: titles with no TMDB

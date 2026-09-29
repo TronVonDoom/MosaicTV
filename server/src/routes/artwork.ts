@@ -60,13 +60,14 @@ artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
   sendArtwork(res, cached, 604800)
 })
 
-// GET /api/artwork/:id?type=poster|show|season|backdrop&w=
+// GET /api/artwork/:id?type=poster|show|season|backdrop|still&w=
 // Serves local artwork when the scanner found some, else falls back to the
 // item's (or its show's) TMDB poster, downloaded and cached locally. Only paths
 // recorded on the item are used, so this can't be made to read arbitrary files.
 //
 // `backdrop` is the wide TMDB still behind the web UI's hero panels: a movie's
-// own, or an episode's show's. There's no local equivalent to prefer.
+// own, or an episode's show's. There's no local equivalent to prefer. `still`
+// is an episode's own frame from TMDB.
 //
 // `w` asks for a thumbnail about that wide — see thumbWidth.
 artworkRouter.get('/:id', async (req, res) => {
@@ -81,6 +82,7 @@ artworkRouter.get('/:id', async (req, res) => {
       seasonPosterPath: true,
       tmdbPosterPath: true,
       tmdbBackdropPath: true,
+      tmdbStillPath: true,
       type: true,
       showTitle: true,
       season: true,
@@ -91,6 +93,13 @@ artworkRouter.get('/:id', async (req, res) => {
 
   const type = req.query.type
   const w = thumbWidth(req.query.w)
+
+  if (type === 'still') {
+    if (!item.tmdbStillPath) return res.status(404).end()
+    const cached = await cachedTmdbImage(item.tmdbStillPath, tmdbBackdropSize(w))
+    if (!cached) return res.status(404).end()
+    return sendArtwork(res, cached, 604800)
+  }
 
   if (type === 'backdrop') {
     let backdrop = item.type === 'episode' ? null : item.tmdbBackdropPath

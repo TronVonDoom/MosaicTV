@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express'
 import { prisma } from '../db.js'
-import { enrichLibrary, getMetadataStatus, isEnriching, MatchError } from '../metadata.js'
+import { enrichLibrary, getMetadataStatus, isEnriching, MatchError, nothingToRead } from '../metadata.js'
 import { getMovie, getTmdbKey, getTv, movieCandidate, resolveRef, searchMovies, searchShows, tvCandidate } from '../tmdb.js'
 import { parseExternalRef, type MatchCandidate } from '../contract/index.js'
 
@@ -39,9 +39,10 @@ metadataRouter.get('/search', async (req, res) => {
   res.json({ results })
 })
 
-// POST /api/metadata/:libraryId[?force=1] — look up what has no match, or
-// (forced) everything: automatic matches again by title, hand-picked ones
-// refreshed from their id. Neither touches what was unmatched by hand.
+// POST /api/metadata/:libraryId[?force=1] — read what has no TMDB match, or
+// (forced) everything, from the library's sources: automatic matches looked
+// up again by title, hand-picked ones refreshed from their id. What was
+// unmatched by hand reads only the library's other sources.
 metadataRouter.post('/:libraryId', async (req, res) => {
   if (isEnriching()) {
     return res.status(409).json({ error: 'A metadata fetch is already running.' })
@@ -49,7 +50,8 @@ metadataRouter.post('/:libraryId', async (req, res) => {
   const libraryId = Number(req.params.libraryId)
   const lib = await prisma.library.findUnique({ where: { id: libraryId } })
   if (!lib) return res.status(404).json({ error: 'Library not found.' })
-  if (!(await getTmdbKey())) return res.status(400).json({ error: 'No TMDB API key configured. Add one under Settings.' })
+  const why = await nothingToRead(libraryId)
+  if (why) return res.status(400).json({ error: why })
   const force = req.query.force === '1' || req.query.force === 'true'
 
   // Fire-and-forget; client polls GET /api/metadata/status.

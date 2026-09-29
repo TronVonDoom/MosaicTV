@@ -7,6 +7,19 @@
  * don't share a module.
  */
 
+/** What kind of extra a file is, as a label (the web has its own copy). */
+export const EXTRA_LABELS: Record<string, string> = {
+  behindthescenes: 'Behind the scenes',
+  deleted: 'Deleted scene',
+  featurette: 'Featurette',
+  interview: 'Interview',
+  scene: 'Scene',
+  short: 'Short',
+  trailer: 'Trailer',
+  sample: 'Sample',
+  other: 'Extra',
+}
+
 /** "S01E02", or '' when the item isn't a numbered episode. */
 export function episodeCode(m: { season?: number | null; episode?: number | null }): string {
   if (m.season == null || m.episode == null) return ''
@@ -15,7 +28,7 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
 
 /**
  * "Rugrats S01E02" for an episode, "The Office — Bloopers" for a show's
- * extra, the plain title for anything else. `withTitle` appends the episode's
+ * extra, "The Matrix (Trailer)" for a movie's, the plain title for anything else. `withTitle` appends the episode's
  * own title for places with room for it.
  *
  * A media item has a showTitle if and only if it's an episode or a show's
@@ -25,7 +38,8 @@ export function programLabel(
   m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null },
   opts: { withTitle?: boolean } = {},
 ): string {
-  if (!m.showTitle) return m.title
+  // A movie's extra says what it is: a trailer is often named for its film.
+  if (!m.showTitle) return m.extra ? `${m.title} (${EXTRA_LABELS[m.extra] ?? 'Extra'})` : m.title
   // An extra's number (a deleted scene filed as S02E05) isn't an episode's.
   if (m.extra) return `${m.showTitle} — ${m.title}`
   const code = episodeCode(m)

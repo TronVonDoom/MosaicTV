@@ -15,6 +15,9 @@ export type ParsedMedia = {
   /** A featurette, trailer, deleted scene… filed with a movie or show, or null
    *  for the movie or episode itself (see extraKind). */
   extra: ExtraKind | null
+  /** An episode whose name gives no title — "Rugrats - S01E02.mkv" — so
+   *  `title` stands in ("Rugrats S01E02") until its metadata names it. */
+  untitled?: boolean
 }
 
 // A folder of extras inside a movie's or show's own folder (Plex, Jellyfin and
@@ -217,6 +220,7 @@ export function parseMedia(
       return {
         type: 'episode',
         title,
+        untitled: !epTitle,
         showTitle: showTitle || null,
         season: Number.isNaN(season) ? null : season,
         episode: Number.isNaN(episode) ? null : episode,
