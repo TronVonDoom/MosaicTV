@@ -18,10 +18,14 @@ export async function setTmdbKey(value: string): Promise<void> {
   })
 }
 
+/** A GET from TMDB: its answer, or null when it didn't give one — except that
+ *  `notFound`, when given, is the answer to a 404 (TMDB has no such thing,
+ *  which isn't the same as not answering). */
 async function tmdbGet<T>(
   key: string,
   path: string,
   params: Record<string, string | number | undefined> = {},
+  notFound?: T,
 ): Promise<T | null> {
   const url = new URL(BASE + path)
   url.searchParams.set('api_key', key)
@@ -30,6 +34,7 @@ async function tmdbGet<T>(
   }
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (res.status === 404 && notFound !== undefined) return notFound
     if (!res.ok) return null
     return (await res.json()) as T
   } catch {
@@ -248,9 +253,10 @@ export async function getTv(key: string, id: number): Promise<TmdbTv | null> {
   return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits' })
 }
 
-/** One season's episodes, as aired. */
+/** One season's episodes, as aired — none for a season TMDB doesn't have
+ *  (files numbered their own way); null when TMDB didn't answer. */
 export async function getSeason(key: string, tvId: number, season: number): Promise<TmdbEpisode[] | null> {
-  const r = await tmdbGet<{ episodes?: TmdbEpisode[] }>(key, `/tv/${tvId}/season/${season}`)
+  const r = await tmdbGet<{ episodes?: TmdbEpisode[] }>(key, `/tv/${tvId}/season/${season}`, {}, { episodes: [] })
   return r ? r.episodes ?? [] : null
 }
 
@@ -277,7 +283,8 @@ export function groupEpisodes(g: TmdbEpisodeGroup): { season: number; episode: n
 
 /** One episode order, every season of it. */
 export async function getEpisodeGroup(key: string, groupId: string): Promise<TmdbEpisodeGroup | null> {
-  return tmdbGet<TmdbEpisodeGroup>(key, `/tv/episode_group/${encodeURIComponent(groupId)}`)
+  // One TMDB has since taken down has no episodes to give.
+  return tmdbGet<TmdbEpisodeGroup>(key, `/tv/episode_group/${encodeURIComponent(groupId)}`, {}, { id: groupId, name: '', type: 0, groups: [] })
 }
 
 export function genresToString(genres?: TmdbGenre[]): string | null {

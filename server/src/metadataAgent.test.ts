@@ -115,6 +115,8 @@ put(
 )
 const e1 = put('tv/Rugrats (1991)/Season 01/Rugrats - S01E01.mkv')
 const e2 = put('tv/Rugrats (1991)/Season 01/Rugrats - S01E02 - The Barbecue.mkv')
+// A season TMDB doesn't have (the stand-in answers 404): read all the same.
+const e3 = put('tv/Rugrats (1991)/Season 07/Rugrats - S07E01 - Runaway Reptar.mkv')
 
 const item = (file: string) => prisma.mediaItem.findUniqueOrThrow({ where: { path: file } })
 
@@ -156,6 +158,12 @@ test('a show’s episodes get TMDB’s names, air dates and stills; a file that 
   const [a2, b2] = await Promise.all([item(e1), item(e2)])
   assert.deepEqual([a2.title, a2.metaTitle, a2.airDate, a2.tmdbStillPath, a2.directors], ['Tommy’s First Birthday', 'Tommy’s First Birthday', '1991-08-11', '/e1.jpg', 'Norton Virgien'])
   assert.deepEqual([b2.title, b2.metaTitle, b2.overview], ['The Barbecue', 'Barbecue Story', 'A ball.'])
+
+  // A season TMDB doesn't have is read without it, not left for every later fetch.
+  const c = await item(e3)
+  assert.ok(c.metaAt, 'read')
+  assert.deepEqual([c.title, c.metaTitle, c.tmdbStillPath], ['Runaway Reptar', null, null])
+  assert.equal(await prisma.show.count({ where: { libraryId: tvLib.id, episodes: { some: { metaAt: null, type: 'episode' } } } }), 0)
 
   // A rescan keeps the name the metadata gave a file that has none.
   await scanLibrary(tvLib.id, true)
