@@ -5,6 +5,7 @@ import ToastContainer from './ToastContainer'
 import CommandPalette from './CommandPalette'
 import ConnectPlayers from './ConnectPlayers'
 import NotificationBell from './NotificationBell'
+import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
 import { api, type Channel, type Health, type Library } from '../lib/api'
 import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
@@ -531,6 +532,7 @@ export default function Layout() {
             </button>
 
             <div className="ml-auto shrink-0 flex items-center gap-1.5">
+              <SupportLinks />
               <NotificationBell />
             </div>
           </div>

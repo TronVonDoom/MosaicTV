@@ -301,6 +301,22 @@ Issues and PRs welcome — bug reports with the in-app log download attached are
 extra welcome. If you're missing a feature (another ident look? another
 metadata source?), open an issue and let's talk.
 
+## Support
+
+MosaicTV is free and stays free — every feature, for everyone. If it's earned a
+spot on your server and you'd like to chip in, you can
+[sponsor it on GitHub](https://github.com/sponsors/TronVonDoom). The heart beside
+the bell in the app's top bar goes to the same place.
+
+### Sponsors
+
+With thanks to the people keeping MosaicTV on the air.
+
+<!-- Who goes here, by tier:
+     Station owner ($25/month): avatar + link to their GitHub profile, first.
+     Premium channels ($10/month) and Box set ($50 one-time): by name.
+     Monthly sponsors stay while they sponsor; one-time Box sets stay for good. -->
+
 ## License
 
 [GPL-3.0](LICENSE) — free to use, modify, and share; derivatives stay open.

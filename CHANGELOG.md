@@ -190,6 +190,9 @@ TV mode, and a sturdier foundation under all of it.
   each read answers is defined once, shared by the server (which validates
   requests with it) and the web app (which is typed by it), including the
   up-next card's defaults, which had drifted apart.
+- **Free, with a way to chip in.** MosaicTV stays free. The heart beside the
+  bell in the top bar goes to its GitHub Sponsors page, for anyone who'd like
+  to support it.
 
 ## 0.12.0 — Breaks, and what's on next (2026-09-26)
 

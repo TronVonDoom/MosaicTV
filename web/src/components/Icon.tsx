@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Clapperboard,
   Clock3,
+  Coffee,
   Command,
   Copy,
   Cpu,
@@ -40,6 +41,7 @@ import {
   Globe,
   HardDrive,
   Hash,
+  Heart,
   Image,
   Info,
   KeyRound,
@@ -165,6 +167,8 @@ export type IconName =
   | 'exitFullscreen'
   | 'volume'
   | 'muted'
+  | 'heart'
+  | 'coffee'
 
 const GLYPH: Record<IconName, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -244,6 +248,8 @@ const GLYPH: Record<IconName, LucideIcon> = {
   exitFullscreen: Minimize,
   volume: Volume2,
   muted: VolumeX,
+  heart: Heart,
+  coffee: Coffee,
 }
 
 // Identity hues, a notch lighter than the brand's own so they sit comfortably
@@ -278,6 +284,8 @@ const COLOR: Partial<Record<IconName, string>> = {
   database: '#818cf8',
   activity: '#34d399',
   sparkles: '#c084fc',
+  heart: '#f472b6',
+  coffee: '#fbbf24',
 }
 
 /** The identity hue for an icon — for tinting the tile it sits on. */
