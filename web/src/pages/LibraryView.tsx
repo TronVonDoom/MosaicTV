@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { isUnmatched, matchesOf, titleDoubt } from '@contract'
+import { compareTitles, isUnmatched, letterStarts, matchesOf, titleDoubt, titleLetter, type JumpLetter } from '@contract'
 import {
   api,
   ART,
@@ -25,6 +25,7 @@ import MediaDetailModal from '../components/MediaDetailModal'
 import { MatchReview, matchTarget, type MatchTarget } from '../components/FixMatchDialog'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
+import JumpBar from '../components/library/JumpBar'
 import { StatFigure } from '../components/onair/OnAir'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
@@ -32,6 +33,8 @@ import { EmptyState, Select, Skeleton, buttonClass } from '../components/ui'
 import { extraLabel } from '../lib/format'
 
 const PAGE_SIZE = 60
+// The app's header (h-14), which the grid's toolbar sticks under.
+const HEADER_HEIGHT = 56
 type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
 
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7'
@@ -75,6 +78,18 @@ export default function LibraryView() {
   }))
   const request = useRef(0)
   const sentinel = useRef<HTMLDivElement>(null)
+  // The pages `items` holds: a jump to a letter further down loads every page
+  // up to it at once.
+  const loadedPages = useRef(0)
+  // In title order: where each letter's movies start (the server works it out).
+  const [letters, setLetters] = useState<Partial<Record<JumpLetter, number>> | null>(null)
+  const grid = useRef<HTMLDivElement>(null)
+  const toolbar = useRef<HTMLDivElement>(null)
+  const [toolbarHeight, setToolbarHeight] = useState(0)
+  // The card a jump is waiting on the next pages for.
+  const pendingJump = useRef<number | null>(null)
+  const jumpTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [activeLetter, setActiveLetter] = useState<JumpLetter | null>(null)
 
   const isTv = library?.kind === 'tv'
   const matchable = library?.kind === 'tv' || library?.kind === 'movie'
@@ -168,12 +183,18 @@ export default function LibraryView() {
     const mine = ++request.current
     setLoading(true)
     const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : 'other'
-    api
-      .media({ libraryId: id, type, page: params.page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort, match })
-      .then((r) => {
+    // On from the pages loaded — or, for a new search, sort or filter (or the
+    // library read again), from the top.
+    const from = params.page > loadedPages.current ? loadedPages.current + 1 : 1
+    const pages = Array.from({ length: params.page - from + 1 }, (_, i) => from + i)
+    Promise.all(pages.map((page) => api.media({ libraryId: id, type, page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort, match })))
+      .then((rs) => {
         if (mine !== request.current) return // superseded by a newer search/sort/page
-        setItems((prev) => (params.page === 1 ? r.items : [...prev, ...r.items]))
-        setTotal(r.total)
+        const fresh = rs.flatMap((r) => r.items)
+        setItems((prev) => (from === 1 ? fresh : [...prev, ...fresh]))
+        setTotal(rs[rs.length - 1].total)
+        if (from === 1) setLetters(rs[0].letters ?? null)
+        loadedPages.current = params.page
       })
       .catch(() => {})
       .finally(() => mine === request.current && setLoading(false))
@@ -212,8 +233,8 @@ export default function LibraryView() {
     else if (params.match === 'unmatched') list = list.filter((s) => isUnmatched(s, library?.metadataSources ?? []))
     else if (params.match === 'doubtful') list = list.filter((s) => titleDoubt({ title: s.showTitle, year: s.fileYear }, s, library?.metadataSources ?? []) != null)
     const by: Record<ShowSort, (a: Show, b: Show) => number> = {
-      title: (a, b) => a.showTitle.localeCompare(b.showTitle),
-      year: (a, b) => (b.year ?? 0) - (a.year ?? 0) || a.showTitle.localeCompare(b.showTitle),
+      title: (a, b) => compareTitles(a.showTitle, b.showTitle),
+      year: (a, b) => (b.year ?? 0) - (a.year ?? 0) || compareTitles(a.showTitle, b.showTitle),
       episodes: (a, b) => b.episodeCount - a.episodeCount,
       rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
     }
@@ -230,6 +251,97 @@ export default function LibraryView() {
     return all.filter((t) => !matchesOf(t.fields, t.sources).every((m) => m.match === 'skip'))
   }
   const reviewable = useMemo(() => reviewTargets().length, [visibleShows, items, library, isTv])
+
+  // The jump bar, while the grid is in title order: a TV library's shows are
+  // all here to count; a movie library's letters come with its first page.
+  const gridTitles = useMemo(() => (isTv ? visibleShows.map((s) => s.showTitle) : items.map((m) => m.showTitle ?? m.title)), [isTv, visibleShows, items])
+  const showStarts = useMemo(() => (isTv && showSort === 'title' ? letterStarts(gridTitles) : null), [isTv, showSort, gridTitles])
+  const starts = view === 'home' ? null : isTv ? showStarts : params.sort === 'title' ? letters : null
+  // Where the grid's sticky toolbar ends, once stuck under the header.
+  const stuckBottom = HEADER_HEIGHT + toolbarHeight
+  const queryKey = `${params.q}|${params.sort}|${match}`
+  // The letter just jumped to and where the page came to rest, so a letter
+  // that starts partway along a row isn't read as the one before it.
+  const jumped = useRef<{ letter: JumpLetter; y: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = toolbar.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setToolbarHeight(el.offsetHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [view, library == null])
+
+  /** Bring a card's row up under the toolbar. */
+  function scrollToCard(i: number, letter: JumpLetter) {
+    const card = grid.current?.children[i] as HTMLElement | undefined
+    if (!card) return
+    const y = Math.max(0, Math.round(card.getBoundingClientRect().top + window.scrollY - stuckBottom - 20))
+    jumped.current = { letter, y }
+    window.scrollTo({ top: y })
+  }
+
+  function jumpTo(letter: JumpLetter) {
+    const at = starts?.[letter]
+    if (at === undefined) return
+    setActiveLetter(letter)
+    clearTimeout(jumpTimer.current)
+    pendingJump.current = null
+    if (isTv || at < items.length) return scrollToCard(at, letter)
+    // Further down than loaded: the pages through it, once the pointer settles
+    // on a letter (a drag down the bar passes over several).
+    pendingJump.current = at
+    jumpTimer.current = setTimeout(() => {
+      if (pendingJump.current !== at) return // a new search, sort or filter since
+      setParams((p) => ({ ...p, page: Math.max(p.page, Math.floor(at / PAGE_SIZE) + 1) }))
+    }, 120)
+  }
+  useEffect(() => () => clearTimeout(jumpTimer.current), [])
+  // A new search, sort or filter drops a jump still waiting on its pages.
+  useEffect(() => {
+    pendingJump.current = null
+    jumped.current = null
+  }, [queryKey])
+  useEffect(() => {
+    const at = pendingJump.current
+    if (at == null || at >= items.length) return
+    pendingJump.current = null
+    const letter = titleLetter(gridTitles[at] ?? '')
+    scrollToCard(at, letter)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
+
+  // The letter lit on the bar: that of the first card still showing under the toolbar.
+  useEffect(() => {
+    if (!starts) return
+    let frame = 0
+    const update = () => {
+      const cards = grid.current?.children
+      if (!cards || cards.length === 0) return
+      if (jumped.current && Math.abs(window.scrollY - jumped.current.y) < 2) return setActiveLetter(jumped.current.letter)
+      jumped.current = null
+      const line = stuckBottom + 24
+      // Rows go down in order, so the first one reaching past the line is a search away.
+      let lo = 0
+      let hi = cards.length - 1
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (cards[mid].getBoundingClientRect().bottom > line) hi = mid
+        else lo = mid + 1
+      }
+      setActiveLetter(titleLetter(gridTitles[lo] ?? ''))
+    }
+    const onScroll = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [starts, gridTitles, stuckBottom])
 
   // A title's page opens over the grid, keeping the grid's view in its address
   // so Back lands on the same one.
@@ -312,7 +424,10 @@ export default function LibraryView() {
       ) : (
         <>
           {/* Toolbar */}
-          <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap">
+          <div
+            ref={toolbar}
+            className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap"
+          >
             <span className="font-mono text-[12px] uppercase text-ink-faint tabular-nums">
               {firstLoad ? '…' : `${count.toLocaleString()} ${view === 'offair' ? 'off air' : noun}${q ? ' matching' : ''}`}
             </span>
@@ -383,71 +498,85 @@ export default function LibraryView() {
             </p>
           )}
 
-          {firstLoad ? (
-            <div className={GRID}>
-              {Array.from({ length: 16 }, (_, i) => (
-                <div key={i}>
-                  <Skeleton className="aspect-[2/3] rounded-xl" />
-                  <Skeleton className="h-3.5 w-3/4 mt-2.5" />
+          {/* On a phone the jump bar sits in the page's gutter, so the grid keeps its two columns. */}
+          <div className="flex gap-1 sm:gap-5">
+            <div className="min-w-0 flex-1">
+              {firstLoad ? (
+                <div className={GRID}>
+                  {Array.from({ length: 16 }, (_, i) => (
+                    <div key={i}>
+                      <Skeleton className="aspect-[2/3] rounded-xl" />
+                      <Skeleton className="h-3.5 w-3/4 mt-2.5" />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : isTv ? (
-            visibleShows.length === 0 ? (
-              <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
-            ) : (
-              <div className={GRID}>
-                {visibleShows.map((s) => (
-                  <PosterCard
-                    key={s.showTitle}
-                    title={s.showTitle}
-                    subtitle={`${s.seasonCount} season${s.seasonCount === 1 ? '' : 's'} · ${s.episodeCount} ep`}
-                    badge={s.year ? String(s.year) : undefined}
-                    rating={s.rating}
-                    icon="show"
-                    imageUrl={
-                      s.posterItemId
-                        ? artworkUrl(s.posterItemId, 'show', ART.poster)
-                        : s.tmdbPosterPath
-                          ? s.artItemId
-                            ? artworkUrl(s.artItemId, 'show', ART.poster, s.tmdbPosterPath)
-                            : tmdbImage(s.tmdbPosterPath)
-                          : undefined
-                    }
-                    onClick={() => openShow(s.showTitle)}
-                  />
-                ))}
-              </div>
-            )
-          ) : items.length === 0 ? (
-            <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
-          ) : (
-            <>
-              <div className={GRID}>
-                {items.map((m) => (
-                  <PosterCard
-                    key={m.id}
-                    title={m.title}
-                    subtitle={
-                      m.type === 'music'
-                        ? m.artist ?? m.album ?? undefined
-                        : [m.extra && extraLabel(m.extra), m.year].filter(Boolean).join(' · ') || undefined
-                    }
-                    badge={qualityOf(m.height) ?? undefined}
-                    rating={m.rating}
-                    icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}
-                    imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
-                    // A movie opens its page over the grid; an extra or a clip, a quick look.
-                    onClick={() => (library?.kind === 'movie' && !m.extra ? openMovie(m.id) : setSelectedId(m.id))}
-                  />
-                ))}
-              </div>
-              <div ref={sentinel} className="h-10" />
-              {loading && items.length > 0 && (
-                <div className="flex justify-center py-4 text-[13px] text-ink-faint">Loading more…</div>
+              ) : isTv ? (
+                visibleShows.length === 0 ? (
+                  <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
+                ) : (
+                  <div ref={grid} className={GRID}>
+                    {visibleShows.map((s) => (
+                      <PosterCard
+                        key={s.showTitle}
+                        title={s.showTitle}
+                        subtitle={`${s.seasonCount} season${s.seasonCount === 1 ? '' : 's'} · ${s.episodeCount} ep`}
+                        badge={s.year ? String(s.year) : undefined}
+                        rating={s.rating}
+                        icon="show"
+                        imageUrl={
+                          s.posterItemId
+                            ? artworkUrl(s.posterItemId, 'show', ART.poster)
+                            : s.tmdbPosterPath
+                              ? s.artItemId
+                                ? artworkUrl(s.artItemId, 'show', ART.poster, s.tmdbPosterPath)
+                                : tmdbImage(s.tmdbPosterPath)
+                              : undefined
+                        }
+                        onClick={() => openShow(s.showTitle)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : items.length === 0 ? (
+                <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
+              ) : (
+                <>
+                  <div ref={grid} className={GRID}>
+                    {items.map((m) => (
+                      <PosterCard
+                        key={m.id}
+                        title={m.title}
+                        subtitle={
+                          m.type === 'music'
+                            ? m.artist ?? m.album ?? undefined
+                            : [m.extra && extraLabel(m.extra), m.year].filter(Boolean).join(' · ') || undefined
+                        }
+                        badge={qualityOf(m.height) ?? undefined}
+                        rating={m.rating}
+                        icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}
+                        imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
+                        // A movie opens its page over the grid; an extra or a clip, a quick look.
+                        onClick={() => (library?.kind === 'movie' && !m.extra ? openMovie(m.id) : setSelectedId(m.id))}
+                      />
+                    ))}
+                  </div>
+                  <div ref={sentinel} className="h-10" />
+                  {loading && items.length > 0 && (
+                    <div className="flex justify-center py-4 text-[13px] text-ink-faint">Loading more…</div>
+                  )}
+                </>
               )}
-            </>
-          )}
+            </div>
+            {starts && !firstLoad && count > 0 && (
+              <JumpBar
+                starts={starts}
+                active={activeLetter}
+                onJump={jumpTo}
+                top={stuckBottom + 4}
+                className="-mr-4 sm:-mr-3"
+              />
+            )}
+          </div>
         </>
       )}
 

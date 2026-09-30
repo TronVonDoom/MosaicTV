@@ -79,6 +79,13 @@ TV mode, and a sturdier foundation under all of it.
   The Library page's cards say what's on now from each, and how much is off
   air. Page titles, section headings and tabs across the app take the same
   condensed broadcast type.
+- **A–Z down the side of the grid.** In title order, a library's grid has a
+  jump bar down its right edge: a letter (or a drag down the bar) goes to its
+  first title, and the letter at the top of the grid lights as you scroll.
+  Titles sort as they read — a leading "The", "A" or "An" set aside, as in
+  Plex ("The Matrix" under M), as are case, accents and leading punctuation,
+  and numbers go by value ("Rocky 2" before "Rocky 10"). The grid no longer
+  lists files a scan found gone from disk.
 - **A metadata agent like Plex's.** Each library reads its metadata from
   sources you order on **Sources**: Kodi/Jellyfin **.nfo files** (an .nfo
   that names an id matches by it), **the files' own tags**, and **TMDB** — the

@@ -22,6 +22,7 @@ import type {
   StreamMode,
 } from './domain.js'
 import type { MatchSource, TmdbMatch } from './matching.js'
+import type { JumpLetter } from './titles.js'
 import type { WatermarkConfig } from './overlays.js'
 
 // ── System ──────────────────────────────────────────────────────────────────
@@ -255,7 +256,14 @@ export type MediaItemDetail = MediaItem & {
   parent: { id: number; title: string; year: number | null } | null
 }
 
-export type MediaPage = { total: number; page: number; pageSize: number; items: MediaItem[] }
+export type MediaPage = {
+  total: number
+  page: number
+  pageSize: number
+  items: MediaItem[]
+  /** In title order, on the first page: where each letter's titles start, for the jump bar. */
+  letters?: Partial<Record<JumpLetter, number>>
+}
 export type MediaSort = 'title' | 'year' | 'added' | 'rating'
 /** One title TMDB or TheTVDB offers for Fix match: `id` is its id there. */
 export type MatchCandidate = {

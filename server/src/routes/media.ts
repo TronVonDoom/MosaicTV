@@ -2,7 +2,17 @@ import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { episodesAired } from '../aired.js'
-import { asMatchFilter, asMatchSource, asMetadataSources, MatchPick, type TitleOnAir, type Stored } from '../contract/index.js'
+import {
+  asMatchFilter,
+  asMatchSource,
+  asMetadataSources,
+  compareTitles,
+  letterStarts,
+  MatchPick,
+  type MediaPage,
+  type TitleOnAir,
+  type Stored,
+} from '../contract/index.js'
 import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata.js'
 import { reachedIn, titleOnAir } from '../onAir.js'
 import { readBody } from '../validate.js'
@@ -31,9 +41,12 @@ mediaRouter.get('/', async (req, res) => {
   if (match === 'doubtful') where.id = { in: await doubtfulMovieIds(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) }
   if (match === 'loose') Object.assign(where, { extra: { not: null }, parentId: null, showId: null })
   else where.extra = null
+  // A file gone from disk keeps its row — its channel picks and airings come
+  // back with it, and a folder that fails to mount costs nothing — but it's
+  // not in the library to browse.
+  where.missing = false
   // What no channel's collections bring in.
   const offAir = match === 'offair' && libraryId && !Number.isNaN(libraryId) ? await reachedIn(libraryId) : null
-  if (offAir) where.missing = false
 
   // Title order by default (shows, then season/episode); the library grid also
   // offers newest release, most recently added, and TMDB rating.
@@ -47,13 +60,26 @@ mediaRouter.get('/', async (req, res) => {
           ? [{ rating: 'desc' }, { title: 'asc' }]
           : [{ showTitle: 'asc' }, { season: 'asc' }, { episode: 'asc' }, { title: 'asc' }]
 
-  if (offAir) {
-    // Paged here rather than by an id list in the query, which SQLite caps.
-    const ids = (await prisma.mediaItem.findMany({ where, orderBy, select: { id: true } })).map((m) => m.id).filter((id) => !offAir.ids.has(id))
-    const pageIds = ids.slice((page - 1) * pageSize, page * pageSize)
+  // Title order is put together here rather than by SQLite, whose A–Z goes by
+  // bytes ("xXx" and "Æon Flux" after Z); off air, rather than by an id list
+  // in the query, which SQLite caps. Either way it's paged here.
+  if (sort === 'title' || offAir) {
+    let order = await prisma.mediaItem.findMany({ where, orderBy, select: { id: true, title: true, showTitle: true, season: true, episode: true } })
+    if (offAir) order = order.filter((m) => !offAir.ids.has(m.id))
+    if (sort === 'title')
+      order.sort(
+        (a, b) =>
+          compareTitles(a.showTitle ?? '', b.showTitle ?? '') ||
+          (a.season ?? -1) - (b.season ?? -1) ||
+          (a.episode ?? -1) - (b.episode ?? -1) ||
+          compareTitles(a.title, b.title) ||
+          a.id - b.id,
+      )
+    const pageIds = order.slice((page - 1) * pageSize, page * pageSize).map((m) => m.id)
     const rows = await prisma.mediaItem.findMany({ where: { id: { in: pageIds } } })
     const byId = new Map(rows.map((r) => [r.id, r]))
-    return res.json({ total: ids.length, page, pageSize, items: pageIds.map((id) => byId.get(id)).filter(Boolean) })
+    const letters = sort === 'title' && page === 1 ? letterStarts(order.map((m) => m.showTitle ?? m.title)) : undefined
+    return res.json({ total: order.length, page, pageSize, items: pageIds.map((id) => byId.get(id)!).filter(Boolean), letters } satisfies Stored<MediaPage>)
   }
 
   const [total, items] = await Promise.all([
