@@ -21,12 +21,13 @@ import {
   InfoHint,
   Input,
   LinkButton,
-  PageHeader,
   Select,
   Skeleton,
   cx,
 } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
+import { Kicker, Masthead } from '../components/onair/Masthead'
+import { StatFigure } from '../components/onair/OnAir'
 
 const TABS = SETTINGS_SECTIONS
 
@@ -279,10 +280,20 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader
+      {/* How the station is set to transmit, at a glance beside the title. */}
+      <Masthead
+        kicker={<Kicker items={[{ label: 'System' }, { label: current.label }]} />}
         title="Settings"
-        icon="settings"
-        description="How MosaicTV finds artwork, streams, brands its channels and keeps itself backed up."
+        lead="How MosaicTV finds artwork, streams, brands its channels and keeps itself backed up."
+        aside={
+          configured != null && (
+            <>
+              <StatFigure value={streamMode === 'hls' ? 'HLS' : 'MPEG-TS'} label="Streams" />
+              <StatFigure value={HORIZONS.find((h) => h.hours === horizon)?.label ?? `${horizon} h`} label="Built ahead" />
+              <StatFigure value={tunerCount} label={tunerCount === 1 ? 'Tuner' : 'Tuners'} />
+            </>
+          )
+        }
       />
 
       <div className={cx('grid gap-6 grid-cols-[minmax(0,1fr)]', !railSections && 'lg:grid-cols-[232px_minmax(0,1fr)]')}>

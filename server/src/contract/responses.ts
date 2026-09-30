@@ -479,7 +479,7 @@ export type MediaSearchResult =
   | { kind: 'show'; showTitle: string; libraryId: number; libraryName: string; episodeCount: number }
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
-  | { kind: 'movie'; mediaItemId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
+  | { kind: 'movie'; mediaItemId: number; libraryId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
 
 export type RotationItem = {
   id: number

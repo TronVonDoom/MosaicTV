@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, logsDownloadUrl, type Health, type LogCategory, type LogEntry, type LogLevel } from '../lib/api'
 import { copyText } from '../lib/clipboard'
 import { usePolling } from '../lib/hooks'
-import { Button, InfoHint, LinkButton, PageHeader, Select, cx } from '../components/ui'
+import { Button, InfoHint, LinkButton, Select } from '../components/ui'
+import { Kicker, Masthead } from '../components/onair/Masthead'
+import { OnAirLabel, StatFigure, Tally } from '../components/onair/OnAir'
 import { confirmDialog } from '../lib/confirm'
 
 const LEVELS: { value: LogLevel | 'all'; label: string }[] = [
@@ -34,9 +36,9 @@ const uptime = (s: number) => {
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-/** How the server itself is doing — running, for how long, on what — at the
+/** How the server itself is doing — running, for how long, on what — for the
  *  top of the logs, where a problem report starts. */
-function ServerStatus() {
+function useServerStatus() {
   const [health, setHealth] = useState<Health | null>(null)
   const [reachable, setReachable] = useState<boolean | null>(null)
   const load = useCallback(
@@ -55,40 +57,15 @@ function ServerStatus() {
   }, [load])
   usePolling(load, 30000)
 
-  const ok = reachable === true && !!health?.ffmpeg
-  const tone =
+  const status =
     reachable === null
-      ? { dot: 'bg-amber-400', label: 'Connecting…' }
+      ? { tone: 'next' as const, label: 'Connecting', note: undefined }
       : !reachable
-        ? { dot: 'bg-rose-500', label: 'Server not answering — is the container running?' }
+        ? { tone: 'alert' as const, label: 'Not answering', note: 'Server not answering — is the container running?' }
         : !health?.ffmpeg
-          ? { dot: 'bg-amber-400', label: 'ffmpeg not found — channels can’t stream' }
-          : { dot: 'bg-emerald-400', label: 'Running normally' }
-  const fact = (label: string, value: string, className = 'text-ink-soft') => (
-    <span className="text-ink-faint">
-      {label} <span className={cx('tabular-nums', className)}>{value}</span>
-    </span>
-  )
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 mb-4 rounded-xl border border-edge bg-surface/60 px-4 py-2.5 text-[13px]">
-      <span className="inline-flex items-center gap-2 font-medium text-ink">
-        <span className="relative flex w-2 h-2">
-          {ok && <span className={cx('absolute inset-0 rounded-full pulse-live', tone.dot)} />}
-          <span className={cx('relative w-2 h-2 rounded-full', tone.dot)} />
-        </span>
-        {tone.label}
-      </span>
-      {health && reachable && (
-        <>
-          {/^\d/.test(health.version) && fact('Version', `v${health.version}`)}
-          {fact('Up', uptime(health.uptimeSeconds))}
-          {fact('Node', health.node)}
-          {fact('ffmpeg', health.ffmpeg ? 'available' : 'not found', health.ffmpeg ? 'text-emerald-300' : 'text-rose-300')}
-        </>
-      )}
-    </div>
-  )
+          ? { tone: 'next' as const, label: 'No ffmpeg', note: 'ffmpeg not found — channels can’t stream' }
+          : { tone: 'ok' as const, label: 'Running', note: undefined }
+  return { health: reachable ? health : null, status }
 }
 
 export default function Logs() {
@@ -107,6 +84,7 @@ export default function Logs() {
   const [copied, setCopied] = useState(false)
   const [flash, setFlash] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { health, status } = useServerStatus()
   const stickToBottom = useRef(true)
 
   const refresh = useCallback(async () => {
@@ -197,35 +175,51 @@ export default function Logs() {
 
   return (
     <div>
-      <PageHeader
+      {/* The server's status as a tally and what it runs on, beside the
+          title — where a problem report starts. */}
+      <Masthead
+        kicker={<Kicker items={[{ label: 'System' }, { label: 'Server log' }]} />}
         title="Logs"
-        icon="logs"
-        description={
+        lead={
           <>
-            Stream, ffmpeg, playout and system events — what to send with a bug report.{' '}
-            <InfoHint>
-              Lines raised while serving a viewer are tagged with that stream (e.g. V3 Plex) — click a tag to
-              follow just that one. Copy and Download always take the whole log, debug lines included,
-              whatever the filters show.
-            </InfoHint>
+            <p>
+              Stream, ffmpeg, playout and system events — what to send with a bug report.{' '}
+              <InfoHint>
+                Lines raised while serving a viewer are tagged with that stream (e.g. V3 Plex) — click a tag to
+                follow just that one. Copy and Download always take the whole log, debug lines included,
+                whatever the filters show.
+              </InfoHint>
+            </p>
+            {status.note && <p className="mt-1.5 text-ink-soft">{status.note}</p>}
           </>
         }
-        actions={
+        aside={
           <>
-            <Button variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
-              {copied ? 'Copied' : 'Copy all'}
-            </Button>
-            <LinkButton icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
-              Download
-            </LinkButton>
-            <Button variant="danger" icon="trash" onClick={clearAll}>
-              Clear
-            </Button>
+            <div className="flex flex-col items-start sm:items-end gap-1.5">
+              <Tally tone={status.tone}>{status.label}</Tally>
+              <OnAirLabel className="text-[11.5px]">Server</OnAirLabel>
+            </div>
+            {health && (
+              <>
+                {/^\d/.test(health.version) && <StatFigure value={`v${health.version}`} label="Version" />}
+                <StatFigure value={uptime(health.uptimeSeconds)} label="Up" />
+                <StatFigure value={health.node.replace(/^v/, '')} label="Node" />
+              </>
+            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
+                {copied ? 'Copied' : 'Copy all'}
+              </Button>
+              <LinkButton icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
+                Download
+              </LinkButton>
+              <Button variant="danger" icon="trash" onClick={clearAll}>
+                Clear
+              </Button>
+            </div>
           </>
         }
       />
-
-      <ServerStatus />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select

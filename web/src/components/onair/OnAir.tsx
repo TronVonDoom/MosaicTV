@@ -5,16 +5,18 @@ import { cx } from '../ui'
 // tally lights, headings set like a network's lower-thirds, facts in the
 // guide's mono, and the brand's colours as a test pattern.
 
-type TallyTone = 'live' | 'next' | 'new' | 'off'
+type TallyTone = 'live' | 'next' | 'new' | 'off' | 'ok' | 'alert'
 
 const TALLY: Record<TallyTone, string> = {
   live: 'bg-live text-white',
   next: 'bg-cue text-cue-ink',
   new: 'bg-live text-white',
   off: 'border border-edge-strong text-ink-muted',
+  ok: 'bg-emerald-400 text-emerald-950',
+  alert: 'bg-rose-500 text-white',
 }
 
-/** A tally light: LIVE (red), NEXT (amber), NEW, or OFF AIR. */
+/** A tally light: LIVE (red), NEXT (amber), NEW, OFF AIR — or a status: OK (green), ALERT. */
 export function Tally({ tone, children, className }: { tone: TallyTone; children: ReactNode; className?: string }) {
   return (
     <span

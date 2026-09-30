@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import MediaDetailModal from './MediaDetailModal'
 import { api, logoImageUrl, type Channel, type Library, type MediaSearchResult } from '../lib/api'
@@ -30,6 +30,10 @@ const searchText = (c: Command) => `${c.label} ${c.context ?? ''} ${c.keywords ?
  * in the library itself, so getting to "channel 4's guide" or "that Halloween
  * movie" is a few keystrokes instead of a few clicks.
  *
+ * It's the one search box: a library's page has none of its own. There, the
+ * first row narrows that library's grid to what's typed (the `q` in its
+ * address), and the palette opens on the search already standing.
+ *
  * The catalogue is fetched when the palette opens rather than kept live: it's
  * only read while the overlay is up, and a stale entry costs one wrong
  * navigation, not a broken app.
@@ -44,6 +48,7 @@ export default function CommandPalette({
   onConnect: () => void
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const [channels, setChannels] = useState<Channel[]>([])
@@ -53,11 +58,28 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  // The library whose page this is (or whose grid a title's page is over).
+  const hereId = Number(/^\/library\/(\d+)/.exec(location.pathname)?.[1] ?? NaN)
+  const here = libraries.find((l) => l.id === hereId) ?? null
+
+  // Fresh each time it opens — on a library's grid, with the search standing
+  // there. Set while rendering, so the box mounts with it already in.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setQuery(/^\/library\/\d+\/?$/.test(location.pathname) ? (new URLSearchParams(location.search).get('q') ?? '') : '')
+      setCursor(0)
+      setMedia([])
+    }
+  }
+  // Selected, so typing replaces it.
+  useLayoutEffect(() => {
+    if (open) inputRef.current?.select()
+  }, [open])
+
   useEffect(() => {
     if (!open) return
-    setQuery('')
-    setCursor(0)
-    setMedia([])
     api.channels().then(setChannels).catch(() => {})
     api.libraries().then(setLibraries).catch(() => {})
   }, [open])
@@ -166,12 +188,29 @@ export default function CommandPalette({
                 context: r.year ? String(r.year) : 'Movie',
                 icon: 'movie' as const,
                 group: 'In your library',
-                run: () => setDetailId(r.mediaItemId),
+                // A movie has its page; an extra, only a quick look.
+                run: () => (r.extra ? setDetailId(r.mediaItemId) : navigate(`/library/${r.libraryId}/movie/${r.mediaItemId}`)),
               }
             : null,
       ).filter((c): c is Command => c !== null),
     [media, navigate],
   )
+
+  // On a library's page, what the page's own search box used to do: narrow
+  // its grid (All, or Off air if that's the tab it's on).
+  const hereCmd = useMemo<Command | null>(() => {
+    const q = query.trim()
+    if (!here || !q) return null
+    const view = new URLSearchParams(location.search).get('view') === 'offair' ? 'offair' : 'all'
+    return {
+      id: `here-${here.id}`,
+      label: `Everything matching “${q}”`,
+      context: view === 'offair' ? 'Off air' : undefined,
+      icon: 'search',
+      group: here.name,
+      run: () => navigate(`/library/${here.id}?view=${view}&q=${encodeURIComponent(q)}`),
+    }
+  }, [here, query, location.search, navigate])
 
   const results = useMemo(() => {
     const ranked = commands
@@ -184,8 +223,8 @@ export default function CommandPalette({
     const order: string[] = []
     for (const c of ranked) if (!order.includes(c.group)) order.push(c.group)
     const grouped = order.flatMap((g) => ranked.filter((c) => c.group === g))
-    return [...grouped, ...mediaCmds]
-  }, [commands, mediaCmds, query])
+    return [...(hereCmd ? [hereCmd] : []), ...grouped, ...mediaCmds]
+  }, [commands, mediaCmds, hereCmd, query])
 
   // Keep the highlighted row in range as the result set shrinks.
   useEffect(() => setCursor(0), [query])
@@ -305,7 +344,9 @@ export default function CommandPalette({
           <span className="inline-flex items-center gap-1.5">
             <Kbd>↵</Kbd> to open
           </span>
-          <span className="ml-auto">{query.trim().length >= 2 ? 'Searching your library too' : 'Type to search your library'}</span>
+          <span className="ml-auto">
+            {query.trim().length >= 2 ? 'Searching your library too' : here ? `Type to search ${here.name}` : 'Type to search your library'}
+          </span>
         </div>
       </div>
     </div>

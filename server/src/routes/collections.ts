@@ -156,7 +156,7 @@ collectionsRouter.get('/search', async (req, res) => {
     }),
     prisma.mediaItem.findMany({
       where: { type: 'movie', missing: false, title: { contains: q } },
-      select: { id: true, title: true, year: true, extra: true, parent: { select: { title: true } } },
+      select: { id: true, libraryId: true, title: true, year: true, extra: true, parent: { select: { title: true } } },
       orderBy: [{ extra: 'asc' }, { title: 'asc' }],
       take: 8,
     }),
@@ -193,6 +193,7 @@ collectionsRouter.get('/search', async (req, res) => {
     ...movies.map((m) => ({
       kind: 'movie' as const,
       mediaItemId: m.id,
+      libraryId: m.libraryId,
       title: m.title,
       year: m.year,
       extra: m.extra as ExtraKind | null,

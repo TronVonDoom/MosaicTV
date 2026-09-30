@@ -25,9 +25,10 @@ import MediaDetailModal from '../components/MediaDetailModal'
 import { MatchReview, matchTarget, type MatchTarget } from '../components/FixMatchDialog'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
-import { StatFigure, TestStripe } from '../components/onair/OnAir'
+import { StatFigure } from '../components/onair/OnAir'
+import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
-import { EmptyState, Select, Skeleton, buttonClass, cx } from '../components/ui'
+import { EmptyState, Select, Skeleton, buttonClass } from '../components/ui'
 import { extraLabel } from '../lib/format'
 
 const PAGE_SIZE = 60
@@ -41,32 +42,6 @@ const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
   doubtful: 'Matched automatically to a title whose year or name doesn’t agree with the files. Open one to fix the match, or keep it.',
   loose: 'Featurettes, trailers and the like with no movie to go under — every other extra is listed with its movie. Give one a folder of its own, beside its movie, and scan.',
   offair: 'No channel’s collections bring these in. Open one and use Add to a channel to put it on the air.',
-}
-
-/** The library's views as a network's tabs: condensed caps, a count, the tally under the open one. */
-function ViewTabs({ tabs, active, onChange }: { tabs: { id: View; label: string; count?: number }[]; active: View; onChange: (v: View) => void }) {
-  return (
-    <div role="tablist" className="flex gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
-      {tabs.map((t) => {
-        const on = t.id === active
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={on}
-            onClick={() => onChange(t.id)}
-            className={cx(
-              'shrink-0 inline-flex items-baseline gap-2 py-3 font-display font-bold text-[17px] sm:text-[18px] tracking-[0.12em] uppercase transition-colors',
-              on ? 'text-ink shadow-[inset_0_-3px_0_var(--color-live)]' : 'text-ink-muted hover:text-ink-soft',
-            )}
-          >
-            {t.label}
-            {t.count != null && <span className="font-mono text-[12px] font-normal tracking-normal tabular-nums text-ink-faint">{t.count.toLocaleString()}</span>}
-          </button>
-        )
-      })}
-    </div>
-  )
 }
 
 export default function LibraryView() {
@@ -83,8 +58,6 @@ export default function LibraryView() {
   const [total, setTotal] = useState(0)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
-  const [debounced, setDebounced] = useState('')
   const [showSort, setShowSort] = useState<ShowSort>('title')
   const [keys, setKeys] = useState<SourceKeys>(NO_KEYS)
   // The review filter's titles, being fixed one by one.
@@ -94,12 +67,12 @@ export default function LibraryView() {
   const [showsVersion, setShowsVersion] = useState(0)
   // One object, so a new search, sort or filter and "back to page 1" land
   // together — separately, a stale page-3 fetch could append to the new results.
-  const [params, setParams] = useState<{ page: number; q: string; sort: MediaSort; match: MatchFilter }>({
+  const [params, setParams] = useState<{ page: number; q: string; sort: MediaSort; match: MatchFilter }>(() => ({
     page: 1,
-    q: '',
+    q: (search.get('q') ?? '').trim(),
     sort: 'title',
     match: 'all',
-  })
+  }))
   const request = useRef(0)
   const sentinel = useRef<HTMLDivElement>(null)
 
@@ -109,11 +82,16 @@ export default function LibraryView() {
   const hasHome = matchable
   const viewParam = search.get('view')
   const view: View = !hasHome ? 'all' : viewParam === 'all' || viewParam === 'offair' ? viewParam : 'home'
+  // What the grid is narrowed to. There's no box for it here: the header's
+  // search, the one for the whole app, puts it in the address.
+  const q = view === 'home' ? '' : (search.get('q') ?? '').trim()
   const setView = (v: View) => {
     setSearch(
       (p) => {
-        if (v === 'home') p.delete('view')
-        else p.set('view', v)
+        if (v === 'home') {
+          p.delete('view')
+          p.delete('q')
+        } else p.set('view', v)
         return p
       },
       { replace: false },
@@ -161,11 +139,14 @@ export default function LibraryView() {
   }
   const jobs = useLibraryJobs(reloadAll)
 
-  // Server-side search for flat libraries; wait for typing to settle.
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 250)
-    return () => clearTimeout(t)
-  }, [query])
+  const clearSearch = () =>
+    setSearch(
+      (p) => {
+        p.delete('q')
+        return p
+      },
+      { replace: true },
+    )
 
   // TV: one fetch, then filter and sort in the browser.
   useEffect(() => {
@@ -180,8 +161,8 @@ export default function LibraryView() {
 
   // Movies and the rest: paged from the server. A new search or sort starts over.
   useEffect(() => {
-    setParams((p) => (p.q === debounced ? p : { ...p, q: debounced, page: 1 }))
-  }, [debounced])
+    setParams((p) => (p.q === q ? p : { ...p, q, page: 1 }))
+  }, [q])
   useEffect(() => {
     if (!library || isTv || view === 'home') return
     const mine = ++request.current
@@ -225,8 +206,8 @@ export default function LibraryView() {
 
   const offAirShows = useMemo(() => new Set(home?.offAirShowIds ?? []), [home])
   const visibleShows = useMemo(() => {
-    const q = debounced.toLowerCase()
-    let list = q ? shows.filter((s) => s.showTitle.toLowerCase().includes(q)) : [...shows]
+    const lower = q.toLowerCase()
+    let list = lower ? shows.filter((s) => s.showTitle.toLowerCase().includes(lower)) : [...shows]
     if (view === 'offair') list = list.filter((s) => s.id != null && offAirShows.has(s.id))
     else if (params.match === 'unmatched') list = list.filter((s) => isUnmatched(s, library?.metadataSources ?? []))
     else if (params.match === 'doubtful') list = list.filter((s) => titleDoubt({ title: s.showTitle, year: s.fileYear }, s, library?.metadataSources ?? []) != null)
@@ -237,7 +218,7 @@ export default function LibraryView() {
       rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
     }
     return list.sort(by[showSort])
-  }, [shows, debounced, showSort, params.match, view, offAirShows, library])
+  }, [shows, q, showSort, params.match, view, offAirShows, library])
 
   /** What the review filter shows, as titles to fix one by one — but for
    *  those unmatched by hand everywhere, which were settled already. */
@@ -291,23 +272,11 @@ export default function LibraryView() {
 
   return (
     <div>
-      {/* Masthead */}
-      <div className="mb-6">
-        <TestStripe className="-mt-7 mb-7 -mx-4 sm:-mx-6 lg:-mx-8 3xl:-mx-10" />
-        <div className="flex items-end justify-between gap-x-8 gap-y-5 flex-wrap">
-          <div className="min-w-0">
-            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-faint">
-              <Link to="/library" className="hover:text-ink transition-colors">
-                Library
-              </Link>
-              <span className="text-ink-ghost">/</span>
-              <span className="text-ink-muted truncate">{library?.name ?? '…'}</span>
-            </nav>
-            <h1 className="font-display font-extrabold uppercase text-[56px] sm:text-[80px] lg:text-[96px] leading-[0.84] tracking-[-0.005em] text-ink break-words">
-              {library?.name ?? 'Library'}
-            </h1>
-          </div>
-          <div className="flex items-end gap-6 sm:gap-8 flex-wrap">
+      <Masthead
+        kicker={<Kicker items={[{ label: 'Library', to: '/library' }, { label: library?.name ?? '…' }]} />}
+        title={library?.name ?? 'Library'}
+        aside={
+          <>
             {stats.map((s) => (
               <StatFigure key={s.label} value={s.value} label={s.label} />
             ))}
@@ -319,12 +288,11 @@ export default function LibraryView() {
                 extra={[{ label: 'Folders & what it indexes', icon: 'folder', onSelect: () => navigate('/library#sources') }]}
               />
             )}
-          </div>
-        </div>
-
-        {hasHome && (
-          <div className="mt-6 flex items-center gap-x-6 gap-y-2 flex-wrap border-b border-edge">
-            <ViewTabs
+          </>
+        }
+        tabs={
+          hasHome && (
+            <NetworkTabs
               tabs={[
                 { id: 'home', label: 'Home' },
                 { id: 'all', label: 'All', count: titles },
@@ -333,24 +301,9 @@ export default function LibraryView() {
               active={view}
               onChange={setView}
             />
-            {view === 'home' && (
-              <label className="ml-auto mb-2 relative w-full sm:w-64">
-                <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
-                <input
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value)
-                    if (e.target.value) setView('all')
-                  }}
-                  aria-label={`Find in ${library?.name ?? 'the library'}`}
-                  placeholder={`Find in ${library?.name ?? 'the library'}…`}
-                  className="h-9 w-full rounded-md bg-sunken border border-edge-strong pl-9 pr-3 text-sm text-ink placeholder:text-ink-ghost outline-none focus:border-cue focus:ring-3 focus:ring-cue/20"
-                />
-              </label>
-            )}
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
       <LibraryJobProgress jobs={jobs} libraryId={id} className="mb-5" />
 
@@ -360,28 +313,23 @@ export default function LibraryView() {
         <>
           {/* Toolbar */}
           <div className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-56 max-w-md">
-              <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoFocus={!!query}
-                placeholder={`Search ${kindLabel.toLowerCase()}…`}
-                className="h-9 w-full rounded-lg bg-sunken border border-edge-strong pl-9 pr-8 text-sm text-ink placeholder:text-ink-ghost outline-none transition-[border-color,box-shadow] focus:border-cue focus:ring-3 focus:ring-cue/20"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery('')}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 grid place-items-center w-6 h-6 rounded-md text-ink-faint hover:text-ink hover:bg-white/[0.06]"
-                >
-                  <Icon name="close" size={14} />
-                </button>
-              )}
-            </div>
             <span className="font-mono text-[12px] uppercase text-ink-faint tabular-nums">
-              {firstLoad ? '…' : `${count.toLocaleString()} ${view === 'offair' ? 'off air' : noun}${debounced ? ` matching “${debounced}”` : ''}`}
+              {firstLoad ? '…' : `${count.toLocaleString()} ${view === 'offair' ? 'off air' : noun}${q ? ' matching' : ''}`}
             </span>
+            {/* A search from the header narrows the grid; this undoes it. */}
+            {q && (
+              <span className="inline-flex items-center gap-1 h-7 max-w-64 rounded-md border border-cue/30 bg-cue/[0.08] pl-2.5 pr-1 text-[13px] text-ink">
+                <span className="truncate">“{q}”</span>
+                <button
+                  onClick={clearSearch}
+                  aria-label="Clear search"
+                  title="Show everything again"
+                  className="grid place-items-center w-5 h-5 shrink-0 rounded text-ink-faint hover:text-ink hover:bg-white/[0.06]"
+                >
+                  <Icon name="close" size={13} />
+                </button>
+              </span>
+            )}
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {/* Plex's "Unmatched" filter, one for matches that look wrong, and
                   the extras that found no movie to go under. */}
@@ -446,7 +394,7 @@ export default function LibraryView() {
             </div>
           ) : isTv ? (
             visibleShows.length === 0 ? (
-              <NothingHere searching={!!debounced} filter={match} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
+              <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
             ) : (
               <div className={GRID}>
                 {visibleShows.map((s) => (
@@ -472,7 +420,7 @@ export default function LibraryView() {
               </div>
             )
           ) : items.length === 0 ? (
-            <NothingHere searching={!!debounced} filter={match} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
+            <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
           ) : (
             <>
               <div className={GRID}>
@@ -531,8 +479,30 @@ export default function LibraryView() {
   )
 }
 
-function NothingHere({ searching, filter, onShowAll }: { searching: boolean; filter: MatchFilter; onShowAll: () => void }) {
-  if (searching) return <EmptyState icon="search" title="No matches" description="Try a shorter search, or check the spelling." />
+function NothingHere({
+  searching,
+  filter,
+  onClearSearch,
+  onShowAll,
+}: {
+  searching: boolean
+  filter: MatchFilter
+  onClearSearch: () => void
+  onShowAll: () => void
+}) {
+  if (searching)
+    return (
+      <EmptyState
+        icon="search"
+        title="No matches"
+        description="Try a shorter search, or check the spelling."
+        action={
+          <button onClick={onClearSearch} className={buttonClass('secondary', 'md')}>
+            Clear the search
+          </button>
+        }
+      />
+    )
   if (filter !== 'all')
     return (
       <EmptyState

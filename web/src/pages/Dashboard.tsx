@@ -9,8 +9,10 @@ import { api, type Channel, type ChannelNow, type Playout, type Stats } from '..
 import { formatLongDuration } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
-import { EmptyState, PageHeader, SectionHeading, Skeleton, StatTile, buttonClass } from '../components/ui'
+import { EmptyState, SectionHeading, Skeleton, StatTile, buttonClass } from '../components/ui'
 import Icon from '../components/Icon'
+import { Kicker, Masthead } from '../components/onair/Masthead'
+import { StatFigure } from '../components/onair/OnAir'
 
 // hls.js is only needed once a preview is actually opened.
 const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
@@ -70,20 +72,32 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader
+      <Masthead
+        kicker={
+          <Kicker
+            items={[{ label: 'Broadcast' }, { label: new Date(nowMs).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) }]}
+          />
+        }
         title="Dashboard"
-        icon="dashboard"
-        description="What's on air now and next, plus the library and server behind it."
-        actions={
+        lead="What's on air now and next, plus the library and server behind it."
+        aside={
           <>
-            {onAir.length > 0 && (
-              <Link to="/watch" className={buttonClass('secondary', 'md')}>
-                <Icon name="tv" size={16} /> Watch TV
-              </Link>
+            {channels != null && (
+              <>
+                <StatFigure value={onAir.length} label="On air" />
+                <StatFigure value={onAir.reduce((n, c) => n + c.viewers, 0)} label="Watching" />
+              </>
             )}
-            <Link to="/channels" className={buttonClass('primary', 'md')}>
-              <Icon name="channels" size={16} /> Channels &amp; guide
-            </Link>
+            <div className="flex items-center gap-2 flex-wrap">
+              {onAir.length > 0 && (
+                <Link to="/watch" className={buttonClass('secondary', 'md')}>
+                  <Icon name="tv" size={16} /> Watch TV
+                </Link>
+              )}
+              <Link to="/channels" className={buttonClass('primary', 'md')}>
+                <Icon name="channels" size={16} /> Channels &amp; guide
+              </Link>
+            </div>
           </>
         }
       />

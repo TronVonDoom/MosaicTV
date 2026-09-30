@@ -109,6 +109,18 @@ TV mode, and a sturdier foundation under all of it.
   page. The dashboard traded its greeting for the same header as every other
   page, page headers line up across the app, and icon buttons (the menu, the
   arrows, every close ×) are full size again instead of squeezed to a sliver.
+- **Every page headed the same way.** The movie and TV pages' header — where
+  you are above it, the name in big condensed caps, the page's own figures
+  beside it, its tabs under a rule — heads every page now, each with what it
+  knows: what's on and who's watching on the dashboard and the channel list,
+  the program on now behind a channel's name in its editor, libraries, files
+  and hours on the Library page, the server's state on Logs, streams and
+  tuners on Settings.
+- **One search box.** A library's page has no search box of its own: the one
+  in the top bar names the library you're on, its first row — **Everything
+  matching …** — narrows the grid, and the grid shows what it's narrowed to,
+  with a × to show everything again. A movie found from the top bar opens its
+  page.
 - **Fix match, as in Plex.** A movie's details and a show's page have **Fix
   match**: choose TMDB or TheTVDB, search it by title and year, or paste a
   TMDB, TheTVDB or IMDb link, and pick the right one — a match you pick is

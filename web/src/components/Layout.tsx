@@ -454,6 +454,11 @@ export default function Layout() {
       return !c
     })
 
+  // The header's search is a library's search too (its page has no box of its
+  // own): it names the library you're in, and shows what its grid is narrowed to.
+  const hereLibrary = libraries?.find((l) => l.id === Number(/^\/library\/(\d+)/.exec(location.pathname)?.[1])) ?? null
+  const standing = /^\/library\/\d+\/?$/.test(location.pathname) ? new URLSearchParams(location.search).get('q')?.trim() : ''
+
   // How wide the rail is, for what lies beside it outside this tree: a movie's
   // or show's page (see TitleLayer) is portalled to <body>.
   useEffect(() => {
@@ -509,8 +514,16 @@ export default function Layout() {
             >
               <Icon name="search" size={16} className="shrink-0" />
               <span className="flex-1 truncate">
-                <span className="sm:hidden">Search…</span>
-                <span className="hidden sm:inline">Search channels, shows, settings…</span>
+                {standing ? (
+                  <span className="text-ink">{standing}</span>
+                ) : (
+                  <>
+                    <span className="sm:hidden">{hereLibrary ? `Search ${hereLibrary.name}…` : 'Search…'}</span>
+                    <span className="hidden sm:inline">
+                      {hereLibrary ? `Search ${hereLibrary.name}, channels, settings…` : 'Search channels, shows, settings…'}
+                    </span>
+                  </>
+                )}
               </span>
               <span className="hidden sm:inline-flex">
                 <Kbd>{PALETTE_HINT}</Kbd>

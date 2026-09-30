@@ -19,11 +19,12 @@ import {
   Input,
   Modal,
   ModalHeader,
-  PageHeader,
   SectionHeading,
   Segmented,
   Skeleton,
 } from '../components/ui'
+import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
+import { StatFigure } from '../components/onair/OnAir'
 
 // hls.js is only needed once a preview is actually opened.
 const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
@@ -165,6 +166,7 @@ export default function Channels() {
   const live = all.filter((c) => c.number != null)
   const drafts = all.filter((c) => c.number == null)
   const shown = filter === 'live' ? live : filter === 'drafts' ? drafts : all
+  const watching = live.reduce((n, c) => n + c.viewers, 0)
 
   // The guide below the cards: fetched when the on-air set or the span
   // changes, and again whenever a channel's guide does.
@@ -194,36 +196,33 @@ export default function Channels() {
 
   return (
     <div>
-      <PageHeader
+      <Masthead
+        kicker={<Kicker items={[{ label: 'Broadcast' }, { label: 'Lineup & guide' }]} />}
         title="Channels"
-        icon="channels"
-        description="Every channel you run, what it's airing, and the guide your players see."
-        actions={
-          <Button icon="plus" onClick={() => setCreating(true)}>
-            New channel
-          </Button>
+        lead="Every channel you run, what it's airing, and the guide your players see."
+        aside={
+          <>
+            {channels != null && <StatFigure value={watching} label="Watching" />}
+            <Button icon="plus" onClick={() => setCreating(true)}>
+              New channel
+            </Button>
+          </>
+        }
+        tabs={
+          channels != null &&
+          all.length > 0 && (
+            <NetworkTabs<Filter>
+              tabs={[
+                { id: 'all', label: 'All', count: all.length },
+                { id: 'live', label: 'On air', count: live.length },
+                { id: 'drafts', label: 'Drafts', count: drafts.length },
+              ]}
+              active={filter}
+              onChange={setFilter}
+            />
+          )
         }
       />
-
-      {channels != null && all.length > 0 && (
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-          <Segmented<Filter>
-            size="sm"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'all', label: `All ${all.length}` },
-              { value: 'live', label: `On air ${live.length}` },
-              { value: 'drafts', label: `Drafts ${drafts.length}` },
-            ]}
-          />
-          <span className="text-[12.5px] text-ink-faint">
-            {live.reduce((n, c) => n + c.viewers, 0) > 0
-              ? `${live.reduce((n, c) => n + c.viewers, 0)} watching right now`
-              : 'Nobody watching right now'}
-          </span>
-        </div>
-      )}
 
       {channels == null ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import LibraryBrowse from '../components/LibraryBrowse'
 import LibrarySources from '../components/LibrarySources'
-import { PageHeader, Tabs } from '../components/ui'
+import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
+import { StatFigure } from '../components/onair/OnAir'
+import { api, type Stats } from '../lib/api'
 import { useHashTab } from '../lib/hooks'
 
 // "Browse" and "Sources" used to be two sibling nav items (Browse / Libraries),
 // which asked the user to already know that one showed contents and the other
 // managed folders. They're two views of one thing, so they're two tabs now.
 const TABS = [
-  { id: 'browse', label: 'Browse', icon: 'browse' },
-  { id: 'sources', label: 'Sources', icon: 'libraries' },
+  { id: 'browse', label: 'Browse' },
+  { id: 'sources', label: 'Sources' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
@@ -24,6 +26,12 @@ export default function Library() {
   const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'browse', { libraries: 'sources' })
   // Bumped when Browse's empty state asks Sources to focus its add-library form.
   const [addRequest, setAddRequest] = useState(0)
+  const [stats, setStats] = useState<Stats | null>(null)
+
+  // Re-read on a tab switch, so the figures catch up with a library just added.
+  useEffect(() => {
+    api.stats().then(setStats).catch(() => {})
+  }, [tab])
 
   const startAddLibrary = () => {
     setTab('sources')
@@ -32,9 +40,21 @@ export default function Library() {
 
   return (
     <div>
-      <PageHeader title="Library" icon="libraries" description={DESCRIPTIONS[tab]}>
-        <Tabs tabs={TABS} active={tab} onChange={setTab} />
-      </PageHeader>
+      <Masthead
+        kicker={<Kicker items={[{ label: 'Content' }, { label: TABS.find((t) => t.id === tab)!.label }]} />}
+        title="Library"
+        lead={DESCRIPTIONS[tab]}
+        aside={
+          stats && (
+            <>
+              <StatFigure value={stats.libraries} label={stats.libraries === 1 ? 'Library' : 'Libraries'} />
+              <StatFigure value={stats.items.toLocaleString()} label="Files" />
+              <StatFigure value={Math.round(stats.totalDurationSec / 3600).toLocaleString()} label="Hours" />
+            </>
+          )
+        }
+        tabs={<NetworkTabs<Tab> tabs={TABS} active={tab} onChange={setTab} />}
+      />
 
       {tab === 'browse' && <LibraryBrowse onAddLibrary={startAddLibrary} />}
       {tab === 'sources' && <LibrarySources focusAddForm={addRequest} />}

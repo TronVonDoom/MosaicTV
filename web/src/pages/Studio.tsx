@@ -6,7 +6,9 @@ import AudioStudio from '../components/studio/AudioStudio'
 import ClipsStudio from '../components/studio/ClipsStudio'
 import { api } from '../lib/api'
 import { useHashTab } from '../lib/hooks'
-import { InfoHint, PageHeader, cx } from '../components/ui'
+import { InfoHint, cx } from '../components/ui'
+import { Kicker, Masthead } from '../components/onair/Masthead'
+import { StatFigure } from '../components/onair/OnAir'
 import type { LayoutContext } from '../components/Layout'
 import { STUDIO_SECTIONS } from '../lib/sections'
 
@@ -43,15 +45,18 @@ export default function Studio() {
 
   return (
     <div>
-      <PageHeader
+      <Masthead
+        kicker={<Kicker items={[{ label: 'Content' }, { label: current.label }]} />}
         title="Studio"
-        icon="media"
-        description={
+        lead={
           <>
             Your station's branding kit: the logos, music and clips its idents are made from.{' '}
             <InfoHint>The idents themselves are on each channel's Breaks tab.</InfoHint>
           </>
         }
+        aside={STUDIO_SECTIONS.map((s) => (
+          <StatFigure key={s.id} value={counts[s.id] ?? '–'} label={s.label} />
+        ))}
       />
       <div className={cx('grid gap-6 grid-cols-[minmax(0,1fr)]', !railSections && 'lg:grid-cols-[232px_minmax(0,1fr)]')}>
         <SideNav

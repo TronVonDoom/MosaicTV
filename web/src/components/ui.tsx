@@ -17,7 +17,6 @@ import {
   type SelectHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import Icon, { iconColor, type IconName } from './Icon'
 
@@ -532,52 +531,6 @@ export function ProgressPanel({
 
 // ---- Page scaffolding -------------------------------------------------------
 
-/**
- * The title block every page opens with: heading, one-line description, and an
- * optional cluster of actions pinned to the right.
- *
- * `description` should be a single plain sentence answering "what is this page
- * for" — not the operating manual. Detail belongs in an <InfoHint> next to the
- * control it explains.
- */
-export function PageHeader({
-  title,
-  description,
-  icon,
-  eyebrow,
-  actions,
-  children,
-  className,
-}: {
-  title: ReactNode
-  description?: ReactNode
-  icon?: IconName
-  /** A small line above the title — breadcrumbs, or a section name. */
-  eyebrow?: ReactNode
-  /** Buttons and links, right-aligned on the title row. */
-  actions?: ReactNode
-  /** Anything below the description — usually a <Tabs> strip. */
-  children?: ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cx('mb-7', className)}>
-      {eyebrow && <div className="mb-3 text-[13px] text-ink-faint">{eyebrow}</div>}
-      <div className="flex items-center gap-4 flex-wrap">
-        {icon && <IconTile name={icon} size="md" className="hidden sm:grid" />}
-        {/* The 16rem basis wraps the actions below the text on a phone instead
-            of squeezing the description into a narrow column beside them. */}
-        <div className="min-w-0 flex-[1_1_16rem]">
-          <h1 className="font-display font-extrabold uppercase text-[36px] sm:text-[44px] leading-[0.9] tracking-[0.005em] text-ink">{title}</h1>
-          {description && <p className="text-ink-muted text-sm mt-2 max-w-2xl leading-relaxed">{description}</p>}
-        </div>
-        {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
-      </div>
-      {children && <div className="mt-6">{children}</div>}
-    </div>
-  )
-}
-
 /** A section heading inside a page — smaller than the page title, with room
  *  for a trailing action ("View all →"). */
 export function SectionHeading({
@@ -606,34 +559,6 @@ export function SectionHeading({
       </div>
       {actions && <div className="flex items-center gap-2 flex-wrap max-w-full">{actions}</div>}
     </div>
-  )
-}
-
-/** A breadcrumb trail for the page eyebrow. The last crumb is the current page. */
-export function Breadcrumbs({ items }: { items: { label: ReactNode; to?: string; onClick?: () => void }[] }) {
-  return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 flex-wrap text-[13px]">
-      {items.map((c, i) => {
-        const last = i === items.length - 1
-        const cls = 'text-ink-faint hover:text-ink transition-colors'
-        return (
-          <span key={i} className="inline-flex items-center gap-1.5 min-w-0">
-            {c.to && !last ? (
-              <Link to={c.to} className={cls}>
-                {c.label}
-              </Link>
-            ) : c.onClick && !last ? (
-              <button onClick={c.onClick} className={cls}>
-                {c.label}
-              </button>
-            ) : (
-              <span className={last ? 'text-ink-soft truncate' : 'text-ink-faint'}>{c.label}</span>
-            )}
-            {!last && <Icon name="chevronRight" size={13} className="text-ink-ghost shrink-0" />}
-          </span>
-        )
-      })}
-    </nav>
   )
 }
 
@@ -1023,55 +948,6 @@ export function Menu({
 }
 
 // ---- Navigation -------------------------------------------------------------
-
-/** The underlined tab strip used on Settings and the channel editor. */
-export function Tabs<T extends string>({
-  tabs,
-  active,
-  onChange,
-  className,
-}: {
-  tabs: readonly { id: T; label: string; badge?: number; icon?: IconName }[]
-  active: T
-  onChange: (id: T) => void
-  className?: string
-}) {
-  return (
-    <div className={cx('flex gap-1 border-b border-edge overflow-x-auto no-scrollbar', className)} role="tablist">
-      {tabs.map((t) => {
-        const on = active === t.id
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={on}
-            onClick={() => onChange(t.id)}
-            className={cx(
-              'relative inline-flex items-center gap-2 h-10 px-3.5 font-display font-bold uppercase text-[15px] tracking-[0.1em] whitespace-nowrap transition-colors rounded-t-lg',
-              on ? 'text-ink' : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.03]',
-            )}
-          >
-            {t.icon && <Icon name={t.icon} size={15} className={on ? 'text-indigo-300' : undefined} />}
-            {t.label}
-            {t.badge != null && (
-              <span
-                className={cx(
-                  'font-sans font-medium tracking-normal text-[10.5px] tabular-nums rounded-md px-1.5 leading-[18px] transition-colors',
-                  on ? 'bg-indigo-500/20 text-indigo-200' : 'bg-raised text-ink-faint',
-                )}
-              >
-                {t.badge}
-              </span>
-            )}
-            {on && (
-              <span className="absolute inset-x-2 -bottom-px h-[3px] bg-live" />
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 
 /** An on/off switch — for a setting that saves as it's flipped. */
 export function Switch({

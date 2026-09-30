@@ -8,13 +8,14 @@ import { guideFor, useLiveRefresh } from '../lib/events'
 import { formatClock, formatRemaining } from '../lib/format'
 import ChannelLogo from '../components/ChannelLogo'
 import { ProgramArt } from '../components/ChannelCard'
-import Icon from '../components/Icon'
 import CollectionManager from '../components/CollectionManager'
 import GeneralTab from '../components/channel/GeneralTab'
 import ScheduleTab from '../components/channel/ScheduleTab'
 import BreaksTab from '../components/channel/BreaksTab'
 import GuideTab from '../components/channel/GuideTab'
-import { Badge, Banner, Breadcrumbs, Button, LiveBadge, ProgressBar, Skeleton, Tabs } from '../components/ui'
+import { Banner, Button, Skeleton } from '../components/ui'
+import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
+import { StatFigure, Tally } from '../components/onair/OnAir'
 
 // hls.js is only needed once a preview is actually opened.
 const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
@@ -102,17 +103,12 @@ export default function ChannelEditor() {
   }
 
   const tabs = [
-    { id: 'general', label: 'General', icon: 'settings' } as const,
-    { id: 'collections', label: 'Collections', icon: 'browse', badge: cols.length || undefined } as const,
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      icon: 'clock',
-      badge: ch.rotationItems.length + ch.timeBlocks.length || undefined,
-    } as const,
-    { id: 'breaks', label: 'Breaks', icon: 'tv' } as const,
-    { id: 'guide', label: 'Guide', icon: 'xmltv' } as const,
-  ]
+    { id: 'general', label: 'General' },
+    { id: 'collections', label: 'Collections', count: cols.length || null },
+    { id: 'schedule', label: 'Schedule', count: ch.rotationItems.length + ch.timeBlocks.length || null },
+    { id: 'breaks', label: 'Breaks' },
+    { id: 'guide', label: 'Guide' },
+  ] as const
 
   const unit = ch.number != null ? now?.now ?? null : null
   const progress = unit
@@ -122,73 +118,76 @@ export default function ChannelEditor() {
 
   return (
     <div>
-      <div className="mb-3">
-        <Breadcrumbs items={[{ label: 'Channels', to: '/channels' }, { label: ch.name }]} />
-      </div>
-
-      {/* Identity + what's on air */}
-      <header className="relative overflow-hidden rounded-2xl border border-edge surface-card mb-6">
-        {unit && (
-          <div className="absolute inset-y-0 right-0 w-full md:w-3/5 opacity-60 pointer-events-none mask-fade-b [mask-image:linear-gradient(to_right,transparent,black_45%)]">
-            <ProgramArt unit={unit} logoId={ch.logoId} name={ch.name} />
-          </div>
-        )}
-        <div className="relative flex items-center gap-5 p-5 flex-wrap">
-          <ChannelLogo logoId={ch.logoId} name={ch.name} size={72} className="rounded-2xl" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {ch.number != null ? (
-                <span className="font-mono text-[15px] font-semibold text-indigo-300 tabular-nums">{ch.number}</span>
-              ) : (
-                <Badge title="Give this channel a number to put it on air">Draft</Badge>
-              )}
-              <h1 className="text-[26px] font-semibold tracking-[-0.02em] leading-tight truncate">{ch.name}</h1>
-              {ch.group && <Badge tone="neutral">{ch.group}</Badge>}
-              {unit ? <LiveBadge /> : ch.number != null ? <Badge tone="warn" dot>Off air</Badge> : null}
-              {(now?.viewers ?? 0) > 0 && (
-                <Badge tone="live">
-                  <Icon name="eye" size={12} /> {now!.viewers} watching
-                </Badge>
-              )}
-            </div>
-            {unit ? (
-              <div className="mt-2 max-w-xl">
-                <div className="text-[13.5px] text-ink-soft truncate">
-                  <span className="text-ink-faint">Now · </span>
-                  <span className="font-medium text-ink">{unit.title}</span>
-                  {unit.subtitle && <span className="text-ink-muted"> · {unit.subtitle}</span>}
-                </div>
-                <div className="flex items-center gap-3 mt-2">
-                  <ProgressBar value={progress} tone="live" className="flex-1 max-w-72" />
-                  <span className="text-[11.5px] text-ink-faint tabular-nums whitespace-nowrap">
-                    {formatClock(unit.startTime)} – {formatClock(unit.stopTime)} · {formatRemaining(new Date(unit.stopTime).getTime() - nowMs)}
-                  </span>
-                </div>
+      {/* The channel's name as the network sets it, and what it's airing as a
+          lower-third, over the picture of it. */}
+      <Masthead
+        kicker={<Kicker items={[{ label: 'Channels', to: '/channels' }, ...(ch.group ? [{ label: ch.group }] : []), { label: ch.name }]} />}
+        before={<ChannelLogo logoId={ch.logoId} name={ch.name} size={80} className="rounded-xl shrink-0 hidden sm:grid" />}
+        title={ch.name}
+        backdrop={
+          unit && (
+            <div className="absolute right-0 top-[5px] -bottom-2 w-full md:w-3/5 -mr-4 sm:-mr-6 lg:-mr-8 3xl:-mr-10 opacity-45 pointer-events-none [mask-image:linear-gradient(to_right,transparent,black_55%)]">
+              <div className="absolute inset-0 mask-fade-b">
+                <ProgramArt unit={unit} logoId={ch.logoId} name={ch.name} />
               </div>
-            ) : (
-              <p className="mt-1.5 text-[13.5px] text-ink-muted">
+            </div>
+          )
+        }
+        lead={
+          unit ? (
+            <div className="max-w-xl">
+              <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
+                <Tally tone="live">Now</Tally>
+                <span className="font-mono text-[12.5px] uppercase tabular-nums text-ink-soft">
+                  {formatClock(unit.startTime)} – {formatClock(unit.stopTime)}
+                </span>
+                <span className="min-w-0 truncate font-display font-bold text-[22px] leading-none tracking-[0.02em] uppercase text-ink">{unit.title}</span>
+                {unit.subtitle && <span className="min-w-0 truncate font-mono text-[12.5px] uppercase text-ink-muted">{unit.subtitle}</span>}
+              </div>
+              <div className="flex items-center gap-3 mt-2.5">
+                <div className="flex-1 max-w-80 h-1 rounded-full bg-white/15">
+                  <div className="h-1 rounded-full bg-live" style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
+                </div>
+                <span className="font-mono text-[11.5px] uppercase tabular-nums text-ink-faint whitespace-nowrap">
+                  {formatRemaining(new Date(unit.stopTime).getTime() - nowMs)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 flex-wrap">
+              <Tally tone="off">{ch.number == null ? 'Draft' : 'Off air'}</Tally>
+              <span>
                 {ch.number == null
-                  ? 'A draft — hidden from players until you give it a number on the General tab.'
+                  ? 'Hidden from players until you give it a number on the General tab.'
                   : ch.rotationItems.length + ch.timeBlocks.length === 0
                     ? 'Nothing scheduled yet — add collections, then a rotation or time blocks.'
                     : 'Nothing airing this minute.'}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+              </span>
+            </div>
+          )
+        }
+        aside={
+          <>
             {ch.number != null && (
-              <Button variant="secondary" icon="play" onClick={() => setWatching(true)}>
-                Watch
-              </Button>
+              <>
+                <StatFigure value={ch.number} label="Channel" />
+                <StatFigure value={now?.viewers ?? 0} label="Watching" />
+              </>
             )}
-            <Button variant="secondary" icon="guide" onClick={() => setTab('guide')}>
-              Guide
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <Tabs tabs={tabs} active={tab} onChange={setTab} className="mb-6" />
+            <div className="flex items-center gap-2">
+              {ch.number != null && (
+                <Button variant="secondary" icon="play" onClick={() => setWatching(true)}>
+                  Watch
+                </Button>
+              )}
+              <Button variant="secondary" icon="guide" onClick={() => setTab('guide')}>
+                Guide
+              </Button>
+            </div>
+          </>
+        }
+        tabs={<NetworkTabs<Tab> tabs={tabs} active={tab} onChange={setTab} />}
+      />
 
       {error && <Banner className="mb-5">{error}</Banner>}
 
