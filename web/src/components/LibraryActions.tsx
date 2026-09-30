@@ -1,4 +1,4 @@
-import { api, readsOnline, type Library, type SourceKeys } from '../lib/api'
+import { api, readsOnline, type Library, type LibraryTrash, type SourceKeys } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { useJobStatus } from '../lib/events'
@@ -56,14 +56,57 @@ export function useLibraryJobs(onFinish?: () => void) {
     }
   }
 
+  /** As in Plex: the files a scan found gone from disk — kept till now so
+   *  their picks come back with them — removed for good, once it's said what
+   *  goes with them. */
+  async function emptyTrash(lib: Library) {
+    let trash: LibraryTrash
+    try {
+      trash = await api.libraryTrash(lib.id)
+    } catch (e) {
+      return toast.error(errorMessage(e, 'Could not look in the trash'))
+    }
+    if (trash.unreachable)
+      return toast.error(`${trash.unreachable} can’t be read, or is empty — is the share mounted? Nothing can go until it is: out of reach, every file in it looks gone.`, 7000)
+    if (!trash.files && !trash.shows)
+      return toast.info(trash.back ? `Nothing to remove — ${count(trash.back, 'missing file is', 'missing files are')} back on disk. A scan brings them back.` : 'The trash is empty.', 4000)
+    const goes = [trash.shows && count(trash.shows, 'show that has no files left', 'shows that have no files left'), trash.picks && count(trash.picks, 'place in a channel’s collection', 'places in channels’ collections')].filter(Boolean)
+    const ok = await confirmDialog({
+      title: `Empty the trash in “${lib.name}”?`,
+      message: (
+        <>
+          {count(trash.files, 'file')} a scan found gone from disk {trash.files === 1 ? 'is' : 'are'} removed from MosaicTV for good
+          {goes.length ? `, with ${goes.join(' and ')}` : ''}.{' '}
+          {trash.airings > 0 && `${count(trash.airings, 'broadcast episode loses', 'broadcast episodes lose')} parts; one left with none goes. `}
+          What already aired stays in the history, and a file that comes back later is added as new.
+          {trash.back > 0 && ` ${count(trash.back, 'file marked missing is', 'files marked missing are')} on disk again and ${trash.back === 1 ? 'stays' : 'stay'}.`}
+        </>
+      ),
+      confirmLabel: `Remove ${count(trash.files, 'file')}`,
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      const done = await api.emptyTrash(lib.id)
+      toast.success(`Removed ${count(done.files, 'file')}${done.shows ? ` and ${count(done.shows, 'show')}` : ''} from ${lib.name}`)
+      onFinish?.()
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not empty the trash'), 7000)
+    }
+  }
+
   return {
     scan,
     meta,
     busy: !!(scan?.running || meta?.running),
     startScan,
     startMetadata,
+    emptyTrash,
   }
 }
+
+/** "1 file", "12 files". */
+const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
 export type LibraryJobs = ReturnType<typeof useLibraryJobs>
 
@@ -95,6 +138,13 @@ export function LibraryActions({
       hint: 'every file',
       disabled: jobs.busy,
       onSelect: () => jobs.startScan(lib, true),
+    },
+    {
+      label: 'Empty trash…',
+      icon: 'trash',
+      hint: lib.missingCount ? `${lib.missingCount.toLocaleString()} missing` : 'nothing missing',
+      disabled: jobs.busy || lib.missingCount === 0,
+      onSelect: () => jobs.emptyTrash(lib),
     },
     ...(matchable
       ? ([

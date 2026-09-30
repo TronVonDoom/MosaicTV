@@ -1,9 +1,10 @@
 import { Router } from 'express'
-import { asMetadataSources, LibraryUpdate, type Library, type LibraryHome, type Stored } from '../contract/index.js'
+import { asMetadataSources, LibraryUpdate, type Library, type LibraryHome, type LibraryTrash, type Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { isScanning } from '../scanner/scanner.js'
+import { emptyTrash, trashOf } from '../scanner/trash.js'
 import { matchCounts } from '../metadata.js'
 import { libraryHome } from '../onAir.js'
 import { readBody } from '../validate.js'
@@ -13,7 +14,7 @@ export const librariesRouter = Router()
 const KINDS = ['tv', 'movie', 'music', 'other']
 
 librariesRouter.get('/', async (_req, res) => {
-  const [libs, specials, extras] = await Promise.all([
+  const [libs, specials, extras, missing] = await Promise.all([
     prisma.library.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
@@ -23,6 +24,7 @@ librariesRouter.get('/', async (_req, res) => {
     }),
     prisma.mediaItem.groupBy({ by: ['libraryId'], where: { type: 'episode', season: 0, extra: null, missing: false }, _count: { _all: true } }),
     prisma.mediaItem.groupBy({ by: ['libraryId'], where: { extra: { not: null }, missing: false }, _count: { _all: true } }),
+    prisma.mediaItem.groupBy({ by: ['libraryId'], where: { missing: true }, _count: { _all: true } }),
   ])
   const count = (rows: typeof specials, id: number) => rows.find((r) => r.libraryId === id)?._count._all ?? 0
   res.json(
@@ -36,6 +38,7 @@ librariesRouter.get('/', async (_req, res) => {
       metadataSources: asMetadataSources(l.metadataSources),
       specialCount: count(specials, l.id),
       extraCount: count(extras, l.id),
+      missingCount: count(missing, l.id),
     })),
   )
 })
@@ -68,6 +71,27 @@ librariesRouter.get('/:id/home', async (req, res) => {
   const id = Number(req.params.id)
   if (Number.isNaN(id) || !(await prisma.library.count({ where: { id } }))) return res.status(404).json({ error: 'Library not found' })
   res.json((await libraryHome(id)) satisfies Stored<LibraryHome>)
+})
+
+// GET /api/libraries/:id/trash -> what emptying its trash would remove.
+librariesRouter.get('/:id/trash', async (req, res) => {
+  const id = Number(req.params.id)
+  if (Number.isNaN(id) || !(await prisma.library.count({ where: { id } }))) return res.status(404).json({ error: 'Library not found' })
+  res.json((await trashOf(id)) satisfies Stored<LibraryTrash>)
+})
+
+// DELETE /api/libraries/:id/trash -> remove its files gone from disk for good
+// (see emptyTrash), and what went.
+librariesRouter.delete('/:id/trash', async (req, res) => {
+  const id = Number(req.params.id)
+  if (Number.isNaN(id) || !(await prisma.library.count({ where: { id } }))) return res.status(404).json({ error: 'Library not found' })
+  if (isScanning()) return res.status(409).json({ error: 'A scan is running — empty the trash once it’s done.' })
+  const trash = await emptyTrash(id)
+  if (trash.unreachable)
+    return res.status(409).json({
+      error: `${trash.unreachable} can’t be read, or is empty — is the share mounted? Nothing was removed: with the folder out of reach, every file in it looks gone.`,
+    })
+  res.json(trash satisfies Stored<LibraryTrash>)
 })
 
 // A handful of titles with artwork, for the poster mosaic on a library's card.

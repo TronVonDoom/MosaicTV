@@ -143,6 +143,14 @@ TV mode, and a sturdier foundation under all of it.
   rescan** (every file read again, from scratch), **Match unmatched** and
   **Refresh all metadata**, which looks everything up again but keeps the
   matches you fixed. Deleting a library now asks first.
+- **Empty trash.** A file gone from disk stays known — its places in
+  channels' collections come back with it if it returns — but out of the
+  grid. The library's menu has **Empty trash…** to let such files go for good,
+  as in Plex. Before anything goes it says how many files, shows left with no
+  files, places in collections and broadcast episodes go with them; a file
+  that's back on disk stays, as does what already aired; and nothing goes
+  while a folder holding them can't be read — a share that isn't mounted
+  looks like every file in it gone.
 - **Matched after every scan.** What a scan adds is looked up on TMDB (and
   TheTVDB) straight after it, when there's a key. A folder can name its match the way Plex and
   Jellyfin read it — `{tmdb-603}`, `{imdb-tt0133093}`, `{tvdb-73244}`,
