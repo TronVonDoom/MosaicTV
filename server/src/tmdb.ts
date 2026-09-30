@@ -1,9 +1,9 @@
 import { prisma } from './db.js'
 import { normalizeTitle, type ExternalRef, type MatchCandidate } from './contract/index.js'
 
-// Base URL is overridable so tests can point at a local mock server.
+// Base URLs are overridable so tests and rigs can point at a local mock server.
 const BASE = process.env.TMDB_BASE_URL ?? 'https://api.themoviedb.org/3'
-export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p'
+export const TMDB_IMAGE_BASE = process.env.TMDB_IMAGE_BASE_URL ?? 'https://image.tmdb.org/t/p'
 
 export async function getTmdbKey(): Promise<string | null> {
   const s = await prisma.setting.findUnique({ where: { key: 'tmdb_api_key' } })
@@ -60,6 +60,7 @@ export type TmdbMovie = {
   release_date?: string
   runtime?: number
   production_companies?: { name: string }[]
+  imdb_id?: string | null
   // Appended (see getMovie).
   release_dates?: { results?: { iso_3166_1: string; release_dates: { certification?: string; type?: number }[] }[] }
   credits?: TmdbCredits
@@ -86,6 +87,7 @@ export type TmdbTv = {
   // Appended (see getTv).
   content_ratings?: { results?: { iso_3166_1: string; rating?: string }[] }
   credits?: TmdbCredits
+  external_ids?: { imdb_id?: string | null; tvdb_id?: number | null }
 }
 /** One episode as TMDB lists it — in a season, or in an episode group. */
 export type TmdbEpisode = {
@@ -147,7 +149,8 @@ export const yearOf = (date?: string | null): number | null => (date ? Number(da
 
 export function movieCandidate(m: TmdbMovie): MatchCandidate {
   return {
-    tmdbId: m.id,
+    source: 'tmdb',
+    id: m.id,
     kind: 'movie',
     title: m.title ?? m.original_title ?? '',
     originalTitle: m.original_title && m.original_title !== m.title ? m.original_title : null,
@@ -159,7 +162,8 @@ export function movieCandidate(m: TmdbMovie): MatchCandidate {
 
 export function tvCandidate(t: TmdbTv): MatchCandidate {
   return {
-    tmdbId: t.id,
+    source: 'tmdb',
+    id: t.id,
     kind: 'tv',
     title: t.name ?? t.original_name ?? '',
     originalTitle: t.original_name && t.original_name !== t.name ? t.original_name : null,
@@ -213,8 +217,8 @@ export async function searchShows(key: string, title: string, year: number | nul
 
 /**
  * The one an automatic match takes: the first whose title is the one looked
- * for, if any is — TMDB ranks by popularity too, so an exact title can come
- * second to a better-known near miss — else TMDB's first.
+ * for, if any is — TMDB (and TheTVDB) rank by popularity too, so an exact
+ * title can come second to a better-known near miss — else the first.
  */
 export function bestCandidate(results: MatchCandidate[], title: string): MatchCandidate | null {
   const want = normalizeTitle(title)
@@ -222,21 +226,14 @@ export function bestCandidate(results: MatchCandidate[], title: string): MatchCa
   return exact || results[0] || null
 }
 
-export async function searchMovie(key: string, title: string, year: number | null): Promise<number | null> {
-  return bestCandidate(await searchMovies(key, title, year), title)?.tmdbId ?? null
-}
-
-export async function searchTv(key: string, title: string, year: number | null): Promise<number | null> {
-  return bestCandidate(await searchShows(key, title, year), title)?.tmdbId ?? null
-}
-
 /**
  * The TMDB id another id names, for a movie or a show: TMDB's own (unless a
  * link says it's the other kind), or an IMDb or TheTVDB id looked up through
- * TMDB. Null when TMDB doesn't know it.
+ * TMDB. Null when TMDB doesn't know it (or it's a TheTVDB page's name).
  */
 export async function resolveRef(key: string, ref: ExternalRef, kind: 'movie' | 'tv'): Promise<number | null> {
   if (ref.source === 'tmdb') return ref.kind && ref.kind !== kind ? null : ref.id
+  if (ref.source === 'tvdbSlug') return null
   const r = await tmdbGet<{ movie_results?: { id: number }[]; tv_results?: { id: number }[] }>(key, `/find/${ref.id}`, {
     external_source: ref.source === 'imdb' ? 'imdb_id' : 'tvdb_id',
   })
@@ -248,9 +245,10 @@ export async function getMovie(key: string, id: number): Promise<TmdbMovie | nul
   return tmdbGet<TmdbMovie>(key, `/movie/${id}`, { append_to_response: 'release_dates,credits' })
 }
 
-/** A show's details, with its ratings by country and its credits. */
+/** A show's details, with its ratings by country, its credits, and its ids
+ *  elsewhere (TheTVDB's, IMDb's). */
 export async function getTv(key: string, id: number): Promise<TmdbTv | null> {
-  return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits' })
+  return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits,external_ids' })
 }
 
 /** One season's episodes, as aired — none for a season TMDB doesn't have

@@ -79,6 +79,7 @@ import type {
   LogsResponse,
   MatchCandidate,
   MatchCounts,
+  MatchSource,
   MatchFilter,
   OnAirChannel,
   CastMember,
@@ -130,6 +131,7 @@ export type {
   LogsResponse,
   MatchCandidate,
   MatchCounts,
+  MatchSource,
   MatchFilter,
   OnAirChannel,
   CastMember,
@@ -358,22 +360,25 @@ export const api = {
   renameShow: (id: number, title: string) =>
     request<{ id: number; title: string }>(`/api/shows/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
   // --- matching (Fix match / Unmatch / Refresh metadata, as in Plex) ---
-  // What in a library wants a look: no TMDB match, or a doubtful automatic one.
+  // What in a library wants a look: no match on any source, or a doubtful automatic one.
   libraryMatches: (libraryId: number) => request<MatchCounts>(`/api/libraries/${libraryId}/matches`),
-  // TMDB's titles for a title (and year), or the one a TMDB/IMDb/TheTVDB id or link names.
-  searchMatches: (kind: 'movie' | 'tv', q: string, year?: number | null) =>
+  // One source's titles for a title (and year), or the one a TMDB/TheTVDB/IMDb id or link names there.
+  searchMatches: (source: MatchSource, kind: 'movie' | 'tv', q: string, year?: number | null) =>
     request<{ results: MatchCandidate[] }>(
-      `/api/metadata/search?kind=${kind}&q=${encodeURIComponent(q)}${year ? `&year=${year}` : ''}`,
+      `/api/metadata/search?source=${source}&kind=${kind}&q=${encodeURIComponent(q)}${year ? `&year=${year}` : ''}`,
     ),
-  matchMovie: (id: number, tmdbId: number) =>
-    request<{ ok: true }>(`/api/media/${id}/match`, { method: 'POST', body: JSON.stringify({ tmdbId }) }),
-  unmatchMovie: (id: number) => request<{ ok: true }>(`/api/media/${id}/match`, { method: 'DELETE' }),
+  matchMovie: (id: number, source: MatchSource, sourceId: number) =>
+    request<{ ok: true }>(`/api/media/${id}/match`, { method: 'POST', body: JSON.stringify({ source, id: sourceId }) }),
+  // On one source, or (none named) every one.
+  unmatchMovie: (id: number, source?: MatchSource) =>
+    request<{ ok: true }>(`/api/media/${id}/match${source ? `?source=${source}` : ''}`, { method: 'DELETE' }),
   refreshMovie: (id: number) => request<{ ok: true }>(`/api/media/${id}/refresh`, { method: 'POST' }),
-  matchShow: (id: number, tmdbId: number) =>
-    request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'POST', body: JSON.stringify({ tmdbId }) }),
-  unmatchShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'DELETE' }),
+  matchShow: (id: number, source: MatchSource, sourceId: number) =>
+    request<{ ok: true }>(`/api/shows/${id}/match`, { method: 'POST', body: JSON.stringify({ source, id: sourceId }) }),
+  unmatchShow: (id: number, source?: MatchSource) =>
+    request<{ ok: true }>(`/api/shows/${id}/match${source ? `?source=${source}` : ''}`, { method: 'DELETE' }),
   refreshShow: (id: number) => request<{ ok: true }>(`/api/shows/${id}/refresh`, { method: 'POST' }),
-  // The orders a show's episodes can follow (TMDB's episode groups), and picking one (null: as aired).
+  // The orders a show's episodes can follow (TMDB's episode groups, TheTVDB's orders), and picking one (null: as aired).
   showOrders: (id: number) => request<{ current: string | null; orders: EpisodeOrder[] }>(`/api/shows/${id}/orders`),
   setShowOrder: (id: number, order: string | null) =>
     request<{ ok: true }>(`/api/shows/${id}/order`, { method: 'PUT', body: JSON.stringify({ order }) }),
@@ -419,6 +424,12 @@ export const api = {
     request<{ ok: boolean }>('/api/settings/tmdb', {
       method: 'POST',
       body: JSON.stringify({ apiKey }),
+    }),
+  // TheTVDB's key, and the subscriber PIN a user-supported key needs.
+  saveTvdbKey: (apiKey: string, pin: string | null) =>
+    request<{ ok: boolean }>('/api/settings/tvdb', {
+      method: 'POST',
+      body: JSON.stringify({ apiKey, pin }),
     }),
   startMetadata: (libraryId: number, force = false) =>
     pokeActivity(
@@ -611,9 +622,21 @@ export const api = {
 export const logsDownloadUrl = '/api/logs/download'
 export const backupUrl = '/api/admin/backup'
 
-// Build a TMDB CDN image URL from a stored path like "/abc.jpg".
+/** Which online sources have a key saved (see SettingsInfo). */
+export type SourceKeys = Record<MatchSource, boolean>
+export const NO_KEYS: SourceKeys = { tmdb: false, tvdb: false }
+export const keysOf = (s: SettingsInfo): SourceKeys => ({ tmdb: s.tmdbConfigured, tvdb: s.tvdbConfigured })
+/** Whether a library reads an online source that has a key — so it has something to match on. */
+export const readsOnline = (lib: { metadataSources: MetadataSource[] }, keys: SourceKeys) =>
+  lib.metadataSources.some((s) => (s === 'tmdb' || s === 'tvdb') && keys[s])
+
+/** Whether stored art is an image's address (TheTVDB's) rather than a TMDB path. */
+export const isArtAddress = (art: string) => /^https?:\/\//i.test(art)
+
+// A TMDB CDN image URL from a stored path like "/abc.jpg" — or, for TheTVDB's
+// art, which is stored as its address, that address.
 export function tmdbImage(path: string, size: 'w200' | 'w342' | 'w500' | 'original' = 'w342'): string {
-  return `https://image.tmdb.org/t/p/${size}${path}`
+  return isArtAddress(path) ? path : `https://image.tmdb.org/t/p/${size}${path}`
 }
 
 /**
@@ -634,9 +657,10 @@ export function artworkUrl(
   return `/api/artwork/${id}?type=${type}${w ? `&w=${w}` : ''}${v}`
 }
 
-/** A TMDB poster by its path, through the server's cache (Fix match's results). */
+/** A TMDB poster by its path, through the server's cache (Fix match's
+ *  results) — or a TheTVDB image by its address, as it is. */
 export function tmdbThumb(path: string, size: 'w92' | 'w154' | 'w185' | 'w342' = 'w154'): string {
-  return `/api/artwork/tmdb/${size}/${path.replace(/^\//, '')}`
+  return isArtAddress(path) ? path : `/api/artwork/tmdb/${size}/${path.replace(/^\//, '')}`
 }
 
 /** Thumbnail widths the UI asks for, sized to where the image is shown. */

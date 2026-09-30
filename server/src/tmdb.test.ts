@@ -32,7 +32,12 @@ test.before(async () => {
 test.after(() => server.close())
 
 // Imported after the mock is listening: tmdb.ts reads its base URL on load.
-const tmdb = () => import('./tmdb.js')
+const tmdb = async () => {
+  const t = await import('./tmdb.js')
+  // What an automatic match takes: the best of what the search finds.
+  const searchMovie = async (key: string, title: string, year: number | null) => t.bestCandidate(await t.searchMovies(key, title, year), title)?.id ?? null
+  return { ...t, searchMovie }
+}
 
 test('a remake matches the remake, not the original it shares a title with', async () => {
   const { searchMovie } = await tmdb()

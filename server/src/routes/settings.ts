@@ -1,10 +1,13 @@
 import { Router } from 'express'
 import { getTmdbKey, setTmdbKey, validateKey } from '../tmdb.js'
+import { getTvdbCreds, setTvdbCreds, validateTvdb } from '../tvdb.js'
+import { matchAllNewTitles } from '../metadata.js'
 import { loadWatermark } from '../streaming/overlays.js'
 import {
   AudioLanguageSave,
   StreamModeSave,
   TmdbKeySave,
+  TvdbKeySave,
   WatermarkSave,
   horizonSave,
   tunerCountSave,
@@ -38,6 +41,7 @@ settingsRouter.get('/', async (_req, res) => {
   const modeRow = await prisma.setting.findUnique({ where: { key: 'streamMode' } })
   res.json({
     tmdbConfigured: !!key,
+    tvdbConfigured: !!(await getTvdbCreds()),
     watermark: await loadWatermark(),
     streamMode: modeRow?.value === 'hls' ? ('hls' as const) : ('mpegts' as const),
     tunerCount: await tunerCount(),
@@ -122,6 +126,31 @@ settingsRouter.post('/tmdb', async (req, res) => {
   if (!valid) {
     return res.status(400).json({ error: 'TMDB rejected that key. Double-check it and try again.' })
   }
+  const first = !(await getTmdbKey())
   await setTmdbKey(apiKey)
+  // A first key: every library that reads TMDB looks its titles up there.
+  if (first) void matchAllNewTitles()
   res.json({ ok: true, tmdbConfigured: true })
+})
+
+// Validate and save TheTVDB's key (and a user-supported key's subscriber PIN)
+// in one step. A first key has every library that reads TheTVDB look its
+// titles up there, in the background.
+settingsRouter.post('/tvdb', async (req, res) => {
+  const body = readBody(TvdbKeySave, req, res)
+  if (!body) return
+  const creds = { apiKey: body.apiKey, pin: body.pin?.trim() || null }
+  const r = await validateTvdb(creds)
+  if ('error' in r) {
+    return res.status(r.error === 'rejected' ? 400 : 502).json({
+      error:
+        r.error === 'rejected'
+          ? `TheTVDB refused that key${creds.pin ? ' and PIN' : ''}${r.message ? ` (“${r.message}”)` : ''}. A user-supported key needs your subscriber PIN; a project key needs none.`
+          : 'TheTVDB didn’t answer — try again in a moment.',
+    })
+  }
+  const first = !(await getTvdbCreds())
+  await setTvdbCreds(creds)
+  if (first) void matchAllNewTitles()
+  res.json({ ok: true, tvdbConfigured: true })
 })

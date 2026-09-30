@@ -21,6 +21,7 @@ import {
   type IdentStyle,
   type MemberKind,
 } from './domain.js'
+import { asMatchSource } from './matching.js'
 import { sanitizeComingUp, sanitizeWatermark, type ComingUpConfig } from './overlays.js'
 
 // ── Field readers ───────────────────────────────────────────────────────────
@@ -293,10 +294,12 @@ export type ShowMerge = z.output<typeof ShowMerge>
 
 // ── Matching ────────────────────────────────────────────────────────────────
 
-/** The TMDB title a movie or show is matched to by hand (Fix match). */
-export const MatchPick = z.object({
-  tmdbId: loose.transform((v) => Number(v)).pipe(z.number({ error: 'tmdbId must be a TMDB id' }).int().positive('tmdbId must be a TMDB id')),
-})
+/** The title a movie or show is matched to by hand (Fix match): its id on
+ *  TMDB or TheTVDB. (`{ tmdbId }` alone, as before TheTVDB, is a TMDB id.) */
+export const MatchPick = z
+  .object({ source: loose, id: loose, tmdbId: loose })
+  .transform((b) => ({ source: b.id == null && b.tmdbId != null ? ('tmdb' as const) : asMatchSource(b.source), id: Number(b.id ?? b.tmdbId) }))
+  .pipe(z.object({ source: z.enum(['tmdb', 'tvdb']), id: z.number({ error: 'id must be a TMDB or TheTVDB id' }).int().positive('id must be a TMDB or TheTVDB id') }))
 export type MatchPick = z.output<typeof MatchPick>
 
 // ── Idents ──────────────────────────────────────────────────────────────────
@@ -382,3 +385,5 @@ export const AudioLanguageSave = z.object({
 })
 
 export const TmdbKeySave = z.object({ apiKey: requiredText('apiKey is required') })
+/** TheTVDB's key, and the subscriber PIN a user-supported key needs (none for a project key). */
+export const TvdbKeySave = z.object({ apiKey: requiredText('apiKey is required'), pin: textOrNull })

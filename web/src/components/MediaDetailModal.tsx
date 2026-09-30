@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
 import { api, ART, artworkUrl, type MediaItemDetail } from '../lib/api'
 import { episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
-import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from './FixMatchDialog'
+import { describeMatch, isMatched, MatchLinks, matchTarget, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import CastRow from './CastRow'
 import FileDetails from './title/FileDetails'
 import { Stars } from './title/TitleHero'
@@ -48,17 +48,7 @@ export default function MediaDetailModal({
 
   const target: MatchTarget | null =
     item?.type === 'movie' && !item.extra
-      ? {
-          kind: 'movie',
-          id: item.id,
-          title: item.title,
-          year: item.year,
-          tmdbId: item.tmdbId,
-          tmdbMatch: item.tmdbMatch,
-          tmdbTitle: item.tmdbTitle,
-          tmdbYear: item.tmdbYear,
-          tmdbPosterPath: item.tmdbPosterPath,
-        }
+      ? matchTarget('movie', item, item, item.library.metadataSources)
       : null
   const match = useMatchActions(target, () => {
     setImageOk(true)
@@ -214,7 +204,7 @@ export default function MediaDetailModal({
               </div>
             )}
 
-            {/* Its TMDB match — fixed from here. */}
+            {/* Its match — fixed from here. */}
             {target && status && (
               <div
                 className={cx(
@@ -223,30 +213,19 @@ export default function MediaDetailModal({
                 )}
               >
                 <Icon
-                  name={status.warn ? 'warning' : target.tmdbId != null ? 'success' : 'info'}
+                  name={status.warn ? 'warning' : isMatched(target) ? 'success' : 'info'}
                   size={16}
-                  className={cx('shrink-0', status.warn ? 'text-amber-300' : target.tmdbId != null ? 'text-emerald-400' : 'text-ink-faint')}
+                  className={cx('shrink-0', status.warn ? 'text-amber-300' : isMatched(target) ? 'text-emerald-400' : 'text-ink-faint')}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] text-ink-soft truncate">
                     {status.text}
-                    {target.tmdbId != null && (
-                      <a
-                        href={tmdbPage('movie', target.tmdbId)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ml-1.5 inline-flex items-center text-ink-faint hover:text-cue align-[-2px]"
-                        aria-label="Open on TMDB"
-                        title="Open on TMDB"
-                      >
-                        <Icon name="external" size={13} />
-                      </a>
-                    )}
+                    <MatchLinks target={target} />
                   </div>
                   {status.detail && <div className="text-[12px] text-ink-faint">{status.detail}</div>}
                 </div>
                 <Button size="sm" variant="secondary" icon="search" disabled={match.busy} onClick={match.openFix}>
-                  {target.tmdbId != null ? 'Fix match' : 'Match'}
+                  {isMatched(target) ? 'Fix match' : 'Match'}
                 </Button>
                 <Menu label="More match actions" items={match.items.slice(1)} />
               </div>

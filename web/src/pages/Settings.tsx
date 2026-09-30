@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { api, backupUrl, logoImageUrl, AUDIO_LANGUAGES, type StreamMode, type WatermarkConfig } from '../lib/api'
 import { errorMessage } from '../lib/errors'
 import WatermarkFields from '../components/WatermarkFields'
@@ -97,6 +97,10 @@ export default function Settings() {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [key, setKey] = useState('')
   const [saving, setSaving] = useState(false)
+  const [tvdbConfigured, setTvdbConfigured] = useState<boolean | null>(null)
+  const [tvdbKey, setTvdbKey] = useState('')
+  const [tvdbPin, setTvdbPin] = useState('')
+  const [tvdbSaving, setTvdbSaving] = useState(false)
   const [wm, setWm] = useState<WatermarkConfig | null>(null)
   const [streamMode, setStreamMode] = useState<StreamMode>('mpegts')
   const [horizon, setHorizon] = useState(48)
@@ -122,6 +126,7 @@ export default function Settings() {
       .settings()
       .then((s) => {
         setConfigured(s.tmdbConfigured)
+        setTvdbConfigured(s.tvdbConfigured)
         setWm(s.watermark)
         setStreamMode(s.streamMode)
         setHorizon(s.playoutHorizonHours)
@@ -240,13 +245,31 @@ export default function Settings() {
     setSaving(true)
     try {
       await api.saveTmdbKey(key.trim())
+      const first = !configured
       setConfigured(true)
       setKey('')
-      toast.success('TMDB key saved and verified')
+      toast.success(first ? 'TMDB key saved — libraries that read TMDB are looking their titles up now' : 'TMDB key saved and verified')
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to save key'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveTvdb(e: React.FormEvent) {
+    e.preventDefault()
+    setTvdbSaving(true)
+    try {
+      await api.saveTvdbKey(tvdbKey.trim(), tvdbPin.trim() || null)
+      const first = !tvdbConfigured
+      setTvdbConfigured(true)
+      setTvdbKey('')
+      setTvdbPin('')
+      toast.success(first ? 'TheTVDB key saved — libraries that read TheTVDB are looking their titles up now' : 'TheTVDB key saved and verified')
+    } catch (err) {
+      toast.error(errorMessage(err, 'Failed to save key'))
+    } finally {
+      setTvdbSaving(false)
     }
   }
 
@@ -328,7 +351,71 @@ export default function Settings() {
             </p>
           )}
         </SettingsCard>
-        <LibraryMetadataCard configured={configured} />
+        <SettingsCard
+          title="TheTVDB"
+          badge={
+            tvdbConfigured != null && (
+              <Badge tone={tvdbConfigured ? 'good' : 'neutral'}>
+                {tvdbConfigured ? 'configured' : 'not set'}
+              </Badge>
+            )
+          }
+          description={
+            <>
+              A second source for posters, summaries and episode details — and the DVD and absolute orders
+              older shows are often numbered by. Each library reads it after TMDB, filling in what TMDB
+              doesn’t have, unless you move it up under the library’s{' '}
+              <Link to="/library#sources" className="text-indigo-300 hover:text-indigo-200">
+                Sources
+              </Link>
+              . Get a key from{' '}
+              <a
+                href="https://thetvdb.com/api-information"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-300 hover:text-indigo-200"
+              >
+                TheTVDB → API information
+              </a>
+              .{' '}
+              <InfoHint>
+                A <span className="text-ink">user-supported</span> key also needs your TheTVDB subscriber
+                PIN (from your account page); a project key needs none. MosaicTV logs in with them before
+                saving, so a bad key or PIN fails here rather than silently during a scan.
+              </InfoHint>
+            </>
+          }
+        >
+          <form onSubmit={saveTvdb} className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                className="flex-1 min-w-0 font-mono"
+                aria-label="TheTVDB API key"
+                placeholder={tvdbConfigured ? '•••••••• (enter a new key to replace)' : 'Paste your TheTVDB API key'}
+                value={tvdbKey}
+                onChange={(e) => setTvdbKey(e.target.value)}
+                required
+              />
+              <Input
+                type="password"
+                className="w-28 font-mono"
+                aria-label="Subscriber PIN"
+                placeholder="PIN"
+                autoComplete="off"
+                value={tvdbPin}
+                onChange={(e) => setTvdbPin(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-ink-faint">The PIN is only for a user-supported key.</p>
+              <Button type="submit" disabled={tvdbSaving || !tvdbKey.trim()} className="shrink-0">
+                {tvdbSaving ? 'Verifying…' : 'Save & verify'}
+              </Button>
+            </div>
+          </form>
+        </SettingsCard>
+        <LibraryMetadataCard keys={configured == null || tvdbConfigured == null ? null : { tmdb: configured, tvdb: tvdbConfigured }} />
         </div>
       )}
 

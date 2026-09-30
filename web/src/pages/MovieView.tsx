@@ -12,7 +12,7 @@ import FileDetails from '../components/title/FileDetails'
 import TitleOnAirSection from '../components/onair/TitleOnAirSection'
 import AddToChannel from '../components/onair/AddToChannel'
 import { OnAirHeading, RatingBox, Tally } from '../components/onair/OnAir'
-import { describeMatch, tmdbPage, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
+import { describeMatch, isMatched, MatchLinks, matchTarget, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
 import Icon from '../components/Icon'
 import { Button, EmptyState, Skeleton, cx, buttonClass } from '../components/ui'
 
@@ -114,17 +114,7 @@ export default function MovieView() {
 
   const target: MatchTarget | null =
     item && item.type === 'movie' && !item.extra
-      ? {
-          kind: 'movie',
-          id: item.id,
-          title: item.title,
-          year: item.year,
-          tmdbId: item.tmdbId,
-          tmdbMatch: item.tmdbMatch,
-          tmdbTitle: item.tmdbTitle,
-          tmdbYear: item.tmdbYear,
-          tmdbPosterPath: item.tmdbPosterPath,
-        }
+      ? matchTarget('movie', item, item, item.library.metadataSources)
       : null
   const match = useMatchActions(target, () => {
     void load()
@@ -221,7 +211,7 @@ export default function MovieView() {
         genres={genres}
         status={
           status &&
-          (status.warn || target?.tmdbId == null) && (
+          (status.warn || !isMatched(target!)) && (
             <div className={cx('flex items-center gap-1.5 text-[13px]', status.warn ? 'text-amber-300' : 'text-ink-muted')}>
               <Icon name={status.warn ? 'warning' : 'info'} size={14} className="shrink-0" />
               <span>
@@ -229,7 +219,7 @@ export default function MovieView() {
                 {status.detail && <span className="text-ink-faint"> · {status.detail}</span>}
               </span>
               <button onClick={match.openFix} className="ml-1 font-medium text-cue hover:text-amber-200">
-                {target?.tmdbId != null ? 'Fix match' : 'Match'}
+                {isMatched(target!) ? 'Fix match' : 'Match'}
               </button>
             </div>
           )
@@ -297,30 +287,19 @@ export default function MovieView() {
           {target && status && (
             <div className="flex items-center gap-3 flex-wrap rounded-xl border border-edge bg-sunken px-5 py-3.5">
               <Icon
-                name={status.warn ? 'warning' : target.tmdbId != null ? 'success' : 'info'}
+                name={status.warn ? 'warning' : isMatched(target) ? 'success' : 'info'}
                 size={16}
-                className={cx('shrink-0', status.warn ? 'text-amber-300' : target.tmdbId != null ? 'text-emerald-400' : 'text-ink-faint')}
+                className={cx('shrink-0', status.warn ? 'text-amber-300' : isMatched(target) ? 'text-emerald-400' : 'text-ink-faint')}
               />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] text-ink-soft">
                   {status.text}
-                  {target.tmdbId != null && (
-                    <a
-                      href={tmdbPage('movie', target.tmdbId)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-1.5 inline-flex items-center text-ink-faint hover:text-cue align-[-2px]"
-                      aria-label="Open on TMDB"
-                      title="Open on TMDB"
-                    >
-                      <Icon name="external" size={13} />
-                    </a>
-                  )}
+                  <MatchLinks target={target} />
                 </div>
                 {status.detail && <div className="text-[12px] text-ink-faint">{status.detail}</div>}
               </div>
               <Button size="sm" variant="secondary" icon="search" disabled={match.busy} onClick={match.openFix}>
-                {target.tmdbId != null ? 'Fix match' : 'Match'}
+                {isMatched(target) ? 'Fix match' : 'Match'}
               </Button>
             </div>
           )}

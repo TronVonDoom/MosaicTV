@@ -44,5 +44,6 @@ Authelia/Authentik.
   (`/media`, override with `MEDIA_ROOT`) — it can't wander the host
   filesystem.
 - Media is only ever read, never modified.
-- Nothing phones home; the only outbound calls are to TMDB (metadata you
-  request) and any logo URLs you configure.
+- Nothing phones home; the only outbound calls are to TMDB and TheTVDB
+  (metadata you request, once you add their keys) and any logo URLs you
+  configure.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, type Library, type LibraryKind } from '../../lib/api'
+import { api, readsOnline, type Library, type LibraryKind, type SourceKeys } from '../../lib/api'
 import { type IconName } from '../Icon'
 import { LibraryJobProgress, useLibraryJobs } from '../LibraryActions'
 import { Button, Card, CardHeader, IconTile, Menu } from '../ui'
@@ -15,11 +15,11 @@ function ago(iso: string): string {
 }
 
 /**
- * TMDB artwork and descriptions per library, from Settings — the same two
+ * TMDB and TheTVDB artwork and descriptions per library, from Settings — the same two
  * fetches as each library's own menu (Match unmatched, Refresh all metadata),
  * asked about the same way. A single wrong match is fixed on the title itself.
  */
-export default function LibraryMetadataCard({ configured }: { configured: boolean | null }) {
+export default function LibraryMetadataCard({ keys }: { keys: SourceKeys | null }) {
   const [libs, setLibs] = useState<Library[]>([])
   const jobs = useLibraryJobs()
   const status = jobs.meta
@@ -36,13 +36,14 @@ export default function LibraryMetadataCard({ configured }: { configured: boolea
       <CardHeader
         icon="sparkles"
         title="Library metadata"
-        description="Posters, backdrops, descriptions and ratings from TMDB. What a scan adds is matched straight after it; fix a wrong match from the movie or show itself."
+        description="Posters, backdrops, descriptions and ratings from TMDB and TheTVDB, in the order each library reads them. What a scan adds is matched straight after it; fix a wrong match from the movie or show itself."
       />
       <LibraryJobProgress jobs={jobs} className="mb-4" />
       <ul className="divide-y divide-edge/70 rounded-xl border border-edge bg-sunken/50">
         {libs.map((l) => {
           const busy = running?.libraryId === l.id
-          const off = !configured || jobs.busy || !(l.kind === 'tv' || l.kind === 'movie')
+          const online = !!keys && readsOnline(l, keys)
+          const off = !online || jobs.busy || !(l.kind === 'tv' || l.kind === 'movie')
           return (
             <li key={l.id} className="flex items-center gap-3 px-3.5 py-3">
               <IconTile name={KIND_ICON[l.kind]} size="sm" />
@@ -57,7 +58,7 @@ export default function LibraryMetadataCard({ configured }: { configured: boolea
                 loading={busy}
                 disabled={off}
                 onClick={() => jobs.startMetadata(l, false)}
-                title={configured ? 'Look up what has no TMDB match' : 'Save a TMDB key first'}
+                title={online ? 'Look up what no source has a match for' : 'Save a key for a source this library reads first'}
               >
                 {busy ? 'Matching' : 'Match unmatched'}
               </Button>

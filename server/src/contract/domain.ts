@@ -59,10 +59,11 @@ export type ExtraKind = (typeof EXTRA_KINDS)[number]
 
 /** Where a library's metadata can come from, as Plex's agent lists its
  *  sources: Kodi/Jellyfin .nfo files beside the media, the files' own tags,
- *  and TMDB. A library reads the ones it has on, first to last. */
-export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb'] as const
+ *  TMDB and TheTVDB. A library reads the ones it has on, first to last —
+ *  TheTVDB after TMDB unless it's moved up, so it fills in what TMDB lacks. */
+export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb', 'tvdb'] as const
 export type MetadataSource = (typeof METADATA_SOURCES)[number]
-export const DEFAULT_METADATA_SOURCES: MetadataSource[] = ['nfo', 'tmdb']
+export const DEFAULT_METADATA_SOURCES: MetadataSource[] = ['nfo', 'tmdb', 'tvdb']
 
 /** A library's sources as stored ("nfo,tmdb"): known ones, in order, once each. */
 export function asMetadataSources(v: unknown): MetadataSource[] {

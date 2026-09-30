@@ -20,7 +20,7 @@ import EpisodeOrderDialog from '../components/EpisodeOrderDialog'
 import MediaDetailModal from '../components/MediaDetailModal'
 import AiringsEditor from '../components/AiringsEditor'
 import ShowIdentityDialog from '../components/ShowIdentityDialog'
-import { describeMatch, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
+import { describeMatch, isMatched, matchTarget, useMatchActions, type MatchTarget } from '../components/FixMatchDialog'
 import TitleLayer from '../components/title/TitleLayer'
 import TitleHero, { HeroButton, HeroMenu, Stars, TITLE_WIDTH } from '../components/title/TitleHero'
 import Story, { Slate } from '../components/title/Story'
@@ -225,27 +225,16 @@ export default function ShowView() {
   const loadDetail = () => api.showDetail(id, showTitle).then(setDetail).catch(() => {})
   const loadOnAir = (showId: number) => api.showOnAir(showId).then(setOnAir).catch(() => {})
 
-  // Its TMDB match: fixed, refreshed or taken away from the show's menu.
-  const matchTarget: MatchTarget | null =
+  // Its matches: fixed, refreshed or taken away from the show's menu.
+  const showMatch: MatchTarget | null =
     detail?.id != null
-      ? {
-          kind: 'show',
-          id: detail.id,
-          title: showTitle,
-          year: detail.fileYear,
-          tmdbId: detail.tmdbId,
-          tmdbMatch: detail.tmdbMatch,
-          tmdbTitle: detail.tmdbTitle,
-          tmdbYear: detail.tmdbYear,
-          tmdbPosterPath: detail.tmdbPosterPath,
-          episodeCount: detail.episodeCount,
-        }
+      ? matchTarget('show', { ...detail, id: detail.id }, { title: showTitle, year: detail.fileYear }, detail.metadataSources, detail.episodeCount)
       : null
-  const match = useMatchActions(matchTarget, () => {
+  const match = useMatchActions(showMatch, () => {
     void loadDetail()
     grid?.showsChanged?.()
   })
-  const matchStatus = matchTarget && describeMatch(matchTarget)
+  const matchStatus = showMatch && describeMatch(showMatch)
 
   useEffect(() => {
     if (!showTitle) return
@@ -452,7 +441,7 @@ export default function ShowView() {
           <>
             {/* Only when the match wants a look (or was taken away): the
                 show's menu is where it's fixed. */}
-            {matchStatus && (matchStatus.warn || matchTarget?.tmdbId == null) && (
+            {matchStatus && showMatch && (matchStatus.warn || !isMatched(showMatch)) && (
               <div className={cx('flex items-center gap-1.5 text-[13px]', matchStatus.warn ? 'text-amber-300' : 'text-ink-muted')}>
                 <Icon name={matchStatus.warn ? 'warning' : 'info'} size={14} className="shrink-0" />
                 <span>
@@ -460,7 +449,7 @@ export default function ShowView() {
                   {matchStatus.detail && <span className="text-ink-faint"> · {matchStatus.detail}</span>}
                 </span>
                 <button onClick={match.openFix} className="ml-1 font-medium text-cue hover:text-amber-200">
-                  {matchTarget?.tmdbId != null ? 'Fix match' : 'Match'}
+                  {showMatch && isMatched(showMatch) ? 'Fix match' : 'Match'}
                 </button>
               </div>
             )}
@@ -487,7 +476,7 @@ export default function ShowView() {
                   { label: 'Merge into another show…', icon: 'layers', onSelect: () => setIdentity('merge') },
                   'divider',
                   ...match.items,
-                  ...(detail.tmdbId != null ? [{ label: 'Episode order…', icon: 'list' as const, onSelect: () => setOrdering(true) }] : []),
+                  ...(showMatch && isMatched(showMatch) ? [{ label: 'Episode order…', icon: 'list' as const, onSelect: () => setOrdering(true) }] : []),
                 ]}
               />
             </>

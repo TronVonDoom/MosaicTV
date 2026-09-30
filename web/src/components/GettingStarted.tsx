@@ -52,7 +52,7 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
 
   const steps: Step[] = [
     { title: 'Add a library', hint: 'Point at a folder under /media', to: '/library#sources', done: stats.libraries > 0, icon: 'folder' },
-    { title: 'Scan your media', hint: 'Index shows & movies, then grab TMDB art', to: '/library#sources', done: stats.items > 0, icon: 'libraries' },
+    { title: 'Scan your media', hint: 'Index shows & movies, then grab TMDB or TheTVDB art', to: '/library#sources', done: stats.items > 0, icon: 'libraries' },
     { title: 'Create a channel', hint: 'Name it — the number can wait', to: '/channels', done: channels.length > 0, icon: 'channels' },
     { title: 'Schedule it', hint: 'Collections, then a rotation or time blocks', to: `${channelPath}#schedule`, done: scheduled, icon: 'calendar' },
     { title: 'Build the guide', hint: 'Guide tab → Build', to: `${channelPath}#guide`, done: built, icon: 'guide' },

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
 import { METADATA_SOURCES } from '@contract'
-import { api, type Library, type LibraryKind, type MetadataSource } from '../lib/api'
+import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type SourceKeys } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
@@ -24,6 +24,10 @@ const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string }> = {
     hint: 'Titles and descriptions written into the files. Often left over from a release — worth it only if you tag your own.',
   },
   tmdb: { label: 'TMDB', hint: 'The match and posters, summaries, cast, ratings and episode details (needs a key in Settings).' },
+  tvdb: {
+    label: 'TheTVDB',
+    hint: 'A second match — posters, summaries, cast and episode details, and its DVD and absolute orders (needs a key in Settings). After TMDB it fills in what TMDB lacks; above it, it goes first.',
+  },
 }
 
 /**
@@ -99,7 +103,7 @@ type PickerTarget =
  *  LibraryBrowse. */
 export default function LibrarySources({ focusAddForm }: { focusAddForm?: number }) {
   const [libraries, setLibraries] = useState<Library[]>([])
-  const [tmdbConfigured, setTmdbConfigured] = useState(false)
+  const [keys, setKeys] = useState<SourceKeys | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<{ name: string; kind: LibraryKind; folders: string[] }>({
     name: '',
@@ -124,7 +128,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
 
   useEffect(() => {
     refresh()
-    api.settings().then((s) => setTmdbConfigured(s.tmdbConfigured)).catch(() => {})
+    api.settings().then((s) => setKeys(keysOf(s))).catch(() => {})
   }, [])
 
   /** Run an action, surfacing any failure in the page's error banner. */
@@ -203,10 +207,10 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
         <Banner className="mb-5">{error}</Banner>
       )}
 
-      {!tmdbConfigured && (
+      {keys && !keys.tmdb && !keys.tvdb && (
         <Banner tone="accent" className="mb-5">
-          Add a TMDB API key in{' '}
-          <Link to="/settings" className="text-violet-300 hover:text-violet-200 font-medium">
+          Add a TMDB or TheTVDB key in{' '}
+          <Link to="/settings#metadata" className="text-violet-300 hover:text-violet-200 font-medium">
             Settings
           </Link>{' '}
           to fetch posters, overviews, and ratings for movies &amp; shows.
@@ -328,7 +332,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 <LibraryActions
                   lib={lib}
                   jobs={jobs}
-                  tmdbConfigured={tmdbConfigured}
+                  keys={keys ?? NO_KEYS}
                   extra={[{ label: 'Delete library…', icon: 'trash', danger: true, disabled: busy, onSelect: () => handleDelete(lib) }]}
                 />
               </div>

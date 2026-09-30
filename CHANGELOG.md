@@ -92,6 +92,17 @@ TV mode, and a sturdier foundation under all of it.
   name, and TMDB's never replaces a file's. A show can follow another of TMDB's **episode orders**
   (DVD, absolute, production…) from its menu; the files keep their numbers.
   The guide carries it all: credits, first-aired dates, genres, ratings.
+- **TheTVDB, beside TMDB.** A second online source, with its own key (and a
+  subscriber PIN for a user-supported key) under **Settings**. Every library
+  reads it after TMDB, so it fills in what TMDB doesn't have — a movie or show
+  TMDB has never heard of, a summary, a rating, an episode's name or still —
+  and moved above TMDB on **Sources** it goes first. A title keeps a match on
+  each; one source's match finds the title on the other by the ids it lists
+  (TMDB names a show's TheTVDB id, TheTVDB its TMDB id) instead of a second
+  guess by title, and follows it when you fix the first. Where the two number
+  an episode differently, the first one's episode wins and the other's details
+  are left off. A show can follow TheTVDB's **DVD** or **absolute** order too.
+  Saving a first key looks every library's titles up there once.
 - **A tidier frame.** The sidebar gained entries under its items — every
   channel, each library, the Studio and Settings sections — and took Live TV
   setup from the top bar; the server status moved to the top of the Logs
@@ -99,19 +110,22 @@ TV mode, and a sturdier foundation under all of it.
   page, page headers line up across the app, and icon buttons (the menu, the
   arrows, every close ×) are full size again instead of squeezed to a sliver.
 - **Fix match, as in Plex.** A movie's details and a show's page have **Fix
-  match**: search TMDB by title and year, or paste a TMDB or IMDb link, and
-  pick the right one — a match you pick is kept through every refresh after.
-  **Unmatch** takes one away for good (home videos TMDB doesn't have), and
-  **Refresh metadata** fetches one afresh. A library's filter lists what's
-  **Unmatched**, and **Check matches** lists automatic matches whose year or
-  title doesn't agree with the files — a remake matched to its original, a
-  reboot to the 1991 show.
+  match**: choose TMDB or TheTVDB, search it by title and year, or paste a
+  TMDB, TheTVDB or IMDb link, and pick the right one — a match you pick is
+  kept through every refresh after, and the other source follows it. **Not
+  there** leaves a title unmatched on one source; **Unmatch** takes every
+  match away for good (home videos neither has), and **Refresh metadata**
+  fetches one afresh. A library's filter lists what's **Unmatched** (on every
+  source), and **Check matches** lists automatic matches whose year or title
+  doesn't agree with the files — a remake matched to its original, a reboot
+  to the 1991 show. **Fix them one by one** walks through either list in the
+  Fix match dialog, a pick (or Skip) going on to the next.
 - **A library's menu.** On its page and under Sources: **Scan**, **Force
   rescan** (every file read again, from scratch), **Match unmatched** and
   **Refresh all metadata**, which looks everything up again but keeps the
   matches you fixed. Deleting a library now asks first.
-- **Matched after every scan.** What a scan adds is looked up on TMDB straight
-  after it, when there's a key. A folder can name its match the way Plex and
+- **Matched after every scan.** What a scan adds is looked up on TMDB (and
+  TheTVDB) straight after it, when there's a key. A folder can name its match the way Plex and
   Jellyfin read it — `{tmdb-603}`, `{imdb-tt0133093}`, `{tvdb-73244}`,
   `[tmdbid-603]` — and the id no longer ends up in the title. A show whose
   folder year finds nothing is looked up without it, an exact title wins over

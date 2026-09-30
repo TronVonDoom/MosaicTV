@@ -151,6 +151,8 @@ has shipped.
 | `DATABASE_URL` | `file:/app/data/mosaictv.db` | SQLite database location |
 | `MEDIA_ROOT` | `/media` | Root the in-app folder picker may browse |
 | `TMDB_API_KEY` | – | TMDB key (can also be set in the UI under Settings) |
+| `TVDB_API_KEY` / `TVDB_PIN` | – | TheTVDB key, and the subscriber PIN a user-supported key needs (both can also be set under Settings) |
+| `TVDB_LANGUAGE` | `eng` | The language TheTVDB's names and summaries are read in (ISO 639-2) |
 | `NVIDIA_VISIBLE_DEVICES` | – | `all` or a GPU UUID, for NVIDIA transcoding |
 | `NVIDIA_DRIVER_CAPABILITIES` | – | `all`, for NVIDIA transcoding |
 

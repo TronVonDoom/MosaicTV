@@ -1,5 +1,5 @@
-// Artwork as files on disk: TMDB images fetched once and cached, and local
-// posters shrunk to a thumbnail once and cached. Shared by the artwork route
+// Artwork as files on disk: TMDB and TheTVDB images fetched once and cached,
+// and local posters shrunk to a thumbnail once and cached. Shared by the artwork route
 // (the web UI and guide clients) and the on-screen info card, which needs a
 // small local poster file to composite.
 
@@ -13,19 +13,29 @@ import { thumbsDir, tmdbCacheDir } from './paths.js'
 import { runFfmpeg } from './streaming/run.js'
 import { TMDB_IMAGE_BASE } from './tmdb.js'
 
-// Fetch a TMDB image once, then serve it from disk. Guide clients (Jellyfin,
-// Plex) pull artwork from us over the LAN and can't be assumed to have a route
-// to the internet themselves — so we do the fetching on their behalf.
-export async function cachedTmdbImage(tmdbPath: string, size = 'w500', timeoutMs?: number): Promise<string | null> {
-  // tmdbPath comes from our own DB and looks like "/abc123.jpg"; basename it so
-  // it can't climb out of the cache dir.
-  const file = path.join(tmdbCacheDir(), `${size}_${path.basename(tmdbPath)}`)
+/** Whether stored art is an image's address (TheTVDB's), not a TMDB path. */
+export const isAddress = (art: string) => /^https?:\/\//i.test(art)
+
+// Fetch a TMDB or TheTVDB image once, then serve it from disk. Guide clients
+// (Jellyfin, Plex) pull artwork from us over the LAN and can't be assumed to
+// have a route to the internet themselves — so we do the fetching on their
+// behalf. `art` is a TMDB path ("/abc123.jpg", fetched at `size`) or a
+// TheTVDB image's address (one size only).
+export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: number): Promise<string | null> {
+  // Both come from our own DB. A TMDB path is basenamed so it can't climb out
+  // of the cache dir; an address is named by its hash.
+  const address = isAddress(art)
+  const ext = address ? path.extname(art.replace(/[?#].*$/, '')).toLowerCase() : ''
+  const file = address
+    ? path.join(tmdbCacheDir(), `tvdb_${createHash('sha1').update(art).digest('hex').slice(0, 24)}${/^\.(jpe?g|png|webp)$/.test(ext) ? ext : '.jpg'}`)
+    : path.join(tmdbCacheDir(), `${size}_${path.basename(art)}`)
   if (fs.existsSync(file)) return file
+  const source = address ? 'TheTVDB' : 'TMDB'
 
   try {
-    const res = await fetch(`${TMDB_IMAGE_BASE}/${size}${tmdbPath}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : undefined)
+    const res = await fetch(address ? art : `${TMDB_IMAGE_BASE}/${size}${art}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : undefined)
     if (!res.ok) {
-      log('warn', 'system', `TMDB poster fetch failed (${res.status}) for ${tmdbPath}`)
+      log('warn', 'system', `${source} image fetch failed (${res.status}) for ${art}`)
       return null
     }
     const buf = Buffer.from(await res.arrayBuffer())
@@ -33,12 +43,20 @@ export async function cachedTmdbImage(tmdbPath: string, size = 'w500', timeoutMs
     const tmp = `${file}.${process.pid}.part`
     await fsp.writeFile(tmp, buf)
     await fsp.rename(tmp, file)
-    log('debug', 'system', `Cached TMDB poster ${path.basename(file)} (${buf.length} bytes)`)
+    log('debug', 'system', `Cached ${source} image ${path.basename(file)} (${buf.length} bytes)`)
     return file
   } catch (e) {
-    log('warn', 'system', `TMDB poster fetch errored for ${tmdbPath}`, String(e))
+    log('warn', 'system', `${source} image fetch errored for ${art}`, String(e))
     return null
   }
+}
+
+/** A cached TMDB or TheTVDB image about `w` wide: TMDB's comes at the size
+ *  asked for, TheTVDB's (one size only) is shrunk like a local poster. */
+export async function remoteArtFile(art: string, size: string, w: number | null): Promise<string | null> {
+  const cached = await cachedRemoteImage(art, size)
+  if (!cached || !w || !isAddress(art)) return cached
+  return (await localThumb(cached, w)) ?? cached
 }
 
 // Local artwork is shrunk once with ffmpeg and cached, keyed by the source's
@@ -133,7 +151,7 @@ export async function backdropFileFor(item: { libraryId: number; type: string; s
     })
     backdrop = show?.tmdbBackdropPath ?? null
   }
-  return backdrop ? cachedTmdbImage(backdrop, 'w1280', 3000) : null
+  return backdrop ? cachedRemoteImage(backdrop, 'w1280', 3000) : null
 }
 
 /**
@@ -156,5 +174,5 @@ export async function posterFileFor(
     })
     tmdbPath = show?.tmdbPosterPath ?? tmdbPath
   }
-  return tmdbPath ? cachedTmdbImage(tmdbPath, 'w342', 3000) : null
+  return tmdbPath ? cachedRemoteImage(tmdbPath, 'w342', 3000) : null
 }

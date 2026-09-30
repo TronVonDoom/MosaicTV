@@ -92,7 +92,7 @@ export default function CommandPalette({
       { id: 'audio', label: 'Studio', context: 'Music', icon: 'audio', group: 'Go to', run: go('/studio#audio'), keywords: 'audio intermission ambient breaks' },
       { id: 'clips', label: 'Studio', context: 'Clips', icon: 'clip', group: 'Go to', run: go('/studio#clips'), keywords: 'bumper station id video filler' },
       { id: 'logs', label: 'Logs', icon: 'logs', group: 'Go to', run: go('/logs'), keywords: 'errors ffmpeg diagnostics debug' },
-      { id: 'set-metadata', label: 'Settings', context: 'Metadata', icon: 'settings', group: 'Settings', run: go('/settings#metadata'), keywords: 'tmdb api key posters' },
+      { id: 'set-metadata', label: 'Settings', context: 'Metadata', icon: 'settings', group: 'Settings', run: go('/settings#metadata'), keywords: 'tmdb thetvdb tvdb api key pin posters' },
       { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts transcode mode tuner hdhomerun horizon audio language' },
       { id: 'set-watermark', label: 'Settings', context: 'Watermark', icon: 'settings', group: 'Settings', run: go('/settings#watermark'), keywords: 'logo overlay opacity' },
       { id: 'set-encoding', label: 'Settings', context: 'Encoding', icon: 'settings', group: 'Settings', run: go('/settings#encoding'), keywords: 'ffmpeg profile bitrate gpu nvenc' },

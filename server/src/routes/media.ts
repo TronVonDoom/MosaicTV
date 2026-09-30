@@ -2,7 +2,7 @@ import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { episodesAired } from '../aired.js'
-import { asMatchFilter, MatchPick, type TitleOnAir, type Stored } from '../contract/index.js'
+import { asMatchFilter, asMatchSource, asMetadataSources, MatchPick, type TitleOnAir, type Stored } from '../contract/index.js'
 import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata.js'
 import { reachedIn, titleOnAir } from '../onAir.js'
 import { readBody } from '../validate.js'
@@ -23,11 +23,11 @@ mediaRouter.get('/', async (req, res) => {
   if (q) {
     where.OR = [{ title: { contains: q } }, { showTitle: { contains: q } }]
   }
-  // A movie library's review filters: no TMDB match, an automatic one that
+  // A movie library's review filters: no match on any source, an automatic one that
   // doesn't agree with the file, or extras with no movie to go under. Any
   // other extra sits under its movie, as in Plex, not in the grid.
   const match = asMatchFilter(req.query.match)
-  if (match === 'unmatched') Object.assign(where, unmatchedMovieWhere())
+  if (match === 'unmatched') Object.assign(where, await unmatchedMovieWhere(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined))
   if (match === 'doubtful') where.id = { in: await doubtfulMovieIds(libraryId && !Number.isNaN(libraryId) ? libraryId : undefined) }
   if (match === 'loose') Object.assign(where, { extra: { not: null }, parentId: null, showId: null })
   else where.extra = null
@@ -76,7 +76,7 @@ mediaRouter.get('/:id', async (req, res) => {
   const item = await prisma.mediaItem.findUnique({
     where: { id },
     include: {
-      library: { select: { name: true, kind: true } },
+      library: { select: { name: true, kind: true, metadataSources: true } },
       parent: { select: { id: true, title: true, year: true } },
       // A movie's extras, as Plex lists them under it.
       extras: { orderBy: [{ extra: 'asc' }, { title: 'asc' }] },
@@ -84,7 +84,7 @@ mediaRouter.get('/:id', async (req, res) => {
   })
   if (!item) return res.status(404).json({ error: 'Not found' })
   const aired = await episodesAired([id])
-  res.json({ ...item, aired: aired[id] ?? null })
+  res.json({ ...item, library: { ...item.library, metadataSources: asMetadataSources(item.library.metadataSources) }, aired: aired[id] ?? null })
 })
 
 // GET /api/media/:id/on-air -> the channels that bring it in, its airings now
@@ -96,17 +96,19 @@ mediaRouter.get('/:id/on-air', async (req, res) => {
   res.json((await titleOnAir({ kind: 'movie', id })) satisfies Stored<TitleOnAir>)
 })
 
-// Fix match, Unmatch and Refresh metadata for one movie, as in Plex: a TMDB
-// match picked by hand (kept from then on), taken away (and left alone), or
-// fetched afresh.
+// Fix match, Unmatch and Refresh metadata for one movie, as in Plex: a match
+// on TMDB or TheTVDB picked by hand (kept from then on), taken away on one
+// source or every one (and left alone there), or fetched afresh.
 
-// POST /api/media/:id/match  { tmdbId }
+// POST /api/media/:id/match  { source, id }
 mediaRouter.post('/:id/match', async (req, res) => {
   const body = readBody(MatchPick, req, res)
   if (!body) return
-  await answerMatch(res, () => matchMovie(Number(req.params.id), body.tmdbId))
+  await answerMatch(res, () => matchMovie(Number(req.params.id), body.source, body.id))
 })
-// DELETE /api/media/:id/match
-mediaRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchMovie(Number(req.params.id))))
+// DELETE /api/media/:id/match[?source=tmdb|tvdb]
+mediaRouter.delete('/:id/match', (req, res) =>
+  answerMatch(res, () => unmatchMovie(Number(req.params.id), req.query.source ? asMatchSource(req.query.source) : undefined)),
+)
 // POST /api/media/:id/refresh
 mediaRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshMovie(Number(req.params.id))))

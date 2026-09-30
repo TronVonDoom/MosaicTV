@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { EpisodeOrderPick, MatchPick, ShowMerge, ShowRename, type Stored, type TitleOnAir } from '../contract/index.js'
+import { asMatchSource, asMetadataSources, DEFAULT_METADATA_SOURCES, EpisodeOrderPick, MatchPick, ShowMerge, ShowRename, type Stored, type TitleOnAir } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { mergeShows, renameShow, showCards, ShowConflict } from '../shows.js'
 import { episodeOrders, MatchError, matchShow, refreshShow, setEpisodeOrder, unmatchShow } from '../metadata.js'
@@ -33,7 +33,7 @@ showsRouter.get('/detail', async (req, res) => {
     prisma.mediaItem.findMany({ where, orderBy: [{ season: 'asc' }, { episode: 'asc' }, { title: 'asc' }] }),
     prisma.show.findFirst({
       where: { title: show, ...(libraryId ? { libraryId } : {}) },
-      include: { seasons: true, names: { orderBy: { id: 'asc' } } },
+      include: { seasons: true, names: { orderBy: { id: 'asc' } }, library: { select: { metadataSources: true } } },
     }),
   ])
 
@@ -65,6 +65,7 @@ showsRouter.get('/detail', async (req, res) => {
     libraryId: showRow?.libraryId ?? libraryId ?? null,
     showTitle: show,
     names: showRow?.names.map((n) => n.name) ?? [],
+    metadataSources: showRow ? asMetadataSources(showRow.library.metadataSources) : DEFAULT_METADATA_SOURCES,
     year,
     episodeCount: episodes.length,
     overview: showRow?.overview ?? null,
@@ -76,6 +77,10 @@ showsRouter.get('/detail', async (req, res) => {
     tmdbMatch: showRow?.tmdbMatch ?? null,
     tmdbTitle: showRow?.tmdbTitle ?? null,
     tmdbYear: showRow?.tmdbYear ?? null,
+    tvdbId: showRow?.tvdbId ?? null,
+    tvdbMatch: showRow?.tvdbMatch ?? null,
+    tvdbTitle: showRow?.tvdbTitle ?? null,
+    tvdbYear: showRow?.tvdbYear ?? null,
     contentRating: showRow?.contentRating ?? null,
     network: showRow?.network ?? null,
     tagline: showRow?.tagline ?? null,
@@ -133,18 +138,20 @@ showsRouter.post('/:id/merge', async (req, res) => {
   res.json(result)
 })
 
-// Fix match, Unmatch and Refresh metadata, as in Plex: a show's TMDB match
-// picked by hand (kept from then on), taken away (and left alone), or fetched
-// afresh. Its episodes go by it.
+// Fix match, Unmatch and Refresh metadata, as in Plex: a show's match on TMDB
+// or TheTVDB picked by hand (kept from then on), taken away on one source or
+// every one (and left alone there), or fetched afresh. Its episodes go by it.
 
-// POST /api/shows/:id/match  { tmdbId }
+// POST /api/shows/:id/match  { source, id }
 showsRouter.post('/:id/match', async (req, res) => {
   const body = readBody(MatchPick, req, res)
   if (!body) return
-  await answerMatch(res, () => matchShow(Number(req.params.id), body.tmdbId))
+  await answerMatch(res, () => matchShow(Number(req.params.id), body.source, body.id))
 })
-// DELETE /api/shows/:id/match
-showsRouter.delete('/:id/match', (req, res) => answerMatch(res, () => unmatchShow(Number(req.params.id))))
+// DELETE /api/shows/:id/match[?source=tmdb|tvdb]
+showsRouter.delete('/:id/match', (req, res) =>
+  answerMatch(res, () => unmatchShow(Number(req.params.id), req.query.source ? asMatchSource(req.query.source) : undefined)),
+)
 // POST /api/shows/:id/refresh
 showsRouter.post('/:id/refresh', (req, res) => answerMatch(res, () => refreshShow(Number(req.params.id))))
 
@@ -158,7 +165,7 @@ showsRouter.get('/:id/on-air', async (req, res) => {
 })
 
 // GET /api/shows/:id/orders  -> the orders its episodes can follow, as in
-// Plex: TMDB's as aired, and its episode groups (DVD, absolute…).
+// Plex: as aired, TMDB's episode groups and TheTVDB's orders (DVD, absolute…).
 showsRouter.get('/:id/orders', async (req, res) => {
   try {
     res.json(await episodeOrders(Number(req.params.id)))

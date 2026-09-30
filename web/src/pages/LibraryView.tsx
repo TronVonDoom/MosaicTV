@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { matchDoubt } from '@contract'
+import { isUnmatched, matchesOf, titleDoubt } from '@contract'
 import {
   api,
   ART,
   artworkUrl,
+  keysOf,
+  NO_KEYS,
+  readsOnline,
   tmdbImage,
+  type SourceKeys,
   type Library,
   type LibraryHome as Home,
   type MatchCounts,
@@ -18,6 +22,7 @@ import {
 import PosterCard from '../components/PosterCard'
 import { qualityOf, slotPath, type LibraryLayerContext } from './MovieView'
 import MediaDetailModal from '../components/MediaDetailModal'
+import { MatchReview, matchTarget, type MatchTarget } from '../components/FixMatchDialog'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
 import { StatFigure, TestStripe } from '../components/onair/OnAir'
@@ -32,7 +37,7 @@ const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y
 
 // What each review filter shows, said under the toolbar while it's on.
 const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
-  unmatched: 'No TMDB match — so no artwork or description from it. Open one to match it by hand.',
+  unmatched: 'Neither TMDB nor TheTVDB has a match for these — so no artwork or description from them. Open one to match it by hand.',
   doubtful: 'Matched automatically to a title whose year or name doesn’t agree with the files. Open one to fix the match, or keep it.',
   loose: 'Featurettes, trailers and the like with no movie to go under — every other extra is listed with its movie. Give one a folder of its own, beside its movie, and scan.',
   offair: 'No channel’s collections bring these in. Open one and use Add to a channel to put it on the air.',
@@ -81,7 +86,9 @@ export default function LibraryView() {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   const [showSort, setShowSort] = useState<ShowSort>('title')
-  const [tmdbConfigured, setTmdbConfigured] = useState(false)
+  const [keys, setKeys] = useState<SourceKeys>(NO_KEYS)
+  // The review filter's titles, being fixed one by one.
+  const [reviewing, setReviewing] = useState<MatchTarget[] | null>(null)
   const [counts, setCounts] = useState<MatchCounts | null>(null)
   // Bumped to fetch the shows again (after a scan or a metadata fetch).
   const [showsVersion, setShowsVersion] = useState(0)
@@ -129,7 +136,7 @@ export default function LibraryView() {
   useEffect(() => {
     setHome(null)
     void loadLibrary()
-    api.settings().then((s) => setTmdbConfigured(s.tmdbConfigured)).catch(() => {})
+    api.settings().then((s) => setKeys(keysOf(s))).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
   useEffect(() => {
@@ -221,8 +228,8 @@ export default function LibraryView() {
     const q = debounced.toLowerCase()
     let list = q ? shows.filter((s) => s.showTitle.toLowerCase().includes(q)) : [...shows]
     if (view === 'offair') list = list.filter((s) => s.id != null && offAirShows.has(s.id))
-    else if (params.match === 'unmatched') list = list.filter((s) => s.tmdbId == null)
-    else if (params.match === 'doubtful') list = list.filter((s) => matchDoubt({ title: s.showTitle, year: s.fileYear }, s) != null)
+    else if (params.match === 'unmatched') list = list.filter((s) => isUnmatched(s, library?.metadataSources ?? []))
+    else if (params.match === 'doubtful') list = list.filter((s) => titleDoubt({ title: s.showTitle, year: s.fileYear }, s, library?.metadataSources ?? []) != null)
     const by: Record<ShowSort, (a: Show, b: Show) => number> = {
       title: (a, b) => a.showTitle.localeCompare(b.showTitle),
       year: (a, b) => (b.year ?? 0) - (a.year ?? 0) || a.showTitle.localeCompare(b.showTitle),
@@ -230,7 +237,18 @@ export default function LibraryView() {
       rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0),
     }
     return list.sort(by[showSort])
-  }, [shows, debounced, showSort, params.match, view, offAirShows])
+  }, [shows, debounced, showSort, params.match, view, offAirShows, library])
+
+  /** What the review filter shows, as titles to fix one by one — but for
+   *  those unmatched by hand everywhere, which were settled already. */
+  const reviewTargets = (): MatchTarget[] => {
+    const sources = library?.metadataSources ?? []
+    const all = isTv
+      ? visibleShows.flatMap((s) => (s.id != null ? [matchTarget('show', { ...s, id: s.id }, { title: s.showTitle, year: s.fileYear }, sources, s.episodeCount)] : []))
+      : items.filter((m) => m.type === 'movie' && !m.extra).map((m) => matchTarget('movie', m, m, sources))
+    return all.filter((t) => !matchesOf(t.fields, t.sources).every((m) => m.match === 'skip'))
+  }
+  const reviewable = useMemo(() => reviewTargets().length, [visibleShows, items, library, isTv])
 
   // A title's page opens over the grid, keeping the grid's view in its address
   // so Back lands on the same one.
@@ -297,7 +315,7 @@ export default function LibraryView() {
               <LibraryActions
                 lib={library}
                 jobs={jobs}
-                tmdbConfigured={tmdbConfigured}
+                keys={keys}
                 extra={[{ label: 'Folders & what it indexes', icon: 'folder', onSelect: () => navigate('/library#sources') }]}
               />
             )}
@@ -367,12 +385,12 @@ export default function LibraryView() {
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {/* Plex's "Unmatched" filter, one for matches that look wrong, and
                   the extras that found no movie to go under. */}
-              {matchable && view === 'all' && (tmdbConfigured || !isTv) && (
+              {matchable && view === 'all' && ((library && readsOnline(library, keys)) || !isTv) && (
                 <>
                   <Icon name="filter" size={15} className="text-ink-faint" />
                   <Select value={params.match} onChange={(e) => setMatch(e.target.value as MatchFilter)} aria-label="Filter the library">
                     <option value="all">{isTv ? 'All shows' : 'All movies'}</option>
-                    {tmdbConfigured && (
+                    {library && readsOnline(library, keys) && (
                       <>
                         <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched.toLocaleString()})` : ''}</option>
                         <option value="doubtful">Check matches{counts ? ` (${counts.doubtful.toLocaleString()})` : ''}</option>
@@ -406,9 +424,14 @@ export default function LibraryView() {
           </div>
 
           {match !== 'all' && (
-            <p className="-mt-3 mb-5 flex items-center gap-2 text-[13px] text-ink-muted">
+            <p className="-mt-3 mb-5 flex items-center gap-2 flex-wrap text-[13px] text-ink-muted">
               <Icon name="info" size={14} className="shrink-0 text-ink-faint" />
               {FILTER_HINTS[match]}
+              {(match === 'unmatched' || match === 'doubtful') && reviewable > 0 && (
+                <button onClick={() => setReviewing(reviewTargets())} className="font-medium text-cue hover:text-amber-200">
+                  Fix them one by one
+                </button>
+              )}
             </p>
           )}
 
@@ -480,6 +503,15 @@ export default function LibraryView() {
         </>
       )}
 
+      {reviewing && (
+        <MatchReview
+          targets={reviewing}
+          onClose={(changed) => {
+            setReviewing(null)
+            if (changed) reloadAll()
+          }}
+        />
+      )}
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={() => movieChanged(selectedId)} />
       )}
@@ -516,7 +548,7 @@ function NothingHere({ searching, filter, onShowAll }: { searching: boolean; fil
         }
         description={
           filter === 'unmatched'
-            ? 'Every title here has a TMDB match.'
+            ? 'Every title here has a match on TMDB or TheTVDB.'
             : filter === 'loose'
               ? 'Each featurette, trailer and deleted scene is listed with the movie it belongs to.'
               : filter === 'offair'
@@ -534,7 +566,7 @@ function NothingHere({ searching, filter, onShowAll }: { searching: boolean; fil
     <EmptyState
       icon="libraries"
       title="Nothing here yet"
-      description="Scan this library to index its files — posters and descriptions come from TMDB afterwards."
+      description="Scan this library to index its files — posters and descriptions come from TMDB and TheTVDB afterwards."
       action={
         <Link to="/library#sources" className={buttonClass('primary', 'md')}>
           Go to Sources

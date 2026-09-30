@@ -151,7 +151,7 @@ export function parseCast(json: string | null | undefined): { name: string; role
 }
 
 /** Where a title's details came from, as a line: "an .nfo file and TMDB". */
-const SOURCE_NAMES: Record<string, string> = { nfo: 'an .nfo file', embedded: 'the file’s own tags', tmdb: 'TMDB' }
+const SOURCE_NAMES: Record<string, string> = { nfo: 'an .nfo file', embedded: 'the file’s own tags', tmdb: 'TMDB', tvdb: 'TheTVDB' }
 export function describeSources(csv: string | null | undefined): string | null {
   const names = (csv ?? '').split(',').map((s) => SOURCE_NAMES[s.trim()]).filter(Boolean)
   if (names.length === 0) return null

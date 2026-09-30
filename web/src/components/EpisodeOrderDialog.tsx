@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
+import { MATCH_SOURCE_NAMES } from '@contract'
 import { api, type EpisodeOrder } from '../lib/api'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import { Banner, Button, Modal, ModalHeader, Skeleton, cx } from './ui'
 
 /**
- * Which of TMDB's orders a show's episodes take their details from — as
- * aired, or one of its episode groups (DVD, absolute, production…), as Plex
- * lets a show pick. Only the names, dates and stills follow; the files keep
- * their own numbers, and so does everything that airs them.
+ * Which order a show's episodes take their details from — as aired, one of
+ * TMDB's episode groups (DVD, absolute, production…) or one of TheTVDB's
+ * orders (DVD, absolute…), as Plex lets a show pick. Only the names, dates
+ * and stills follow; the files keep their own numbers, and so does
+ * everything that airs them. An order of one source's is read from that
+ * source alone: the other numbers its episodes its own way.
  */
 export default function EpisodeOrderDialog({
   showId,
@@ -74,8 +77,9 @@ export default function EpisodeOrderDialog({
       <ModalHeader icon="list" title="Episode order" subtitle={showTitle} onClose={onClose} />
       <div className="p-5 space-y-4">
         <p className="text-[13px] text-ink-muted leading-relaxed">
-          Which of TMDB’s orders this show’s episodes take their names, air dates and pictures from. The files keep
-          their own numbers — so do the schedule and the broadcast episodes.
+          Which order this show’s episodes take their names, air dates and pictures from. The files keep their own
+          numbers — so do the schedule and the broadcast episodes. An order of TMDB’s or TheTVDB’s is read from that
+          source alone.
         </p>
         {error && <Banner>{error}</Banner>}
         {!orders && !error ? (
@@ -85,11 +89,23 @@ export default function EpisodeOrderDialog({
           </div>
         ) : orders ? (
           <div role="radiogroup" aria-label="Episode order" className="space-y-2 max-h-[50vh] overflow-y-auto">
-            {choice(null, 'As aired', 'TMDB’s seasons and episodes, in the order they first aired.')}
+            {choice(null, 'As aired', 'The seasons and episodes in the order they first aired, as each source the show is matched on has them.')}
             {orders.map((o) =>
-              choice(o.id, o.name, [o.type, `${o.seasons} season${o.seasons === 1 ? '' : 's'}`, `${o.episodes} episodes`, o.description].filter(Boolean).join(' · ')),
+              choice(
+                o.id,
+                o.name,
+                [
+                  MATCH_SOURCE_NAMES[o.source],
+                  o.type,
+                  o.seasons != null && `${o.seasons} season${o.seasons === 1 ? '' : 's'}`,
+                  o.episodes != null && `${o.episodes} episodes`,
+                  o.description,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+              ),
             )}
-            {orders.length === 0 && <p className="text-[12.5px] text-ink-faint px-1">TMDB has no other orders for this show.</p>}
+            {orders.length === 0 && <p className="text-[12.5px] text-ink-faint px-1">Neither source has another order for this show.</p>}
           </div>
         ) : null}
         <div className="flex justify-end gap-2 pt-1">

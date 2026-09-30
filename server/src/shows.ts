@@ -131,9 +131,13 @@ export async function mergeShows(fromId: number, intoId: number): Promise<MergeR
       data: {
         year: into.year ?? from.year,
         tmdbId: into.tmdbId ?? from.tmdbId,
+        tvdbId: into.tvdbId ?? from.tvdbId,
         // How it was matched goes with the match it keeps.
         ...(into.tmdbId == null && from.tmdbId != null
           ? { tmdbMatch: from.tmdbMatch, tmdbTitle: from.tmdbTitle, tmdbYear: from.tmdbYear }
+          : {}),
+        ...(into.tvdbId == null && from.tvdbId != null
+          ? { tvdbMatch: from.tvdbMatch, tvdbTitle: from.tvdbTitle, tvdbYear: from.tvdbYear }
           : {}),
         overview: into.overview ?? from.overview,
         genres: into.genres ?? from.genres,
@@ -214,6 +218,10 @@ export async function showCards(libraryId?: number): Promise<Show[]> {
       tmdbMatch: true,
       tmdbTitle: true,
       tmdbYear: true,
+      tvdbId: true,
+      tvdbMatch: true,
+      tvdbTitle: true,
+      tvdbYear: true,
       tmdbPosterPath: true,
       overview: true,
       rating: true,
@@ -247,6 +255,10 @@ export async function showCards(libraryId?: number): Promise<Show[]> {
         tmdbMatch: (m?.tmdbMatch as TmdbMatch | null) ?? null,
         tmdbTitle: m?.tmdbTitle ?? null,
         tmdbYear: m?.tmdbYear ?? null,
+        tvdbId: m?.tvdbId ?? null,
+        tvdbMatch: (m?.tvdbMatch as TmdbMatch | null) ?? null,
+        tvdbTitle: m?.tvdbTitle ?? null,
+        tvdbYear: m?.tvdbYear ?? null,
       }
     })
     .sort((a, b) => a.showTitle.localeCompare(b.showTitle))

@@ -129,15 +129,15 @@ test('a folder or file name can name its match, Plex- or Jellyfin-style', () => 
 })
 
 test('an automatic match is doubted when its year is off or its title shares too little', () => {
-  const auto = (tmdbTitle: string, tmdbYear: number | null) => ({ tmdbMatch: 'auto', tmdbTitle, tmdbYear })
+  const auto = (title: string, year: number | null) => ({ match: 'auto', title, year })
   assert.equal(matchDoubt({ title: 'A Nightmare on Elm Street', year: 2010 }, auto('A Nightmare on Elm Street', 1984)), 'year')
   assert.equal(matchDoubt({ title: 'Festival Cut', year: 2019 }, auto('Festival Cut', 2018)), null) // a premiere a year early
   assert.equal(matchDoubt({ title: 'Heat', year: 1995 }, auto('Heat Wave', 1995)), null) // "Heat" is in it
   assert.equal(matchDoubt({ title: 'Our Wedding', year: 2004 }, auto('Wedding Crashers', 2005)), null) // half its words
   assert.equal(matchDoubt({ title: 'Blue Velvet', year: 1986 }, auto('Top Gun', 1986)), 'title')
   // Picked by hand, or matched before TMDB's title was kept: not doubted.
-  assert.equal(matchDoubt({ title: 'Blue Velvet', year: 1986 }, { tmdbMatch: 'manual', tmdbTitle: 'Top Gun', tmdbYear: 1986 }), null)
-  assert.equal(matchDoubt({ title: 'Blue Velvet', year: 1986 }, { tmdbMatch: 'auto', tmdbTitle: null, tmdbYear: null }), null)
+  assert.equal(matchDoubt({ title: 'Blue Velvet', year: 1986 }, { match: 'manual', title: 'Top Gun', year: 1986 }), null)
+  assert.equal(matchDoubt({ title: 'Blue Velvet', year: 1986 }, { match: 'auto', title: null, year: null }), null)
 })
 
 test('titles agree across articles, punctuation, accents and spacing', () => {
@@ -171,7 +171,7 @@ test('what a scan added is matched: by title and year, by its folder’s id, or 
 })
 
 test('Fix match sticks: a forced re-match refreshes it from its id instead of searching', async () => {
-  await metadata.matchMovie(remake.id, 23437)
+  await metadata.matchMovie(remake.id, 'tmdb', 23437)
   let r = await row(remake.id)
   assert.deepEqual([r.tmdbId, r.tmdbMatch, r.tmdbYear], [23437, 'manual', 2010])
   assert.deepEqual(await metadata.matchCounts(movies.id), { unmatched: 1, doubtful: 0 })
@@ -193,7 +193,7 @@ test('Unmatch clears the match and every later fetch leaves it alone', async () 
   await metadata.refreshMovie(matrix.id)
   assert.deepEqual([(await row(matrix.id)).tmdbId, (await row(matrix.id)).tmdbMatch], [null, 'skip'])
   // Matching it again by hand is how it comes back.
-  await metadata.matchMovie(matrix.id, 603)
+  await metadata.matchMovie(matrix.id, 'tmdb', 603)
   assert.equal((await row(matrix.id)).tmdbMatch, 'manual')
 })
 
@@ -213,7 +213,7 @@ test('a Fix match made while a fetch is running isn’t undone by it', async () 
   try {
     const job = metadata.enrichLibrary(movies.id, 'all')
     while (!stalled) await new Promise((r) => setTimeout(r, 5))
-    await metadata.matchMovie(slow.id, 556)
+    await metadata.matchMovie(slow.id, 'tmdb', 556)
     release()
     await job
   } finally {
@@ -224,8 +224,8 @@ test('a Fix match made while a fetch is running isn’t undone by it', async () 
 })
 
 test('Fix match rejects what isn’t a movie, and ids TMDB doesn’t have', async () => {
-  await assert.rejects(metadata.matchMovie(trailer.id, 603), /Only movies/)
-  await assert.rejects(metadata.matchMovie(homeVideo.id, 1), /no movie with id 1/)
+  await assert.rejects(metadata.matchMovie(trailer.id, 'tmdb', 603), /Only movies/)
+  await assert.rejects(metadata.matchMovie(homeVideo.id, 'tmdb', 1), /no movie with id 1/)
 })
 
 test('shows: a folder year that finds nothing is dropped, an exact title wins, a folder’s TheTVDB id is looked up', async () => {
@@ -239,7 +239,7 @@ test('shows: a folder year that finds nothing is dropped, an exact title wins, a
 })
 
 test('a show matched anew loses the seasons its old match had, and unmatching clears them', async () => {
-  await metadata.matchShow(doug.id, 200)
+  await metadata.matchShow(doug.id, 'tmdb', 200)
   let d = await showRow(doug.id)
   assert.deepEqual([d.tmdbId, d.tmdbMatch, d.tmdbTitle], [200, 'manual', 'Brand Spanking New! Doug'])
   assert.deepEqual(d.seasons.map((s) => [s.number, s.tmdbPosterPath]), [[1, '/t200s1.jpg']])

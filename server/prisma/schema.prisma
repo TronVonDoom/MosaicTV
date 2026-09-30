@@ -16,9 +16,9 @@ model Library {
   createdAt       DateTime        @default(now())
   // Where its metadata comes from, first to last, as Plex's agent lists its
   // sources: "nfo" (Kodi/Jellyfin .nfo files beside the media), "embedded"
-  // (the files' own tags) and "tmdb". A detail the first gives wins; the
-  // rest fill in what it doesn't have. One left out isn't read.
-  metadataSources String          @default("nfo,tmdb")
+  // (the files' own tags), "tmdb" and "tvdb" (TheTVDB). A detail the first
+  // gives wins; the rest fill in what it doesn't have. One left out isn't read.
+  metadataSources String          @default("nfo,tmdb,tvdb")
   folders         LibraryFolder[]
   items           MediaItem[]
   shows           Show[]
@@ -26,7 +26,7 @@ model Library {
   airings         Airing[]
 }
 
-// Simple key/value store (e.g. the TMDB API key).
+// Simple key/value store (e.g. the TMDB and TheTVDB API keys).
 model Setting {
   key   String @id
   value String
@@ -109,7 +109,9 @@ model Show {
   overview         String?
   genres           String? // comma-separated
   rating           Float?
-  tmdbPosterPath   String? // TMDB path like "/abc.jpg"
+  // Its poster and backdrop, from the first of its library's sources that has
+  // one: a TMDB path like "/abc.jpg", or a TheTVDB image's full address.
+  tmdbPosterPath   String?
   tmdbBackdropPath String?
   // How it came by its TMDB match (see TmdbMatch in the contract), and what
   // TMDB calls the show it matched — shown beside the show's own title, and
@@ -117,6 +119,11 @@ model Show {
   tmdbMatch        String?
   tmdbTitle        String?
   tmdbYear         Int?
+  // Its match on TheTVDB, kept the same way beside TMDB's.
+  tvdbId           Int?
+  tvdbMatch        String?
+  tvdbTitle        String?
+  tvdbYear         Int?
   // What the metadata sources say of it beyond the above (see
   // Library.metadataSources): its rating ("TV-Y7"), network, tagline,
   // creators (comma-separated), cast (JSON [{ name, role, photo }]) and
@@ -127,9 +134,10 @@ model Show {
   creators         String?
   cast             String?
   airDate          String?
-  // Which of TMDB's orders its episodes' details follow, as Plex lets a show
-  // pick one: null = as aired, else a TMDB episode group (DVD, absolute,
-  // production…) by id, and that order's name. Its files keep their numbers.
+  // Which order its episodes' details follow, as Plex lets a show pick one:
+  // null = as aired, else a TMDB episode group (DVD, absolute, production…)
+  // by id or one of TheTVDB's ("tvdb:dvd"), and that order's name. Only that
+  // order's source gives episode details then. Its files keep their numbers.
   episodeOrder     String?
   episodeOrderName String?
   // The sources its details came from ("nfo,tmdb"), and when they were last
@@ -168,7 +176,7 @@ model Season {
   show           Show    @relation(fields: [showId], references: [id], onDelete: Cascade)
   showId         Int
   number         Int
-  tmdbPosterPath String?
+  tmdbPosterPath String? // TMDB path, or a TheTVDB image's address (as Show's)
   overview       String?
 
   @@unique([showId, number])
@@ -535,7 +543,8 @@ model MediaItem {
   posterPath       String? // this item's own art (movie poster / episode thumb)
   showPosterPath   String? // show-level art (shared by all episodes of a show)
   seasonPosterPath String? // season-level art (shared by a season's episodes)
-  // TMDB metadata (mainly for movies; episodes/other may stay null).
+  // TMDB metadata (mainly for movies; episodes/other may stay null). The
+  // poster and backdrop are the first source's that has one (see Show).
   tmdbId           Int?
   overview         String?
   genres           String? // comma-separated
@@ -546,11 +555,16 @@ model MediaItem {
   tmdbMatch        String?
   tmdbTitle        String?
   tmdbYear         Int?
+  // A movie's match on TheTVDB, the same way.
+  tvdbId           Int?
+  tvdbMatch        String?
+  tvdbTitle        String?
+  tvdbYear         Int?
   // What the metadata sources say beyond the above (see Show): its title as
   // they give it — an episode's name, shown when the file's own name has none —
   // its first air or release date ("1991-08-11"), rating ("PG-13"), tagline,
   // studio, directors (comma-separated), cast (JSON [{ name, role, photo }])
-  // and, for an episode, TMDB's still.
+  // and, for an episode, its still (a TMDB path or a TheTVDB address).
   metaTitle        String?
   airDate          String?
   contentRating    String?

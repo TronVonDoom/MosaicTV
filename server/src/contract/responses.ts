@@ -21,7 +21,7 @@ import type {
   StartMode,
   StreamMode,
 } from './domain.js'
-import type { TmdbMatch } from './matching.js'
+import type { MatchSource, TmdbMatch } from './matching.js'
 import type { WatermarkConfig } from './overlays.js'
 
 // ── System ──────────────────────────────────────────────────────────────────
@@ -44,6 +44,8 @@ export type Stats = {
 
 export type SettingsInfo = {
   tmdbConfigured: boolean
+  /** Whether a TheTVDB key is saved (and so whether it's read). */
+  tvdbConfigured: boolean
   watermark: WatermarkConfig
   streamMode: StreamMode
   tunerCount: number
@@ -191,12 +193,19 @@ export type MediaItem = {
   overview: string | null
   genres: string | null
   rating: number | null
+  /** Its poster and backdrop from the first source (in its library's order)
+   *  that has one: a TMDB path ("/abc.jpg") or a TheTVDB image's address. */
   tmdbPosterPath: string | null
   tmdbBackdropPath: string | null
   /** How it came by its TMDB match, and what TMDB calls it (movies only). */
   tmdbMatch: TmdbMatch | null
   tmdbTitle: string | null
   tmdbYear: number | null
+  /** Its match on TheTVDB, the same way (movies only). */
+  tvdbId: number | null
+  tvdbMatch: TmdbMatch | null
+  tvdbTitle: string | null
+  tvdbYear: number | null
   /** A featurette, trailer, deleted scene… filed with a movie or show; null for the thing itself. */
   extra: ExtraKind | null
   /** The movie an extra belongs to (a show's extras go by showId instead). */
@@ -222,19 +231,23 @@ export type MediaItem = {
 /** A cast member as the metadata gives them; `photo` is a TMDB path or a link. */
 export type CastMember = { name: string; role: string | null; photo: string | null }
 
-/** One of the orders a show's episodes can follow: a TMDB episode group. */
+/** One of the orders a show's episodes can follow: a TMDB episode group (by
+ *  its id), or one of TheTVDB's season orders ("tvdb:dvd", "tvdb:absolute"). */
 export type EpisodeOrder = {
   id: string
+  source: MatchSource
   name: string
-  /** What TMDB calls its kind: "DVD", "Absolute", "Production"… */
+  /** What its source calls its kind: "DVD", "Absolute", "Production"… */
   type: string
-  episodes: number
-  seasons: number
+  /** How many episodes and seasons it has, where the source says. */
+  episodes: number | null
+  seasons: number | null
   description: string | null
 }
 
 export type MediaItemDetail = MediaItem & {
-  library: { name: string; kind: LibraryKind }
+  /** Its library, and the order that library reads its sources in (whose match is shown first). */
+  library: { name: string; kind: LibraryKind; metadataSources: MetadataSource[] }
   aired: EpisodeAired | null
   /** A movie's extras, as Plex lists them under it. */
   extras: MediaItem[]
@@ -244,20 +257,22 @@ export type MediaItemDetail = MediaItem & {
 
 export type MediaPage = { total: number; page: number; pageSize: number; items: MediaItem[] }
 export type MediaSort = 'title' | 'year' | 'added' | 'rating'
-/** One title TMDB offers for Fix match. */
+/** One title TMDB or TheTVDB offers for Fix match: `id` is its id there. */
 export type MatchCandidate = {
-  tmdbId: number
+  source: MatchSource
+  id: number
   kind: 'movie' | 'tv'
   title: string
   /** Its title in its own language, when that's different. */
   originalTitle: string | null
   year: number | null
   overview: string | null
+  /** A TMDB path, or a TheTVDB image's address. */
   posterPath: string | null
 }
 
-/** What in a library still wants a look: titles with no TMDB match, and
- *  automatic matches that don't agree with their files. */
+/** What in a library still wants a look: titles no source has a match for,
+ *  and automatic matches that don't agree with their files. */
 export type MatchCounts = { unmatched: number; doubtful: number }
 
 export type LibrarySample = { items: { id: number; title: string; art: 'poster' | 'show' }[] }
@@ -278,12 +293,16 @@ export type Show = {
   overview: string | null
   rating: number | null
   genres: string | null
-  /** The year its files give it (a matched show's `year` falls back to TMDB's). */
+  /** The year its files give it (a matched show's `year` falls back to its match's). */
   fileYear: number | null
   tmdbId: number | null
   tmdbMatch: TmdbMatch | null
   tmdbTitle: string | null
   tmdbYear: number | null
+  tvdbId: number | null
+  tvdbMatch: TmdbMatch | null
+  tvdbTitle: string | null
+  tvdbYear: number | null
 }
 
 export type SeasonGroup = { season: number | null; episodes: MediaItem[]; tmdbPosterPath: string | null }
@@ -296,6 +315,8 @@ export type ShowDetail = {
   showTitle: string
   /** The folder names its files are filed under (more than one after a merge). */
   names: string[]
+  /** The order its library reads its sources in (whose match is shown first). */
+  metadataSources: MetadataSource[]
   year: number | null
   episodeCount: number
   overview: string | null
@@ -307,6 +328,10 @@ export type ShowDetail = {
   tmdbMatch: TmdbMatch | null
   tmdbTitle: string | null
   tmdbYear: number | null
+  tvdbId: number | null
+  tvdbMatch: TmdbMatch | null
+  tvdbTitle: string | null
+  tvdbYear: number | null
   /** Whether the show has a TMDB backdrop, and an episode to request it by. */
   hasBackdrop?: boolean
   artItemId?: number | null
@@ -318,7 +343,7 @@ export type ShowDetail = {
   cast: string | null
   airDate: string | null
   metaSources: string | null
-  /** The TMDB order its episodes' details follow (null: as aired), and its name. */
+  /** The order its episodes' details follow (null: as aired; see EpisodeOrder), and its name. */
   episodeOrder: string | null
   episodeOrderName: string | null
   /** Its episodes by season, season 0 (specials) included. */

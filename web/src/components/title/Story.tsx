@@ -32,7 +32,7 @@ export default function Story({
         {overview ? (
           <ExpandableText text={overview} lines={4} textClassName="text-[16px] sm:text-[17px] leading-[1.65] text-ink-soft max-w-[68ch]" />
         ) : (
-          <p className="text-[15px] text-ink-faint">No summary yet — one comes with a TMDB match, or an .nfo beside the files.</p>
+          <p className="text-[15px] text-ink-faint">No summary yet — one comes with a TMDB or TheTVDB match, or an .nfo beside the files.</p>
         )}
         {rows.length > 0 && (
           <dl className="mt-2 border-t border-edge">

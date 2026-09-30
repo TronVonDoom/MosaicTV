@@ -1,4 +1,4 @@
-import { api, type Library } from '../lib/api'
+import { api, readsOnline, type Library, type SourceKeys } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { useJobStatus } from '../lib/events'
@@ -6,8 +6,8 @@ import { toast } from '../lib/toast'
 import { Button, Menu, ProgressPanel, type MenuItem } from './ui'
 
 /**
- * A library's two background jobs — scanning its files and matching them to
- * TMDB — as Plex has them on a library's menu: Scan, Force rescan, Match
+ * A library's two background jobs — scanning its files and matching them on
+ * TMDB and TheTVDB — as Plex has them on a library's menu: Scan, Force rescan, Match
  * unmatched, Refresh all metadata. One of each runs at a time, server-wide.
  * Shared by the Sources tab, a library's own page and Settings, so each says
  * the same thing before the heavy ones.
@@ -43,7 +43,7 @@ export function useLibraryJobs(onFinish?: () => void) {
       force &&
       !(await confirmDialog({
         title: `Refresh all metadata for “${lib.name}”?`,
-        message: `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic TMDB matches are looked up again by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
+        message: `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic matches are looked up again — through the other source’s match where it lists one, else by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
         confirmLabel: 'Refresh all',
       }))
     )
@@ -72,20 +72,22 @@ export type LibraryJobs = ReturnType<typeof useLibraryJobs>
 export function LibraryActions({
   lib,
   jobs,
-  tmdbConfigured,
+  keys,
   extra = [],
 }: {
   lib: Library
   jobs: LibraryJobs
-  tmdbConfigured: boolean
+  /** Which online sources have a key. */
+  keys: SourceKeys
   extra?: MenuItem[]
 }) {
   const scanning = !!jobs.scan?.running && jobs.scan.libraryId === lib.id
   const matchable = lib.kind === 'tv' || lib.kind === 'movie'
-  const noKey = tmdbConfigured ? undefined : 'needs a TMDB key'
+  const online = readsOnline(lib, keys)
+  const noKey = online ? undefined : 'needs a TMDB or TheTVDB key'
   // A library that reads .nfo files or the files' tags has something to
-  // refresh from without TMDB.
-  const readsLocal = lib.metadataSources.some((s) => s !== 'tmdb')
+  // refresh from without an online source.
+  const readsLocal = lib.metadataSources.some((s) => s === 'nfo' || s === 'embedded')
   const items: MenuItem[] = [
     {
       label: 'Force rescan…',
@@ -101,14 +103,14 @@ export function LibraryActions({
             label: 'Match unmatched',
             icon: 'search',
             hint: noKey,
-            disabled: jobs.busy || !tmdbConfigured,
+            disabled: jobs.busy || !online,
             onSelect: () => jobs.startMetadata(lib, false),
           },
           {
             label: 'Refresh all metadata…',
             icon: 'download',
             hint: readsLocal ? undefined : noKey,
-            disabled: jobs.busy || !(tmdbConfigured || readsLocal),
+            disabled: jobs.busy || !(online || readsLocal),
             onSelect: () => jobs.startMetadata(lib, true),
           },
         ] satisfies MenuItem[])
@@ -163,7 +165,7 @@ export function LibraryJobProgress({ jobs, libraryId, className }: { jobs: Libra
         <ProgressPanel
           tone="violet"
           className={className}
-          title={`Matching ${meta.libraryName} on TMDB…`}
+          title={`Reading ${meta.libraryName}’s metadata…`}
           processed={meta.processed}
           total={meta.total}
           detail={meta.currentTitle}

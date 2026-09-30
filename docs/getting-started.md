@@ -68,18 +68,26 @@ doesn't. Set them on the library's row under **Sources** → **Metadata**:
 - **The files' own tags** (off by default) — titles and descriptions written
   into the files. Often left over from a release; worth it if you tag your own.
 - **TMDB** (on by default) — **Settings** → paste a free
-  [TMDB API key](https://www.themoviedb.org/settings/api) → **Save**, then
-  **Match unmatched** for each library. From then on whatever a scan adds is
-  read straight after it, as in Plex.
+  [TMDB API key](https://www.themoviedb.org/settings/api) → **Save & verify**.
+  Every library that reads TMDB looks its titles up there straight away, and
+  from then on whatever a scan adds is read straight after it, as in Plex.
+- **TheTVDB** (on by default, after TMDB) — **Settings** → paste a
+  [TheTVDB API key](https://thetvdb.com/api-information) (and, for a
+  user-supported key, your subscriber PIN) → **Save & verify**. After TMDB it
+  fills in what TMDB doesn't have — titles TMDB has never heard of, a missing
+  summary or episode name; move it above TMDB and it goes first. A title
+  matched on one is found on the other by the ids the first lists for it, not
+  guessed again by title.
 
 You get posters, summaries, genres, ratings (TV-Y7, PG-13), taglines,
 studios and networks, directors and creators, cast, and for every episode its
 name, first air date and a still — shown in the Library and sent in your
 players' guide data. An episode whose file names it keeps that name; one whose
 file doesn't ("Show - S01E02.mkv") takes the name its metadata gives. If a file
-names its episode something quite different from TMDB's episode at that number
-— a cartoon split into its segments — TMDB's details are left off it rather than
-showing another episode's.
+names its episode something quite different from a source's episode at that
+number — a cartoon split into its segments — that source's details are left off
+it rather than showing another episode's; likewise when TheTVDB names the
+episode at a number otherwise than TMDB does (the first source in the list wins).
 Local artwork (`poster.jpg`, `folder.jpg`, Plex/Kodi/Jellyfin naming) is used
 first when present.
 
@@ -88,10 +96,11 @@ an id in its folder name: `The Matrix (1999) {tmdb-603}`, `{imdb-tt0133093}`,
 `The Office {tvdb-73244}`, `[tmdbid-603]`. The id is left out of the title.
 
 **Episode order.** As Plex lets a show pick TheTVDB's DVD or absolute order, a
-show's **⋯** menu → **Episode order…** picks one of TMDB's orders for it (as
-aired, DVD, absolute, production — whatever TMDB has for that show). Only the
-episodes' names, dates and pictures follow it; the files keep their numbers,
-and so do the schedule and your broadcast episodes.
+show's **⋯** menu → **Episode order…** picks one for it: as aired, one of TMDB's
+episode groups (DVD, absolute, production — whatever TMDB has for that show) or
+one of TheTVDB's orders. An order of one source's is read from that source
+alone. Only the episodes' names, dates and pictures follow it; the files keep
+their numbers, and so do the schedule and your broadcast episodes.
 
 Check your results under **Library**: each library opens on its **Home** — what
 from it is on air now, the next hours of the channels airing it, and how much
@@ -101,15 +110,21 @@ and episodes. A title no channel airs has **Add to a channel**.
 
 ### Fixing a wrong match
 
-As in Plex: open a movie (or a show's page) and choose **Fix match** — search
-TMDB by title and year, or paste a TMDB or IMDb link, and pick the right one. A
-match you pick is kept: refreshing metadata never searches for that title
-again. **Unmatch** takes a match away for good (home videos TMDB doesn't have).
+As in Plex: open a movie (or a show's page) and choose **Fix match**. Pick the
+source — TMDB or TheTVDB, numbered in the order the library reads them — then
+search it by title and year, or paste a TMDB, TheTVDB or IMDb link, and pick the
+right one. A match you pick is kept: refreshing metadata never searches that
+source for the title again, and the other source follows your pick where it
+lists the title. **Not there** leaves the title unmatched on that source (and
+moves on to the other, if it has nothing either); **Unmatch** in the menu takes
+every match away for good (home videos neither source has).
 
-A library's **filter** finds what wants a look: **Unmatched**, and **Check
-matches** — automatic matches whose TMDB year is off from the file's by more
-than a year, or whose title doesn't look like it. (Matches made before this
-check existed are checked after a **Refresh all metadata**.)
+A library's **filter** finds what wants a look: **Unmatched** (no source has
+it), and **Check matches** — automatic matches whose year is off from the
+file's by more than a year, or whose title doesn't look like it. (Matches made
+before this check existed are checked after a **Refresh all metadata**.)
+**Fix them one by one**, beside the filter's note, opens Fix match on each in
+turn: pick one, or **Skip**, and it goes on to the next.
 
 A library's **⋯** menu, on its page and under **Sources**, has the rest:
 **Force rescan** (read every file again, from scratch), **Match unmatched**,

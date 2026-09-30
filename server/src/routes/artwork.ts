@@ -3,7 +3,7 @@ import type { Response } from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { cachedTmdbImage, frameThumb, localThumb } from '../artworkFiles.js'
+import { cachedRemoteImage, frameThumb, localThumb, remoteArtFile } from '../artworkFiles.js'
 
 export const artworkRouter = Router()
 
@@ -55,14 +55,14 @@ const TMDB_SIZES = new Set(['w92', 'w154', 'w185', 'w342'])
 artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
   const { size, file } = req.params
   if (!TMDB_SIZES.has(size) || !/^[A-Za-z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(file)) return res.status(400).end()
-  const cached = await cachedTmdbImage('/' + file, size)
+  const cached = await cachedRemoteImage('/' + file, size)
   if (!cached) return res.status(404).end()
   sendArtwork(res, cached, 604800)
 })
 
 // GET /api/artwork/:id?type=poster|show|season|backdrop|still|frame&w=
 // Serves local artwork when the scanner found some, else falls back to the
-// item's (or its show's) TMDB poster, downloaded and cached locally. Only paths
+// item's (or its show's) TMDB or TheTVDB poster, downloaded and cached locally. Only paths
 // recorded on the item are used, so this can't be made to read arbitrary files.
 //
 // `backdrop` is the wide TMDB still behind the web UI's hero panels: a movie's
@@ -104,7 +104,7 @@ artworkRouter.get('/:id', async (req, res) => {
 
   if (type === 'still') {
     if (!item.tmdbStillPath) return res.status(404).end()
-    const cached = await cachedTmdbImage(item.tmdbStillPath, tmdbBackdropSize(w))
+    const cached = await remoteArtFile(item.tmdbStillPath, tmdbBackdropSize(w), w)
     if (!cached) return res.status(404).end()
     return sendArtwork(res, cached, 604800)
   }
@@ -119,7 +119,7 @@ artworkRouter.get('/:id', async (req, res) => {
       backdrop = show?.tmdbBackdropPath ?? null
     }
     if (!backdrop) return res.status(404).end()
-    const cached = await cachedTmdbImage(backdrop, tmdbBackdropSize(w))
+    const cached = await remoteArtFile(backdrop, tmdbBackdropSize(w), w)
     if (!cached) return res.status(404).end()
     return sendArtwork(res, cached, 604800)
   }
@@ -138,9 +138,10 @@ artworkRouter.get('/:id', async (req, res) => {
     return sendArtwork(res, localPath)
   }
 
-  // No local file — fall back to TMDB. Episodes rarely carry their own poster,
-  // so reach for the show's — or for a season, that season's own TMDB poster
-  // first, so a list of seasons doesn't show the same picture five times.
+  // No local file — fall back to the metadata's (TMDB's or TheTVDB's).
+  // Episodes rarely carry their own poster, so reach for the show's — or for a
+  // season, that season's own poster first, so a list of seasons doesn't show
+  // the same picture five times.
   let tmdbPath: string | null = null
   if ((type === 'show' || type === 'season' || item.type === 'episode') && item.showTitle) {
     const show = await prisma.show.findFirst({
@@ -158,7 +159,7 @@ artworkRouter.get('/:id', async (req, res) => {
   tmdbPath ??= item.tmdbPosterPath
 
   if (!tmdbPath) return res.status(404).end()
-  const cached = await cachedTmdbImage(tmdbPath, tmdbPosterSize(w))
+  const cached = await remoteArtFile(tmdbPath, tmdbPosterSize(w), w)
   if (!cached) return res.status(404).end()
   sendArtwork(res, cached, w ? 604800 : 86400)
 })

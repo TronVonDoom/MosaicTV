@@ -35,10 +35,11 @@ Install ffmpeg and make sure it's on the PATH.
   [Getting Started](getting-started.md#1-add-a-library).
 
 ### Shows/movies have no posters
-- Add a **TMDB API key** (Settings) and run **Match unmatched** from the
-  library's **⋯** menu.
-- Still none? The library's filter → **Unmatched** lists what TMDB didn't find;
-  open one and **Match** it by hand (a TMDB or IMDb link works too).
+- Add a **TMDB** or **TheTVDB** key (Settings) and run **Match unmatched**
+  from the library's **⋯** menu.
+- Still none? The library's filter → **Unmatched** lists what neither source
+  found; open one and **Match** it by hand on either (a TMDB, TheTVDB or IMDb
+  link works too), or **Fix them one by one**.
 - The wrong poster? **Check matches** lists automatic matches that look off;
   open one and **Fix match**.
 - Local artwork is only picked up during a **scan** — rescan after adding
