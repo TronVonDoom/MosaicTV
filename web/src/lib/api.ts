@@ -24,7 +24,6 @@ import {
   type EpisodeAired as EpisodeAiredDTO,
   type LookAhead as LookAheadDTO,
   type LibraryHome as LibraryHomeDTO,
-  type LibraryTrash as LibraryTrashDTO,
   type OnAirRow as OnAirRowDTO,
   type OnAirSlot as OnAirSlotDTO,
   type TitleOnAir as TitleOnAirDTO,
@@ -187,7 +186,6 @@ export type SeasonGroup = Wire<SeasonGroupDTO>
 export type ShowDetail = Wire<ShowDetailDTO>
 export type TimeBlock = Wire<TimeBlockDTO>
 export type LibraryHome = Wire<LibraryHomeDTO>
-export type LibraryTrash = Wire<LibraryTrashDTO>
 export type OnAirRow = Wire<OnAirRowDTO>
 export type OnAirSlot = Wire<OnAirSlotDTO>
 export type TitleOnAir = Wire<TitleOnAirDTO>
@@ -317,9 +315,6 @@ export const api = {
   // Where its metadata comes from, first to last.
   updateLibrary: (id: number, data: { metadataSources: MetadataSource[] }) =>
     request<{ id: number; metadataSources: MetadataSource[] }>(`/api/libraries/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  // Files a scan found gone from disk: what emptying the trash would remove, and emptying it.
-  libraryTrash: (id: number) => request<LibraryTrash>(`/api/libraries/${id}/trash`),
-  emptyTrash: (id: number) => request<LibraryTrash>(`/api/libraries/${id}/trash`, { method: 'DELETE' }),
   deleteLibrary: (id: number) =>
     request<void>(`/api/libraries/${id}`, { method: 'DELETE' }),
   addFolder: (libraryId: number, path: string) =>

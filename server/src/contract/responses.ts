@@ -80,7 +80,12 @@ export type ScanStatus = {
   processed: number
   added: number
   updated: number
+  /** Files gone from disk, removed for good at the end of the scan. */
   removed: number
+  /** Files gone from view but kept, marked missing, because a folder holding
+   *  them couldn't be read (a share not mounted?) — and that folder. */
+  held: number
+  unreachable: string | null
   /** Known files found at a new path (a move or a renamed folder). */
   moved: number
   skipped: number
@@ -166,23 +171,6 @@ export type Library = {
    *  A library indexes all of them; each channel says whether they air. */
   specialCount: number
   extraCount: number
-  /** Files a scan found gone from disk, kept until its trash is emptied. */
-  missingCount: number
-}
-
-/** What emptying a library's trash removes (or removed): files gone from
- *  disk, the shows they leave with no files, the collection picks of either,
- *  and the broadcast episodes that lose a part. */
-export type LibraryTrash = {
-  files: number
-  shows: number
-  picks: number
-  airings: number
-  /** Marked missing but on disk again — left for the next scan to bring back. */
-  back: number
-  /** A library folder holding missing files that can't be read or is empty
-   *  (a share not mounted?): nothing is removed while it is. */
-  unreachable: string | null
 }
 
 export type MediaItem = {

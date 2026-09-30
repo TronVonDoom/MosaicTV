@@ -61,7 +61,12 @@ export function activityItems(): Activity[] {
       id: `scan:${scan.startedAt}`,
       kind: 'scan',
       title: scan.running ? `Scanning ${lib}` : scan.error ? `Scan of ${lib} failed` : `Scanned ${lib}`,
-      detail: scan.error ?? (scan.running ? `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files` : `${scan.added} added · ${scan.updated} updated · ${scan.removed} removed${scan.moved ? ` · ${scan.moved} moved` : ''}`),
+      detail:
+        scan.error ??
+        (scan.running
+          ? `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files`
+          : `${scan.added} added · ${scan.updated} updated · ${scan.removed} removed${scan.moved ? ` · ${scan.moved} moved` : ''}` +
+            (scan.unreachable ? ` · ${scan.held} kept: ${scan.unreachable} can’t be read — is the share mounted?` : '')),
       state: scan.running ? 'running' : scan.error ? 'error' : 'done',
       progress: scan.running ? fraction(scan.processed, scan.total) : null,
       startedAt: scan.startedAt,

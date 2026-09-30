@@ -52,8 +52,10 @@ and its guide entries read "Artist – Title" with the album as the sub-title.
 
 Hit **Scan** on the library. A progress bar tracks files as they're probed
 (duration, resolution, codecs via ffprobe) and parsed into shows / seasons /
-episodes. Re-scans are incremental — unchanged files are skipped, deleted files
-are flagged missing.
+episodes. Re-scans are incremental — unchanged files are skipped, and files gone from
+disk are removed, as in Plex. Not while their folder can't be read, though: a
+share that isn't mounted looks like every file in it gone, so those wait,
+hidden, for a scan that can read it.
 
 ## 3. (Optional but recommended) Metadata
 

@@ -6,19 +6,21 @@ const VIDEO_EXTS = new Set([
   '.wmv', '.flv', '.webm', '.mpg', '.mpeg',
 ])
 
-/** Recursively collect all video file paths under a directory. */
-export async function walk(dir: string): Promise<string[]> {
+/** Recursively collect all video file paths under a directory. A directory
+ *  that can't be read is skipped, and added to `unreadable` when given. */
+export async function walk(dir: string, unreadable?: string[]): Promise<string[]> {
   const out: string[] = []
   let entries: import('node:fs').Dirent[]
   try {
     entries = await fs.readdir(dir, { withFileTypes: true })
   } catch {
+    unreadable?.push(dir)
     return out
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      out.push(...(await walk(full)))
+      out.push(...(await walk(full, unreadable)))
     } else if (entry.isFile() && VIDEO_EXTS.has(path.extname(entry.name).toLowerCase())) {
       out.push(full)
     }

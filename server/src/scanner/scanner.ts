@@ -5,6 +5,7 @@ import { ffprobe } from '../ffprobe.js'
 import { extraHome, extraKind, extraStem, parseMedia, type LibraryKind } from './parse.js'
 import { detectArtwork } from './artwork.js'
 import { walk } from './walk.js'
+import { removeGone } from './gone.js'
 import { log } from '../logs.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
 import { matchNewTitles } from '../metadata.js'
@@ -29,6 +30,8 @@ const status: ScanStatus = {
   added: 0,
   updated: 0,
   removed: 0,
+  held: 0,
+  unreachable: null,
   moved: 0,
   skipped: 0,
   currentPath: null,
@@ -238,8 +241,9 @@ async function runPool<T>(items: T[], size: number, fn: (item: T) => Promise<voi
 }
 
 /**
- * Scan a single library: index new/changed files and mark vanished files as
- * missing. Runs in the background; progress is exposed via getScanStatus().
+ * Scan a single library: index new/changed files and remove vanished ones
+ * (see removeGone). Runs in the background; progress is exposed via
+ * getScanStatus().
  */
 export async function scanLibrary(libraryId: number, force = false): Promise<void> {
   const library = await prisma.library.findUnique({
@@ -257,6 +261,8 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     added: 0,
     updated: 0,
     removed: 0,
+    held: 0,
+    unreachable: null,
     moved: 0,
     skipped: 0,
     currentPath: null,
@@ -269,8 +275,9 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     // Walk every folder in the library; remember which root each file came from
     // so parsing/artwork use the correct relative root.
     const found: { file: string; root: string }[] = []
+    const unreadable: string[] = []
     for (const folder of library.folders) {
-      const files = await walk(folder.path)
+      const files = await walk(folder.path, unreadable)
       for (const f of files) found.push({ file: f, root: folder.path })
     }
     // Everything is indexed, season 0 and extras included, as in Plex: each
@@ -284,7 +291,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       processFile(file, library.id, root, kind, dirCache, force, pass),
     )
 
-    // Anything in this library not seen in this scan pass is now missing.
+    // Anything in this library not seen in this scan pass is missing…
     const seen = new Set(found.map((f) => f.file))
     const known = await prisma.mediaItem.findMany({
       where: { libraryId: library.id },
@@ -296,12 +303,15 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
         where: { id: { in: goneIds } },
         data: { missing: true },
       })
-      status.removed = goneIds.length
     }
     await followRefiledShows(library.id, pass)
+    // …and goes for good, as in Plex — unless it's under a folder this scan
+    // couldn't read (see removeGone).
+    const gone = await removeGone(library.id, unreadable)
+    Object.assign(status, { removed: gone.files, held: gone.held, unreachable: gone.unreachable })
     const linked = await linkExtras(library.id)
     // New, changed or vanished files change what the channels can air.
-    if (status.added + status.updated + status.removed + status.moved + linked > 0) await scheduleChangedEverywhere()
+    if (status.added + status.updated + goneIds.length + gone.files + status.moved + linked > 0) await scheduleChangedEverywhere()
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {
