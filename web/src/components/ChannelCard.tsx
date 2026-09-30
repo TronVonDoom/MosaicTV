@@ -93,18 +93,16 @@ function UpNext({ next }: { next: NowUnit | undefined }) {
 
 /**
  * One channel as a card: what it's airing right now over that program's art,
- * how far through it is, and what's next.
+ * how far through it is, and what's next. The artwork tunes TV mode to it.
  *
- * `live` is the Dashboard's version — watching is the point, so the artwork is
- * the play button. `manage` is the Channels page's — the same face plus the
- * schedule's shape and the actions to edit or remove it.
+ * `live` is the Dashboard's version. `manage` is the Channels page's — the
+ * same face plus the schedule's shape and the actions to edit or remove it.
  */
 export default function ChannelCard({
   channel,
   now,
   nowMs,
   variant = 'live',
-  onWatch,
   menu,
   style,
 }: {
@@ -112,7 +110,6 @@ export default function ChannelCard({
   now: ChannelNow | undefined
   nowMs: number
   variant?: 'live' | 'manage'
-  onWatch?: () => void
   menu?: MenuItem[]
   style?: React.CSSProperties
 }) {
@@ -120,7 +117,6 @@ export default function ChannelCard({
   const unit = now?.now ?? null
   const { value, remaining } = progressOf(unit, nowMs)
   const scheduled = channel.rotationCount + channel.blockCount > 0
-  const canWatch = !draft && !!onWatch
 
   let status: ReactNode
   if (draft) status = <Badge tone="neutral">Draft</Badge>
@@ -179,16 +175,17 @@ export default function ChannelCard({
           )}
         </div>
 
-        {canWatch && (
-          <button
-            onClick={onWatch}
+        {!draft && (
+          <Link
+            to={`/watch/${channel.number}`}
             aria-label={`Watch ${channel.name}`}
+            title={`Watch ${channel.number} ${channel.name}`}
             className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-200"
           >
             <span className="grid place-items-center w-14 h-14 rounded-full bg-white/95 text-black shadow-[0_12px_40px_-4px_rgb(0_0_0/0.8)] scale-90 group-hover:scale-100 transition-transform duration-200">
               <Icon name="play" size={22} className="translate-x-0.5 fill-current" />
             </span>
-          </button>
+          </Link>
         )}
       </div>
 

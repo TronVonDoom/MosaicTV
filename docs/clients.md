@@ -10,9 +10,11 @@ MosaicTV speaks the two standards every IPTV-capable player understands:
 
 Tune in mid-program and a channel picks up at the right spot, just like real TV.
 
-## Casting from the preview
+## Casting from TV mode
 
-A channel's live preview (click its picture) has a **Cast** button:
+**Watch** (TV mode — or click any channel's picture) has a **Cast** button over
+the picture. Once a TV is playing, TV mode is its remote: flip channels and the
+TV follows.
 
 - **Chrome / Edge → Chromecast or Google TV.** Chrome only allows casting from
   a page opened over **HTTPS** (or `localhost`), so it works once MosaicTV is
@@ -20,7 +22,7 @@ A channel's live preview (click its picture) has a **Cast** button:
   real certificate both do it. The TV plays the channel's stream itself, so it
   must be able to reach that same address. On plain `http://` the button
   explains this instead; Chrome's own menu (⋮ → Cast…) can still mirror the tab.
-- **Safari → AirPlay.** No HTTPS needed; the preview plays Safari's native
+- **Safari → AirPlay.** No HTTPS needed; TV mode plays Safari's native
   stream so it can be handed to an Apple TV.
 
 ---

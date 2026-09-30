@@ -180,12 +180,16 @@ TV mode, and a sturdier foundation under all of it.
 - **A turn is never cut short.** A rotation item that plays N programs a turn
   finishes its turn across a guide top-up; before, a top-up that landed
   mid-turn moved straight on to the next item.
+- **Watching a channel is TV mode.** Clicking a channel's picture (the
+  dashboard, the channel list, a channel's **Watch** button) opens it in
+  **Watch** instead of a preview window, and **Esc** comes back. The **Cast**
+  button moved there too, and a cast TV follows your flips.
 - **TV mode.** **Watch** in the sidebar puts your channels full screen: flip
   with ↑/↓ or a swipe, type a channel number, ⌫ for the last channel, **G**
   for a channel guide with what's on now and next. A banner shows what's on as
   you tune in. **Instant flipping** keeps the channels either side running, so
   a flip lands on a live picture in a fraction of a second (at the cost of an
-  encoder each). The preview window has a button to go full screen.
+  encoder each).
 - **Pages update themselves.** The dashboard, channel list, guide, Breaks tab,
   notification bell and library jobs update the moment something changes on
   the server, instead of each polling on its own timer.

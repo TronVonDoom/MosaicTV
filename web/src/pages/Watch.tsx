@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import CastButton from '../components/CastButton'
 import ChannelLogo from '../components/ChannelLogo'
 import Icon, { type IconName } from '../components/Icon'
-import { Kbd, LiveBadge, cx } from '../components/ui'
-import { api, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
+import { Kbd, LiveBadge, cx, osdButtonClass } from '../components/ui'
+import { api, logoImageUrl, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
+import { castChannel, stopCasting } from '../lib/cast'
 import { useLiveRefresh } from '../lib/events'
 import { formatClock } from '../lib/format'
 import { useNow } from '../lib/hooks'
@@ -12,7 +14,8 @@ import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
 // last, G opens the channel guide. Everything on screen fades away on its own
-// so the picture is all there is.
+// so the picture is all there is. Cast to a TV and this becomes its remote:
+// the TV follows every flip.
 
 const LAST_KEY = 'mosaictv.watch.last'
 const WARM_KEY = 'mosaictv.watch.warm'
@@ -66,6 +69,10 @@ export default function Watch() {
   const [fullscreen, setFullscreen] = useState(false)
   const [warm, setWarm] = useState(() => readStore(WARM_KEY) === '1')
   const [helpOpen, setHelpOpen] = useState(false)
+  // The TV the channel is cast to (the picture here pauses while it plays
+  // there), and the channel it was last sent.
+  const [castingTo, setCastingTo] = useState<string | null>(null)
+  const castNumber = useRef<number | null>(null)
 
   // Numbered channels only: a draft isn't on air.
   const lineup = useMemo(
@@ -122,6 +129,31 @@ export default function Watch() {
   }, [current, channel?.id])
   useEffect(() => () => void (document.title = 'MosaicTV'), [])
   useEffect(() => setMuted(mutedFallback), [mutedFallback])
+
+  const airing = row?.now ? [unitLabel(row.now), row.now.subtitle].filter(Boolean).join(' · ') : undefined
+  const castTitle = channel ? `${channel.number} · ${channel.name}` : ''
+  const castImage = channel?.logoId != null ? `${window.location.origin}${logoImageUrl(channel.logoId)}` : undefined
+
+  // Casting: the picture here stays paused (a flip starts the player again, so
+  // it's held), and a flip sends the new channel to the TV.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (!castingTo) {
+      if (video.paused && video.readyState > 0) video.play().catch(() => {})
+      return
+    }
+    video.pause()
+    const hold = () => video.pause()
+    video.addEventListener('play', hold)
+    return () => video.removeEventListener('play', hold)
+  }, [castingTo])
+  useEffect(() => {
+    if (!castingTo || !url || current == null || castNumber.current === current) return
+    castNumber.current = current
+    castChannel({ url, title: castTitle, subtitle: airing, imageUrl: castImage }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castingTo, current, url])
 
   const tune = useCallback(
     (n: number) => {
@@ -326,6 +358,23 @@ export default function Watch() {
         )}
       </div>
 
+      {/* Cast to a TV: this screen is its remote now. */}
+      {castingTo && (
+        <div className="absolute inset-0 grid place-items-center bg-black/85 text-center p-6">
+          <div className="flex flex-col items-center gap-3">
+            <Icon name="cast" size={34} className="text-indigo-300" />
+            <div className="text-xl font-semibold tracking-tight">Playing on {castingTo}</div>
+            <p className="text-[13.5px] text-white/60 max-w-sm">Flip channels here and the TV follows.</p>
+            <button
+              onClick={stopCasting}
+              className="mt-2 rounded-full bg-white/10 ring-1 ring-white/15 px-4 py-2 text-[13px] font-medium hover:bg-white/15"
+            >
+              Stop casting
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* The number being typed, or the channel just tuned — top right, like a set-top box. */}
       {osdNumber && (
         <div className="absolute top-6 right-8 pointer-events-none">
@@ -414,6 +463,20 @@ export default function Watch() {
           <OsdButton icon="chevronDown" label="Channel down (↓)" onClick={() => step(-1)} />
           <OsdButton icon="chevronUp" label="Channel up (↑)" onClick={() => step(1)} />
           <OsdButton icon="guide" label="Channel guide (G)" onClick={openGuide} />
+          {url && (
+            <CastButton
+              look="osd"
+              videoRef={videoRef}
+              url={url}
+              title={castTitle}
+              subtitle={airing}
+              imageUrl={castImage}
+              onCastingChange={(device) => {
+                castNumber.current = device ? current : null
+                setCastingTo(device)
+              }}
+            />
+          )}
           <OsdButton icon={muted ? 'muted' : 'volume'} label={muted ? 'Unmute (M)' : 'Mute (M)'} onClick={toggleMute} />
           <OsdButton
             icon="bolt"
@@ -546,10 +609,7 @@ function OsdButton({ icon, label, onClick, active = false }: { icon: IconName; l
       title={label}
       aria-label={label}
       aria-pressed={active || undefined}
-      className={cx(
-        'h-10 w-10 grid place-items-center rounded-full backdrop-blur-md ring-1 transition-colors',
-        active ? 'bg-indigo-500/35 ring-indigo-300/50 text-indigo-100' : 'bg-black/45 ring-white/15 text-white/90 hover:bg-black/65',
-      )}
+      className={osdButtonClass(active)}
     >
       <Icon name={icon} size={18} />
     </button>

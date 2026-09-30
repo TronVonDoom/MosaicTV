@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ChannelCard from '../components/ChannelCard'
 import GuideGrid from '../components/GuideGrid'
@@ -25,9 +25,6 @@ import {
 } from '../components/ui'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import { StatFigure } from '../components/onair/OnAir'
-
-// hls.js is only needed once a preview is actually opened.
-const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
 
 type Filter = 'all' | 'live' | 'drafts'
 type Span = '12' | '24' | '48'
@@ -117,7 +114,6 @@ export default function Channels() {
   const [channels, setChannels] = useState<Channel[] | null>(null)
   const [nowRows, setNowRows] = useState<Record<number, ChannelNow>>({})
   const [creating, setCreating] = useState(false)
-  const [previewing, setPreviewing] = useState<Channel | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [span, setSpan] = useState<Span>('24')
   const [zoom, setZoom] = useState<Zoom>('standard')
@@ -269,12 +265,11 @@ export default function Channels() {
               now={nowRows[c.id]}
               nowMs={nowMs}
               variant="manage"
-              onWatch={() => setPreviewing(c)}
               style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               menu={[
                 ...(c.number != null
                   ? [
-                      { label: 'Watch live', icon: 'play' as const, onSelect: () => setPreviewing(c) },
+                      { label: 'Watch', icon: 'play' as const, onSelect: () => navigate(`/watch/${c.number}`) },
                       { label: 'Copy stream URL', icon: 'copy' as const, onSelect: () => copyStream(c) },
                     ]
                   : []),
@@ -345,19 +340,6 @@ export default function Channels() {
       {detailId != null && <MediaDetailModal id={detailId} onClose={() => setDetailId(null)} />}
 
       {creating && <NewChannelDialog onClose={() => setCreating(false)} />}
-
-      {previewing?.number != null && (
-        <Suspense fallback={null}>
-          <ChannelPreview
-            key={previewing.id}
-            number={previewing.number}
-            name={previewing.name}
-            logoId={previewing.logoId}
-            nowPlaying={nowRows[previewing.id]?.now ?? previewing.nowPlaying}
-            onClose={() => setPreviewing(null)}
-          />
-        </Suspense>
-      )}
     </div>
   )
 }

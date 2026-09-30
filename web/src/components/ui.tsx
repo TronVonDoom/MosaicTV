@@ -306,6 +306,14 @@ export function IconButton({
   )
 }
 
+/** The round, glassy button TV mode floats over the picture. */
+export function osdButtonClass(active = false): string {
+  return cx(
+    'h-10 w-10 grid place-items-center rounded-full backdrop-blur-md ring-1 transition-colors disabled:opacity-50',
+    active ? 'bg-indigo-500/35 ring-indigo-300/50 text-indigo-100' : 'bg-black/45 ring-white/15 text-white/90 hover:bg-black/65',
+  )
+}
+
 /** An <a> styled as a button — for downloads and external links. */
 export function LinkButton({
   variant = 'secondary',

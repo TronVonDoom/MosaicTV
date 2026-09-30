@@ -210,8 +210,8 @@ keep running, so a flip lands on a live picture in a fraction of a second.
 - **Notifications** — a bell in the top bar follows ident builds, library
   scans and metadata fetches with live progress, and tells you when each
   finishes, wherever you are in the app.
-- **Watch and cast** — any channel's live preview plays in the browser and can
-  be sent to a Chromecast or Google TV (Chrome/Edge, over HTTPS) or an Apple TV
+- **Watch and cast** — click any channel to watch it in TV mode, and send it
+  to a Chromecast or Google TV (Chrome/Edge, over HTTPS) or an Apple TV
   (Safari, AirPlay).
 
 <table>

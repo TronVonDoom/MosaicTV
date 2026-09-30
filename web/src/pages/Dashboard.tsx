@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import GettingStarted from '../components/GettingStarted'
 import ChannelCard from '../components/ChannelCard'
@@ -14,15 +14,11 @@ import Icon from '../components/Icon'
 import { Kicker, Masthead } from '../components/onair/Masthead'
 import { StatFigure } from '../components/onair/OnAir'
 
-// hls.js is only needed once a preview is actually opened.
-const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
-
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [channels, setChannels] = useState<Channel[] | null>(null)
   const [nowRows, setNowRows] = useState<Record<number, ChannelNow>>({})
   const [guides, setGuides] = useState<Record<number, Playout>>({})
-  const [watching, setWatching] = useState<Channel | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
   const nowMs = useNow(15000)
 
@@ -145,7 +141,6 @@ export default function Dashboard() {
                   channel={c}
                   now={nowRows[c.id]}
                   nowMs={nowMs}
-                  onWatch={() => setWatching(c)}
                   style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
                 />
               ))}
@@ -223,18 +218,6 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {watching?.number != null && (
-        <Suspense fallback={null}>
-          <ChannelPreview
-            key={watching.id}
-            number={watching.number}
-            name={watching.name}
-            logoId={watching.logoId}
-            nowPlaying={nowRows[watching.id]?.now ?? null}
-            onClose={() => setWatching(null)}
-          />
-        </Suspense>
-      )}
       {detailId != null && <MediaDetailModal id={detailId} onClose={() => setDetailId(null)} />}
     </div>
   )

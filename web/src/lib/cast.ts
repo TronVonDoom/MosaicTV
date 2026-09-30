@@ -1,5 +1,5 @@
-// Google Cast, from the channel preview. The Cast SDK is Google's and only
-// loads from gstatic, so it's fetched the first time a preview opens — and only
+// Google Cast, from TV mode. The Cast SDK is Google's and only
+// loads from gstatic, so it's fetched the first time TV mode opens — and only
 // where it can work: Chrome/Edge, on a secure page (HTTPS or localhost). Chrome
 // refuses to cast from a plain-http site.
 

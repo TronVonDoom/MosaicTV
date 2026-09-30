@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { api, type ChannelDetail, type ChannelNow, type Collection } from '../lib/api'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
@@ -13,12 +13,10 @@ import GeneralTab from '../components/channel/GeneralTab'
 import ScheduleTab from '../components/channel/ScheduleTab'
 import BreaksTab from '../components/channel/BreaksTab'
 import GuideTab from '../components/channel/GuideTab'
-import { Banner, Button, Skeleton } from '../components/ui'
+import { Banner, Button, Skeleton, buttonClass } from '../components/ui'
+import Icon from '../components/Icon'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import { StatFigure, Tally } from '../components/onair/OnAir'
-
-// hls.js is only needed once a preview is actually opened.
-const ChannelPreview = lazy(() => import('../components/ChannelPreview'))
 
 const TAB_IDS = ['general', 'collections', 'schedule', 'breaks', 'guide'] as const
 type Tab = (typeof TAB_IDS)[number]
@@ -42,7 +40,6 @@ export default function ChannelEditor() {
   // A block the Breaks tab asked to open on the Schedule tab.
   const [scheduleFocus, setScheduleFocus] = useState<number | null>(null)
   const [now, setNow] = useState<ChannelNow | null>(null)
-  const [watching, setWatching] = useState(false)
   const nowMs = useNow(15000)
 
   // In-progress form values for the tabs, held here so they survive a tab
@@ -176,9 +173,9 @@ export default function ChannelEditor() {
             )}
             <div className="flex items-center gap-2">
               {ch.number != null && (
-                <Button variant="secondary" icon="play" onClick={() => setWatching(true)}>
-                  Watch
-                </Button>
+                <Link to={`/watch/${ch.number}`} className={buttonClass('secondary', 'md')}>
+                  <Icon name="play" size={16} /> Watch
+                </Link>
               )}
               <Button variant="secondary" icon="guide" onClick={() => setTab('guide')}>
                 Guide
@@ -223,18 +220,6 @@ export default function ChannelEditor() {
 
       {tab === 'guide' && (
         <GuideTab channelId={channelId} ch={ch} onReload={load} onError={setError} />
-      )}
-
-      {watching && ch.number != null && (
-        <Suspense fallback={null}>
-          <ChannelPreview
-            number={ch.number}
-            name={ch.name}
-            logoId={ch.logoId}
-            nowPlaying={unit}
-            onClose={() => setWatching(false)}
-          />
-        </Suspense>
       )}
     </div>
   )

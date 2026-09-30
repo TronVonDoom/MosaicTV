@@ -2,14 +2,16 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { castChannel, castContext, castEvents, castPrecheck, castStates, loadCast, stopCasting, type CastSupport } from '../lib/cast'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
-import { Button } from './ui'
+import { LoaderCircle } from 'lucide-react'
+import Icon from './Icon'
+import { Button, osdButtonClass } from './ui'
 
 type AirPlayVideo = HTMLVideoElement & { webkitShowPlaybackTargetPicker?: () => void }
 
 /**
  * Send the channel to a TV: Google Cast in Chrome/Edge on a secure page,
  * AirPlay in Safari. Anywhere else the button explains why it can't, and what
- * would let it.
+ * would let it. `osd` is TV mode's round button over the picture.
  */
 export default function CastButton({
   videoRef,
@@ -18,6 +20,7 @@ export default function CastButton({
   subtitle,
   imageUrl,
   onCastingChange,
+  look = 'button',
 }: {
   videoRef: RefObject<HTMLVideoElement | null>
   url: string
@@ -26,6 +29,7 @@ export default function CastButton({
   imageUrl?: string
   /** The device now playing the channel, or null when casting stops. */
   onCastingChange?: (device: string | null) => void
+  look?: 'button' | 'osd'
 }) {
   const [support, setSupport] = useState<CastSupport | null>(null)
   const [castState, setCastState] = useState<string | null>(null)
@@ -89,39 +93,62 @@ export default function CastButton({
     }
   }
 
-  if (airplay) {
-    return (
-      <Button variant="secondary" size="sm" icon="cast" onClick={() => (videoRef.current as AirPlayVideo | null)?.webkitShowPlaybackTargetPicker?.()}>
-        AirPlay
-      </Button>
-    )
-  }
-
-  if (support?.ok) {
-    return (
+  // One trigger, in either look.
+  const trigger = (t: { label: string; onClick: () => void; active?: boolean; loading?: boolean; disabled?: boolean; title?: string; expanded?: boolean }) =>
+    look === 'osd' ? (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          t.onClick()
+        }}
+        title={t.title ?? t.label}
+        aria-label={t.label}
+        aria-pressed={t.active || undefined}
+        aria-expanded={t.expanded}
+        disabled={t.disabled}
+        className={osdButtonClass(t.active)}
+      >
+        {t.loading ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <Icon name="cast" size={18} />}
+      </button>
+    ) : (
       <Button
-        variant={connected ? 'primary' : 'secondary'}
+        variant={t.active ? 'primary' : 'secondary'}
         size="sm"
         icon="cast"
-        loading={busy || castState === states?.CONNECTING}
-        disabled={noDevices}
-        title={noDevices ? 'No Cast devices found on your network' : undefined}
-        onClick={cast}
+        loading={t.loading}
+        disabled={t.disabled}
+        title={t.title}
+        aria-expanded={t.expanded}
+        onClick={t.onClick}
       >
-        {connected ? 'Stop casting' : 'Cast'}
+        {t.label}
       </Button>
     )
+
+  if (airplay) return trigger({ label: 'AirPlay', onClick: () => (videoRef.current as AirPlayVideo | null)?.webkitShowPlaybackTargetPicker?.() })
+
+  if (support?.ok) {
+    return trigger({
+      label: connected ? 'Stop casting' : 'Cast',
+      active: !!connected,
+      loading: busy || castState === states?.CONNECTING,
+      disabled: noDevices,
+      title: noDevices ? 'No Cast devices found on your network' : undefined,
+      onClick: cast,
+    })
   }
 
   // Can't cast from here: say why.
   const reason = support && !support.ok ? support.reason : castPrecheck().ok ? null : (castPrecheck() as { reason: string }).reason
   return (
     <div className="relative">
-      <Button variant="secondary" size="sm" icon="cast" onClick={() => setExplain(!explain)} aria-expanded={explain}>
-        Cast
-      </Button>
+      {trigger({ label: 'Cast', onClick: () => setExplain(!explain), expanded: explain })}
       {explain && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-80 rounded-xl border border-edge-strong bg-overlay/95 p-4 text-[12.5px] leading-relaxed text-ink-soft shadow-2xl shadow-black/60 backdrop-blur modal-in">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 top-full z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] text-left rounded-xl border border-edge-strong bg-overlay/95 p-4 text-[12.5px] leading-relaxed text-ink-soft shadow-2xl shadow-black/60 backdrop-blur modal-in"
+        >
           {reason === 'insecure' ? (
             <>
               <p className="font-medium text-ink mb-1.5">Casting needs a secure page</p>
