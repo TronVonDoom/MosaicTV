@@ -115,8 +115,8 @@ export default function CommandPalette({
       { id: 'clips', label: 'Studio', context: 'Clips', icon: 'clip', group: 'Go to', run: go('/studio#clips'), keywords: 'bumper station id video filler' },
       { id: 'logs', label: 'Logs', icon: 'logs', group: 'Go to', run: go('/logs'), keywords: 'errors ffmpeg diagnostics debug' },
       { id: 'set-metadata', label: 'Settings', context: 'Metadata', icon: 'settings', group: 'Settings', run: go('/settings#metadata'), keywords: 'tmdb thetvdb tvdb api key pin posters' },
-      { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts transcode mode tuner hdhomerun horizon audio language' },
-      { id: 'set-watermark', label: 'Settings', context: 'Watermark', icon: 'settings', group: 'Settings', run: go('/settings#watermark'), keywords: 'logo overlay opacity' },
+      { id: 'set-channels', label: 'Settings', context: 'Channels', icon: 'settings', group: 'Settings', run: go('/settings#channels'), keywords: 'horizon build ahead guide depth audio language watermark logo overlay opacity' },
+      { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts stream format playlist m3u tuner hdhomerun plex emby' },
       { id: 'set-encoding', label: 'Settings', context: 'Encoding', icon: 'settings', group: 'Settings', run: go('/settings#encoding'), keywords: 'ffmpeg profile bitrate gpu nvenc' },
       { id: 'set-maintenance', label: 'Settings', context: 'Maintenance', icon: 'settings', group: 'Settings', run: go('/settings#maintenance'), keywords: 'backup reset wipe clean slate' },
     ]

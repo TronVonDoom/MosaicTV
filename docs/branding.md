@@ -21,7 +21,7 @@ library, in 16:9 or 4:3, as you change them.
 
 ## Watermark behavior
 
-**Settings → Watermark** sets how the on-screen logo is drawn, for any logo
+**Settings → Channels → Watermark** sets how the on-screen logo is drawn, for any logo
 without watermark settings of its own (with the same live preview):
 
 - **Mode** — `permanent` (always on), `intermittent` (appears every N minutes

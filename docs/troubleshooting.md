@@ -129,7 +129,7 @@ an upgrade that *did* apply, stop the container, copy that file over
 `mosaictv.db` (delete `mosaictv.db-wal` and `-shm` beside it), and run the older
 image.
 
-**Reset:** **Settings → Maintenance → Reset to clean slate** wipes the
+**Reset:** **Settings → Maintenance → Reset to a clean slate** wipes the
 database (optionally also uploaded logos, music and clips) for a fresh start — take a
 backup first.
 

@@ -284,7 +284,7 @@ The **Guide** tab shows the channel's timeline — exactly what airs when, as a
 timeline or a list. There's nothing to build: the engine walks forward,
 applying blocks when they're active and the rotation otherwise, packing
 programs and inserting breaks to land on block boundaries, as far ahead as the
-**Schedule horizon** (Settings → Streaming).
+**Build ahead** setting (Settings → Channels).
 
 - **It follows your edits.** Change the rotation, a block, a collection's
   shows or order, or a show's broadcast episodes, and the guide is rebuilt from

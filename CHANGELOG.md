@@ -184,6 +184,12 @@ TV mode, and a sturdier foundation under all of it.
   dashboard, the channel list, a channel's **Watch** button) opens it in
   **Watch** instead of a preview window, and **Esc** comes back. The **Cast**
   button moved there too, and a cast TV follows your flips.
+- **Settings, rebuilt.** Five sections — **Metadata**, **Channels** (how far
+  ahead to build, audio language, the default watermark), **Streaming** (the
+  stream format and the HDHomeRun tuner, now with its address to copy),
+  **Encoding** and **Maintenance** — each laid out the same way: a setting's
+  name and what it does beside its control, in titled groups. Encoding
+  profiles open in the same rows, with Save always in reach.
 - **TV mode.** **Watch** in the sidebar puts your channels full screen: flip
   with ↑/↓ or a swipe, type a channel number, ⌫ for the last channel, **G**
   for a channel guide with what's on now and next. A banner shows what's on as

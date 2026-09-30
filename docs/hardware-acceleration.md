@@ -81,7 +81,7 @@ Uncomment the NVIDIA lines in `docker-compose.yml`:
 
 ## Encoding profiles
 
-**Settings → Encoding profiles** — create profiles and assign them per channel
+**Settings → Encoding** — create profiles and assign them per channel
 (channel **General** tab). Channels without one use the built-in default
 (1280×720, 30 fps).
 

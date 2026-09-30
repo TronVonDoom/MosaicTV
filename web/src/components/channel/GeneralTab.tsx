@@ -140,8 +140,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
                 Audio language
                 <InfoHint>
                   Which track this channel airs when a file has more than one. Inherit follows{' '}
-                  <Link to="/settings#streaming" className="text-indigo-300">
-                    Settings → Streaming
+                  <Link to="/settings#channels" className="text-indigo-300">
+                    Settings → Channels
                   </Link>
                   ; set it here for a channel that should differ — subtitled anime on an otherwise
                   dubbed instance, say. A file with no track in the language plays its first.

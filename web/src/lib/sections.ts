@@ -3,11 +3,11 @@
 // drift apart. A section is the page's #hash.
 
 export const SETTINGS_SECTIONS = [
-  { id: 'metadata', label: 'Metadata', icon: 'sparkles', description: 'TMDB & TheTVDB artwork, descriptions' },
-  { id: 'streaming', label: 'Streaming', icon: 'cast', description: 'Streams, guide depth, tuner' },
-  { id: 'watermark', label: 'Watermark', icon: 'image', description: 'The default on-screen logo' },
-  { id: 'encoding', label: 'Encoding', icon: 'cpu', description: 'Resolution, bitrate, GPU' },
-  { id: 'maintenance', label: 'Maintenance', icon: 'database', description: 'Backup, reset, about' },
+  { id: 'metadata', label: 'Metadata', icon: 'sparkles', description: 'TMDB & TheTVDB, matching' },
+  { id: 'channels', label: 'Channels', icon: 'channels', description: 'Guide depth, audio, watermark' },
+  { id: 'streaming', label: 'Streaming', icon: 'cast', description: 'Stream format, HDHomeRun tuner' },
+  { id: 'encoding', label: 'Encoding', icon: 'cpu', description: 'ffmpeg profiles' },
+  { id: 'maintenance', label: 'Maintenance', icon: 'database', description: 'About, backup, reset' },
 ] as const
 
 export const STUDIO_SECTIONS = [

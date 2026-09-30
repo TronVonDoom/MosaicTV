@@ -205,7 +205,7 @@ VLC. Full player-by-player instructions: [Connecting Players](clients.md).
 
 - **Logos & watermark** — upload channel logos in **Studio → Logos**, assign
   them per channel/block, and tune the on-screen watermark per logo or under
-  **Settings → Watermark**, with a live preview.
+  **Settings → Channels**, with a live preview.
   → [Branding](branding.md)
 - **Station breaks** — fill the gaps between programs with generated
   station idents or your own bumpers, set up on each channel's **Breaks** tab.
