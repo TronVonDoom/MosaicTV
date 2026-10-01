@@ -25,7 +25,8 @@ Channel
 - **Encoding profile** — which output settings this channel streams with
   (default: built-in 720p30). See [Hardware Acceleration](hardware-acceleration.md).
 - **Logo** — shown in players' guides, and doubles as the default on-screen
-  watermark. See [Branding](branding.md).
+  watermark. New channels start on the bundled MosaicTV logo; **No logo** shows
+  none at all. See [Branding](branding.md).
 - **Coming up next** — an optional card naming the next program, with its poster.
 - **Music** — what a song airs over, and whether lyrics come first (see
   [Music](#music)).

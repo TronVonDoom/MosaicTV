@@ -33,6 +33,12 @@ Music filed as a music app files it, and orders that speak its language.
   Dashboard no longer assume everything is a show. A music library's card and
   header count artists, and its "on a channel" count includes artist, album,
   song and music-video picks.
+- **No logo means no logo.** A channel set to *No logo* used to wear the
+  MosaicTV icon anyway — in the corner and in players' guides. The icon is now
+  an ordinary logo, **MosaicTV (default)**, that new channels start on; every
+  channel that was showing it is moved onto it on upgrade, so nothing changes
+  on air. *No logo* now shows none. A collection's picker says **The channel's
+  logo** for what it always meant.
 
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 

@@ -10,10 +10,18 @@ Uploaded logos are stored in your data volume and can be assigned to:
 
 - a **channel** (General tab) — used in players' guides (M3U `tvg-logo` +
   XMLTV icon) *and* as the default on-screen watermark;
+- a **collection** — on screen while that collection airs;
 - a **time block** (Schedule tab) — overrides the on-screen logo while that
   block airs.
 
-Priority on screen: **block logo → channel logo**.
+Priority on screen: **block logo → collection logo → channel logo**.
+
+The **MosaicTV** logo comes with the app, marked *(default)* in the logo list,
+and a new channel starts on it. Pick **No logo** for a channel to have none:
+nothing in the corner, no icon in players' guides (they show the channel's
+name instead), and idents that would be branded with a logo play the animated
+look instead. A collection or block left on **The channel's logo** /
+**use collection/channel logo** follows the channel.
 
 Click a logo to open it in the inspector: rename it, replace its image, or give
 it its own watermark settings. The preview shows the bug over a frame from your
