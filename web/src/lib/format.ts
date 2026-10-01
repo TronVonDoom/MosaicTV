@@ -15,7 +15,8 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
 /**
  * How a program reads in a listing: "Rugrats S01E02" for an episode, "The
  * Office — Bloopers" for a show's extra, "The Matrix (Trailer)" for a movie's,
- * the plain title for anything else.
+ * "Madonna – Vogue" for a music video (as the guide has it), the plain title
+ * for anything else.
  * `withTitle` appends the episode's own title — "Rugrats S01E02 — Chuckie's
  * Big Day" — for places with room for it.
  *
@@ -23,9 +24,11 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
  * show's extra (the scanner sets it nowhere else), so that one check covers both.
  */
 export function programLabel(
-  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null },
+  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null; artist?: string | null },
   opts: { withTitle?: boolean } = {},
 ): string {
+  // Only a music video has an artist.
+  if (m.artist) return `${m.artist} – ${m.title}`
   // A movie's extra says what it is: a trailer is often named for its film.
   if (!m.showTitle) return m.extra ? `${m.title} (${EXTRA_LABELS[m.extra as ExtraKind] ?? 'Extra'})` : m.title
   // An extra's number (a deleted scene filed as S02E05) isn't an episode's.

@@ -35,6 +35,10 @@ function memberCaption(it: CollectionItem): string {
       return m?.year ? `Movie · ${m.year}` : 'Movie'
     case 'episode':
       return 'Single episode'
+    case 'artist':
+      return `${m?.episodes ?? 0} music video${m?.episodes === 1 ? '' : 's'}`
+    case 'music':
+      return m?.year ? `Music video · ${m.year}` : 'Music video'
   }
 }
 
@@ -98,6 +102,21 @@ const KIND_LABEL: Record<CollectionItem['kind'], string> = {
   season: 'Season',
   movie: 'Movie',
   episode: 'Episode',
+  artist: 'Artist',
+  music: 'Music video',
+}
+
+/** The smart filter's types, as its summary names them. */
+const TYPE_LABEL: Record<string, string> = { episode: 'episodes', movie: 'movies', music: 'music videos', other: 'other' }
+
+/** What a member's tile shows when it has no artwork. */
+const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
+  show: 'show',
+  season: 'show',
+  episode: 'show',
+  movie: 'movie',
+  artist: 'audio',
+  music: 'audio',
 }
 
 /** One member as a poster tile: drag to reorder, × to remove, and switches
@@ -169,7 +188,7 @@ function MemberTile({
           />
         ) : (
           <div className="absolute inset-0 grid place-items-center text-white/70">
-            <Icon name={it.kind === 'movie' ? 'movie' : 'show'} size={26} />
+            <Icon name={KIND_ICON[it.kind]} size={26} />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30" />
@@ -299,9 +318,10 @@ function CollectionSettings({
               <option value="">Any type</option>
               <option value="episode">Episodes</option>
               <option value="movie">Movies</option>
+              <option value="music">Music videos</option>
               <option value="other">Other</option>
             </Select>
-            <Input placeholder="Title contains" value={form.filterSearch} onChange={(e) => setForm({ ...form, filterSearch: e.target.value })} />
+            <Input placeholder="Title or artist contains" value={form.filterSearch} onChange={(e) => setForm({ ...form, filterSearch: e.target.value })} />
             <Input placeholder="Genre contains" value={form.filterGenre} onChange={(e) => setForm({ ...form, filterGenre: e.target.value })} />
           </div>
         </div>
@@ -403,13 +423,25 @@ export default function CollectionManager({
 
   const selected = cols?.find((c) => c.id === selectedId) ?? null
 
-  // Keep an open preview honest after a drag, an add, or a removal.
+  // Keep an open preview honest after a drag, an add, a removal, or a change
+  // to the order or the smart filter.
+  const airsKey = selected
+    ? [
+        selected.items.map((i) => i.id).join(','),
+        selected.defaultOrder,
+        selected.libraryId,
+        selected.filterType,
+        selected.filterShow,
+        selected.filterSearch,
+        selected.filterGenre,
+      ].join('|')
+    : ''
   useEffect(() => {
     if (!showPreview || !selected) return
     setPreview(null)
     api.collectionPreview(selected.id, selected.defaultOrder).then(setPreview).catch(() => setPreview(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreview, selected?.id, selected?.items.length, selected?.defaultOrder])
+  }, [showPreview, selected?.id, airsKey])
 
   async function guard<T>(fn: () => Promise<T>) {
     setError(null)
@@ -470,6 +502,10 @@ export default function CollectionManager({
           return api.addCollectionItem(collectionId, { kind: 'episode', mediaItemId: r.mediaItemId, label: programLabel(r) })
         case 'movie':
           return api.addCollectionItem(collectionId, { kind: 'movie', mediaItemId: r.mediaItemId, label: r.title })
+        case 'artist':
+          return api.addCollectionItem(collectionId, { kind: 'artist', artist: r.artist, libraryId: r.libraryId, label: r.artist })
+        case 'music':
+          return api.addCollectionItem(collectionId, { kind: 'music', mediaItemId: r.mediaItemId, label: r.title })
       }
     })
   }
@@ -477,7 +513,7 @@ export default function CollectionManager({
   const filterSummary = (c: Collection) =>
     [
       c.libraryId ? libs.find((l) => l.id === c.libraryId)?.name : null,
-      c.filterType,
+      c.filterType && (TYPE_LABEL[c.filterType] ?? c.filterType),
       c.filterSearch && `“${c.filterSearch}”`,
       c.filterGenre && `genre ${c.filterGenre}`,
     ]
@@ -513,7 +549,7 @@ export default function CollectionManager({
         )}
 
         {cols.length === 0 ? (
-          <p className="px-2 pb-2 text-[13px] text-ink-faint">None yet — create one to start adding shows and movies.</p>
+          <p className="px-2 pb-2 text-[13px] text-ink-faint">None yet — create one to start adding shows, movies and music videos.</p>
         ) : (
           <>
           {/* Narrow screens: a picker, so the list doesn't push the posters
@@ -582,7 +618,7 @@ export default function CollectionManager({
         <EmptyState
           icon="layers"
           title="Collections are how a channel is programmed"
-          description="Make one per block of programming — “Nick Jr.”, “Late Show” — and fill it with shows, seasons, episodes or movies. The schedule then decides when each one airs."
+          description="Make one per block of programming — “Nick Jr.”, “Late Show” — and fill it with shows, seasons, episodes, movies or music videos. The schedule then decides when each one airs."
           action={
             <Button icon="plus" onClick={() => setCreating(true)}>
               New collection
@@ -657,7 +693,7 @@ export default function CollectionManager({
               <p className="text-[13px] text-ink-muted mt-1 max-w-sm mx-auto">
                 {filterSummary(selected)
                   ? 'Its smart filter is doing the picking. Add titles above to put particular ones in too.'
-                  : 'Search above for a show, a single season, an episode, or a movie.'}
+                  : 'Search above for a show, a single season, an episode, a movie, an artist or a music video.'}
               </p>
             </div>
           ) : (

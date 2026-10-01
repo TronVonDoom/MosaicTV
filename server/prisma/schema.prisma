@@ -303,18 +303,19 @@ model FillerAssignment {
 }
 
 // A hand-picked member of a collection: a whole show, one season of a show, a
-// single episode, or a movie. `order` is the user's arrangement — what the
-// "custom" playback order airs.
+// single episode, a movie, every music video by an artist, or one music video.
+// `order` is the user's arrangement — what the "custom" playback order airs.
 model CollectionItem {
   id           Int        @id @default(autoincrement())
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId Int
-  kind         String // "show" | "season" | "episode" | "movie"
+  kind         String // "show" | "season" | "episode" | "movie" | "artist" | "music"
   show         Show?      @relation(fields: [showId], references: [id], onDelete: Cascade)
   showId       Int? // for kind "show" and "season"
-  libraryId    Int? // for kind "show"/"season" (which library the show is in)
+  libraryId    Int? // for kind "show"/"season"/"artist" (which library it's in)
   season       Int? // for kind "season"
-  mediaItemId  Int? // for kind "movie" and "episode"
+  artist       String? // for kind "artist", as the music videos name it (MediaItem.artist)
+  mediaItemId  Int? // for kind "movie", "episode" and "music"
   label        String? // denormalized display name
   order        Int        @default(0)
   // Whether this pick brings in the show's season 0, and the show's or the

@@ -24,7 +24,7 @@ export const PLAYBACK_ORDERS: PlaybackOrderInfo[] = [
   {
     value: 'chronological',
     label: 'Release order',
-    description: 'Oldest first: movies by year, each show’s episodes in order, shows one after another in your order.',
+    description: 'Oldest first: movies and music videos by year, each show’s episodes in order, shows one after another in your order.',
     pattern: '1978 · 1981 · 1988',
   },
   {

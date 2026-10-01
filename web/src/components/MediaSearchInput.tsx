@@ -48,7 +48,7 @@ export default function MediaSearchInput({
 
   // Season/episode entries let a collection be a hand-picked running order
   // (a "best of" marathon), not just whole shows.
-  const rowFor = (r: MediaSearchResult): { icon: 'show' | 'movie' | 'clip'; main: string; meta: string } => {
+  const rowFor = (r: MediaSearchResult): { icon: 'show' | 'movie' | 'clip' | 'audio'; main: string; meta: string } => {
     switch (r.kind) {
       case 'show':
         return { icon: 'show', main: r.showTitle, meta: `${r.episodeCount} eps · ${r.libraryName}` }
@@ -73,6 +73,10 @@ export default function MediaSearchInput({
             ? [extraLabel(r.extra), r.parentTitle && `of ${r.parentTitle}`].filter(Boolean).join(' ')
             : [r.year].filter(Boolean).join(' · '),
         }
+      case 'artist':
+        return { icon: 'audio', main: r.artist, meta: `${r.videoCount} video${r.videoCount === 1 ? '' : 's'} · ${r.libraryName}` }
+      case 'music':
+        return { icon: 'audio', main: r.title, meta: [r.artist, r.year].filter(Boolean).join(' · ') || 'music video' }
     }
   }
 
@@ -81,7 +85,7 @@ export default function MediaSearchInput({
       <Icon name="plus" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
       <Input
         className="w-full pl-9"
-        placeholder="Add a show, season, episode or movie…"
+        placeholder="Add a show, season, episode, movie, artist or music video…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => {

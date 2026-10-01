@@ -112,10 +112,23 @@ export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma
     where.OR = [
       { title: { contains: c.filterSearch } },
       { showTitle: { contains: c.filterSearch } },
+      { artist: { contains: c.filterSearch } },
     ]
   }
   return where
 }
+
+/** The single-item picks: a movie, an episode or a music video. */
+const isSingle = (it: { kind: string }) => it.kind === 'movie' || it.kind === 'episode' || it.kind === 'music'
+
+/** An artist pick's files: every music video by them in the pick's library. */
+function artistPickWhere(it: { libraryId: number | null; artist: string | null }): Prisma.MediaItemWhereInput {
+  return { missing: false, durationSec: { gt: 0 }, type: 'music', extra: null, libraryId: it.libraryId ?? undefined, artist: it.artist }
+}
+
+// An artist's videos as they came out: by year, then album, then title.
+const byRelease = (a: MediaItem, b: MediaItem) =>
+  (a.year ?? 0) - (b.year ?? 0) || (a.album ?? '').localeCompare(b.album ?? '') || a.title.localeCompare(b.title)
 
 /** A show pick's files: its episodes and, when they air, its specials and
  *  extras — the whole show, or one season of it. (Only a show's episodes and
@@ -219,9 +232,10 @@ async function airingsForShows(where: {
 /**
  * The collection's members expanded into program units, in the order the user
  * arranged them: a "show"/"season" member becomes its episodes folded into
- * airings (multi-part episodes as one unit, the rest as units of one), a
- * "movie"/"episode" member a single unit. The smart filter (which has no
- * user-defined position) contributes its units at the end.
+ * airings (multi-part episodes as one unit, the rest as units of one), an
+ * "artist" member that artist's music videos as they came out, and a
+ * "movie"/"episode"/"music" member a single unit. The smart filter (which has
+ * no user-defined position) contributes its units at the end.
  */
 async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<ProgramUnit[]> {
   const out: ProgramUnit[] = []
@@ -231,7 +245,7 @@ async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<Pr
   // Single-item members are fetched in one query, then placed back at their
   // member's spot rather than being appended as a batch.
   const singleIds = members
-    .filter((i) => (i.kind === 'movie' || i.kind === 'episode') && i.mediaItemId != null)
+    .filter((i) => isSingle(i) && i.mediaItemId != null)
     .map((i) => i.mediaItemId as number)
   const singles = singleIds.length
     ? await prisma.mediaItem.findMany({
@@ -255,7 +269,10 @@ async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<Pr
       if (eps.length === 0) continue
       const airings = await airingsForShows({ showIds: [it.showId], season, specials: a.specials })
       for (const u of groupIntoAirings(eps, airings)) out.push(u)
-    } else if ((it.kind === 'movie' || it.kind === 'episode') && it.mediaItemId != null) {
+    } else if (it.kind === 'artist' && it.artist != null) {
+      const videos = await prisma.mediaItem.findMany({ where: artistPickWhere(it) })
+      for (const m of videos.sort(byRelease)) out.push([m])
+    } else if (isSingle(it) && it.mediaItemId != null) {
       const m = singleById.get(it.mediaItemId)
       if (!m) continue
       out.push([m])
@@ -312,12 +329,13 @@ export async function resolveUnits(c: CollectionWithItems, airs?: Airs): Promise
  */
 export async function collectionCount(c: CollectionWithItems, airs?: Airs): Promise<number> {
   const a = airs ?? (await channelAirs(c.channelId))
-  // One OR'd query covers every show/season member at once.
-  const showWhere = c.items
-    .filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null)
-    .map((i) => showPickWhere(i, pickAirs(i, a)))
+  // One OR'd query covers every show, season and artist member at once.
+  const showWhere = [
+    ...c.items.filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null).map((i) => showPickWhere(i, pickAirs(i, a))),
+    ...c.items.filter((i) => i.kind === 'artist' && i.artist != null).map(artistPickWhere),
+  ]
   const singleIds = c.items
-    .filter((i) => (i.kind === 'movie' || i.kind === 'episode') && i.mediaItemId != null)
+    .filter((i) => isSingle(i) && i.mediaItemId != null)
     .map((i) => i.mediaItemId as number)
   const withExtras = c.items
     .filter((i) => i.kind === 'movie' && i.mediaItemId != null && pickAirs(i, a).extras)

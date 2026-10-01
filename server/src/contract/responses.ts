@@ -448,6 +448,8 @@ export type CollectionItem = {
   showTitle: string | null
   libraryId: number | null
   season: number | null
+  /** The artist an artist pick is of, as the music videos name them. */
+  artist: string | null
   mediaItemId: number | null
   label: string | null
   order: number
@@ -460,6 +462,7 @@ export type CollectionItem = {
     artId: number | null
     artType: 'poster' | 'show' | 'season' | null
     year: number | null
+    /** A show's or season's episodes, or an artist's music videos. */
     episodes: number | null
     seasons: number | null
     missing: boolean
@@ -493,6 +496,8 @@ export type MediaSearchResult =
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
   | { kind: 'movie'; mediaItemId: number; libraryId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
+  | { kind: 'artist'; artist: string; libraryId: number; libraryName: string; videoCount: number }
+  | { kind: 'music'; mediaItemId: number; libraryId: number; title: string; artist: string | null; year: number | null }
 
 export type RotationItem = {
   id: number

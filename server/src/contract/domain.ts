@@ -42,8 +42,9 @@ export const asGrid = (v: unknown): GridMinutes => ((GRID_MINUTES as readonly nu
 export const ROTATION_MODES = ['one', 'multiple'] as const
 export type RotationMode = (typeof ROTATION_MODES)[number]
 
-/** A hand-picked collection member. */
-export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie'] as const
+/** A hand-picked collection member: shows and their parts, a movie, or music
+ *  videos — every one by an artist ("artist") or a single one ("music"). */
+export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie', 'artist', 'music'] as const
 export type MemberKind = (typeof MEMBER_KINDS)[number]
 
 export const LIBRARY_KINDS = ['tv', 'movie', 'music', 'other'] as const

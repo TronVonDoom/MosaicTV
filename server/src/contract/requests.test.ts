@@ -68,9 +68,12 @@ test('the old error messages come through unchanged', () => {
   assert.equal(message(BlockCreate.safeParse({ collectionId: 1, days: '1', startMinute: 60, endMinute: 60 })), 'Start and end time cannot be the same.')
   assert.equal(message(BlockUpdate.safeParse({ startMinute: 60, endMinute: '60' })), 'Start and end time cannot be the same.')
   assert.equal(message(CollectionCreate.safeParse({})), 'name is required')
-  assert.equal(message(MemberCreate.safeParse({ kind: 'album' })), 'kind must be one of show, season, episode, movie')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'album' })), 'kind must be one of show, season, episode, movie, artist, music')
   assert.equal(message(MemberCreate.safeParse({ kind: 'season', showTitle: 'Doug' })), 'season is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'movie' })), 'mediaItemId is required')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'artist', libraryId: 2 })), 'artist is required')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'artist', artist: 'Madonna' })), 'libraryId is required')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'music' })), 'mediaItemId is required')
   assert.equal(message(AiringsReplace.safeParse({ libraryId: 1, showTitle: 'Doug', season: 1, groups: 'x' })), 'groups must be an array of id arrays')
   assert.equal(message(AiringsReplace.safeParse({ libraryId: 1, season: 1, groups: [] })), 'libraryId, showTitle and season are required')
   assert.equal(message(horizonSave(24, 168).safeParse({ playoutHorizonHours: 12 })), 'playoutHorizonHours must be a number between 24 and 168')
@@ -82,6 +85,7 @@ test('members and broadcast episodes come out in the shape they are stored in', 
     showTitle: 'Doug',
     libraryId: 3,
     season: 2,
+    artist: null,
     mediaItemId: null,
     label: 'Doug',
   })
@@ -90,8 +94,19 @@ test('members and broadcast episodes come out in the shape they are stored in', 
     showTitle: null,
     libraryId: null,
     season: null,
+    artist: null,
     mediaItemId: 44,
     label: 'Hocus Pocus',
+  })
+  // An artist pick is named by its artist, in a library; it labels itself.
+  assert.deepEqual(MemberCreate.parse({ kind: 'artist', artist: 'Madonna', libraryId: '5', mediaItemId: 9 }), {
+    kind: 'artist',
+    showTitle: null,
+    libraryId: 5,
+    season: null,
+    artist: 'Madonna',
+    mediaItemId: null,
+    label: 'Madonna',
   })
   // -1 is "no season"; a group that isn't a list is dropped.
   assert.deepEqual(AiringsReplace.parse({ libraryId: '3', showTitle: 'Dexter', season: -1, groups: [[1, '2'], 'x', [3]] }), {

@@ -188,26 +188,33 @@ export const CollectionUpdate = z.object({
 })
 export type CollectionUpdate = z.output<typeof CollectionUpdate>
 
-/** A hand-picked member: a whole show, one season of it, an episode, or a movie. */
+/** A hand-picked member: a whole show, one season of it, an episode, a movie,
+ *  every music video by an artist (in one library), or one music video. */
 export const MemberCreate = z
   .object({
     kind: z.enum(MEMBER_KINDS, { error: `kind must be one of ${MEMBER_KINDS.join(', ')}` }),
     showTitle: loose,
     libraryId: loose,
     season: loose,
+    artist: loose,
     mediaItemId: loose,
     label: loose,
   })
   .transform((b, ctx) => {
     const byShow = b.kind === 'show' || b.kind === 'season'
+    const byArtist = b.kind === 'artist'
     const problem =
       byShow && !b.showTitle
         ? 'showTitle is required'
         : b.kind === 'season' && b.season == null
           ? 'season is required'
-          : !byShow && !b.mediaItemId
-            ? 'mediaItemId is required'
-            : null
+          : byArtist && !b.artist
+            ? 'artist is required'
+            : byArtist && !b.libraryId
+              ? 'libraryId is required'
+              : !byShow && !byArtist && !b.mediaItemId
+                ? 'mediaItemId is required'
+                : null
     if (problem) {
       ctx.issues.push({ code: 'custom', message: problem, input: b })
       return z.NEVER
@@ -217,8 +224,9 @@ export const MemberCreate = z
       showTitle: byShow ? String(b.showTitle) : null,
       libraryId: b.libraryId ? Number(b.libraryId) : null,
       season: b.kind === 'season' ? Number(b.season) : null,
-      mediaItemId: byShow ? null : Number(b.mediaItemId),
-      label: b.label ? String(b.label) : byShow ? String(b.showTitle) : null,
+      artist: byArtist ? String(b.artist) : null,
+      mediaItemId: byShow || byArtist ? null : Number(b.mediaItemId),
+      label: b.label ? String(b.label) : byShow ? String(b.showTitle) : byArtist ? String(b.artist) : null,
     }
   })
 export type MemberCreate = z.output<typeof MemberCreate>
