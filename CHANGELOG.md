@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 — On the clock, and on the radio (2026-10-01)
 
 A broadcast clock and real commercial breaks, a guide that follows your edits,
-TV mode, and a sturdier foundation under all of it.
+TV mode, music channels, and a sturdier foundation under all of it.
 
 - **A broadcast clock.** A channel can start every program on the :00 and :30
   (or the quarter hour, or the hour), like broadcast TV: each program is
@@ -33,6 +33,37 @@ TV mode, and a sturdier foundation under all of it.
   nothing to play, one shorter than its blocks' week, season 0 specials airing
   first, an exact-time start between the clock's lines — and says what to
   change.
+- **Music channels.** A new **Music** library holds songs — audio files, read
+  by their own tags first (title, artist, album, year, track, disc), then their
+  folders and name — with their covers (the album folder's, or the one inside
+  the file) and timed lyrics (a `.lrc` beside the song, or lyrics in its tags).
+  A song has no picture, so it airs over a **now playing** screen: **Album**
+  (the cover large over a blur of itself, the song, and a progress bar
+  filling), or **Visualizer** (a spectrum drawn from the song as it plays). A
+  channel's General tab picks one, and **If lyrics exist, show lyrics first**
+  gives a song with timed lyrics a **Lyrics** screen instead — the line being
+  sung lit, the rest scrolling past. The last 20 seconds of a song bring in the
+  Up next card. Songs mix with music videos, shows and movies however a
+  channel's collections have them.
+- **Music videos, picked like shows.** A collection's search finds artists —
+  every music video (or song) of theirs in one library, as they came out, and
+  any added later — and single videos and songs, beside shows and movies. The
+  smart filter gains **Music videos** and **Songs**, and its title search
+  matches an artist too. A music video reads its Kodi `<musicvideo>` .nfo and
+  its own tags, its title loses the YouTube noise ("(Official Music Video)",
+  "[4K]", yt-dlp's `[id]`), and its picture is its own, its album folder's, or
+  the cover inside the file (as yt-dlp and Pinchflat embed it); an
+  `artist.jpg` pictures the artist. Its artist, album, title and year stay as
+  its folders and name have them — the metadata only fills gaps. Music Videos
+  libraries still on the default sources move to .nfo files and tags, and
+  their videos are read again by a scan after the first start.
+- **Music looked up online, free.** A music library can switch on
+  **MusicBrainz** — the album a song is on, the year it first came out, its
+  genres, and the album's cover from the Cover Art Archive — and a Music
+  library **LRCLIB**, for timed lyrics. Neither needs a key; MusicBrainz is
+  asked a request a second, each album once for all its songs, and passes over
+  live bootlegs and compilations for the studio album. What the files say
+  still comes first.
 - **Extras live under their movie or show, as in Plex.** The scanner tells a
   movie's or show's extras apart — the Plex/Jellyfin extras folders inside its
   folder (`Featurettes`, `Trailers`, `Deleted Scenes`…), or a name like
@@ -180,6 +211,17 @@ TV mode, and a sturdier foundation under all of it.
 - **A turn is never cut short.** A rotation item that plays N programs a turn
   finishes its turn across a guide top-up; before, a top-up that landed
   mid-turn moved straight on to the next item.
+- **A collection that changes keeps its place.** A channel carries on from the
+  program it had next when a collection grows or shrinks under it. Before, its
+  place was a count, so a scan that added or dropped an episode moved every
+  channel airing it in release or custom order — by several episodes in a big
+  collection, or back to one it had just aired — and a show in a rotation that
+  had come round again moved when it gained or lost an episode. Release order
+  also plays an album's songs in track order.
+- **A channel's General tab saves only what you changed.** It used to send
+  every field, so saving a page left open put back whatever had been changed
+  elsewhere since it loaded. It also follows changes made elsewhere now: a
+  field you haven't touched shows the new value.
 - **Watching a channel is TV mode.** Clicking a channel's picture (the
   dashboard, the channel list, a channel's **Watch** button) opens it in
   **Watch** instead of a preview window, and **Esc** comes back. The **Cast**
