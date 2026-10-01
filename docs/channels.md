@@ -35,12 +35,20 @@ Channel
 Each channel manages its own collections (**Collections** tab). A collection
 resolves to a set of playable items from two sources, combined and deduped:
 
-1. **Members** — hand-picked entries added via the search box: a whole **show**,
+1. **Members** — hand-picked entries added from the add box: a whole **show**,
    a single **season** of one, an individual **episode**, a **movie**, an
    **artist** (every music video or song of theirs in one library, as they came
-   out — year, album, then track — and any added later), or one **music video**
-   or **song**. A collection can hold any mix. **Drag members to reorder them**: *Your order*,
-   *Release order* and *Rotate shows* all follow that arrangement.
+   out — year, album, then track — and any added later), one **album** of
+   theirs (in track order, as a season is of a show), or one **music video** or
+   **song**. A collection can hold any mix. **Drag members to reorder them**:
+   *Your order*, *Release order* and *Take turns* all follow that arrangement.
+
+   The add box searches everything as you type, grouped into TV Shows, Movies,
+   Music and Music Videos. Its tabs keep to one of them — with nothing typed, a
+   tab lists that kind A–Z to browse. A show opens on its seasons and a season
+   on its episodes; an artist on their albums and an album on its songs. Each
+   can go in whole (**Add**) or a piece at a time; the box stays open while you
+   add, and what's in already is ticked.
 2. **Smart filter** — optional: by library, media type (music videos and songs
    included), exact show, title search (which matches an artist too, so music
    videos + "Madonna" is a Madonna block from every library), or genre. Filter results have no hand-picked position, so they come
@@ -179,25 +187,34 @@ that loops forever. Per entry:
   collection itself):
   - **Your order** — the collection's members in the exact order you arranged
     them, each show expanded into its own episodes in sequence: one show's
-    full run, then the next member.
-  - **Release order** — oldest first: movies by year, each show's episodes in
-    order (S01E01 → S01E02 → …), the shows one after another in your
-    arrangement. A movie series added in any order still airs 1978 → 1981 → 1988.
-  - **Rotate shows** — round-robin across the shows, in your arrangement: one
-    episode from each show in turn. Everything without a show (movies,
-    one-offs) shares a single turn, so one show plus fifty movies still splits
-    the airtime evenly rather than 1:50.
-  - **Rotate shows, mixed** — every show still gets one episode per round, but
-    each round is dealt in a new random order (and never opens with the show
-    that closed the last one). Episodes stay in sequence. With two shows there's
-    nothing to mix, so they alternate.
+    full run, then the next member. An artist plays all of theirs oldest
+    first; an album plays in track order.
+  - **Release order** — oldest first: movies and music by year (songs across
+    every artist, then by album and track), each show's episodes in order
+    (S01E01 → S01E02 → …), the shows one after another in your arrangement. A
+    movie series added in any order still airs 1978 → 1981 → 1988.
+  - **Take turns** — round-robin across the shows and artists, in your
+    arrangement: one episode from each show, or one song or video from each
+    artist, in turn. Everything without a show or an artist (movies, one-offs)
+    shares a single turn, so one show plus fifty movies still splits the
+    airtime evenly rather than 1:50.
+  - **Take turns, mixed** — every show or artist still gets one turn per
+    round, but each round is dealt in a new random order (and never opens with
+    the one that closed the last). Episodes and songs stay in sequence. With
+    two there's nothing to mix, so they alternate.
   - **Shuffle** — every item in random order, re-dealt every time the
     collection is played through, so a second pass isn't the same running order
-    as the first.
+    as the first. Music never plays the same artist twice in a row, across
+    passes too, unless one artist outnumbers the rest too far to keep apart.
 
-  In both rotations **each show keeps its own place**: add a show and it starts
-  at its first episode while the rest carry on; drop one and it resumes where it
-  was if you add it back; reorder them and only whose turn is next changes.
+  The order picker describes each one in the words of what the collection
+  holds — shows and episodes, or artists and songs — beside a preview of its
+  first airings.
+
+  Taking turns, **each show and artist keeps its own place**: add one and it
+  starts at its first episode or song while the rest carry on; drop one and it
+  resumes where it was if you add it back; reorder them and only whose turn is
+  next changes.
 
   The random orders derive their deal from the playback position rather than
   storing it, so a guide rebuild reproduces the timeline exactly. (With only two
@@ -312,11 +329,12 @@ programs and inserting breaks to land on block boundaries, as far ahead as the
 - **It follows your edits.** Change the rotation, a block, a collection's
   shows or order, or a show's broadcast episodes, and the guide is rebuilt from
   the next program on: what's on now finishes first (and so does one about to
-  start), and every show carries on from the episode it was up to. The tab
+  start), and everything carries on from where it was up to. The tab
   says where the change took effect ("Updated from 8:30 PM").
 - **It extends itself** as time passes, whether anyone is watching or not.
-- **Restart from S1E1** starts every show over at episode 1, from the next
-  program — the only manual control, and rarely what you want.
+- **Start over** starts every collection over from the top — each show at
+  its first episode, each artist at their first song — from the next program:
+  the only manual control, and rarely what you want.
 - **What aired** lists what the channel played, a day, a week or a month back,
   flagging any program that had a stream problem while someone was watching
   (a program held with a break, or one that carried on on the CPU after the GPU

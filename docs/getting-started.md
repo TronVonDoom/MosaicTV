@@ -68,6 +68,12 @@ one inside the file. Timed lyrics come from a `.lrc` file beside it
 (`03 - Title.lrc`) or from its tags. A song has no picture, so it airs over a
 **now playing** screen — see [Channels](channels.md#music).
 
+In the library, a Music or Music Videos library is filed as a music app files
+it: **Artists** (the default), **Albums**, or every **Song** (or video). An
+artist's page lists their albums oldest first, each with its cover and its
+songs in order (music on no album last), where they air, and **Add to a
+channel** — for the artist, or for one album.
+
 ## 2. Scan it
 
 Hit **Scan** on the library. A progress bar tracks files as they're probed
@@ -199,9 +205,9 @@ On the **Schedule** tab:
 
 - **Rotation** — the 24/7 default. An ordered list of collections that loops
   forever. Each entry plays **1 or N** items per turn, in the collection's
-  order: **Your order**, **Release order**, **Rotate shows** (one episode of
-  each show in turn, in your arrangement), **Rotate shows, mixed**, or
-  **Shuffle**.
+  order: **Your order**, **Release order**, **Take turns** (one episode of
+  each show, or one song of each artist, in turn, in your arrangement),
+  **Take turns, mixed**, or **Shuffle**.
 - **Time blocks** (optional) — day/time slots that override the rotation, e.g.
   *Weekdays 18:00–21:00 → Cartoons*. Click the weekly grid to add one. Blocks
   can have their own playback order, logo, breaks, and "coming up next"
@@ -216,8 +222,8 @@ remembered — shows resume where they left off, across days and rebuilds.
 The **Guide** tab shows the playout timeline — what airs when, as a timeline or
 a list. It builds itself as soon as the channel has a rotation or a block,
 extends itself as time passes, and follows every schedule change from the next
-program on, with each show carrying on where it was. **Restart from S1E1**
-starts every show over.
+program on, with each show carrying on where it was. **Start over** starts
+every collection over from the top.
 
 ## 8. Watch!
 

@@ -95,15 +95,15 @@ with a live preview of its first airings:
 
 | Order | What it airs |
 | ----- | ------------ |
-| **Your order** | Exactly as arranged — each show's full run before the next one. |
-| **Release order** | Oldest first: movies by year, each show's episodes in order. |
-| **Rotate shows** | One episode from each show in turn, in your order. |
-| **Rotate shows, mixed** | Every show gets one episode per round, each round in a new random order. |
-| **Shuffle** | Everything at random, nothing repeating until all of it has played. |
+| **Your order** | Exactly as arranged — each show's full run, or each artist's music, before the next one. |
+| **Release order** | Oldest first: movies and music by year, each show's episodes in order. |
+| **Take turns** | One episode from each show, or one song from each artist, in turn, in your order. |
+| **Take turns, mixed** | Every show or artist gets one turn per round, each round in a new random order. |
+| **Shuffle** | Everything at random, nothing repeating until all of it has played — and never the same artist twice running. |
 
-In a rotation **each show keeps its own place**: add a show and it starts at
-episode 1 while the rest carry on; reorder them and only whose turn is next
-changes.
+Taking turns, **each show and artist keeps its own place**: add one and it
+starts at its first episode or song while the rest carry on; reorder them and
+only whose turn is next changes.
 
 <img src="docs/screenshots/playback-orders.webp" alt="The playback order picker with a live preview of the first airings" width="100%" />
 

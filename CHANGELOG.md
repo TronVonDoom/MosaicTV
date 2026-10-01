@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+Music filed as a music app files it, and orders that speak its language.
+
+- **Artists, albums, songs.** A Music or Music Videos library lists its
+  artists — square tiles, their own picture or their newest cover — with
+  **Albums** and **Songs** (or **Videos**) a click away. An artist's page has
+  where they're on, and their albums oldest first, each with its cover and its
+  songs in order (music videos as stills), and their music on no album last.
+- **Album picks.** A collection can take one album, as it takes one season of
+  a show: from the search box, or **Add album to a channel** on the artist's
+  page. Artists and albums turn up in the header's search too.
+- **Take turns.** *Rotate shows* is now **Take turns** (and *Take turns,
+  mixed*), and it takes turns by **artist** as well as by show: a station of
+  forty artists plays one song from each in turn. Before, every song and music
+  video shared a single turn, so a music collection never rotated at all. A
+  music collection already on it starts each artist from their first song.
+- **An add box you can browse.** Adding to a collection, the results come
+  grouped into TV Shows, Movies, Music and Music Videos, with a tab for each:
+  pick one with nothing typed and it lists that kind A–Z. Step into a show
+  for its seasons and episodes, or an artist for their albums and songs, and
+  add the whole thing or a piece. It stays open while you add, and ticks off
+  what's in the collection already.
+- **No artist twice in a row.** Shuffle keeps the same artist from playing
+  back to back, across passes too.
+- **Orders in your collection's words.** The order picker describes each
+  order in shows and episodes, artists and songs, or both, as the collection
+  holds.
+- **Words that fit music.** *Restart from S1E1* is **Start over**; the guide,
+  weeks ahead, the schedule, the loudness and watermark settings and the
+  Dashboard no longer assume everything is a show. A music library's card and
+  header count artists, and its "on a channel" count includes artist, album,
+  song and music-video picks.
+
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 
 A broadcast clock and real commercial breaks, a guide that follows your edits,
