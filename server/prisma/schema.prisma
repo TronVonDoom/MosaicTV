@@ -309,12 +309,13 @@ model CollectionItem {
   id           Int        @id @default(autoincrement())
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   collectionId Int
-  kind         String // "show" | "season" | "episode" | "movie" | "artist" | "music"
+  kind         String // "show" | "season" | "episode" | "movie" | "artist" | "album" | "music" | "song"
   show         Show?      @relation(fields: [showId], references: [id], onDelete: Cascade)
   showId       Int? // for kind "show" and "season"
-  libraryId    Int? // for kind "show"/"season"/"artist" (which library it's in)
+  libraryId    Int? // for kind "show"/"season"/"artist"/"album" (which library it's in)
   season       Int? // for kind "season"
-  artist       String? // for kind "artist", as the music videos name it (MediaItem.artist)
+  artist       String? // for kind "artist" and "album", as the music names it (MediaItem.artist)
+  album        String? // for kind "album", as the music names it (MediaItem.album)
   mediaItemId  Int? // for kind "movie", "episode" and "music"
   label        String? // denormalized display name
   order        Int        @default(0)

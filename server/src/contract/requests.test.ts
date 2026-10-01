@@ -68,11 +68,13 @@ test('the old error messages come through unchanged', () => {
   assert.equal(message(BlockCreate.safeParse({ collectionId: 1, days: '1', startMinute: 60, endMinute: 60 })), 'Start and end time cannot be the same.')
   assert.equal(message(BlockUpdate.safeParse({ startMinute: 60, endMinute: '60' })), 'Start and end time cannot be the same.')
   assert.equal(message(CollectionCreate.safeParse({})), 'name is required')
-  assert.equal(message(MemberCreate.safeParse({ kind: 'album' })), 'kind must be one of show, season, episode, movie, artist, music, song')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'playlist' })), 'kind must be one of show, season, episode, movie, artist, album, music, song')
   assert.equal(message(MemberCreate.safeParse({ kind: 'season', showTitle: 'Doug' })), 'season is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'movie' })), 'mediaItemId is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'artist', libraryId: 2 })), 'artist is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'artist', artist: 'Madonna' })), 'libraryId is required')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'album', artist: 'a-ha', libraryId: 2 })), 'album is required')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'album', album: 'Hunting High and Low', libraryId: 2 })), 'artist is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'music' })), 'mediaItemId is required')
   assert.equal(message(AiringsReplace.safeParse({ libraryId: 1, showTitle: 'Doug', season: 1, groups: 'x' })), 'groups must be an array of id arrays')
   assert.equal(message(AiringsReplace.safeParse({ libraryId: 1, season: 1, groups: [] })), 'libraryId, showTitle and season are required')
@@ -86,6 +88,7 @@ test('members and broadcast episodes come out in the shape they are stored in', 
     libraryId: 3,
     season: 2,
     artist: null,
+    album: null,
     mediaItemId: null,
     label: 'Doug',
   })
@@ -95,6 +98,7 @@ test('members and broadcast episodes come out in the shape they are stored in', 
     libraryId: null,
     season: null,
     artist: null,
+    album: null,
     mediaItemId: 44,
     label: 'Hocus Pocus',
   })
@@ -105,8 +109,20 @@ test('members and broadcast episodes come out in the shape they are stored in', 
     libraryId: 5,
     season: null,
     artist: 'Madonna',
+    album: null,
     mediaItemId: null,
     label: 'Madonna',
+  })
+  // An album pick names its artist and album; it labels itself by the album.
+  assert.deepEqual(MemberCreate.parse({ kind: 'album', artist: 'a-ha', album: 'Scoundrel Days', libraryId: '5' }), {
+    kind: 'album',
+    showTitle: null,
+    libraryId: 5,
+    season: null,
+    artist: 'a-ha',
+    album: 'Scoundrel Days',
+    mediaItemId: null,
+    label: 'Scoundrel Days',
   })
   // -1 is "no season"; a group that isn't a list is dropped.
   assert.deepEqual(AiringsReplace.parse({ libraryId: '3', showTitle: 'Dexter', season: -1, groups: [[1, '2'], 'x', [3]] }), {

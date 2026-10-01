@@ -193,7 +193,8 @@ export const CollectionUpdate = z.object({
 export type CollectionUpdate = z.output<typeof CollectionUpdate>
 
 /** A hand-picked member: a whole show, one season of it, an episode, a movie,
- *  every music video by an artist (in one library), or one music video. */
+ *  every music video or song by an artist (in one library), one album of
+ *  theirs, or one music video or song. */
 export const MemberCreate = z
   .object({
     kind: z.enum(MEMBER_KINDS, { error: `kind must be one of ${MEMBER_KINDS.join(', ')}` }),
@@ -201,12 +202,13 @@ export const MemberCreate = z
     libraryId: loose,
     season: loose,
     artist: loose,
+    album: loose,
     mediaItemId: loose,
     label: loose,
   })
   .transform((b, ctx) => {
     const byShow = b.kind === 'show' || b.kind === 'season'
-    const byArtist = b.kind === 'artist'
+    const byArtist = b.kind === 'artist' || b.kind === 'album'
     const problem =
       byShow && !b.showTitle
         ? 'showTitle is required'
@@ -214,11 +216,13 @@ export const MemberCreate = z
           ? 'season is required'
           : byArtist && !b.artist
             ? 'artist is required'
-            : byArtist && !b.libraryId
-              ? 'libraryId is required'
-              : !byShow && !byArtist && !b.mediaItemId
-                ? 'mediaItemId is required'
-                : null
+            : b.kind === 'album' && !b.album
+              ? 'album is required'
+              : byArtist && !b.libraryId
+                ? 'libraryId is required'
+                : !byShow && !byArtist && !b.mediaItemId
+                  ? 'mediaItemId is required'
+                  : null
     if (problem) {
       ctx.issues.push({ code: 'custom', message: problem, input: b })
       return z.NEVER
@@ -229,8 +233,17 @@ export const MemberCreate = z
       libraryId: b.libraryId ? Number(b.libraryId) : null,
       season: b.kind === 'season' ? Number(b.season) : null,
       artist: byArtist ? String(b.artist) : null,
+      album: b.kind === 'album' ? String(b.album) : null,
       mediaItemId: byShow || byArtist ? null : Number(b.mediaItemId),
-      label: b.label ? String(b.label) : byShow ? String(b.showTitle) : byArtist ? String(b.artist) : null,
+      label: b.label
+        ? String(b.label)
+        : byShow
+          ? String(b.showTitle)
+          : b.kind === 'album'
+            ? String(b.album)
+            : byArtist
+              ? String(b.artist)
+              : null,
     }
   })
 export type MemberCreate = z.output<typeof MemberCreate>

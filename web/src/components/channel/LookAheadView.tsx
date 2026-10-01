@@ -48,7 +48,7 @@ export default function LookAheadView({ channelId, onSelect }: { channelId: numb
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented size="sm" value={span} onChange={setSpan} options={SPANS.map((o) => ({ ...o }))} />
-        <Input className="w-56" placeholder="Find a show or episode…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="w-56" placeholder="Find a program…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {!data ? (
@@ -68,7 +68,7 @@ export default function LookAheadView({ channelId, onSelect }: { channelId: numb
             <StatTile
               label="Starting over"
               value={data.wraps.length}
-              sub={data.wraps.length ? `show${data.wraps.length === 1 ? '' : 's'} back to an earlier episode` : 'every show carries on'}
+              sub={data.wraps.length ? `show${data.wraps.length === 1 ? '' : 's'} back to an earlier episode` : 'nothing starts over'}
             />
           </div>
 

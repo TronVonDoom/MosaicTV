@@ -43,9 +43,10 @@ export const ROTATION_MODES = ['one', 'multiple'] as const
 export type RotationMode = (typeof ROTATION_MODES)[number]
 
 /** A hand-picked collection member: shows and their parts, a movie, or music —
- *  every music video or song by an artist in a library ("artist"), one music
- *  video ("music") or one song ("song"). */
-export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie', 'artist', 'music', 'song'] as const
+ *  every music video or song by an artist in a library ("artist"), one album
+ *  of theirs ("album", as a season is of a show), one music video ("music")
+ *  or one song ("song"). */
+export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie', 'artist', 'album', 'music', 'song'] as const
 export type MemberKind = (typeof MEMBER_KINDS)[number]
 
 /** "music" is a library of music videos; "audio" one of songs (audio files,

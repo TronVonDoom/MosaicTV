@@ -11,10 +11,10 @@ import {
   type MediaItem,
   type MediaSearchResult,
 } from '../lib/api'
-import { orderLabel } from '../lib/playback'
+import { holdsOf, orderLabel } from '../lib/playback'
 import { posterGradient, programLabel } from '../lib/format'
 import { confirmDialog } from '../lib/confirm'
-import MediaSearchInput from './MediaSearchInput'
+import MediaSearchInput, { memberKey } from './MediaSearchInput'
 import LogoPicker from './LogoPicker'
 import OrderPicker from './OrderPicker'
 import { toast } from '../lib/toast'
@@ -37,6 +37,8 @@ function memberCaption(it: CollectionItem): string {
       return 'Single episode'
     case 'artist':
       return `${m?.episodes ?? 0} ${m?.of === 'song' ? 'song' : 'music video'}${m?.episodes === 1 ? '' : 's'}`
+    case 'album':
+      return [it.artist, m?.year, `${m?.episodes ?? 0} ${m?.of === 'song' ? 'song' : 'video'}${m?.episodes === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
     case 'music':
       return m?.year ? `Music video · ${m.year}` : 'Music video'
     case 'song':
@@ -105,6 +107,7 @@ const KIND_LABEL: Record<CollectionItem['kind'], string> = {
   movie: 'Movie',
   episode: 'Episode',
   artist: 'Artist',
+  album: 'Album',
   music: 'Music video',
   song: 'Song',
 }
@@ -119,6 +122,7 @@ const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
   episode: 'show',
   movie: 'movie',
   artist: 'audio',
+  album: 'audio',
   music: 'audio',
   song: 'audio',
 }
@@ -303,6 +307,14 @@ function CollectionSettings({
           <OrderPicker
             collectionId={collection.id}
             value={form.defaultOrder}
+            holds={holdsOf({
+              items: collection.items,
+              filterType: form.filterType || null,
+              filterShow: collection.filterShow,
+              filterSearch: form.filterSearch || null,
+              filterGenre: form.filterGenre || null,
+              libraryId: form.libraryId ? Number(form.libraryId) : null,
+            })}
             onChange={(order) => setForm({ ...form, defaultOrder: order })}
           />
         </div>
@@ -509,6 +521,8 @@ export default function CollectionManager({
           return api.addCollectionItem(collectionId, { kind: 'movie', mediaItemId: r.mediaItemId, label: r.title })
         case 'artist':
           return api.addCollectionItem(collectionId, { kind: 'artist', artist: r.artist, libraryId: r.libraryId, label: r.artist })
+        case 'album':
+          return api.addCollectionItem(collectionId, { kind: 'album', artist: r.artist, album: r.album, libraryId: r.libraryId, label: r.album })
         case 'music':
           return api.addCollectionItem(collectionId, { kind: 'music', mediaItemId: r.mediaItemId, label: r.title })
         case 'song':
@@ -617,7 +631,11 @@ export default function CollectionManager({
           </ul>
           </>
         )}
-        {cols.length > 0 && <ChannelAirs channelId={channelId} airs={cols[0].airs} onSaved={refresh} />}
+        {/* Specials and extras are a show's and a movie's: a music channel has none. */}
+        {cols.some((c) => {
+          const h = holdsOf(c)
+          return h.shows || h.movies
+        }) && <ChannelAirs channelId={channelId} airs={cols[0].airs} onSaved={refresh} />}
       </Card>
 
       {/* ── The selected collection ────────────────────────────────────── */}
@@ -691,7 +709,11 @@ export default function CollectionManager({
           )}
 
           <div className="mt-5 max-w-xl">
-            <MediaSearchInput onAdd={(r) => addMember(selected.id, r)} />
+            <MediaSearchInput
+              key={selected.id}
+              onAdd={(r) => addMember(selected.id, r)}
+              inCollection={new Set(selected.items.map(memberKey).filter((k): k is string => k != null))}
+            />
           </div>
 
           {selected.items.length === 0 ? (
@@ -700,7 +722,7 @@ export default function CollectionManager({
               <p className="text-[13px] text-ink-muted mt-1 max-w-sm mx-auto">
                 {filterSummary(selected)
                   ? 'Its smart filter is doing the picking. Add titles above to put particular ones in too.'
-                  : 'Search above for a show, a single season, an episode, a movie, an artist, a music video or a song.'}
+                  : 'Search above for a show, a single season, an episode, a movie, an artist, an album, a music video or a song.'}
               </p>
             </div>
           ) : (
@@ -732,7 +754,7 @@ export default function CollectionManager({
               </div>
               {selected.items.length > 1 && (
                 <p className="mt-4 text-[12px] text-ink-faint inline-flex items-center gap-1.5">
-                  <Icon name="info" size={13} /> Drag posters to reorder: Your order, Release order and Rotate shows follow this arrangement.
+                  <Icon name="info" size={13} /> Drag posters to reorder: Your order, Release order and Take turns follow this arrangement.
                 </p>
               )}
             </>

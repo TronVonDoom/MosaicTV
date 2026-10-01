@@ -79,7 +79,7 @@ export default function WatermarkFields({
             <SettingRow label="Keep it on the picture" description={KEEP_ON_PICTURE}>
               <Switch label="Keep it on the picture" checked={wm.constrainToMedia} onChange={(v) => set('constrainToMedia', v)} />
             </SettingRow>
-            <SettingRow label="Size" description="Its width, as a share of the frame’s — the same on every show.">
+            <SettingRow label="Size" description="Its width, as a share of the frame’s — the same on every program.">
               <UnitInput unit="%" min={1} max={50} aria-label="Width" {...num('widthPercent')} />
             </SettingRow>
             <SettingRow label="Opacity">
@@ -142,7 +142,7 @@ export default function WatermarkFields({
 
           <Section title="Appearance">
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Width %" hint="Share of the frame's width — the same on every show.">
+              <Field label="Width %" hint="Share of the frame's width — the same on every program.">
                 <Input type="number" min={1} max={50} className="w-full" {...num('widthPercent')} />
               </Field>
               <Field label="Opacity %">

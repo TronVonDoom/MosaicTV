@@ -12,7 +12,8 @@ export function Listings({ slots, showTitles = false, onOpen }: { slots: OnAirSl
     <div className="rounded-xl border border-edge bg-sunken overflow-hidden divide-y divide-edge">
       {slots.map((s) => {
         const { day, time } = formatAiring(s.start, now)
-        const { code, name } = splitSubtitle(s.subtitle)
+        // A song or music video is its own title, its artist the line under it.
+        const { code, name } = s.artist != null ? { code: null, name: showTitles ? s.artist : s.title } : splitSubtitle(s.subtitle)
         const live = new Date(s.start).getTime() <= now && new Date(s.stop).getTime() > now
         const row = (
           <>
@@ -66,7 +67,7 @@ function carriedBy(carriers: TitleOnAir['carriers']): ReactNode {
 }
 
 /**
- * Where a movie or a show airs, as only MosaicTV can say: its channel's hours
+ * Where a movie, a show or an artist airs, as only MosaicTV can say: its channel's hours
  * around its airing drawn as the guide draws them, what's coming up, when it
  * was last on — or, when no channel airs it, a way to put it on one.
  */
@@ -79,7 +80,7 @@ export default function TitleOnAirSection({
   className,
 }: {
   onAir: TitleOnAir | null
-  kind: 'movie' | 'show'
+  kind: 'movie' | 'show' | 'artist'
   name: string
   onAdd?: () => void
   onOpen?: (s: OnAirSlot) => void
@@ -134,7 +135,7 @@ export default function TitleOnAirSection({
           {onAir.evening && (
             <GuideStrip from={onAir.evening.from} to={onAir.evening.to} rows={[onAir.evening.row]} pxPerMinute={1.6} onOpen={onOpen} />
           )}
-          {(kind === 'show' || upcoming.length > 1) && (
+          {(kind !== 'movie' || upcoming.length > 1) && (
             <div className="space-y-2">
               <OnAirLabel>Coming up</OnAirLabel>
               <Listings slots={upcoming.slice(0, 5)} onOpen={onOpen} />

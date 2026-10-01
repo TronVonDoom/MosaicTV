@@ -188,11 +188,14 @@ export default function Dashboard() {
                 <>
                   <StatTile icon="show" label="Episodes" value={(stats.byType.episode ?? 0).toLocaleString()} />
                   <StatTile icon="movie" label="Movies" value={(stats.byType.movie ?? 0).toLocaleString()} />
+                  {/* Music, once there is some. */}
+                  {(stats.byType.song ?? 0) > 0 && <StatTile icon="audio" label="Songs" value={(stats.byType.song ?? 0).toLocaleString()} />}
+                  {(stats.byType.music ?? 0) > 0 && <StatTile icon="audio" label="Music videos" value={(stats.byType.music ?? 0).toLocaleString()} />}
                   <StatTile
                     icon="clock"
                     label="Total runtime"
                     value={formatLongDuration(stats.totalDurationSec)}
-                    sub="Of watching, back to back"
+                    sub="Back to back"
                   />
                   <StatTile
                     icon="database"

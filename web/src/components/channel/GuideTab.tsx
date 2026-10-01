@@ -102,10 +102,10 @@ export default function GuideTab({
   const restart = async () => {
     if (
       !(await confirmDialog({
-        title: 'Restart every show from episode 1?',
+        title: 'Start every collection over from the top?',
         message:
-          'From the next program on, every collection on this channel starts over from the beginning. What’s on now finishes first. Saved playback positions are lost.',
-        confirmLabel: 'Restart from S1E1',
+          'From the next program on, every collection on this channel starts over from the beginning — each show at its first episode, each artist at their first song. What’s on now finishes first. Saved playback positions are lost.',
+        confirmLabel: 'Start over',
         danger: true,
       }))
     )
@@ -136,7 +136,7 @@ export default function GuideTab({
             The guide is generated ahead of time, as far out as the schedule horizon in Settings.
             It's what the XMLTV feed publishes and what the channel actually plays. Change the
             schedule and it's rebuilt from the next program on — what's on now finishes first,
-            and every show carries on from the episode it was up to.
+            and everything carries on from where it was up to.
           </InfoHint>
         </div>
 
@@ -151,9 +151,9 @@ export default function GuideTab({
             onClick={restart}
             disabled={building || !hasSchedule}
             loading={building}
-            title="Start every show over at episode 1, from the next program"
+            title="Start every collection over from the top, from the next program"
           >
-            Restart from S1E1
+            Start over
           </Button>
         </div>
       </div>

@@ -19,7 +19,7 @@ const KIND_COLOR: Record<MetricMarker['kind'], string> = {
   song: '#c98500',
 }
 const KIND_LABEL: Record<MetricMarker['kind'], string> = {
-  program: 'Episode / movie',
+  program: 'Program',
   filler: 'Break',
   song: 'Music video',
 }

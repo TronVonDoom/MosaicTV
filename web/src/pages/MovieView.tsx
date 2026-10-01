@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { api, ART, artworkUrl, type MediaItemDetail, type OnAirSlot, type TitleOnAir } from '../lib/api'
-import { extraLabel, formatAiring, formatClock, formatDuration } from '../lib/format'
+import { artistPath, extraLabel, formatAiring, formatClock, formatDuration } from '../lib/format'
 import MediaDetailModal from '../components/MediaDetailModal'
 import CastRow from '../components/CastRow'
 import TitleLayer from '../components/title/TitleLayer'
@@ -25,10 +25,11 @@ export function qualityOf(height: number | null | undefined): string | null {
   return height >= 2000 ? '4K' : `${height >= 1000 ? 1080 : height >= 700 ? 720 : height}p`
 }
 
-/** Where an airing opens: its show's page, or its movie's. */
+/** Where an airing opens: its show's page, its artist's, or its movie's. */
 export function slotPath(s: OnAirSlot): string | null {
   if (s.libraryId == null) return null
   if (s.showId != null) return `/library/${s.libraryId}/show/${encodeURIComponent(s.title)}`
+  if (s.artist != null) return artistPath(s.libraryId, s.artist)
   return s.mediaItemId != null ? `/library/${s.libraryId}/movie/${s.mediaItemId}` : null
 }
 

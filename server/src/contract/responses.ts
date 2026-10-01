@@ -186,6 +186,13 @@ export type MediaItem = {
   year: number | null
   artist: string | null
   album: string | null
+  /** A song's place on its album. */
+  track: number | null
+  disc: number | null
+  /** Its timed lyrics: an .lrc beside it, or the text found online ('' when
+   *  asked and there were none). */
+  lyricsPath: string | null
+  lyrics: string | null
   durationSec: number | null
   width: number | null
   height: number | null
@@ -321,6 +328,62 @@ export type Show = {
 
 export type SeasonGroup = { season: number | null; episodes: MediaItem[]; tmdbPosterPath: string | null }
 
+// ── Music, by artist and album ──────────────────────────────────────────────
+// An artist stands where a show would, an album where a season would: the
+// Music and Music Videos grids list artists, and an artist's page their
+// albums with the songs or videos on each.
+
+/** One artist in a music library, as its grid shows them. */
+export type ArtistCard = {
+  /** As the music names them; '' for music that names no artist. */
+  artist: string
+  albums: number
+  /** Their songs, or music videos. */
+  items: number
+  firstYear: number | null
+  lastYear: number | null
+  /** What stands in for them: their own picture (artwork type "show" of
+   *  this item), else a cover (type "poster"). */
+  artItemId: number | null
+  artType: 'show' | 'poster' | null
+  /** Changes when the art does, for the browser's cache. */
+  artVersion: string | null
+  /** When their newest file came in. */
+  addedAt: Date
+}
+
+/** One album of an artist's, as a grid or their page shows it. */
+export type AlbumCard = {
+  artist: string
+  /** '' for an artist's music on no album. */
+  album: string
+  year: number | null
+  /** Its songs, or music videos. */
+  items: number
+  seconds: number
+  /** Its cover: artwork type "poster" of this item. */
+  coverItemId: number | null
+  coverVersion: string | null
+  addedAt: Date
+}
+
+/** An artist's page: who they are, and their albums with what's on each. */
+export type ArtistDetail = {
+  artist: string
+  libraryId: number
+  /** What the library holds of theirs. */
+  of: 'song' | 'video'
+  /** Their own picture, as artwork type "show" of this item. */
+  portraitItemId: number | null
+  genres: string[]
+  firstYear: number | null
+  lastYear: number | null
+  /** Oldest first; music on no album last. */
+  albums: (AlbumCard & { tracks: MediaItem[] })[]
+  /** When each one last aired, by media item id (only those that have). */
+  aired: Record<number, EpisodeAired>
+}
+
 export type ShowDetail = {
   id: number | null
   /** When each episode last aired, by media item id (only those that have). */
@@ -449,8 +512,10 @@ export type CollectionItem = {
   showTitle: string | null
   libraryId: number | null
   season: number | null
-  /** The artist an artist pick is of, as the music videos name them. */
+  /** The artist an artist or album pick is of, as the music names them. */
   artist: string | null
+  /** The album an album pick is of, as the music names it. */
+  album: string | null
   mediaItemId: number | null
   label: string | null
   order: number
@@ -500,6 +565,7 @@ export type MediaSearchResult =
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
   | { kind: 'movie'; mediaItemId: number; libraryId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
   | { kind: 'artist'; artist: string; libraryId: number; libraryName: string; count: number; of: 'video' | 'song' }
+  | { kind: 'album'; artist: string; album: string; libraryId: number; libraryName: string; count: number; year: number | null; of: 'video' | 'song' }
   | { kind: 'music' | 'song'; mediaItemId: number; libraryId: number; title: string; artist: string | null; year: number | null }
 
 export type RotationItem = {
@@ -760,6 +826,8 @@ export type OnAirSlot = {
   mediaItemId: number | null
   showId: number | null
   libraryId: number | null
+  /** A song's or music video's artist, whose page it opens. */
+  artist?: string | null
 }
 
 /** A stretch of one channel's schedule, drawn as the guide draws it, with the
@@ -781,11 +849,12 @@ export type TitleOnAir = {
   evening: { from: Date; to: Date; row: OnAirRow } | null
 }
 
-/** A movie or TV library's home: what's in it, what of it is on, and what isn't. */
+/** A library's home: what's in it, what of it is on, and what isn't. */
 export type LibraryHome = {
   kind: LibraryKind
-  /** Movies, or shows. */
+  /** Movies, shows or artists. */
   titles: number
+  /** A TV library's episodes, or a music library's songs or videos. */
   episodes: number
   hours: number
   extras: number

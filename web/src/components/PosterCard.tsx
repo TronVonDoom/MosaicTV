@@ -14,7 +14,8 @@ function initials(title: string): string {
 }
 
 /**
- * A poster tile for the library grids: 2:3 art that lifts on hover, showing
+ * A poster tile for the library grids: 2:3 art (square for music's covers and
+ * artists) that lifts on hover, showing
  * its quality chip and TMDB rating (when known) as it does. No artwork: the title's
  * initials on a colour of its own, so a grid of unmatched titles still reads.
  */
@@ -26,6 +27,7 @@ export default function PosterCard({
   imageUrl,
   rating,
   tag,
+  square,
   onClick,
 }: {
   title: string
@@ -36,6 +38,8 @@ export default function PosterCard({
   rating?: number | null
   /** A tab on the poster's edge, always shown: "NEW", "OFF AIR". */
   tag?: { label: string; tone: 'live' | 'cue' | 'off' }
+  /** Square art: an album cover, an artist. */
+  square?: boolean
   onClick: () => void
 }) {
   const [imgError, setImgError] = useState(false)
@@ -45,7 +49,7 @@ export default function PosterCard({
   return (
     <button onClick={onClick} className="group text-left w-full focus-visible:outline-none">
       <div
-        className="relative aspect-[2/3] rounded-xl overflow-hidden flex items-center justify-center shadow-[0_10px_30px_-12px_rgb(0_0_0/0.8)] transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_22px_44px_-16px_rgb(0_0_0/0.9)] group-focus-visible:ring-2 group-focus-visible:ring-cue"
+        className={(square ? 'aspect-square ' : 'aspect-[2/3] ') + 'relative rounded-xl overflow-hidden flex items-center justify-center shadow-[0_10px_30px_-12px_rgb(0_0_0/0.8)] transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_22px_44px_-16px_rgb(0_0_0/0.9)] group-focus-visible:ring-2 group-focus-visible:ring-cue'}
         style={{ background: posterGradient(title) }}
       >
         {showImage ? (

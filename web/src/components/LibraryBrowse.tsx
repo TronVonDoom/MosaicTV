@@ -197,7 +197,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
       <EmptyState
         icon="libraries"
         title="No libraries yet"
-        description="A library points MosaicTV at a folder of media. Add one and scan it, and your shows and movies show up here."
+        description="A library points MosaicTV at a folder of media. Add one and scan it, and your shows, movies and music show up here."
         action={
           <button onClick={onAddLibrary} className={buttonClass('primary', 'md')}>
             Add your first library
@@ -237,7 +237,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
                 <div className="mt-2 font-mono text-[12px] uppercase text-ink-muted tabular-nums">
                   {homes[l.id] ? (
                     <>
-                      {homes[l.id].titles.toLocaleString()} {l.kind === 'tv' ? 'shows' : many} · {homes[l.id].onChannel.toLocaleString()} on a channel ·{' '}
+                      {homes[l.id].titles.toLocaleString()} {l.kind === 'tv' ? 'shows' : l.kind === 'music' || l.kind === 'audio' ? 'artists' : many} · {homes[l.id].onChannel.toLocaleString()} on a channel ·{' '}
                       <span className="text-cue">{homes[l.id].offAir.toLocaleString()} off air</span>
                     </>
                   ) : (

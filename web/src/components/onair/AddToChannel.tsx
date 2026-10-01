@@ -6,7 +6,7 @@ import { Modal, ModalHeader, Skeleton, cx } from '../ui'
 import { OnAirLabel } from './OnAir'
 
 /**
- * Put a movie or a whole show on the air: pick one of a channel's
+ * Put a movie, a whole show, an artist or an album on the air: pick one of a channel's
  * collections to add it to. Adding only — what a collection holds, and how it
  * airs, is edited on the channel, where it always has been.
  */
@@ -14,6 +14,7 @@ export default function AddToChannel({
   what,
   member,
   already,
+  has,
   onClose,
   onAdded,
 }: {
@@ -21,7 +22,10 @@ export default function AddToChannel({
   what: string
   member: MemberInput
   /** Collections that bring it in already, by id. */
-  already: Set<number>
+  already?: Set<number>
+  /** Or, where bringing some of it in isn't having it (an artist with one
+   *  album in), whether a collection has this very pick. */
+  has?: (c: Collection) => boolean
   onClose: () => void
   onAdded: () => void
 }) {
@@ -83,21 +87,21 @@ export default function AddToChannel({
                 ) : (
                   <div className="ml-12 flex flex-col gap-1">
                     {mine.map((c) => {
-                      const has = already.has(c.id)
+                      const isIn = has ? has(c) : !!already?.has(c.id)
                       return (
                         <button
                           key={c.id}
                           type="button"
-                          disabled={has || busy != null}
+                          disabled={isIn || busy != null}
                           onClick={() => void add(c, ch)}
                           className={cx(
                             'flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors',
-                            has ? 'border-edge text-ink-faint' : 'border-edge-strong hover:border-cue hover:bg-cue/[0.06] disabled:opacity-50',
+                            isIn ? 'border-edge text-ink-faint' : 'border-edge-strong hover:border-cue hover:bg-cue/[0.06] disabled:opacity-50',
                           )}
                         >
                           <span className="flex-1 min-w-0 truncate text-[14px] text-ink-soft">{c.name}</span>
                           <span className="font-mono text-[11px] text-ink-faint tabular-nums">{c.itemCount.toLocaleString()}</span>
-                          <OnAirLabel className={cx('text-[11px]', !has && 'text-cue')}>{has ? 'Already in' : busy === c.id ? 'Adding…' : 'Add'}</OnAirLabel>
+                          <OnAirLabel className={cx('text-[11px]', !isIn && 'text-cue')}>{isIn ? 'Already in' : busy === c.id ? 'Adding…' : 'Add'}</OnAirLabel>
                         </button>
                       )
                     })}

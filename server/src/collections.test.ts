@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { MediaItem } from '@prisma/client'
-import { groupIntoAirings, looped, mixedRotation, releaseOrder, rotated } from './collections.js'
+import { groupIntoAirings, looped, mixedRotation, releaseOrder, rotated, shuffled, spreadArtists } from './collections.js'
 
 // Minimal MediaItem — only the fields groupIntoAirings and its sort touch.
 function mi(id: number, over: Partial<MediaItem> = {}): MediaItem {
@@ -268,4 +268,62 @@ test('a rotation resolved again from its marks continues the same timeline', () 
   const whole = mixedRotation(units, 7)
   const resumed = mixedRotation(units, 7, { base: 17, shows: whole.progressAt!(17), marks: whole.marksAt!(17) })
   for (let p = 17; p < 40; p++) assert.equal(label(resumed.at(p)), label(whole.at(p)))
+})
+
+// --- music: artists take turns, and shuffle keeps them apart ---
+
+// Songs by `artist`, oldest first, ids from `id`.
+const songsBy = (artist: string, n: number, id: number) =>
+  Array.from({ length: n }, (_, k) => song(`${artist}${k + 1}`, 1980 + k, id + k, { artist, type: 'song' }))
+
+test('take turns: songs take turns by artist, each in release order', () => {
+  const units = [...songsBy('X', 3, 1), ...songsBy('Y', 2, 10), ...songsBy('Z', 1, 20)]
+  assert.deepEqual(titles(rotated(units), 0, 7), ['X1', 'Y1', 'Z1', 'X2', 'Y2', 'Z1', 'X3'])
+})
+
+test('take turns: a show and an artist share the turns, the movies another', () => {
+  const movie = mi(90, { showTitle: null, title: 'Movie', year: 1999, episode: null, season: null, type: 'movie' })
+  const units = [...eps('A', 2, 1), ...songsBy('X', 2, 10), [movie]]
+  assert.deepEqual(titles(rotated(units), 0, 3), ['Ep 1', 'X1', 'Movie'])
+})
+
+test('release order keeps songs by year across artists', () => {
+  const units = [...songsBy('X', 2, 1), ...songsBy('Y', 2, 10)]
+  assert.deepEqual(releaseOrder(units).map((u) => u[0].title), ['X1', 'Y1', 'X2', 'Y2'])
+})
+
+test('take turns, mixed: artists once a round', () => {
+  const units = [...songsBy('X', 4, 1), ...songsBy('Y', 4, 10), ...songsBy('Z', 4, 20)]
+  const list = mixedRotation(units, 99)
+  for (let r = 0; r < 4; r++) {
+    const round = titles(list, r * 3, 3).map((t) => t[0])
+    assert.deepEqual([...round].sort(), ['X', 'Y', 'Z'])
+  }
+})
+
+test('shuffle never plays an artist twice running, inside a pass or across one', () => {
+  const units = [...songsBy('X', 6, 1), ...songsBy('Y', 5, 10), ...songsBy('Z', 4, 20), ...songsBy('W', 3, 30)]
+  for (let seed = 1; seed <= 50; seed++) {
+    const list = shuffled(units, seed)
+    const played = titles(list, 0, units.length * 6)
+    for (let i = 1; i < played.length; i++) {
+      assert.notEqual(played[i][0], played[i - 1][0], `seed ${seed}: ${played[i - 1]} then ${played[i]} at ${i}`)
+    }
+    // Every pass is still every song once.
+    for (let pass = 0; pass < 6; pass++) {
+      const one = played.slice(pass * units.length, (pass + 1) * units.length)
+      assert.equal(new Set(one).size, units.length)
+    }
+  }
+})
+
+test('shuffle leaves programs without an artist where they fall', () => {
+  const units = eps('A', 6, 1)
+  const ids = (us: MediaItem[][]) => us.map((u) => u[0].id)
+  assert.deepEqual(ids(spreadArtists(units)), ids(units))
+})
+
+test('an artist too many to keep apart ends up together at the end', () => {
+  const units = [...songsBy('X', 4, 1), ...songsBy('Y', 1, 10)]
+  assert.deepEqual(spreadArtists(units).map((u) => u[0].title[0]), ['X', 'Y', 'X', 'X', 'X'])
 })

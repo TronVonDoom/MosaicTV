@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { PlaybackOrder } from '../lib/api'
 import { api, type MediaItem } from '../lib/api'
 import { programLabel } from '../lib/format'
-import { PLAYBACK_ORDERS } from '../lib/playback'
+import { playbackOrders, type Holds } from '../lib/playback'
 import { cx } from './ui'
 
 type Preview = { key: string; count: number; sample: MediaItem[] }
@@ -11,17 +11,21 @@ type Preview = { key: string; count: number; sample: MediaItem[] }
 const RANDOM = new Set(['shuffle', 'shuffleShows'])
 
 /**
- * The order a collection plays in: each choice with a line on what it does,
- * and beside them the collection's first airings in the chosen order, so the
+ * The order a collection plays in: each choice with a line on what it does —
+ * in shows and episodes, or artists and songs, as the collection holds — and
+ * beside them the collection's first airings in the chosen order, so the
  * effect is visible before it's saved.
  */
 export default function OrderPicker({
   collectionId,
   value,
+  holds,
   onChange,
 }: {
   collectionId: number
   value: string
+  /** What the collection holds, for the words; everything when not known. */
+  holds?: Holds
   onChange: (order: PlaybackOrder) => void
 }) {
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -45,7 +49,7 @@ export default function OrderPicker({
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,15rem)]">
       <div role="radiogroup" aria-label="Plays in this order" className="space-y-1.5">
-        {PLAYBACK_ORDERS.map((o) => {
+        {playbackOrders(holds).map((o) => {
           const on = o.value === value
           return (
             <button

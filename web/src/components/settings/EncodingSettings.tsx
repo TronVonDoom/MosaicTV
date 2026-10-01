@@ -309,7 +309,7 @@ export default function EncodingSettings() {
             </SettingRow>
             <SettingRow
               label="Normalize loudness"
-              description="Evens out the jump in volume between old and modern shows. Costs some CPU, and is measured on the fly, so it can’t be perfect."
+              description="Evens out the jump in volume from one program to the next — an old show and a new one, a quiet song and a loud one. Costs some CPU, and is measured on the fly, so it can’t be perfect."
             >
               <Switch label="Normalize loudness" checked={form.normalizeLoudness} onChange={(v) => set('normalizeLoudness', v)} />
             </SettingRow>

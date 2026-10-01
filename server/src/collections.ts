@@ -151,10 +151,22 @@ export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma
 const isSingle = (it: { kind: string }) => it.kind === 'movie' || it.kind === 'episode' || it.kind === 'music' || it.kind === 'song'
 
 /** An artist pick's files: every music video or song by them in the pick's
- *  library (a Music Videos library has the one, a Music library the other). */
-function artistPickWhere(it: { libraryId: number | null; artist: string | null }): Prisma.MediaItemWhereInput {
-  return { missing: false, durationSec: { gt: 0 }, type: { in: ['music', 'song'] }, extra: null, libraryId: it.libraryId ?? undefined, artist: it.artist }
+ *  library (a Music Videos library has the one, a Music library the other) —
+ *  or, for an album pick, just that album's. */
+function artistPickWhere(it: { kind: string; libraryId: number | null; artist: string | null; album: string | null }): Prisma.MediaItemWhereInput {
+  return {
+    missing: false,
+    durationSec: { gt: 0 },
+    type: { in: ['music', 'song'] },
+    extra: null,
+    libraryId: it.libraryId ?? undefined,
+    artist: it.artist,
+    ...(it.kind === 'album' ? { album: it.album } : {}),
+  }
 }
+
+/** An artist or album pick, whose files are found by name. */
+const isByArtist = (it: { kind: string; artist: string | null }) => (it.kind === 'artist' || it.kind === 'album') && it.artist != null
 
 // An artist's music as it came out: by year, then album, then its place on
 // the album, then title.
@@ -268,7 +280,8 @@ async function airingsForShows(where: {
  * The collection's members expanded into program units, in the order the user
  * arranged them: a "show"/"season" member becomes its episodes folded into
  * airings (multi-part episodes as one unit, the rest as units of one), an
- * "artist" member that artist's music videos or songs as they came out, and a
+ * "artist" member that artist's music videos or songs as they came out (an
+ * "album" member just that album's, in its track order), and a
  * "movie"/"episode"/"music"/"song" member a single unit. The smart filter (which has
  * no user-defined position) contributes its units at the end.
  */
@@ -304,7 +317,7 @@ async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<Pr
       if (eps.length === 0) continue
       const airings = await airingsForShows({ showIds: [it.showId], season, specials: a.specials })
       for (const u of groupIntoAirings(eps, airings)) out.push(u)
-    } else if (it.kind === 'artist' && it.artist != null) {
+    } else if (isByArtist(it)) {
       const videos = await prisma.mediaItem.findMany({ where: artistPickWhere(it) })
       for (const m of videos.sort(byRelease)) out.push([m])
     } else if (isSingle(it) && it.mediaItemId != null) {
@@ -364,10 +377,10 @@ export async function resolveUnits(c: CollectionWithItems, airs?: Airs): Promise
  */
 export async function collectionCount(c: CollectionWithItems, airs?: Airs): Promise<number> {
   const a = airs ?? (await channelAirs(c.channelId))
-  // One OR'd query covers every show, season and artist member at once.
+  // One OR'd query covers every show, season, artist and album member at once.
   const showWhere = [
     ...c.items.filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null).map((i) => showPickWhere(i, pickAirs(i, a))),
-    ...c.items.filter((i) => i.kind === 'artist' && i.artist != null).map(artistPickWhere),
+    ...c.items.filter(isByArtist).map(artistPickWhere),
   ]
   const singleIds = c.items
     .filter((i) => isSingle(i) && i.mediaItemId != null)
@@ -451,10 +464,62 @@ function seededShuffleUnits(units: ProgramUnit[], seed: number): ProgramUnit[] {
     .map((o) => o.u)
 }
 
+/**
+ * A deal with no artist twice running, as a radio station plays: a song or
+ * video that would follow its own artist swaps places with the next one down
+ * the deal by someone else — or, with only that artist left after it, moves
+ * back to the first gap between two others. Where one artist outnumbers the
+ * rest too far to keep apart, what's left of them stays together at the end.
+ */
+export function spreadArtists(deal: ProgramUnit[]): ProgramUnit[] {
+  const out = [...deal]
+  const by = (i: number) => artistOf(out[i][0])
+  for (let i = 1; i < out.length; i++) {
+    const prev = by(i - 1)
+    if (prev == null || by(i) !== prev) continue
+    let j = i + 1
+    while (j < out.length && by(j) === prev) j++
+    if (j < out.length) {
+      ;[out[i], out[j]] = [out[j], out[i]]
+      continue
+    }
+    let k = 1
+    while (k < i && (by(k - 1) === prev || by(k) === prev)) k++
+    if (k >= i) break
+    out.splice(k, 0, ...out.splice(i, 1))
+  }
+  return out
+}
+
+/**
+ * The start of a deal kept off the artist that ended the last one: the first
+ * unit by someone else whose neighbours don't clash once it's gone moves up to
+ * open the deal. The last unit never moves, so the deal before is always its
+ * own unadjusted self (as in mixedRotation).
+ */
+function awayFrom(deal: ProgramUnit[], last: string | null): ProgramUnit[] {
+  const by = (i: number) => artistOf(deal[i][0])
+  // Two programs clash only if both are the same artist's.
+  const clash = (x: string | null, y: string | null) => x != null && x === y
+  if (deal.length === 0 || !clash(by(0), last)) return deal
+  for (let j = 1; j < deal.length - 1; j++) {
+    if (clash(by(j), last) || clash(by(j - 1), by(j + 1))) continue
+    const out = [...deal]
+    out.unshift(...out.splice(j, 1))
+    return out
+  }
+  return deal
+}
+
 /** Every unit in random order, re-dealt each pass — a movie's extras still
- *  straight after it. */
-function shuffled(units: ProgramUnit[], seed: number): ResolvedList {
-  return redealt(units.length, (cycle) => extrasAfterParents(seededShuffleUnits(units, (seed ^ hash(cycle)) >>> 0)))
+ *  straight after it, and no artist twice running, across passes too. */
+export function shuffled(units: ProgramUnit[], seed: number): ResolvedList {
+  const raw = (cycle: number) => spreadArtists(seededShuffleUnits(units, (seed ^ hash(cycle)) >>> 0))
+  return redealt(units.length, (cycle) => {
+    const prev = units.length > 0 ? raw(cycle - 1) : []
+    const last = prev.length > 0 ? artistOf(prev[prev.length - 1][0]) : null
+    return extrasAfterParents(awayFrom(raw(cycle), last))
+  })
 }
 
 // Order within a single show/group: season, episode, year — then music's
@@ -478,12 +543,15 @@ function byUnit(a: ProgramUnit, b: ProgramUnit): number {
 }
 
 /**
- * A show (or the one group all the movies share) and its units in episode
- * order. `key` names it in a rotation's saved progress; `legacyKey` is what
- * progress saved before shows had ids called it (by title), adopted on first
- * use so a rotation carries on across the upgrade.
+ * A show (or an artist, or the one group all the movies share) and its units
+ * in episode order. `key` names it in a rotation's saved progress; `legacyKey`
+ * is what progress saved before shows had ids called it (by title), adopted on
+ * first use so a rotation carries on across the upgrade.
  */
 type ShowGroup = { key: string; legacyKey?: string; units: ProgramUnit[] }
+
+/** Whose turn a song or music video is in a rotation: its artist's. */
+const artistOf = (m: MediaItem) => ((m.type === 'song' || m.type === 'music') && m.artist ? m.artist : null)
 
 /**
  * Split units into per-show groups, each internally in episode order. Units
@@ -492,15 +560,22 @@ type ShowGroup = { key: string; legacyKey?: string; units: ProgramUnit[] }
  * plus fifty movies would give the show 1/51 of its airtime instead of half.
  * A multi-part airing is keyed by its first segment's show.
  *
+ * With `artists`, as the turn-taking orders ask, a song or music video with
+ * an artist is its artist's turn — an artist stands where a show would, so a
+ * station of forty artists plays one from each in turn. Release order leaves
+ * them in the shared group, by year across every artist.
+ *
  * Groups come back in the collection's own order — where each group's first
  * unit appears, which is member order, then the smart filter's shows — so the
  * order the user arranges is the order a rotation or release order follows.
  */
-function showGroups(units: ProgramUnit[]): ShowGroup[] {
+function showGroups(units: ProgramUnit[], { artists = false } = {}): ShowGroup[] {
   const groups = new Map<string, ShowGroup>()
   for (const u of units) {
     const m = u[0]
-    const key = m.showId != null ? 'show:' + m.showId : m.showTitle ? 'show:' + m.showTitle : 'movies'
+    const artist = artists ? artistOf(m) : null
+    const key =
+      m.showId != null ? 'show:' + m.showId : m.showTitle ? 'show:' + m.showTitle : artist != null ? 'artist:' + artist : 'movies'
     const g = groups.get(key)
     if (g) g.units.push(u)
     else groups.set(key, { key, legacyKey: m.showId != null && m.showTitle ? 'show:' + m.showTitle : undefined, units: [u] })
@@ -598,23 +673,24 @@ function rotation(
   }
 }
 
-/** Rotate shows: one unit from each show in turn, in the collection's order. */
+/** Take turns: one unit from each show or artist in turn, in the collection's order. */
 export function rotated(units: ProgramUnit[], progress: Progress = { base: 0 }): ResolvedList {
-  const groups = showGroups(units)
+  const groups = showGroups(units, { artists: true })
   const n = groups.length
   return rotation(groups, progress, { showAt: (pos) => mod(pos, n), before: (pos, g) => slotTurns(pos, g, n) }, units.length)
 }
 
 /**
- * Rotate shows, mixed: every show still gets one turn per round, but each
- * round is dealt in a fresh random order, reproducible from the seed and the
- * round number. A show never plays twice running across a round boundary — a
- * round that would open with the show that closed the last one swaps its first
- * two. (Only the first two ever move, so the last show of the previous round
- * is always its unadjusted deal.) Two shows have no room to mix: they alternate.
+ * Take turns, mixed: every show or artist still gets one turn per round, but
+ * each round is dealt in a fresh random order, reproducible from the seed and
+ * the round number. A show never plays twice running across a round boundary —
+ * a round that would open with the show that closed the last one swaps its
+ * first two. (Only the first two ever move, so the last show of the previous
+ * round is always its unadjusted deal.) Two shows have no room to mix: they
+ * alternate.
  */
 export function mixedRotation(units: ProgramUnit[], seed: number, progress: Progress = { base: 0 }): ResolvedList {
-  const groups = showGroups(units)
+  const groups = showGroups(units, { artists: true })
   const n = groups.length
   const deal = (r: number): number[] =>
     Array.from({ length: n }, (_, i) => ({ i, k: hash((i + 1) ^ ((seed ^ hash(r)) >>> 0)) }))

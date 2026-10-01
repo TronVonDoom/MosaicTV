@@ -81,7 +81,7 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   for (const [id, c] of used) {
     if ((await collectionCount(c, airs)) === 0) {
       empty.add(id)
-      out.push({ severity: 'warn', collectionId: id, message: `“${c.name}” has nothing it can play (no episodes found, or none with a known length), so its slots are skipped.` })
+      out.push({ severity: 'warn', collectionId: id, message: `“${c.name}” has nothing it can play (no files found, or none with a known length), so its slots are skipped.` })
     }
   }
 

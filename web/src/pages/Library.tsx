@@ -18,7 +18,7 @@ type Tab = (typeof TABS)[number]['id']
 const TAB_IDS = TABS.map((t) => t.id)
 
 const DESCRIPTIONS: Record<Tab, string> = {
-  browse: 'Everything MosaicTV has indexed, by library. Open one to see its shows and movies.',
+  browse: 'Everything MosaicTV has indexed, by library. Open one to see its shows, movies or music.',
   sources: 'The folders MosaicTV reads from. Add a library, scan it for changes, and pull artwork from TMDB and TheTVDB.',
 }
 

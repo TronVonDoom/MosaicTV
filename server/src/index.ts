@@ -19,6 +19,7 @@ import { librariesRouter } from './routes/libraries.js'
 import { mediaRouter } from './routes/media.js'
 import { scanRouter } from './routes/scan.js'
 import { showsRouter } from './routes/shows.js'
+import { musicRouter } from './routes/music.js'
 import { airingsRouter } from './routes/airings.js'
 import { fsRouter } from './routes/fs.js'
 import { artworkRouter } from './routes/artwork.js'
@@ -119,6 +120,7 @@ app.use('/api/libraries', librariesRouter)
 app.use('/api/media', mediaRouter)
 app.use('/api/scan', scanRouter)
 app.use('/api/shows', showsRouter)
+app.use('/api/music', musicRouter)
 app.use('/api/airings', airingsRouter)
 app.use('/api/fs', fsRouter)
 app.use('/api/artwork', artworkRouter)

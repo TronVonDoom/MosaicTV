@@ -278,7 +278,7 @@ export default function ScheduleTab({
       <EmptyState
         icon="browse"
         title="Nothing to schedule yet"
-        description="A schedule is built from collections — groups of shows or movies you assemble on the Collections tab. Make one first, then come back."
+        description="A schedule is built from collections — groups of shows, movies or music you assemble on the Collections tab. Make one first, then come back."
       />
     )
   }

@@ -46,6 +46,9 @@ import {
   type PlayoutEntry as PlayoutEntryDTO,
   type RotationItem as RotationItemDTO,
   type SeasonGroup as SeasonGroupDTO,
+  type ArtistCard as ArtistCardDTO,
+  type AlbumCard as AlbumCardDTO,
+  type ArtistDetail as ArtistDetailDTO,
   type ShowDetail as ShowDetailDTO,
   type TimeBlock as TimeBlockDTO,
 } from '@contract'
@@ -186,6 +189,11 @@ export type PlayoutEntry = Wire<PlayoutEntryDTO>
 export type RotationItem = Wire<RotationItemDTO>
 export type SeasonGroup = Wire<SeasonGroupDTO>
 export type ShowDetail = Wire<ShowDetailDTO>
+export type ArtistCard = Wire<ArtistCardDTO>
+export type AlbumCard = Wire<AlbumCardDTO>
+export type ArtistDetail = Wire<ArtistDetailDTO>
+/** How the albums grid can be sorted. */
+export type AlbumSort = 'title' | 'artist' | 'year' | 'added'
 export type TimeBlock = Wire<TimeBlockDTO>
 export type LibraryHome = Wire<LibraryHomeDTO>
 export type OnAirRow = Wire<OnAirRowDTO>
@@ -353,6 +361,14 @@ export const api = {
   // Where a movie (or any one file) airs, and a show's episodes.
   mediaOnAir: (id: number) => request<TitleOnAir>(`/api/media/${id}/on-air`),
   showOnAir: (showId: number) => request<TitleOnAir>(`/api/shows/${showId}/on-air`),
+  // A music library by artist and album ('' is music that names no artist).
+  artists: (libraryId: number) => request<{ artists: ArtistCard[] }>(`/api/music/artists?libraryId=${libraryId}`),
+  albums: (libraryId: number, sort: AlbumSort = 'title') =>
+    request<{ albums: AlbumCard[] }>(`/api/music/albums?libraryId=${libraryId}&sort=${sort}`),
+  artistDetail: (libraryId: number, artist: string) =>
+    request<ArtistDetail>(`/api/music/artist?libraryId=${libraryId}&artist=${encodeURIComponent(artist)}`),
+  artistOnAir: (libraryId: number, artist: string) =>
+    request<TitleOnAir>(`/api/music/artist/on-air?libraryId=${libraryId}&artist=${encodeURIComponent(artist)}`),
   shows: (libraryId: number) =>
     request<{ shows: Show[] }>(`/api/shows?libraryId=${libraryId}`),
   showDetail: (libraryId: number, show: string) =>
@@ -473,8 +489,13 @@ export const api = {
     request<{ count: number; order: string; sample: MediaItem[] }>(
       `/api/collections/${id}/preview${order ? `?order=${encodeURIComponent(order)}` : ''}`,
     ),
-  searchMedia: (q: string) =>
-    request<{ results: MediaSearchResult[] }>(`/api/collections/search?q=${encodeURIComponent(q)}`),
+  // Titles to add to a collection. `kind` keeps to one shelf — a TV, movie,
+  // music or music-video library's — and with nothing typed lists it A–Z, a
+  // page at a time from `offset` (`total` says how many there are).
+  searchMedia: (q: string, opts: { kind?: LibraryKind; offset?: number } = {}) =>
+    request<{ results: MediaSearchResult[]; total?: number }>(
+      `/api/collections/search?q=${encodeURIComponent(q)}${opts.kind ? `&kind=${opts.kind}` : ''}${opts.offset ? `&offset=${opts.offset}` : ''}`,
+    ),
   addCollectionItem: (collectionId: number, member: MemberInput) =>
     request<CollectionItem>(`/api/collections/${collectionId}/items`, {
       method: 'POST',

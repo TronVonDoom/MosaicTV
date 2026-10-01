@@ -18,6 +18,9 @@ import {
   type MediaSort,
   type OnAirSlot,
   type Show,
+  type AlbumCard,
+  type AlbumSort,
+  type ArtistCard,
 } from '../lib/api'
 import PosterCard from '../components/PosterCard'
 import { qualityOf, slotPath, type LibraryLayerContext } from './MovieView'
@@ -29,13 +32,16 @@ import JumpBar from '../components/library/JumpBar'
 import { StatFigure } from '../components/onair/OnAir'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
-import { EmptyState, Select, Skeleton, buttonClass } from '../components/ui'
-import { extraLabel } from '../lib/format'
+import { EmptyState, Segmented, Select, Skeleton, buttonClass } from '../components/ui'
+import { artistLabel, artistPath, extraLabel, formatDuration, posterGradient } from '../lib/format'
 
 const PAGE_SIZE = 60
 // The app's header (h-14), which the grid's toolbar sticks under.
 const HEADER_HEIGHT = 56
 type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
+/** A music library by artist (as a TV one is by show), by album, or every song or video. */
+type MusicView = 'artists' | 'albums' | 'songs'
+type ArtistSort = 'title' | 'items' | 'year' | 'added'
 
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7'
 
@@ -45,6 +51,36 @@ const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
   doubtful: 'Matched automatically to a title whose year or name doesn’t agree with the files. Open one to fix the match, or keep it.',
   loose: 'Featurettes, trailers and the like with no movie to go under — every other extra is listed with its movie. Give one a folder of its own, beside its movie, and scan.',
   offair: 'No channel’s collections bring these in. Open one and use Add to a channel to put it on the air.',
+}
+
+/** One song or music video in a list: its cover, title, artist and album, year and length. */
+function SongRow({ m, onOpen }: { m: MediaItem; onOpen: () => void }) {
+  const [broken, setBroken] = useState(false)
+  const cover = (m.posterPath || m.tmdbPosterPath) && !broken ? artworkUrl(m.id, 'poster', ART.tiny, m.tmdbPosterPath) : null
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group w-full flex items-center gap-3 sm:gap-4 py-2 px-1 sm:px-2 text-left border-t border-edge transition-colors hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue"
+    >
+      <span
+        className="relative w-10 h-10 shrink-0 rounded overflow-hidden grid place-items-center ring-1 ring-inset ring-white/10"
+        style={{ background: posterGradient(`${m.artist ?? ''} ${m.album ?? m.title}`) }}
+      >
+        {cover ? (
+          <img src={cover} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <Icon name="audio" size={15} className="text-white/60" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[14px] font-medium text-ink-soft group-hover:text-ink">{m.title}</span>
+        <span className="block truncate text-[12.5px] text-ink-faint">{[artistLabel(m.artist), m.album].filter(Boolean).join(' — ')}</span>
+      </span>
+      <span className="hidden sm:block w-12 shrink-0 text-right font-mono text-[12px] text-ink-faint tabular-nums">{m.year ?? ''}</span>
+      <span className="w-14 shrink-0 text-right font-mono text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
+    </button>
+  )
 }
 
 export default function LibraryView() {
@@ -57,6 +93,10 @@ export default function LibraryView() {
   const [library, setLibrary] = useState<Library | null>(null)
   const [home, setHome] = useState<Home | null>(null)
   const [shows, setShows] = useState<Show[]>([])
+  const [artists, setArtists] = useState<ArtistCard[]>([])
+  const [albums, setAlbums] = useState<AlbumCard[]>([])
+  const [artistSort, setArtistSort] = useState<ArtistSort>('title')
+  const [albumSort, setAlbumSort] = useState<AlbumSort>('title')
   const [items, setItems] = useState<MediaItem[]>([])
   const [total, setTotal] = useState(0)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -92,6 +132,12 @@ export default function LibraryView() {
   const [activeLetter, setActiveLetter] = useState<JumpLetter | null>(null)
 
   const isTv = library?.kind === 'tv'
+  const isMusic = library?.kind === 'music' || library?.kind === 'audio'
+  const byParam = search.get('by')
+  const by: MusicView = byParam === 'albums' || byParam === 'songs' ? byParam : 'artists'
+  // The grids that come whole, searched and sorted here — a TV library's
+  // shows, a music library's artists or albums — rather than paged from the server.
+  const local = isTv || (isMusic && by !== 'songs')
   const matchable = library?.kind === 'tv' || library?.kind === 'movie'
   // A movie or TV library opens on its home; the rest are just their grid.
   const hasHome = matchable
@@ -111,6 +157,15 @@ export default function LibraryView() {
       },
       { replace: false },
     )
+    setParams((p) => ({ ...p, page: 1 }))
+    window.scrollTo({ top: 0 })
+  }
+  const setBy = (v: MusicView) => {
+    setSearch((p) => {
+      if (v === 'artists') p.delete('by')
+      else p.set('by', v)
+      return p
+    })
     setParams((p) => ({ ...p, page: 1 }))
     window.scrollTo({ top: 0 })
   }
@@ -137,13 +192,14 @@ export default function LibraryView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, matchable])
   // The home's on-now and the guide move with the clock: fresh each minute.
+  // (A music library has no home, but its header's counts come from it.)
   useEffect(() => {
-    if (!hasHome) return
+    if (!hasHome && !isMusic) return
     void loadHome()
     const t = setInterval(() => void loadHome(), 60_000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, hasHome, showsVersion])
+  }, [id, hasHome, isMusic, showsVersion])
 
   /** Everything again — a scan or a metadata fetch just finished. */
   function reloadAll() {
@@ -174,12 +230,20 @@ export default function LibraryView() {
       .finally(() => setLoading(false))
   }, [library, isTv, id, showsVersion])
 
+  // Music: its artists, or its albums, whole.
+  useEffect(() => {
+    if (!library || !isMusic || by === 'songs') return
+    setLoading(true)
+    const load = by === 'artists' ? api.artists(id).then((r) => setArtists(r.artists)) : api.albums(id, albumSort).then((r) => setAlbums(r.albums))
+    load.catch(() => {}).finally(() => setLoading(false))
+  }, [library, isMusic, by, id, albumSort, showsVersion])
+
   // Movies and the rest: paged from the server. A new search or sort starts over.
   useEffect(() => {
     setParams((p) => (p.q === q ? p : { ...p, q, page: 1 }))
   }, [q])
   useEffect(() => {
-    if (!library || isTv || view === 'home') return
+    if (!library || local || view === 'home') return
     const mine = ++request.current
     setLoading(true)
     const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
@@ -198,12 +262,12 @@ export default function LibraryView() {
       })
       .catch(() => {})
       .finally(() => mine === request.current && setLoading(false))
-  }, [library, isTv, id, params, match, view])
+  }, [library, local, id, params, match, view])
 
   // Infinite scroll: the next page loads as the end of the grid comes into view.
   useEffect(() => {
     const el = sentinel.current
-    if (!el || isTv) return
+    if (!el || local) return
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !loading && items.length < total) setParams((p) => ({ ...p, page: p.page + 1 }))
@@ -212,7 +276,7 @@ export default function LibraryView() {
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [isTv, loading, items.length, total, view])
+  }, [local, loading, items.length, total, view])
 
   /** A movie's match changed in its details: that card, and the counts. It
    *  stays in a filtered grid until the grid is next loaded, rather than
@@ -241,6 +305,22 @@ export default function LibraryView() {
     return list.sort(by[showSort])
   }, [shows, q, showSort, params.match, view, offAirShows, library])
 
+  const visibleArtists = useMemo(() => {
+    const lower = q.toLowerCase()
+    const list = lower ? artists.filter((a) => artistLabel(a.artist).toLowerCase().includes(lower)) : [...artists]
+    // Title order is the server's: A–Z as people read them, the nameless last.
+    const order: Record<Exclude<ArtistSort, 'title'>, (a: ArtistCard, b: ArtistCard) => number> = {
+      items: (a, b) => b.items - a.items,
+      year: (a, b) => (b.lastYear ?? 0) - (a.lastYear ?? 0),
+      added: (a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime(),
+    }
+    return artistSort === 'title' ? list : list.sort(order[artistSort])
+  }, [artists, q, artistSort])
+  const visibleAlbums = useMemo(() => {
+    const lower = q.toLowerCase()
+    return lower ? albums.filter((a) => a.album.toLowerCase().includes(lower) || a.artist.toLowerCase().includes(lower)) : albums
+  }, [albums, q])
+
   /** What the review filter shows, as titles to fix one by one — but for
    *  those unmatched by hand everywhere, which were settled already. */
   const reviewTargets = (): MatchTarget[] => {
@@ -254,9 +334,21 @@ export default function LibraryView() {
 
   // The jump bar, while the grid is in title order: a TV library's shows are
   // all here to count; a movie library's letters come with its first page.
-  const gridTitles = useMemo(() => (isTv ? visibleShows.map((s) => s.showTitle) : items.map((m) => m.showTitle ?? m.title)), [isTv, visibleShows, items])
-  const showStarts = useMemo(() => (isTv && showSort === 'title' ? letterStarts(gridTitles) : null), [isTv, showSort, gridTitles])
-  const starts = view === 'home' ? null : isTv ? showStarts : params.sort === 'title' ? letters : null
+  const gridTitles = useMemo(
+    () =>
+      isTv
+        ? visibleShows.map((s) => s.showTitle)
+        : isMusic && by === 'artists'
+          ? visibleArtists.map((a) => a.artist)
+          : isMusic && by === 'albums'
+            ? visibleAlbums.map((a) => (albumSort === 'artist' ? a.artist : a.album))
+            : items.map((m) => m.showTitle ?? m.title),
+    [isTv, isMusic, by, visibleShows, visibleArtists, visibleAlbums, albumSort, items],
+  )
+  // In A–Z order, the letters of whatever the grid lists whole.
+  const inTitleOrder = isTv ? showSort === 'title' : by === 'artists' ? artistSort === 'title' : albumSort === 'title' || albumSort === 'artist'
+  const showStarts = useMemo(() => (local && inTitleOrder ? letterStarts(gridTitles) : null), [local, inTitleOrder, gridTitles])
+  const starts = view === 'home' ? null : local ? showStarts : params.sort === 'title' ? letters : null
   // Where the grid's sticky toolbar ends, once stuck under the header.
   const stuckBottom = HEADER_HEIGHT + toolbarHeight
   const queryKey = `${params.q}|${params.sort}|${match}`
@@ -287,7 +379,7 @@ export default function LibraryView() {
     setActiveLetter(letter)
     clearTimeout(jumpTimer.current)
     pendingJump.current = null
-    if (isTv || at < items.length) return scrollToCard(at, letter)
+    if (local || at < items.length) return scrollToCard(at, letter)
     // Further down than loaded: the pages through it, once the pointer settles
     // on a letter (a drag down the bar passes over several).
     pendingJump.current = at
@@ -345,9 +437,18 @@ export default function LibraryView() {
 
   // A title's page opens over the grid, keeping the grid's view in its address
   // so Back lands on the same one.
-  const keep = location.search && !location.pathname.includes('/show/') && !location.pathname.includes('/movie/') ? location.search : ''
+  const keep =
+    location.search && !location.pathname.includes('/show/') && !location.pathname.includes('/movie/') && !location.pathname.includes('/artist/')
+      ? location.search
+      : ''
   const openMovie = (mid: number) => navigate(`/library/${id}/movie/${mid}${keep}`)
   const openShow = (title: string) => navigate(`/library/${id}/show/${encodeURIComponent(title)}${keep}`)
+  const openArtist = (artist: string, album?: string) => {
+    const p = new URLSearchParams(keep)
+    if (album) p.set('album', album)
+    const qs = p.toString()
+    navigate(`${artistPath(id, artist)}${qs ? `?${qs}` : ''}`)
+  }
   const openFromHome = (s: OnAirSlot | { mediaItemId?: number; showTitle?: string }) => {
     if ('channel' in s) {
       if (s.libraryId === id) return s.showId != null ? openShow(s.title) : s.mediaItemId != null ? openMovie(s.mediaItemId) : undefined
@@ -360,9 +461,25 @@ export default function LibraryView() {
   }
 
   const kindLabel = library?.kind === 'tv' ? 'TV Shows' : library?.kind === 'movie' ? 'Movies' : library?.kind === 'music' ? 'Music Videos' : library?.kind === 'audio' ? 'Music' : 'Other'
-  const count = isTv ? visibleShows.length : total
-  const noun = isTv ? (count === 1 ? 'show' : 'shows') : library?.kind === 'movie' ? (count === 1 ? 'movie' : 'movies') : library?.kind === 'audio' ? (count === 1 ? 'song' : 'songs') : count === 1 ? 'item' : 'items'
-  const firstLoad = loading && shows.length === 0 && items.length === 0
+  const count = isTv ? visibleShows.length : isMusic && by === 'artists' ? visibleArtists.length : isMusic && by === 'albums' ? visibleAlbums.length : total
+  const one = (single: string, many: string) => (count === 1 ? single : many)
+  // What one of a music library's files is called.
+  const unit = library?.kind === 'audio' ? 'song' : 'video'
+  const noun = isTv
+    ? one('show', 'shows')
+    : library?.kind === 'movie'
+      ? one('movie', 'movies')
+      : isMusic && by === 'artists'
+        ? one('artist', 'artists')
+        : isMusic && by === 'albums'
+          ? one('album', 'albums')
+          : library?.kind === 'audio'
+            ? one('song', 'songs')
+            : library?.kind === 'music'
+              ? one('music video', 'music videos')
+              : one('item', 'items')
+  const firstLoad =
+    loading && (isTv ? shows.length === 0 : isMusic && by === 'artists' ? artists.length === 0 : isMusic && by === 'albums' ? albums.length === 0 : items.length === 0)
   const setMatch = (m: MatchFilter) => setParams((p) => ({ ...p, match: m, page: 1 }))
   const titles = home?.titles ?? library?.itemCount
 
@@ -375,6 +492,13 @@ export default function LibraryView() {
           { value: home.hours.toLocaleString(), label: 'Hours' },
           { value: home.onChannel.toLocaleString(), label: 'On a channel' },
         ]
+      : isMusic
+        ? [
+            { value: home.titles.toLocaleString(), label: 'Artists' },
+            { value: home.episodes.toLocaleString(), label: library?.kind === 'audio' ? 'Songs' : 'Videos' },
+            { value: home.hours.toLocaleString(), label: 'Hours' },
+            { value: home.onChannel.toLocaleString(), label: 'On a channel' },
+          ]
       : [
           { value: home.titles.toLocaleString(), label: kindLabel },
           { value: home.hours.toLocaleString(), label: 'Hours' },
@@ -428,6 +552,18 @@ export default function LibraryView() {
             ref={toolbar}
             className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap"
           >
+            {isMusic && (
+              <Segmented
+                size="sm"
+                value={by}
+                onChange={setBy}
+                options={[
+                  { value: 'artists', label: 'Artists' },
+                  { value: 'albums', label: 'Albums' },
+                  { value: 'songs', label: library?.kind === 'audio' ? 'Songs' : 'Videos' },
+                ]}
+              />
+            )}
             <span className="font-mono text-[12px] uppercase text-ink-faint tabular-nums">
               {firstLoad ? '…' : `${count.toLocaleString()} ${view === 'offair' ? 'off air' : noun}${q ? ' matching' : ''}`}
             </span>
@@ -471,6 +607,20 @@ export default function LibraryView() {
                   <option value="episodes">Most episodes</option>
                   <option value="rating">Highest rated</option>
                 </Select>
+              ) : isMusic && by === 'artists' ? (
+                <Select value={artistSort} onChange={(e) => setArtistSort(e.target.value as ArtistSort)} aria-label="Sort artists">
+                  <option value="title">Name A–Z</option>
+                  <option value="items">Most {unit}s</option>
+                  <option value="year">Newest music</option>
+                  <option value="added">Recently added</option>
+                </Select>
+              ) : isMusic && by === 'albums' ? (
+                <Select value={albumSort} onChange={(e) => setAlbumSort(e.target.value as AlbumSort)} aria-label="Sort albums">
+                  <option value="title">Title A–Z</option>
+                  <option value="artist">Artist A–Z</option>
+                  <option value="year">Newest release</option>
+                  <option value="added">Recently added</option>
+                </Select>
               ) : (
                 <Select
                   value={params.sort}
@@ -480,7 +630,7 @@ export default function LibraryView() {
                   <option value="title">Title A–Z</option>
                   <option value="year">Newest release</option>
                   <option value="added">Recently added</option>
-                  <option value="rating">Highest rated</option>
+                  {!isMusic && <option value="rating">Highest rated</option>}
                 </Select>
               )}
             </div>
@@ -537,6 +687,54 @@ export default function LibraryView() {
                     ))}
                   </div>
                 )
+              ) : isMusic && by === 'artists' ? (
+                visibleArtists.length === 0 ? (
+                  <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => setMatch('all')} />
+                ) : (
+                  <div ref={grid} className={GRID}>
+                    {visibleArtists.map((a) => (
+                      <PosterCard
+                        key={a.artist || '~'}
+                        square
+                        title={artistLabel(a.artist)}
+                        subtitle={[a.albums > 0 && `${a.albums} album${a.albums === 1 ? '' : 's'}`, `${a.items} ${unit}${a.items === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
+                        badge={a.firstYear ? (a.lastYear && a.lastYear !== a.firstYear ? `${a.firstYear}–${a.lastYear}` : String(a.firstYear)) : undefined}
+                        icon="audio"
+                        imageUrl={a.artItemId != null && a.artType ? artworkUrl(a.artItemId, a.artType, ART.poster, a.artVersion) : undefined}
+                        onClick={() => openArtist(a.artist)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : isMusic && by === 'albums' ? (
+                visibleAlbums.length === 0 ? (
+                  <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => setMatch('all')} />
+                ) : (
+                  <div ref={grid} className={GRID}>
+                    {visibleAlbums.map((a) => (
+                      <PosterCard
+                        key={JSON.stringify([a.artist, a.album])}
+                        square
+                        title={a.album}
+                        subtitle={[artistLabel(a.artist), a.year].filter(Boolean).join(' · ')}
+                        badge={`${a.items} ${unit}${a.items === 1 ? '' : 's'}`}
+                        icon="audio"
+                        imageUrl={a.coverItemId != null ? artworkUrl(a.coverItemId, 'poster', ART.poster, a.coverVersion) : undefined}
+                        onClick={() => openArtist(a.artist, a.album)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : isMusic && items.length > 0 ? (
+                <>
+                  <div ref={grid} className="border-b border-edge">
+                    {items.map((m) => (
+                      <SongRow key={m.id} m={m} onOpen={() => setSelectedId(m.id)} />
+                    ))}
+                  </div>
+                  <div ref={sentinel} className="h-10" />
+                  {loading && <div className="flex justify-center py-4 text-[13px] text-ink-faint">Loading more…</div>}
+                </>
               ) : items.length === 0 ? (
                 <NothingHere searching={!!q} filter={match} onClearSearch={clearSearch} onShowAll={() => (view === 'offair' ? setView('all') : setMatch('all'))} />
               ) : (

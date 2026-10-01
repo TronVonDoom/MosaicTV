@@ -4,6 +4,7 @@ import Icon, { type IconName } from './Icon'
 import MediaDetailModal from './MediaDetailModal'
 import { api, logoImageUrl, type Channel, type Library, type MediaSearchResult } from '../lib/api'
 import { scoreMatch } from '../lib/search'
+import { artistPath } from '../lib/format'
 import { Kbd, cx } from './ui'
 
 export type Command = {
@@ -94,7 +95,7 @@ export default function CommandPalette({
     const t = setTimeout(() => {
       api
         .searchMedia(q)
-        .then((r) => setMedia(r.results.filter((x) => x.kind === 'show' || x.kind === 'movie')))
+        .then((r) => setMedia(r.results.filter((x) => x.kind === 'show' || x.kind === 'movie' || x.kind === 'artist' || x.kind === 'album')))
         .catch(() => setMedia([]))
     }, 180)
     return () => clearTimeout(t)
@@ -108,7 +109,7 @@ export default function CommandPalette({
       { id: 'channels', label: 'Channels', icon: 'channels', group: 'Go to', run: go('/channels') },
       { id: 'watch', label: 'Watch TV', icon: 'tv', group: 'Go to', run: go('/watch'), keywords: 'tv mode full screen surf flip channels lean back play' },
       { id: 'guide', label: 'TV Guide', context: 'Channels', icon: 'guide', group: 'Go to', run: go('/channels#guide'), keywords: 'epg listings schedule what is on tonight' },
-      { id: 'library', label: 'Library', context: 'Browse', icon: 'libraries', group: 'Go to', run: go('/library#browse'), keywords: 'shows movies media' },
+      { id: 'library', label: 'Library', context: 'Browse', icon: 'libraries', group: 'Go to', run: go('/library#browse'), keywords: 'shows movies music artists albums media' },
       { id: 'sources', label: 'Library', context: 'Sources', icon: 'folder', group: 'Go to', run: go('/library#sources'), keywords: 'scan folders add library tmdb metadata' },
       { id: 'logos', label: 'Studio', context: 'Logos', icon: 'image', group: 'Go to', run: go('/studio#images'), keywords: 'watermark images' },
       { id: 'audio', label: 'Studio', context: 'Music', icon: 'audio', group: 'Go to', run: go('/studio#audio'), keywords: 'audio intermission ambient breaks' },
@@ -191,7 +192,16 @@ export default function CommandPalette({
                 // A movie has its page; an extra, only a quick look.
                 run: () => (r.extra ? setDetailId(r.mediaItemId) : navigate(`/library/${r.libraryId}/movie/${r.mediaItemId}`)),
               }
-            : null,
+            : r.kind === 'artist' || r.kind === 'album'
+              ? {
+                  id: `${r.kind}-${r.libraryId}-${r.artist}-${r.kind === 'album' ? r.album : ''}`,
+                  label: r.kind === 'album' ? r.album : r.artist,
+                  context: r.kind === 'album' ? [r.artist, r.year].filter(Boolean).join(' · ') : `${r.count} ${r.of}${r.count === 1 ? '' : 's'}`,
+                  icon: 'audio' as const,
+                  group: 'In your library',
+                  run: () => navigate(artistPath(r.libraryId, r.artist, r.kind === 'album' ? r.album : null)),
+                }
+              : null,
       ).filter((c): c is Command => c !== null),
     [media, navigate],
   )
@@ -281,7 +291,7 @@ export default function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search pages, channels, shows and movies…"
+            placeholder="Search pages, channels, shows, movies and music…"
             aria-label="Search"
             className="flex-1 bg-transparent h-14 text-[15px] text-ink outline-none placeholder:text-ink-ghost"
           />

@@ -11,11 +11,16 @@ import type { LibraryHome, OnAirChannel, OnAirRow, OnAirSlot, TitleOnAir } from 
 
 const HOUR = 3600_000
 
-/** A movie, or a show's episodes. */
-export type OnAirTarget = { kind: 'movie'; id: number } | { kind: 'show'; showId: number }
+/** A movie, a show's episodes, or an artist's songs or music videos in a
+ *  library ('' is music that names no artist). */
+export type OnAirTarget = { kind: 'movie'; id: number } | { kind: 'show'; showId: number } | { kind: 'artist'; libraryId: number; artist: string }
 
 const targetWhere = (t: OnAirTarget): Prisma.MediaItemWhereInput =>
-  t.kind === 'movie' ? { id: t.id } : { showId: t.showId, type: 'episode' }
+  t.kind === 'movie'
+    ? { id: t.id }
+    : t.kind === 'show'
+      ? { showId: t.showId, type: 'episode' }
+      : { libraryId: t.libraryId, artist: t.artist === '' ? null : t.artist, type: { in: ['music', 'song'] } }
 
 const CHANNEL = { select: { id: true, number: true, name: true, logoId: true } } as const
 const MEDIA = {
@@ -56,6 +61,7 @@ function slotOf(rows: Row[]): OnAirSlot {
     mediaItemId: m?.id ?? null,
     showId: m?.showId ?? null,
     libraryId: m?.libraryId ?? null,
+    artist: m && (m.type === 'music' || m.type === 'song') ? m.artist : null,
   }
 }
 
@@ -115,20 +121,24 @@ async function channelCollections(): Promise<(ChannelCollection & { airs: Airs }
     .map((c) => ({ ...c, airs: { specials: c.channel!.includeSpecials, extras: c.channel!.includeExtras } }))
 }
 
-/** The channels whose collections bring in a movie or a show. */
+/** The channels whose collections bring in a movie, a show or an artist. */
 async function carriersOf(t: OnAirTarget): Promise<TitleOnAir['carriers']> {
   const cols = await channelCollections()
-  const episodeIds =
-    t.kind === 'show'
-      ? new Set((await prisma.mediaItem.findMany({ where: { showId: t.showId }, select: { id: true } })).map((e) => e.id))
-      : null
+  // The files a pick of one of them names: a show's episodes, an artist's music.
+  const partIds =
+    t.kind === 'movie'
+      ? null
+      : new Set((await prisma.mediaItem.findMany({ where: t.kind === 'show' ? { showId: t.showId } : targetWhere(t), select: { id: true } })).map((e) => e.id))
   const out = new Map<number, TitleOnAir['carriers'][number]>()
   for (const c of cols) {
     let hit = c.items.some((i) =>
       t.kind === 'movie'
         ? i.kind === 'movie' && i.mediaItemId === t.id
-        : ((i.kind === 'show' || i.kind === 'season') && i.showId === t.showId) ||
-          (i.kind === 'episode' && i.mediaItemId != null && episodeIds!.has(i.mediaItemId)),
+        : t.kind === 'show'
+          ? ((i.kind === 'show' || i.kind === 'season') && i.showId === t.showId) ||
+            (i.kind === 'episode' && i.mediaItemId != null && partIds!.has(i.mediaItemId))
+          : ((i.kind === 'artist' || i.kind === 'album') && i.libraryId === t.libraryId && i.artist === t.artist) ||
+            ((i.kind === 'music' || i.kind === 'song') && i.mediaItemId != null && partIds!.has(i.mediaItemId)),
     )
     if (!hit && hasFilter(c)) hit = (await prisma.mediaItem.count({ where: { AND: [collectionWhere(c, c.airs), targetWhere(t)] } })) > 0
     if (!hit) continue
@@ -166,7 +176,8 @@ async function airingsOf(t: OnAirTarget, now: Date, count = 5): Promise<{ now: O
 
 /** When it last aired, and how many times in the kept history. */
 async function lastAired(t: OnAirTarget, now: Date): Promise<{ last: TitleOnAir['last']; count: number }> {
-  const where = t.kind === 'movie' ? { mediaItemId: t.id } : { showId: t.showId }
+  const where: Prisma.AiredWhereInput =
+    t.kind === 'movie' ? { mediaItemId: t.id } : t.kind === 'show' ? { showId: t.showId } : { mediaItem: targetWhere(t) }
   const [archived, latest, recent] = await Promise.all([
     prisma.aired.count({ where }),
     prisma.aired.findFirst({ where, orderBy: { startTime: 'desc' }, include: { channel: CHANNEL } }),
@@ -189,7 +200,7 @@ async function lastAired(t: OnAirTarget, now: Date): Promise<{ last: TitleOnAir[
 }
 
 /**
- * Where a movie or a show airs: its channels, its airings now and next, when
+ * Where a movie, a show or an artist airs: its channels, its airings now and next, when
  * it last aired, and the hours around the airing on now or next — from a
  * little before it (never earlier than the guide still holds) to a while after.
  */
@@ -207,38 +218,59 @@ export async function titleOnAir(t: OnAirTarget, now = new Date()): Promise<Titl
     const to = new Date(Math.max(from.getTime() + span, anchor.stop.getTime() + HOUR / 2))
     const programs = (await schedule(from, to, [anchor.channel.id])).get(anchor.channel.id) ?? []
     const isMine = (rows: Row[]) =>
-      rows.some((r) => (t.kind === 'movie' ? r.mediaItemId === t.id : r.mediaItem?.showId === t.showId))
+      rows.some((r) =>
+        t.kind === 'movie'
+          ? r.mediaItemId === t.id
+          : t.kind === 'show'
+            ? r.mediaItem?.showId === t.showId
+            : !!r.mediaItem && r.mediaItem.libraryId === t.libraryId && (r.mediaItem.artist ?? '') === t.artist && (r.mediaItem.type === 'music' || r.mediaItem.type === 'song'),
+      )
     evening = { from, to, row: { channel: anchor.channel, programs: programs.map((p) => ({ ...p.slot, mine: isMine(p.rows) })) } }
   }
   return { carriers, now: airings.now, next: airings.next, last: aired.last, airedCount: aired.count, evening }
 }
 
-/** What in a library some channel brings in: its files by id, and its shows. */
-export async function reachedIn(libraryId: number): Promise<{ ids: Set<number>; showIds: Set<number> }> {
+/** What in a library some channel brings in: its files by id, its shows, and
+ *  its artists ('' for music that names none). */
+export async function reachedIn(libraryId: number): Promise<{ ids: Set<number>; showIds: Set<number>; artists: Set<string> }> {
   const ids = new Set<number>()
   const showIds = new Set<number>()
+  const artists = new Set<string>()
   const singleEpisodes: number[] = []
+  const music: Prisma.MediaItemWhereInput[] = []
   for (const c of await channelCollections()) {
     for (const i of c.items) {
       if (i.kind === 'movie' && i.mediaItemId != null) ids.add(i.mediaItemId)
-      if (i.kind === 'episode' && i.mediaItemId != null) singleEpisodes.push(i.mediaItemId)
+      if ((i.kind === 'episode' || i.kind === 'music' || i.kind === 'song') && i.mediaItemId != null) singleEpisodes.push(i.mediaItemId)
       if ((i.kind === 'show' || i.kind === 'season') && i.showId != null) showIds.add(i.showId)
+      if ((i.kind === 'artist' || i.kind === 'album') && i.artist != null && i.libraryId === libraryId)
+        music.push({ artist: i.artist, ...(i.kind === 'album' ? { album: i.album } : {}) })
     }
     if (hasFilter(c)) {
-      const rows = await prisma.mediaItem.findMany({ where: { AND: [collectionWhere(c, c.airs), { libraryId }] }, select: { id: true, showId: true } })
+      const rows = await prisma.mediaItem.findMany({
+        where: { AND: [collectionWhere(c, c.airs), { libraryId }] },
+        select: { id: true, showId: true, type: true, artist: true },
+      })
       for (const r of rows) {
         ids.add(r.id)
         if (r.showId != null) showIds.add(r.showId)
+        if (r.type === 'music' || r.type === 'song') artists.add(r.artist ?? '')
       }
     }
   }
-  if (singleEpisodes.length) {
-    for (const e of await prisma.mediaItem.findMany({ where: { id: { in: singleEpisodes }, libraryId }, select: { id: true, showId: true } })) {
+  const picked = [
+    ...(singleEpisodes.length ? [{ id: { in: singleEpisodes } }] : []),
+    ...(music.length ? [{ type: { in: ['music', 'song'] }, extra: null, OR: music }] : []),
+  ]
+  if (picked.length) {
+    const rows = await prisma.mediaItem.findMany({ where: { libraryId, OR: picked }, select: { id: true, showId: true, type: true, artist: true } })
+    for (const e of rows) {
       ids.add(e.id)
       if (e.showId != null) showIds.add(e.showId)
+      if (e.type === 'music' || e.type === 'song') artists.add(e.artist ?? '')
     }
   }
-  return { ids, showIds }
+  return { ids, showIds, artists }
 }
 
 const genresOf = (list: (string | null)[]) => {
@@ -254,7 +286,7 @@ const decadesOf = (years: (number | null)[]) => {
 }
 
 /**
- * A movie or TV library's home: its size, what of it airs and what doesn't,
+ * A library's home: its size, what of it airs and what doesn't,
  * what's on from it now, and the next twelve hours of every channel that airs
  * something from it.
  */
@@ -304,6 +336,20 @@ export async function libraryHome(libraryId: number, now = new Date()): Promise<
       }))
       .sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime())
       .slice(0, 16)
+  } else if (kind === 'music' || kind === 'audio') {
+    // An artist stands where a show would: the titles are artists, and their
+    // songs or videos the episodes. The decades count songs.
+    const files = await prisma.mediaItem.findMany({
+      where: { ...present, extra: null, type: { in: ['music', 'song'] } },
+      select: { artist: true, year: true, genres: true, durationSec: true },
+    })
+    const artists = new Set(files.map((f) => f.artist ?? ''))
+    titles = artists.size
+    episodes = files.length
+    seconds = files.reduce((a, f) => a + (f.durationSec ?? 0), 0)
+    onChannel = [...artists].filter((a) => reached.artists.has(a)).length
+    offAirGenres = genresOf(files.filter((f) => !reached.artists.has(f.artist ?? '')).map((f) => f.genres))
+    decades = decadesOf(files.map((f) => f.year))
   } else {
     const movies = await prisma.mediaItem.findMany({
       where: { ...present, extra: null, ...(kind === 'movie' ? { type: 'movie' } : {}) },

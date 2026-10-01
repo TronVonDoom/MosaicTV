@@ -194,3 +194,15 @@ export function splitSubtitle(subtitle: string | null | undefined): { code: stri
   while (parts.length && /^(S\d+|E\d+|Special|\d{4}$)/.test(parts[0])) codeParts.push(parts.shift() as string)
   return { code: codeParts.join(' ') || null, name: parts.join(' · ') || null }
 }
+
+/** An artist's page in a music library: '' (music that names no artist) as
+ *  "~" in the address, and an album to open it at. */
+export function artistPath(libraryId: number | string, artist: string | null | undefined, album?: string | null): string {
+  return `/library/${libraryId}/artist/${encodeURIComponent(artist || '~')}${album ? `?album=${encodeURIComponent(album)}` : ''}`
+}
+
+/** The artist an artist page's address names ('' for none). */
+export const artistFromPath = (param: string | undefined): string => (!param || param === '~' ? '' : param)
+
+/** An artist as the page names them. */
+export const artistLabel = (artist: string | null | undefined): string => artist || 'Unknown artist'

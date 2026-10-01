@@ -195,7 +195,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
 
         <Section title="Music" className="mt-5">
           <p className="text-ink-muted text-sm mb-3">
-            A song has no picture of its own, so it airs over a screen: its cover, title, artist and how far in it is.
+            A song has no picture of its own, so it airs over a screen: its cover, title, artist and how far in it is. In its last 20 seconds a small Up next names what follows, in place of the card above.
           </p>
           <div className="divide-y divide-edge/60 rounded-xl border border-edge">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
@@ -216,7 +216,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
               <div className="min-w-0">
                 <div className="text-[13px] font-medium text-ink">If lyrics exist, show lyrics first</div>
                 <div className="text-xs text-ink-faint mt-0.5">
-                  A song with timed lyrics — an .lrc file beside it, or lyrics in its tags — airs them, line by line, instead. Songs without keep the screen above.
+                  A song with timed lyrics — an .lrc file beside it, lyrics in its tags, or ones found on LRCLIB — airs them, line by line, instead. Songs without keep the screen above.
                 </div>
               </div>
               <Switch checked={form.lyricsFirst} onChange={(v) => setForm({ ...form, lyricsFirst: v })} label="If lyrics exist, show lyrics first" />
