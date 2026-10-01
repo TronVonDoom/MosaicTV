@@ -22,14 +22,27 @@ export type ProbeResult = {
   tags: EmbeddedTags
 }
 
-/** What a file's own tags say of it — one of a library's metadata sources. */
-export type EmbeddedTags = { title?: string; description?: string; date?: string; genre?: string }
+/** What a file's own tags say of it — one of a library's metadata sources —
+ *  and where in it its own cover picture is, if it carries one (a stream: an
+ *  MP4's or MP3's attached picture, or a Matroska attachment). */
+export type EmbeddedTags = {
+  title?: string
+  description?: string
+  date?: string
+  genre?: string
+  artist?: string
+  album?: string
+  cover?: { stream: number; attachment?: true }
+}
 
 type FfprobeStream = {
+  index?: number
   codec_type?: string
   codec_name?: string
   width?: number
   height?: number
+  disposition?: { attached_pic?: number }
+  tags?: Record<string, string>
 }
 
 type FfprobeJson = {
@@ -43,29 +56,38 @@ type FfprobeJson = {
 
 // Where each detail lives among the names containers give their tags: MP4's
 // iTunes atoms, Matroska's upper-case names, ffmpeg's own.
-const TAG_KEYS: Record<keyof EmbeddedTags, string[]> = {
+type TagField = Exclude<keyof EmbeddedTags, 'cover'>
+const TAG_KEYS: Record<TagField, string[]> = {
   title: ['title'],
   description: ['description', 'synopsis', 'summary', 'comment', 'ldes', 'desc'],
   date: ['date_released', 'date', 'year', 'originaldate'],
   genre: ['genre'],
+  artist: ['artist', 'album_artist', 'performer'],
+  album: ['album'],
 }
 
-/** The details a file's tags carry, from ffprobe's format tags (any case). */
-export function embeddedTags(raw: Record<string, string> | undefined): EmbeddedTags {
+/** The details a file's tags carry, from ffprobe's format tags (any case),
+ *  and its cover picture among its streams. */
+export function embeddedTags(raw: Record<string, string> | undefined, streams: FfprobeStream[] = []): EmbeddedTags {
   const lower = new Map(Object.entries(raw ?? {}).map(([k, v]) => [k.toLowerCase(), String(v).trim()]))
   const out: EmbeddedTags = {}
-  for (const [field, keys] of Object.entries(TAG_KEYS) as [keyof EmbeddedTags, string[]][]) {
+  for (const [field, keys] of Object.entries(TAG_KEYS) as [TagField, string[]][]) {
     const v = keys.map((k) => lower.get(k)).find((x) => !!x)
     if (v) out[field] = v
   }
+  const pic = streams.find((s) => s.codec_type === 'video' && s.disposition?.attached_pic === 1)
+  const attached = streams.find((s) => s.codec_type === 'attachment' && /^image\//i.test(s.tags?.mimetype ?? ''))
+  if (pic?.index != null) out.cover = { stream: pic.index }
+  else if (attached?.index != null) out.cover = { stream: attached.index, attachment: true }
   return out
 }
 
 /** Just a file's own tags, for a file probed before they were kept. */
 export async function probeTags(filePath: string): Promise<EmbeddedTags> {
-  const out = await ffprobeText(['-v', 'quiet', '-print_format', 'json', '-show_entries', 'format_tags', filePath])
+  const out = await ffprobeText(['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', filePath])
   try {
-    return embeddedTags((JSON.parse(out) as FfprobeJson).format?.tags)
+    const json = JSON.parse(out) as FfprobeJson
+    return embeddedTags(json.format?.tags, json.streams)
   } catch {
     return {}
   }
@@ -95,7 +117,8 @@ export function ffprobe(filePath: string): Promise<ProbeResult | null> {
       if (code !== 0 || !stdout) return resolve(null)
       try {
         const json = JSON.parse(stdout) as FfprobeJson
-        const video = json.streams?.find((s) => s.codec_type === 'video')
+        // A cover picture is a "video" stream too; the picture is the one that isn't.
+        const video = json.streams?.find((s) => s.codec_type === 'video' && s.disposition?.attached_pic !== 1)
         const audio = json.streams?.find((s) => s.codec_type === 'audio')
         const duration = json.format?.duration
           ? Number.parseFloat(json.format.duration)
@@ -107,7 +130,7 @@ export function ffprobe(filePath: string): Promise<ProbeResult | null> {
           videoCodec: video?.codec_name ?? null,
           audioCodec: audio?.codec_name ?? null,
           container: json.format?.format_name ?? null,
-          tags: embeddedTags(json.format?.tags),
+          tags: embeddedTags(json.format?.tags, json.streams),
         })
       } catch {
         resolve(null)

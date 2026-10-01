@@ -65,6 +65,9 @@ export type ExtraKind = (typeof EXTRA_KINDS)[number]
 export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb', 'tvdb'] as const
 export type MetadataSource = (typeof METADATA_SOURCES)[number]
 export const DEFAULT_METADATA_SOURCES: MetadataSource[] = ['nfo', 'tmdb', 'tvdb']
+/** What a music library reads: TMDB and TheTVDB have no music videos, and a
+ *  video's own tags (artist, album, year) are most of what there is. */
+export const MUSIC_METADATA_SOURCES: MetadataSource[] = ['nfo', 'embedded']
 
 /** A library's sources as stored ("nfo,tmdb"): known ones, in order, once each. */
 export function asMetadataSources(v: unknown): MetadataSource[] {

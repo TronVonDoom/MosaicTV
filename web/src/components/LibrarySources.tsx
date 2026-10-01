@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
-import { METADATA_SOURCES } from '@contract'
+import { METADATA_SOURCES, MUSIC_METADATA_SOURCES } from '@contract'
 import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type SourceKeys } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
@@ -17,11 +17,16 @@ const KIND_LABELS: Record<LibraryKind, string> = {
   other: 'Other / Bumpers',
 }
 
-const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string }> = {
-  nfo: { label: '.nfo files', hint: 'Kodi and Jellyfin metadata kept beside the media: movie.nfo, tvshow.nfo, an episode’s own.' },
+const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string; music?: string }> = {
+  nfo: {
+    label: '.nfo files',
+    hint: 'Kodi and Jellyfin metadata kept beside the media: movie.nfo, tvshow.nfo, an episode’s own.',
+    music: 'Kodi metadata kept beside each video (“<video>.nfo”): its title, artist, album, year, genre, director and label.',
+  },
   embedded: {
     label: 'The files’ own tags',
     hint: 'Titles and descriptions written into the files. Often left over from a release — worth it only if you tag your own.',
+    music: 'The artist, album, title, year and genre written into the files, and a cover picture inside them.',
   },
   tmdb: { label: 'TMDB', hint: 'The match and posters, summaries, cast, ratings and episode details (needs a key in Settings).' },
   tvdb: {
@@ -37,8 +42,11 @@ const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string }> = {
  */
 function MetadataSources({ lib, disabled, onSaved }: { lib: Library; disabled: boolean; onSaved: (sources: MetadataSource[]) => void }) {
   const [saving, setSaving] = useState(false)
-  const on = lib.metadataSources
-  const rows = [...on, ...METADATA_SOURCES.filter((s) => !on.includes(s))]
+  // A music library reads only what's on disk: TMDB and TheTVDB have no music videos.
+  const music = lib.kind === 'music'
+  const choices = music ? MUSIC_METADATA_SOURCES : METADATA_SOURCES
+  const on = lib.metadataSources.filter((s) => choices.includes(s))
+  const rows = [...on, ...choices.filter((s) => !on.includes(s))]
   async function save(next: MetadataSource[]) {
     setSaving(true)
     try {
@@ -77,7 +85,7 @@ function MetadataSources({ lib, disabled, onSaved }: { lib: Library; disabled: b
               <span className="w-4 text-[11px] text-ink-faint tabular-nums text-center">{enabled ? i + 1 : ''}</span>
               <span className="min-w-0 flex-1">
                 <span className="text-[13px] text-ink">{SOURCE_INFO[s].label}</span>
-                <span className="block text-[11.5px] text-ink-faint leading-snug">{SOURCE_INFO[s].hint}</span>
+                <span className="block text-[11.5px] text-ink-faint leading-snug">{(music && SOURCE_INFO[s].music) || SOURCE_INFO[s].hint}</span>
               </span>
               {enabled && (
                 <span className="flex shrink-0">
@@ -337,7 +345,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 />
               </div>
 
-              {(lib.kind === 'tv' || lib.kind === 'movie') && (
+              {(lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music') && (
                 <MetadataSources
                   lib={lib}
                   disabled={busy}

@@ -43,7 +43,10 @@ export function useLibraryJobs(onFinish?: () => void) {
       force &&
       !(await confirmDialog({
         title: `Refresh all metadata for “${lib.name}”?`,
-        message: `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic matches are looked up again — through the other source’s match where it lists one, else by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
+        message:
+          lib.kind === 'music'
+            ? 'Every music video is read again from its .nfo file and its own tags, whichever the library reads. Its artist, album and year stay as its folders and name have them; the metadata fills in only what they don’t say.'
+            : `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic matches are looked up again — through the other source’s match where it lists one, else by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
         confirmLabel: 'Refresh all',
       }))
     )
@@ -111,6 +114,19 @@ export function LibraryActions({
             icon: 'download',
             hint: readsLocal ? undefined : noKey,
             disabled: jobs.busy || !(online || readsLocal),
+            onSelect: () => jobs.startMetadata(lib, true),
+          },
+        ] satisfies MenuItem[])
+      : []),
+    // Music videos have nothing to match online: their .nfo and tags, read again.
+    ...(lib.kind === 'music'
+      ? ([
+          'divider',
+          {
+            label: 'Refresh all metadata…',
+            icon: 'download',
+            hint: readsLocal ? undefined : 'reads no .nfo or tags',
+            disabled: jobs.busy || !readsLocal,
             onSelect: () => jobs.startMetadata(lib, true),
           },
         ] satisfies MenuItem[])

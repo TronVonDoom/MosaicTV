@@ -76,7 +76,7 @@ export default function MediaDetailModal({
     ? null
     : item.posterPath || item.tmdbPosterPath
       ? artworkUrl(item.id, 'poster', ART.poster, item.tmdbPosterPath)
-      : item.showTitle
+      : item.showTitle || (item.type === 'music' && item.showPosterPath)
         ? artworkUrl(item.id, 'show', ART.poster)
         : null
   const genres = item?.genres ? item.genres.split(',').map((g) => g.trim()).filter(Boolean) : []
@@ -104,7 +104,9 @@ export default function MediaDetailModal({
         ? [item.showTitle, sxe].filter(Boolean).join(' · ')
         : item.type === 'movie'
           ? 'Movie'
-          : null
+          : item.type === 'music'
+            ? [item.artist, item.album].filter(Boolean).join(' · ') || 'Music video'
+            : null
 
   return (
     <Modal onClose={onClose} panelClassName="w-full max-w-2xl overflow-x-hidden">
@@ -154,7 +156,7 @@ export default function MediaDetailModal({
             <MonoFacts
               className="!text-[12.5px]"
               items={[
-                item.type === 'movie' && !item.extra && item.year,
+                (item.type === 'movie' || item.type === 'music') && !item.extra && item.year,
                 item.contentRating && <RatingBox>{item.contentRating}</RatingBox>,
                 isEpisode && formatAirDate(item.airDate) && `First aired ${formatAirDate(item.airDate)}`,
                 formatDuration(item.durationSec),

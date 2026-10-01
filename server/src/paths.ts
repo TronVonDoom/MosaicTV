@@ -36,6 +36,14 @@ export function tmdbCacheDir(): string {
   return d
 }
 
+// Cover pictures copied out of the files that carry them (a music video's or a
+// song's own artwork, embedded by the tool that made it). Rebuildable at any time.
+export function coversDir(): string {
+  const d = path.join(dataDir(), 'covers')
+  fs.mkdirSync(d, { recursive: true })
+  return d
+}
+
 // Shrunk copies of local artwork (a poster.jpg on the media share is often a
 // multi-megabyte original) for the web UI's grids. Rebuildable at any time.
 export function thumbsDir(): string {

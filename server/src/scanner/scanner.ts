@@ -3,7 +3,7 @@ import path from 'node:path'
 import { prisma } from '../db.js'
 import { ffprobe } from '../ffprobe.js'
 import { extraHome, extraKind, extraStem, parseMedia, type LibraryKind } from './parse.js'
-import { detectArtwork } from './artwork.js'
+import { detectArtwork, embeddedCover } from './artwork.js'
 import { walk } from './walk.js'
 import { removeGone } from './gone.js'
 import { log } from '../logs.js'
@@ -112,6 +112,10 @@ async function processFile(
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
   const art = await detectArtwork(filePath, libraryPath, kind, parsed.season, cache)
+  // A music video with no picture beside it shows the one inside it, if it
+  // carries one — known from its tags when the file hasn't changed.
+  if (kind === 'music' && !art.posterPath && existing && existing.mtimeMs === mtimeMs)
+    art.posterPath = await embeddedCover(filePath, mtimeMs, existing.embedded)
   // An episode whose name gives no title keeps the one its metadata gave it.
   const title = parsed.untitled && existing?.metaTitle ? existing.metaTitle : parsed.title
 
@@ -143,6 +147,8 @@ async function processFile(
   // Reuse existing probe results when the file itself hasn't changed.
   const unchanged = !force && !!existing && existing.mtimeMs === mtimeMs && existing.durationSec != null
   const probe = unchanged ? null : await ffprobe(filePath)
+  const embedded = unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null
+  if (kind === 'music' && !art.posterPath) art.posterPath = await embeddedCover(filePath, mtimeMs, embedded)
 
   const data = {
     libraryId,
@@ -152,9 +158,10 @@ async function processFile(
     showTitle: show?.title ?? null,
     season: parsed.season,
     episode: parsed.episode,
-    year: parsed.year,
-    artist: parsed.artist,
-    album: parsed.album,
+    // A music video's name leaves out what its .nfo or tags filled in.
+    year: parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
+    artist: parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
+    album: parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
     extra: parsed.extra,
     durationSec: unchanged ? existing!.durationSec : probe?.durationSec ?? null,
     width: unchanged ? existing!.width : probe?.width ?? null,
@@ -163,7 +170,7 @@ async function processFile(
     audioCodec: unchanged ? existing!.audioCodec : probe?.audioCodec ?? null,
     container: unchanged ? existing!.container : probe?.container ?? null,
     // Its own tags, one of the metadata sources (null = not read).
-    embedded: unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null,
+    embedded,
     posterPath: art.posterPath,
     showPosterPath: art.showPosterPath,
     seasonPosterPath: art.seasonPosterPath,

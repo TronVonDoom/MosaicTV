@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { asMetadataSources, LibraryUpdate, type Library, type LibraryHome, type Stored } from '../contract/index.js'
+import { asMetadataSources, LibraryUpdate, MUSIC_METADATA_SOURCES, type Library, type LibraryHome, type Stored } from '../contract/index.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
@@ -143,6 +143,8 @@ librariesRouter.post('/', async (req, res) => {
       data: {
         name,
         kind,
+        // A music library reads its files' .nfo and tags (see MUSIC_METADATA_SOURCES).
+        ...(kind === 'music' ? { metadataSources: MUSIC_METADATA_SOURCES.join(',') } : {}),
         folders: { create: paths.map((p) => ({ path: p })) },
       },
       include: { folders: true },

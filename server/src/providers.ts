@@ -69,8 +69,11 @@ export type Details = {
   /** JSON CastMember[]. */
   cast: string | null
   airDate: string | null
+  /** A music video's performer and album (an .nfo's or its tags'). */
+  artist: string | null
+  album: string | null
 }
-export const FIELDS = ['metaTitle', 'overview', 'genres', 'rating', 'contentRating', 'tagline', 'studio', 'people', 'cast', 'airDate'] as const
+export const FIELDS = ['metaTitle', 'overview', 'genres', 'rating', 'contentRating', 'tagline', 'studio', 'people', 'cast', 'airDate', 'artist', 'album'] as const
 
 /** What a source says of a movie or show it has. */
 export type Found = {

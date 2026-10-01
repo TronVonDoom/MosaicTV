@@ -35,6 +35,7 @@ import {
   type TmdbMatch,
 } from './contract/index.js'
 import { cleanDate, nfoReader, type Nfo, type NfoReader } from './nfo.js'
+import { embeddedCover } from './scanner/artwork.js'
 import { probeTags, type EmbeddedTags } from './ffprobe.js'
 import { parseMedia } from './scanner/parse.js'
 import {
@@ -142,9 +143,13 @@ async function agentFor(libraryId: number): Promise<Agent> {
 const isMatchSource = (s: string): s is MatchSource => (MATCH_SOURCES as readonly string[]).includes(s)
 /** The online sources the library reads that can be asked. */
 const askable = (a: Agent): Provider[] => a.sources.filter(isMatchSource).flatMap((s) => (a.online[s] ? [a.online[s]!] : []))
-const canRead = (a: Agent) => askable(a).length > 0 || a.sources.some((s) => !isMatchSource(s))
-const NOTHING_TO_READ =
-  'Nothing to read metadata from: add a TMDB or TheTVDB key under Settings, or let the library read .nfo files or the files’ own tags.'
+/** Whether the library reads anything: a music library only its files' .nfo
+ *  and tags (TMDB and TheTVDB have no music videos). */
+const canRead = (a: Agent) => (a.kind !== 'music' && askable(a).length > 0) || a.sources.some((s) => !isMatchSource(s))
+const nothingToReadIn = (a: Agent) =>
+  a.kind === 'music'
+    ? 'Nothing to read metadata from: let the library read .nfo files or the files’ own tags.'
+    : 'Nothing to read metadata from: add a TMDB or TheTVDB key under Settings, or let the library read .nfo files or the files’ own tags.'
 const noKey = (s: MatchSource) => `No ${MATCH_SOURCE_NAMES[s]} key configured. Add one under Settings.`
 
 /**
@@ -196,12 +201,21 @@ function fromNfo(n: Nfo | null): Partial<Details> | null {
     people: list(n.directors),
     cast: castJson(n.cast),
     airDate: n.date ?? (n.year ? String(n.year) : null),
+    artist: n.artists.join(' & ') || null,
+    album: n.album,
   }
 }
 
 function fromTags(t: EmbeddedTags | null): Partial<Details> | null {
   if (!t) return null
-  return { metaTitle: t.title ?? null, overview: t.description ?? null, genres: t.genre ?? null, airDate: cleanDate(t.date) }
+  return {
+    metaTitle: t.title ?? null,
+    overview: t.description ?? null,
+    genres: t.genre ?? null,
+    airDate: cleanDate(t.date),
+    artist: t.artist ?? null,
+    album: t.album ?? null,
+  }
 }
 
 /** A file's own tags: kept from its scan, or read now for a file scanned before they were. */
@@ -431,6 +445,72 @@ async function enrichMovie(
   return { matched: anyFound(looked), genres: count > 0 && data.genres !== item.genres, stuck: null }
 }
 
+// ── Music videos ────────────────────────────────────────────────────────────
+
+const MUSIC_ROW = { id: true, path: true, title: true, artist: true, album: true, year: true, genres: true, embedded: true, mtimeMs: true, posterPath: true } as const
+type MusicRow = {
+  id: number
+  path: string
+  title: string
+  artist: string | null
+  album: string | null
+  year: number | null
+  genres: string | null
+  embedded: string | null
+  mtimeMs: number | null
+  posterPath: string | null
+}
+
+const yearOf = (date: string | null) => (date && /^\d{4}/.test(date) ? Number(date.slice(0, 4)) : null)
+
+/**
+ * Read one music video's .nfo and its own tags — whichever its library reads,
+ * in its order — and write what they say: plot, genre, release date, director,
+ * label. Its title, artist, album and year are what its folders and name say;
+ * the sources fill in only what those don't (an artist pick goes by the
+ * artist's name, so a tag mustn't move a video out of it), and the sources'
+ * title is kept beside it (metaTitle). A cover inside the file becomes its
+ * poster when it has none. Whether a source said anything, and whether its
+ * genres changed.
+ */
+async function enrichMusicVideo(a: Agent, item: MusicRow): Promise<{ read: boolean; genres: boolean }> {
+  const order = a.sources.filter((s) => !isMatchSource(s))
+  const nfo = order.includes('nfo') ? await a.nfo.musicVideo(item.path) : null
+  const tags = order.includes('embedded') ? await tagsOf(item) : null
+  const { details, used } = mergeDetails(order, { nfo: fromNfo(nfo), embedded: fromTags(tags) })
+  const root = rootOf(a, item.path)
+  const named = root ? parseMedia(item.path, root, 'music') : item
+  const cover =
+    !item.posterPath && tags?.cover && item.mtimeMs != null ? await embeddedCover(item.path, item.mtimeMs, JSON.stringify(tags)) : null
+  const data = {
+    metaTitle: details.metaTitle,
+    overview: details.overview,
+    genres: details.genres,
+    rating: details.rating,
+    contentRating: details.contentRating,
+    tagline: details.tagline,
+    studio: details.studio,
+    directors: details.people,
+    cast: details.cast,
+    airDate: details.airDate,
+    artist: named.artist ?? details.artist,
+    album: named.album ?? details.album,
+    year: named.year ?? yearOf(details.airDate),
+    ...(cover ? { posterPath: cover } : {}),
+    metaSources: used,
+    metaAt: new Date(),
+  }
+  await prisma.mediaItem.update({ where: { id: item.id }, data })
+  return { read: used != null, genres: data.genres !== item.genres }
+}
+
+function musicWhere(libraryId: number, mode: EnrichMode) {
+  const base = { libraryId, type: 'music', missing: false }
+  if (mode === 'new') return { ...base, metaAt: null }
+  if (mode === 'missing') return { ...base, metaSources: null }
+  return base
+}
+
 // ── Shows ───────────────────────────────────────────────────────────────────
 
 type ShowRow = MatchFields & {
@@ -634,7 +714,8 @@ async function fillEpisodes(a: Agent, showId: number, order: MetadataSource[], m
 
 /** Why a library has nothing to read metadata from, or null when it has something. */
 export async function nothingToRead(libraryId: number): Promise<string | null> {
-  return canRead(await agentFor(libraryId)) ? null : NOTHING_TO_READ
+  const a = await agentFor(libraryId)
+  return canRead(a) ? null : nothingToReadIn(a)
 }
 
 /** Smart collections pick movies by genre, so a movie's genres changing can
@@ -681,7 +762,7 @@ function showWhere(libraryId: number, mode: EnrichMode, a: Agent) {
 /** Read a library's metadata. Runs in the background; poll getMetadataStatus(). */
 export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promise<void> {
   const a = await agentFor(libraryId)
-  if (!canRead(a)) throw new MatchError(NOTHING_TO_READ)
+  if (!canRead(a)) throw new MatchError(nothingToReadIn(a))
   const library = await prisma.library.findUniqueOrThrow({ where: { id: libraryId } })
 
   Object.assign(status, {
@@ -722,8 +803,20 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
         if ((await enrichShow(a, show, research(show), true)).matched) status.matched++
         else status.unmatched++
       })
+    } else if (library.kind === 'music') {
+      const items = await prisma.mediaItem.findMany({ where: musicWhere(library.id, mode), select: MUSIC_ROW })
+      status.total = items.length
+      let genres = false
+      await runPool(items, CONCURRENCY, async (item) => {
+        status.currentTitle = item.title
+        const r = await enrichMusicVideo(a, item)
+        if (r.read) status.matched++
+        else status.unmatched++
+        genres ||= r.genres
+      })
+      if (genres) await genresChanged()
     }
-    // "other" and music libraries have nothing to read.
+    // "other" libraries have nothing to read.
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {
@@ -748,7 +841,9 @@ export async function matchNewTitles(libraryId: number): Promise<void> {
       ? await prisma.mediaItem.count({ where: movieWhere(libraryId, 'new', a) })
       : a.kind === 'tv'
         ? await prisma.show.count({ where: { ...showWhere(libraryId, 'new', a), episodes: { some: { type: 'episode', extra: null, missing: false } } } })
-        : 0
+        : a.kind === 'music'
+          ? await prisma.mediaItem.count({ where: musicWhere(libraryId, 'new') })
+          : 0
   if (waiting > 0) await enrichLibrary(libraryId, 'new')
 }
 
@@ -825,7 +920,7 @@ export async function unmatchMovie(id: number, source?: MatchSource): Promise<vo
 export async function refreshMovie(id: number): Promise<void> {
   const item = await movieRow(id)
   const a = await agentFor(item.libraryId)
-  if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(item, s).match === 'manual')) throw new MatchError(NOTHING_TO_READ)
+  if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(item, s).match === 'manual')) throw new MatchError(nothingToReadIn(a))
   const r = await enrichMovie(a, item, (s) => sourceMatch(item, s).id == null, false)
   if (r.stuck) throw stuckError(a, r.stuck)
   if (r.genres) await genresChanged()
@@ -865,7 +960,7 @@ export async function unmatchShow(id: number, source?: MatchSource): Promise<voi
 
 export async function refreshShow(id: number): Promise<void> {
   const { a, show } = await showRow(id)
-  if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(show, s).match === 'manual')) throw new MatchError(NOTHING_TO_READ)
+  if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(show, s).match === 'manual')) throw new MatchError(nothingToReadIn(a))
   const r = await enrichShow(a, show, (s) => sourceMatch(show, s).id == null, false)
   if (r.stuck) throw stuckError(a, r.stuck)
 }

@@ -1,7 +1,7 @@
 // Kodi/Jellyfin .nfo files: the metadata a library keeps beside its media, as
 // Plex's "local media assets" read what's on disk before asking online. One
 // sits beside a movie ("<movie>.nfo" or "movie.nfo"), in a show's folder
-// ("tvshow.nfo"), or beside an episode ("<episode>.nfo"). Read tolerantly — a
+// ("tvshow.nfo"), or beside an episode or a music video ("<file>.nfo"). Read tolerantly — a
 // hand-written file needn't be perfect XML — and an .nfo that's only a link
 // ("https://www.imdb.com/title/tt0133093/") still names the title's id.
 
@@ -11,9 +11,12 @@ import path from 'node:path'
 /** A cast member as the metadata gives them: their name, their part, a photo. */
 export type CastMember = { name: string; role: string | null; photo: string | null }
 
-/** What an .nfo says of a movie, a show or an episode. */
+/** What an .nfo says of a movie, a show, an episode or a music video. */
 export type Nfo = {
   title: string | null
+  /** A music video's performers, and the album it's from. */
+  artists: string[]
+  album: string | null
   plot: string | null
   tagline: string | null
   year: number | null
@@ -131,7 +134,7 @@ function rating(xml: string): number | null {
  */
 export function parseNfo(raw: string, want?: { season: number | null; episode: number | null }): Nfo | null {
   const xml = raw.replace(/<!--[\s\S]*?-->/g, '')
-  const blocks = ['movie', 'tvshow', 'episodedetails'].flatMap((n) => tags(xml, n))
+  const blocks = ['movie', 'tvshow', 'episodedetails', 'musicvideo'].flatMap((n) => tags(xml, n))
   if (blocks.length === 0) {
     const found = linkIds(raw)
     return Object.keys(found).length ? { ...EMPTY, ids: found } : null
@@ -149,6 +152,8 @@ export function parseNfo(raw: string, want?: { season: number | null; episode: n
   const year = Number(text(own, 'year'))
   return {
     title: text(own, 'title'),
+    artists: splitList(texts(own, 'artist')),
+    album: text(own, 'album'),
     plot: text(own, 'plot') ?? text(own, 'outline'),
     tagline: text(own, 'tagline'),
     year: Number.isInteger(year) && year > 1800 ? year : null,
@@ -165,6 +170,8 @@ export function parseNfo(raw: string, want?: { season: number | null; episode: n
 
 const EMPTY: Nfo = {
   title: null,
+  artists: [],
+  album: null,
   plot: null,
   tagline: null,
   year: null,
@@ -221,6 +228,11 @@ export function nfoReader() {
     async episode(file: string, season: number | null, episode: number | null): Promise<Nfo | null> {
       const raw = await readFirst(path.dirname(file), [`${base(file)}.nfo`])
       return raw ? parseNfo(raw, { season, episode }) : null
+    },
+    /** A music video's "<file>.nfo" (Kodi's <musicvideo>). */
+    async musicVideo(file: string): Promise<Nfo | null> {
+      const raw = await readFirst(path.dirname(file), [`${base(file)}.nfo`])
+      return raw ? parseNfo(raw) : null
     },
   }
 }

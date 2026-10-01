@@ -57,7 +57,7 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
     artists.length
       ? prisma.mediaItem.findMany({
           where: { missing: false, type: 'music', extra: null, OR: artists.map((i) => ({ libraryId: i.libraryId ?? undefined, artist: i.artist })) },
-          select: { id: true, libraryId: true, artist: true, year: true, posterPath: true },
+          select: { id: true, libraryId: true, artist: true, year: true, posterPath: true, showPosterPath: true },
           orderBy: { id: 'asc' },
         })
       : [],
@@ -65,13 +65,15 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
   const byId = new Map(singles.map((m) => [m.id, m]))
   for (const it of items) {
     if (it.kind === 'artist') {
-      // Their videos, with the first one that has art standing in for them.
+      // Their videos: the artist's own picture (artist.jpg in their folder),
+      // else the first video's art, stands in for them.
       const theirs = videos.filter((v) => v.artist === it.artist && (it.libraryId == null || v.libraryId === it.libraryId))
-      const art = theirs.find((v) => v.posterPath)
+      const portrait = theirs.find((v) => v.showPosterPath)
+      const cover = theirs.find((v) => v.posterPath)
       const years = theirs.map((v) => v.year).filter((x): x is number => x != null)
       out.set(it.id, {
-        artId: art?.id ?? null,
-        artType: art ? 'poster' : null,
+        artId: (portrait ?? cover)?.id ?? null,
+        artType: portrait ? 'show' : cover ? 'poster' : null,
         year: years.length ? Math.min(...years) : null,
         episodes: theirs.length,
         seasons: null,

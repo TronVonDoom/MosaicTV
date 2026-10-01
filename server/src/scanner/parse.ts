@@ -175,6 +175,29 @@ function cleanTitle(raw: string): string {
     .trim()
 }
 
+// What YouTube and its downloaders add to a music video's name, in brackets:
+// "(Official Music Video)", "[4K]", "(Lyric Video)", "[HD]", "(Remastered)".
+// "(Live)", "(feat. …)" and "(Remix)" are the song's and stay.
+const VIDEO_NOISE_RE = /\b(?:official|music video|video|lyrics?|visuali[sz]er|audio|hd|hq|uhd|4k|8k|\d{3,4}p|remaster(?:ed)?)\b/i
+// yt-dlp's default name ends with the video's id: "Vogue [GuJQSAiODqI]".
+const YOUTUBE_ID_RE = /\s*\[[A-Za-z0-9_-]{11}\]\s*$/
+// A dot held aside while a title is cleaned (a private-use character).
+const KEEP_DOT = ''
+const KEEP_DOTS = //g
+
+/** A music video's title from its name: the noise above gone, and the
+ *  artist's name off the front when it repeats its folder's ("Madonna - Vogue"
+ *  in Madonna/). */
+function songTitle(raw: string, artist: string | null): string {
+  const quiet = raw.replace(YOUTUBE_ID_RE, '').replace(/\s*[([]([^()[\]]*)[)\]]/g, (whole, inner: string) => (VIDEO_NOISE_RE.test(inner) ? '' : whole))
+  // Dots stand for spaces in a scene-style name, but one with spaces has its
+  // dots for a reason: "Mr. Brightside", "(feat. Aerosmith)".
+  let title = quiet.includes(' ') ? cleanTitle(quiet.replace(/\./g, KEEP_DOT)).replace(KEEP_DOTS, '.') : cleanTitle(quiet)
+  const prefix = artist ? `${artist.toLowerCase()} - ` : null
+  if (prefix && title.toLowerCase().startsWith(prefix) && title.length > prefix.length) title = title.slice(prefix.length).trim()
+  return title || cleanTitle(raw)
+}
+
 // "Season 01", "Season 1", "S01", or "Specials" (season 0).
 const SEASON_FOLDER_RE = /^(?:season[\s._-]*|s)(\d{1,3})$/i
 
@@ -266,17 +289,19 @@ export function parseMedia(
     // file falls back to "Artist - Title.ext".
     let artist: string | null = null
     let album: string | null = null
-    let title = cleanTitle(baseName)
+    let title = songTitle(baseName, null)
     if (segments.length >= 3) {
       artist = cleanName(segments[0])
       album = cleanName(segments[segments.length - 2])
+      title = songTitle(baseName, artist)
     } else if (segments.length === 2) {
       artist = cleanName(segments[0])
+      title = songTitle(baseName, artist)
     } else {
       const dash = baseName.split(/\s+-\s+/)
       if (dash.length >= 2) {
         artist = cleanName(dash[0])
-        title = cleanTitle(dash.slice(1).join(' - '))
+        title = songTitle(dash.slice(1).join(' - '), null)
       }
     }
     return { type: 'music', title, showTitle: null, season: null, episode: null, year: extractYear(baseName), artist, album, extra: null }
