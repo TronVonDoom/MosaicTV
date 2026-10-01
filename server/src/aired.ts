@@ -21,7 +21,7 @@ type MediaForTitle = { title: string; showTitle: string | null; showId: number |
 export function airedTitle(m: MediaForTitle | null, rowTitle: string | null): { title: string; subtitle: string | null } {
   if (!m) return { title: rowTitle ?? 'Program', subtitle: null }
   if (m.showTitle) return { title: m.showTitle, subtitle: [episodeCode(m), m.title].filter(Boolean).join(' · ') || null }
-  return { title: m.title, subtitle: m.type === 'music' ? m.artist : m.year != null ? String(m.year) : null }
+  return { title: m.title, subtitle: m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null }
 }
 
 /**

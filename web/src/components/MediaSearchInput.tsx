@@ -74,9 +74,10 @@ export default function MediaSearchInput({
             : [r.year].filter(Boolean).join(' · '),
         }
       case 'artist':
-        return { icon: 'audio', main: r.artist, meta: `${r.videoCount} video${r.videoCount === 1 ? '' : 's'} · ${r.libraryName}` }
+        return { icon: 'audio', main: r.artist, meta: `${r.count} ${r.of}${r.count === 1 ? '' : 's'} · ${r.libraryName}` }
       case 'music':
-        return { icon: 'audio', main: r.title, meta: [r.artist, r.year].filter(Boolean).join(' · ') || 'music video' }
+      case 'song':
+        return { icon: 'audio', main: r.title, meta: [r.artist, r.year].filter(Boolean).join(' · ') || (r.kind === 'song' ? 'song' : 'music video') }
     }
   }
 
@@ -85,7 +86,7 @@ export default function MediaSearchInput({
       <Icon name="plus" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
       <Input
         className="w-full pl-9"
-        placeholder="Add a show, season, episode, movie, artist or music video…"
+        placeholder="Add a show, season, episode, movie, artist, music video or song…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => {

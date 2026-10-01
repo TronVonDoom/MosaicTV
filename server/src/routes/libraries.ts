@@ -10,7 +10,7 @@ import { readBody } from '../validate.js'
 
 export const librariesRouter = Router()
 
-const KINDS = ['tv', 'movie', 'music', 'other']
+const KINDS = ['tv', 'movie', 'music', 'audio', 'other']
 
 librariesRouter.get('/', async (_req, res) => {
   const [libs, specials, extras] = await Promise.all([
@@ -128,7 +128,7 @@ librariesRouter.post('/', async (req, res) => {
   if (!name || !KINDS.includes(kind) || paths.length === 0) {
     return res
       .status(400)
-      .json({ error: 'name, kind (tv|movie|music|other), and at least one folder are required' })
+      .json({ error: 'name, kind (tv|movie|music|audio|other), and at least one folder are required' })
   }
   for (const p of paths) {
     if (!fs.existsSync(p)) {
@@ -143,8 +143,9 @@ librariesRouter.post('/', async (req, res) => {
       data: {
         name,
         kind,
-        // A music library reads its files' .nfo and tags (see MUSIC_METADATA_SOURCES).
-        ...(kind === 'music' ? { metadataSources: MUSIC_METADATA_SOURCES.join(',') } : {}),
+        // A music video library reads its files' .nfo and tags (see
+        // MUSIC_METADATA_SOURCES); songs go by their tags, read as they're scanned.
+        ...(kind === 'music' ? { metadataSources: MUSIC_METADATA_SOURCES.join(',') } : kind === 'audio' ? { metadataSources: 'embedded' } : {}),
         folders: { create: paths.map((p) => ({ path: p })) },
       },
       include: { folders: true },

@@ -27,6 +27,8 @@ import { nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
 import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
 import { reelClips, reelPlan, reelSeed, type ReelClipRow } from './reel.js'
+import { songScreen, type ScreenLayout } from './songScreen.js'
+import { songLyrics } from '../lyrics.js'
 
 // The channel shape the builder needs — timeBlocks with their collection and
 // the idents that play only during them, the channel's "everywhere else"
@@ -202,6 +204,19 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     // The file is shorter than the slot it was given. Seeking past its end would
     // produce nothing, so fill the rest of the slot with black instead.
     return { kind: 'black', durSec: Math.min(segDur, 10), why: `${mi.title} ran out ${seek.toFixed(1)}s in (file shorter than its slot)`, label: mi.title }
+  } else if (fs.existsSync(mi.path) && mi.type === 'song') {
+    // A song airs over its now-playing screen, in the channel's look — its
+    // lyrics, when it has them and the channel puts them first.
+    const lines = channel.lyricsFirst ? await songLyrics(mi) : null
+    const layout: ScreenLayout = lines ? 'lyrics' : channel.musicScreen === 'visualizer' ? 'visualizer' : 'album'
+    const cover = [mi.posterPath, mi.showPosterPath].find((p): p is string => !!p && fs.existsSync(p)) ?? null
+    const facts = { id: mi.id, title: mi.title, artist: mi.artist, album: mi.album, year: mi.year, durationSec: mi.durationSec, cover }
+    const screen = await songScreen(facts, layout, { w: profile.width, h: profile.height }, seek, lines).catch((e) => {
+      log('warn', 'stream', `Channel ${channelNumber}: couldn't draw the screen for ${mi.title}`, String((e as Error)?.stack || e), tag)
+      return null
+    })
+    label = `${programLabel(mi, { withTitle: true })} (${layout})`
+    if (screen) seg = { filePath: mi.path, offsetSec: seek, loop: false, durationSec: segDur, hasAudio: true, logo, wmEpochSec, mediaWidth: profile.width, mediaHeight: profile.height, isFiller: false, fadeInSec, fadeOutSec, screen }
   } else if (fs.existsSync(mi.path)) {
     // Only anamorphic sources need correcting, and only a constrained watermark
     // cares — skip the probe otherwise.
@@ -237,9 +252,10 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   const cuBlock = activeBlockAt(channel.timeBlocks, item.startTime)
   const cuJson = cuBlock?.comingUp ?? channel.comingUp
   const cu = cuJson ? parseComingUp(cuJson) : null
-  const look: ComingUpConfig = cu ?? DEFAULT_COMINGUP
-  const stageCard = async (what: string, content: CardContent | null, windows: { a: number; b: number }[]) => {
+  const channelLook: ComingUpConfig = cu ?? DEFAULT_COMINGUP
+  const stageCard = async (what: string, content: CardContent | null, windows: { a: number; b: number }[], position = channelLook.position) => {
     if (!content || !seg || windows.length === 0) return
+    const look = { ...channelLook, position }
     try {
       const scale = baseScale * CARD_SCALE[look.size]
       const base = path.join(dataDir(), `card-${channelNumber}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
@@ -252,7 +268,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
       log('warn', 'stream', `Channel ${channelNumber}: could not build the ${what} card`, String((e as Error)?.stack || e), tag)
     }
   }
-  if (!thisIsFiller && mi && cu?.enabled) {
+  if (!thisIsFiller && mi && mi.type !== 'song' && cu?.enabled) {
     // A broadcast episode airs as several playout rows, but it's one program:
     // time the card against the whole episode (so it shows once, near its
     // end), and announce what follows it rather than its own next segment.
@@ -291,6 +307,14 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     const a = Math.max(0, 1 - offset)
     const b = 13 - offset
     if (b - a > 1) await stageCard('now-playing', await nowPlayingContent(mi).catch(() => null), [{ a, b }])
+  }
+  // A song's screen leaves its bottom-right corner for what's next, over its
+  // last 20 seconds — whatever the channel's card does over programs.
+  if (!thisIsFiller && mi?.type === 'song' && seg.screen && nextProgram?.mediaItem) {
+    const untilEnd = (item.stopTime.getTime() - item.startTime.getTime()) / 1000 - offset
+    const a = Math.max(0, untilEnd - 20)
+    const b = Math.min(segDur, untilEnd - 0.5)
+    if (b - a > 2) await stageCard('up-next', await upNextContent(nextProgram).catch(() => null), [{ a, b }], 'bottom-right')
   }
 
   const args = ffmpegArgs(seg, enc, wm, profile, cards, readrate, output)

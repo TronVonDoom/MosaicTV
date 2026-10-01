@@ -32,6 +32,11 @@ export type EmbeddedTags = {
   genre?: string
   artist?: string
   album?: string
+  /** A song's place on its album, as tagged ("3/12", "1/2"). */
+  track?: string
+  disc?: string
+  /** Lyrics written into the file — timed (LRC) or not. */
+  lyrics?: string
   cover?: { stream: number; attachment?: true }
 }
 
@@ -64,22 +69,42 @@ const TAG_KEYS: Record<TagField, string[]> = {
   genre: ['genre'],
   artist: ['artist', 'album_artist', 'performer'],
   album: ['album'],
+  track: ['track', 'tracknumber'],
+  disc: ['disc', 'discnumber'],
+  lyrics: ['lyrics', 'unsyncedlyrics', 'unsynced lyrics', 'uslt'],
 }
 
-/** The details a file's tags carry, from ffprobe's format tags (any case),
- *  and its cover picture among its streams. */
+/** The details a file's tags carry, from ffprobe's format tags (any case) —
+ *  and an Ogg's or Opus's, which sit on its audio stream — and its cover
+ *  picture among its streams. */
 export function embeddedTags(raw: Record<string, string> | undefined, streams: FfprobeStream[] = []): EmbeddedTags {
-  const lower = new Map(Object.entries(raw ?? {}).map(([k, v]) => [k.toLowerCase(), String(v).trim()]))
+  const audioTags = streams.find((s) => s.codec_type === 'audio')?.tags ?? {}
+  const lower = new Map(Object.entries({ ...audioTags, ...raw }).map(([k, v]) => [k.toLowerCase(), String(v).trim()]))
   const out: EmbeddedTags = {}
   for (const [field, keys] of Object.entries(TAG_KEYS) as [TagField, string[]][]) {
     const v = keys.map((k) => lower.get(k)).find((x) => !!x)
     if (v) out[field] = v
+  }
+  // An MP3's lyrics name their language: "lyrics-eng".
+  if (!out.lyrics) {
+    const key = [...lower.keys()].find((k) => /^lyrics[-_ ]/.test(k) && lower.get(k))
+    if (key) out.lyrics = lower.get(key)
   }
   const pic = streams.find((s) => s.codec_type === 'video' && s.disposition?.attached_pic === 1)
   const attached = streams.find((s) => s.codec_type === 'attachment' && /^image\//i.test(s.tags?.mimetype ?? ''))
   if (pic?.index != null) out.cover = { stream: pic.index }
   else if (attached?.index != null) out.cover = { stream: attached.index, attachment: true }
   return out
+}
+
+/** A file's tags as a scan kept them (MediaItem.embedded); null when not read. */
+export function storedTags(json: string | null | undefined): EmbeddedTags | null {
+  if (!json) return null
+  try {
+    return JSON.parse(json) as EmbeddedTags
+  } catch {
+    return null
+  }
 }
 
 /** Just a file's own tags, for a file probed before they were kept. */

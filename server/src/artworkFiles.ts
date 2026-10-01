@@ -167,7 +167,7 @@ export async function posterFileFor(
   // An episode wears its show's poster; a music video with no cover of its
   // own, its artist's picture.
   const local =
-    item.type === 'episode' ? item.showPosterPath ?? item.posterPath : item.type === 'music' ? item.posterPath ?? item.showPosterPath : item.posterPath
+    item.type === 'episode' ? item.showPosterPath ?? item.posterPath : item.type === 'music' || item.type === 'song' ? item.posterPath ?? item.showPosterPath : item.posterPath
   if (local && fs.existsSync(local)) return (await localThumb(local, width)) ?? local
   let tmdbPath = item.tmdbPosterPath
   if (item.type === 'episode' && item.showTitle) {

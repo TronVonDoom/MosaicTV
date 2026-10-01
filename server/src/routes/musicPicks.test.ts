@@ -62,7 +62,7 @@ test('search finds artists, with their videos counted per library, and videos by
   const found = await search('madonna')
   const artists = found.filter((r) => r.kind === 'artist')
   assert.deepEqual(
-    artists.map((r) => [r.artist, r.libraryName, r.videoCount]).sort(),
+    artists.map((r) => [r.artist, r.libraryName, r.count]).sort(),
     [
       ['Madonna', 'Music Videos', 2], // Frozen is gone from disk
       ['Madonna', 'VH1', 1],
@@ -94,7 +94,7 @@ test('an artist pick airs their videos in the library it names, as they came out
 test('an artist with no videos in that library is refused', async () => {
   const r = await add(picks.id, { kind: 'artist', artist: 'Nirvana', libraryId: vh1.id })
   assert.equal(r.status, 404)
-  assert.match(((await r.json()) as { error: string }).error, /No music videos by "Nirvana"/)
+  assert.match(((await r.json()) as { error: string }).error, /No music by "Nirvana" in that library/)
 })
 
 test('an artist pick shows their video count, first year and a video’s art; a video pick its own year', async () => {

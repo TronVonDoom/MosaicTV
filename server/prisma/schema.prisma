@@ -374,6 +374,11 @@ model Channel {
   // own airs either way.
   includeSpecials   Boolean            @default(false)
   includeExtras     Boolean            @default(false)
+  // What a song airs over: "album" (its cover, title and progress) or
+  // "visualizer" (a spectrum drawn from the song itself). With lyricsFirst,
+  // a song that has timed lyrics shows them instead.
+  musicScreen       String             @default("album")
+  lyricsFirst       Boolean            @default(false)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -529,9 +534,14 @@ model MediaItem {
   episode          Int?
   year             Int?
   // Music videos ("music" type): performer and album from the Artist/Album/Title
-  // folder layout (or an "Artist - Title" filename).
+  // folder layout (or an "Artist - Title" filename). Songs ("song", a Music
+  // library's audio files): from their tags first; and their track and disc.
   artist           String?
   album            String?
+  track            Int?
+  disc             Int?
+  // A song's timed lyrics beside it ("<song>.lrc"); its tags may carry some too.
+  lyricsPath       String?
   durationSec      Float?
   width            Int?
   height           Int?

@@ -412,7 +412,7 @@ class ChannelSegmenter {
       `decode ${built.hwDecode ? 'GPU (nvdec)' : 'CPU'}, encode ${enc}, ${built.wmDesc}, lead ${((at - Date.now()) / 1000).toFixed(1)}s`,
       this.tag,
     )
-    markEvent(this.n, item.kind === 'filler' ? 'filler' : item.mediaItem?.type === 'music' ? 'song' : 'program', built.label, enc)
+    markEvent(this.n, item.kind === 'filler' ? 'filler' : item.mediaItem?.type === 'music' || item.mediaItem?.type === 'song' ? 'song' : 'program', built.label, enc)
 
     // Someone is watching it: it streamed, unless something below says otherwise.
     void noteStreamed(item, 'ok')

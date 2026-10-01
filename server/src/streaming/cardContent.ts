@@ -54,7 +54,7 @@ export function clockLabel(d: Date): string {
 
 async function artFor(mi: MediaItem): Promise<CardContent['art']> {
   const file = await posterFileFor(mi).catch(() => null)
-  return file ? { file, shape: mi.type === 'music' ? 'square' : 'poster' } : null
+  return file ? { file, shape: mi.type === 'music' || mi.type === 'song' ? 'square' : 'poster' } : null
 }
 
 /**
@@ -99,7 +99,7 @@ export async function upNextContent(next: {
     }
   }
 
-  if (mi.type === 'music') {
+  if (mi.type === 'music' || mi.type === 'song') {
     return {
       eyebrow: 'Up next',
       time,

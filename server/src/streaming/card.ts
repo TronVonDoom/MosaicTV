@@ -18,7 +18,10 @@ import type { CardStyle } from './overlays.js'
 
 const FONT_DIR = fileURLToPath(new URL('../../assets/fonts/', import.meta.url))
 const FACES = { 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold' } as const
-type Weight = keyof typeof FACES
+export type Weight = keyof typeof FACES
+
+/** A face's TTF, for ffmpeg's drawtext (the screen's ticking clock). */
+export const fontFile = (w: Weight): string => path.join(FONT_DIR, `Inter-${FACES[w]}.ttf`)
 // Glyphs Inter lacks (CJK aside, which neither has) fall back to DejaVu when
 // it's on disk — the image installs it.
 const FALLBACK_FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
@@ -65,7 +68,7 @@ const ACCENT = '#a78bfa' // the app's violet
 const ACCENT2 = '#22d3ee' // and its cyan
 const STAR = '#fbbf24'
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const even = (n: number) => 2 * Math.round(n / 2)
 
 export function textWidth(text: string, weight: Weight, size: number, letterSpacing = 0): number {
@@ -100,7 +103,7 @@ function star(cx: number, cy: number, r: number): string {
   return `<polygon points="${pts.join(' ')}" fill="${STAR}"/>`
 }
 
-function imageHref(file: string): string | null {
+export function imageHref(file: string): string | null {
   try {
     const buf = fs.readFileSync(file)
     const mime = buf[0] === 0x89 && buf[1] === 0x50 ? 'image/png' : buf[0] === 0x52 && buf[8] === 0x57 ? 'image/webp' : 'image/jpeg'
@@ -356,7 +359,7 @@ let resvg: Promise<typeof import('@resvg/resvg-js')> | null = null
 
 // Rendering takes ~50ms, and it runs at a program boundary: off the main
 // thread (resvg's worker), so segment requests aren't held up meanwhile.
-async function render(svg: string, extra: Partial<ResvgRenderOptions> = {}): Promise<Buffer> {
+export async function render(svg: string, extra: Partial<ResvgRenderOptions> = {}): Promise<Buffer> {
   resvg ??= import('@resvg/resvg-js')
   const { renderAsync } = await resvg.catch((e) => {
     resvg = null // let the next card try again

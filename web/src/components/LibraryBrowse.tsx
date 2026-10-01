@@ -10,17 +10,19 @@ import Icon from './Icon'
 import { EmptyState, Skeleton, buttonClass } from './ui'
 import { Tally } from './onair/OnAir'
 
-const KIND_ICON: Record<LibraryKind, IconName> = { tv: 'show', movie: 'movie', music: 'audio', other: 'clip' }
+const KIND_ICON: Record<LibraryKind, IconName> = { tv: 'show', movie: 'movie', music: 'audio', audio: 'audio', other: 'clip' }
 const KIND_LABEL: Record<LibraryKind, string> = {
   tv: 'TV Shows',
   movie: 'Movies',
   music: 'Music Videos',
+  audio: 'Music',
   other: 'Other',
 }
 const KIND_NOUN: Record<LibraryKind, [string, string]> = {
   tv: ['episode', 'episodes'],
   movie: ['movie', 'movies'],
   music: ['video', 'videos'],
+  audio: ['song', 'songs'],
   other: ['clip', 'clips'],
 }
 
@@ -80,7 +82,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
         )
         .catch(() => setShows([]))
     } else {
-      const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : 'other'
+      const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
       api
         .media({ libraryId: library.id, type, sort: 'added', pageSize: 18 })
         .then((r) => setItems(r.items))
@@ -138,7 +140,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
             title={m.title}
             subtitle={m.year ? String(m.year) : undefined}
             rating={m.rating}
-            icon={library.kind === 'movie' ? 'movie' : 'clip'}
+            icon={library.kind === 'movie' ? 'movie' : library.kind === 'music' || library.kind === 'audio' ? 'audio' : 'clip'}
             imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster) : undefined}
             onClick={() => onOpen(m.id)}
           />

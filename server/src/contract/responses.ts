@@ -15,6 +15,7 @@ import type {
   LogLevel,
   MediaType,
   MemberKind,
+  MusicScreen,
   OrderSetting,
   PlaybackOrder,
   RotationMode,
@@ -469,6 +470,8 @@ export type CollectionItem = {
     /** How many season 0 episodes, and extras, the pick could bring in. */
     specials: number
     extras: number
+    /** What an artist pick's count counts: their music videos, or their songs. */
+    of?: 'video' | 'song' | null
   } | null
 }
 
@@ -496,8 +499,8 @@ export type MediaSearchResult =
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }
   | { kind: 'episode'; mediaItemId: number; title: string; showTitle: string | null; season: number | null; episode: number | null }
   | { kind: 'movie'; mediaItemId: number; libraryId: number; title: string; year: number | null; extra: ExtraKind | null; parentTitle: string | null }
-  | { kind: 'artist'; artist: string; libraryId: number; libraryName: string; videoCount: number }
-  | { kind: 'music'; mediaItemId: number; libraryId: number; title: string; artist: string | null; year: number | null }
+  | { kind: 'artist'; artist: string; libraryId: number; libraryName: string; count: number; of: 'video' | 'song' }
+  | { kind: 'music' | 'song'; mediaItemId: number; libraryId: number; title: string; artist: string | null; year: number | null }
 
 export type RotationItem = {
   id: number
@@ -566,6 +569,10 @@ export type ChannelDetail = {
   /** Whether its whole shows, movies and smart filters bring in season 0, and extras. */
   includeSpecials: boolean
   includeExtras: boolean
+  /** What a song airs over: its cover and progress, or a spectrum. */
+  musicScreen: MusicScreen
+  /** A song with timed lyrics shows them instead. */
+  lyricsFirst: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }

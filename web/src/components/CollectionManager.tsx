@@ -36,9 +36,11 @@ function memberCaption(it: CollectionItem): string {
     case 'episode':
       return 'Single episode'
     case 'artist':
-      return `${m?.episodes ?? 0} music video${m?.episodes === 1 ? '' : 's'}`
+      return `${m?.episodes ?? 0} ${m?.of === 'song' ? 'song' : 'music video'}${m?.episodes === 1 ? '' : 's'}`
     case 'music':
       return m?.year ? `Music video · ${m.year}` : 'Music video'
+    case 'song':
+      return m?.year ? `Song · ${m.year}` : 'Song'
   }
 }
 
@@ -104,10 +106,11 @@ const KIND_LABEL: Record<CollectionItem['kind'], string> = {
   episode: 'Episode',
   artist: 'Artist',
   music: 'Music video',
+  song: 'Song',
 }
 
 /** The smart filter's types, as its summary names them. */
-const TYPE_LABEL: Record<string, string> = { episode: 'episodes', movie: 'movies', music: 'music videos', other: 'other' }
+const TYPE_LABEL: Record<string, string> = { episode: 'episodes', movie: 'movies', music: 'music videos', song: 'songs', other: 'other' }
 
 /** What a member's tile shows when it has no artwork. */
 const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
@@ -117,6 +120,7 @@ const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
   movie: 'movie',
   artist: 'audio',
   music: 'audio',
+  song: 'audio',
 }
 
 /** One member as a poster tile: drag to reorder, × to remove, and switches
@@ -319,6 +323,7 @@ function CollectionSettings({
               <option value="episode">Episodes</option>
               <option value="movie">Movies</option>
               <option value="music">Music videos</option>
+              <option value="song">Songs</option>
               <option value="other">Other</option>
             </Select>
             <Input placeholder="Title or artist contains" value={form.filterSearch} onChange={(e) => setForm({ ...form, filterSearch: e.target.value })} />
@@ -506,6 +511,8 @@ export default function CollectionManager({
           return api.addCollectionItem(collectionId, { kind: 'artist', artist: r.artist, libraryId: r.libraryId, label: r.artist })
         case 'music':
           return api.addCollectionItem(collectionId, { kind: 'music', mediaItemId: r.mediaItemId, label: r.title })
+        case 'song':
+          return api.addCollectionItem(collectionId, { kind: 'song', mediaItemId: r.mediaItemId, label: r.title })
       }
     })
   }
@@ -549,7 +556,7 @@ export default function CollectionManager({
         )}
 
         {cols.length === 0 ? (
-          <p className="px-2 pb-2 text-[13px] text-ink-faint">None yet — create one to start adding shows, movies and music videos.</p>
+          <p className="px-2 pb-2 text-[13px] text-ink-faint">None yet — create one to start adding shows, movies and music.</p>
         ) : (
           <>
           {/* Narrow screens: a picker, so the list doesn't push the posters
@@ -618,7 +625,7 @@ export default function CollectionManager({
         <EmptyState
           icon="layers"
           title="Collections are how a channel is programmed"
-          description="Make one per block of programming — “Nick Jr.”, “Late Show” — and fill it with shows, seasons, episodes, movies or music videos. The schedule then decides when each one airs."
+          description="Make one per block of programming — “Nick Jr.”, “Late Show” — and fill it with shows, seasons, episodes, movies or music. The schedule then decides when each one airs."
           action={
             <Button icon="plus" onClick={() => setCreating(true)}>
               New collection
@@ -693,7 +700,7 @@ export default function CollectionManager({
               <p className="text-[13px] text-ink-muted mt-1 max-w-sm mx-auto">
                 {filterSummary(selected)
                   ? 'Its smart filter is doing the picking. Add titles above to put particular ones in too.'
-                  : 'Search above for a show, a single season, an episode, a movie, an artist or a music video.'}
+                  : 'Search above for a show, a single season, an episode, a movie, an artist, a music video or a song.'}
               </p>
             </div>
           ) : (

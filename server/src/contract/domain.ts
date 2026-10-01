@@ -42,16 +42,29 @@ export const asGrid = (v: unknown): GridMinutes => ((GRID_MINUTES as readonly nu
 export const ROTATION_MODES = ['one', 'multiple'] as const
 export type RotationMode = (typeof ROTATION_MODES)[number]
 
-/** A hand-picked collection member: shows and their parts, a movie, or music
- *  videos — every one by an artist ("artist") or a single one ("music"). */
-export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie', 'artist', 'music'] as const
+/** A hand-picked collection member: shows and their parts, a movie, or music —
+ *  every music video or song by an artist in a library ("artist"), one music
+ *  video ("music") or one song ("song"). */
+export const MEMBER_KINDS = ['show', 'season', 'episode', 'movie', 'artist', 'music', 'song'] as const
 export type MemberKind = (typeof MEMBER_KINDS)[number]
 
-export const LIBRARY_KINDS = ['tv', 'movie', 'music', 'other'] as const
+/** "music" is a library of music videos; "audio" one of songs (audio files,
+ *  aired over the now-playing screen). */
+export const LIBRARY_KINDS = ['tv', 'movie', 'music', 'audio', 'other'] as const
 export type LibraryKind = (typeof LIBRARY_KINDS)[number]
 
-export const MEDIA_TYPES = ['movie', 'episode', 'music', 'other'] as const
+export const MEDIA_TYPES = ['movie', 'episode', 'music', 'song', 'other'] as const
 export type MediaType = (typeof MEDIA_TYPES)[number]
+
+/** What a song airs over (see songScreen.ts): its cover, title and progress, or a
+ *  spectrum drawn from the song. A song with lyrics can show them instead
+ *  (Channel.lyricsFirst). */
+export const MUSIC_SCREENS = ['album', 'visualizer'] as const
+export type MusicScreen = (typeof MUSIC_SCREENS)[number]
+export const asMusicScreen = (v: unknown): MusicScreen => (v === 'visualizer' ? 'visualizer' : 'album')
+
+/** Music on air: a music video, or a song. */
+export const isMusicType = (type: string | null | undefined): boolean => type === 'music' || type === 'song'
 
 /** The kinds of extra a movie or show can carry — featurettes, trailers,
  *  deleted scenes… — as Plex names them. */

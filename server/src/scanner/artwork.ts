@@ -124,10 +124,32 @@ export async function detectArtwork(
     return art
   }
 
+  if (kind === 'audio') {
+    // A song's own picture, else its folder's album cover — a song sits in its
+    // album's folder, so any folder but the library's own is an album. (The
+    // scanner then tries the cover inside the file.)
+    const files = await listFiles(folder, cache)
+    art.posterPath = join(folder, matchImage(files, [baseName, ...(segments.length >= 2 ? [...FOLDER_POSTER_NAMES, 'front', 'album'] : [])]))
+    // The artist's picture, in Artist/Album/'s artist folder.
+    if (showFolder && segments.length >= 3) {
+      const artistFiles = await listFiles(showFolder, cache)
+      art.showPosterPath = join(showFolder, matchImage(artistFiles, ['artist', 'folder', 'poster']))
+    }
+    return art
+  }
+
   // "other" — look for a sidecar image next to the clip.
   const files = await listFiles(folder, cache)
   art.posterPath = join(folder, matchImage(files, [...FOLDER_POSTER_NAMES, baseName]))
   return art
+}
+
+/** A song's timed lyrics beside it: "<song>.lrc". */
+export async function findLyrics(filePath: string, cache: DirCache): Promise<string | null> {
+  const folder = path.dirname(filePath)
+  const want = `${path.basename(filePath, path.extname(filePath))}.lrc`.toLowerCase()
+  const hit = (await listFiles(folder, cache))?.find((f) => f.toLowerCase() === want)
+  return hit ? path.join(folder, hit) : null
 }
 
 /**

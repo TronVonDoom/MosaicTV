@@ -45,7 +45,7 @@ function slotOf(rows: Row[]): OnAirSlot {
     subtitle = [episodeCodeLabel(files), names].filter(Boolean).join(' · ') || null
   } else if (m) {
     title = m.title
-    subtitle = m.type === 'music' ? m.artist : m.year != null ? String(m.year) : null
+    subtitle = m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null
   }
   return {
     channel: channelOf(first.channel),

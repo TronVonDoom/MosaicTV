@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { ffprobe } from '../ffprobe.js'
-import { extraHome, extraKind, extraStem, parseMedia, type LibraryKind } from './parse.js'
-import { detectArtwork, embeddedCover } from './artwork.js'
-import { walk } from './walk.js'
+import { ffprobe, storedTags } from '../ffprobe.js'
+import { extraHome, extraKind, extraStem, parseMedia, withTags, type LibraryKind } from './parse.js'
+import { detectArtwork, embeddedCover, findLyrics } from './artwork.js'
+import { extensionsFor, walk } from './walk.js'
 import { removeGone } from './gone.js'
 import { log } from '../logs.js'
 import { scheduleChangedEverywhere } from '../scheduleChanges.js'
@@ -105,6 +105,9 @@ async function processFile(
   const moved = atPath ? null : await movedFrom(filePath, stat.size, libraryId, pass)
   const existing = atPath ?? moved
   const parsed = parseMedia(filePath, libraryPath, kind)
+  const sameFile = !!existing && existing.mtimeMs === mtimeMs
+  // A song goes by its own tags (see withTags) — as stored, while the file's the same.
+  const named = kind === 'audio' && sameFile ? withTags(parsed, storedTags(existing!.embedded)) : parsed
   // The show it files under: by the name its folder parses to, through the
   // show's names, so a renamed or merged show keeps its files.
   const show = parsed.showTitle ? await showFor(libraryId, parsed.showTitle, pass.shows) : null
@@ -112,12 +115,14 @@ async function processFile(
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
   const art = await detectArtwork(filePath, libraryPath, kind, parsed.season, cache)
-  // A music video with no picture beside it shows the one inside it, if it
-  // carries one — known from its tags when the file hasn't changed.
-  if (kind === 'music' && !art.posterPath && existing && existing.mtimeMs === mtimeMs)
-    art.posterPath = await embeddedCover(filePath, mtimeMs, existing.embedded)
+  // Music with no picture beside it shows the one inside it, if it carries
+  // one — known from its tags when the file hasn't changed.
+  const music = kind === 'music' || kind === 'audio'
+  if (music && !art.posterPath && sameFile) art.posterPath = await embeddedCover(filePath, mtimeMs, existing!.embedded)
+  // A song's timed lyrics, beside it.
+  const lyricsPath = kind === 'audio' ? await findLyrics(filePath, cache) : null
   // An episode whose name gives no title keeps the one its metadata gave it.
-  const title = parsed.untitled && existing?.metaTitle ? existing.metaTitle : parsed.title
+  const title = parsed.untitled && existing?.metaTitle ? existing.metaTitle : named.title
 
   // Skip only if the file is unchanged, already probed, artwork matches, and
   // the name still parses to what's stored. That last check is what lets an
@@ -133,6 +138,7 @@ async function processFile(
     existing.posterPath === art.posterPath &&
     existing.showPosterPath === art.showPosterPath &&
     existing.seasonPosterPath === art.seasonPosterPath &&
+    existing.lyricsPath === lyricsPath &&
     existing.title === title &&
     existing.showId === (show?.id ?? null) &&
     existing.showTitle === (show?.title ?? null) &&
@@ -148,20 +154,24 @@ async function processFile(
   const unchanged = !force && !!existing && existing.mtimeMs === mtimeMs && existing.durationSec != null
   const probe = unchanged ? null : await ffprobe(filePath)
   const embedded = unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null
-  if (kind === 'music' && !art.posterPath) art.posterPath = await embeddedCover(filePath, mtimeMs, embedded)
+  if (music && !art.posterPath) art.posterPath = await embeddedCover(filePath, mtimeMs, embedded)
+  // A song, as its tags (read just now, or kept) have it.
+  const tags = storedTags(embedded)
+  const song = kind === 'audio' ? withTags(parsed, tags) : null
 
   const data = {
     libraryId,
     type: parsed.type,
-    title,
+    title: song?.title ?? title,
     showId: show?.id ?? null,
     showTitle: show?.title ?? null,
     season: parsed.season,
     episode: parsed.episode,
     // A music video's name leaves out what its .nfo or tags filled in.
-    year: parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
-    artist: parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
-    album: parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
+    year: song ? song.year : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
+    artist: song ? song.artist : parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
+    album: song ? song.album : parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
+    ...(song ? { track: song.track ?? null, disc: song.disc ?? null, genres: tags?.genre ?? null, lyricsPath } : {}),
     extra: parsed.extra,
     durationSec: unchanged ? existing!.durationSec : probe?.durationSec ?? null,
     width: unchanged ? existing!.width : probe?.width ?? null,
@@ -177,8 +187,9 @@ async function processFile(
     sizeBytes: stat.size,
     mtimeMs,
     missing: false,
-    // A changed file's act breaks are looked for again.
-    ...(unchanged ? {} : { breaks: null, breaksSource: null, breaksCheckedAt: null }),
+    // A changed file's act breaks are looked for again — a song has none.
+    ...(song ? { breaks: null, breaksSource: 'none', breaksCheckedAt: existing?.breaksCheckedAt ?? new Date() } : {}),
+    ...(unchanged || song ? {} : { breaks: null, breaksSource: null, breaksCheckedAt: null }),
   }
 
   if (moved) {
@@ -284,7 +295,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     const found: { file: string; root: string }[] = []
     const unreadable: string[] = []
     for (const folder of library.folders) {
-      const files = await walk(folder.path, unreadable)
+      const files = await walk(folder.path, unreadable, extensionsFor(library.kind))
       for (const f of files) found.push({ file: f, root: folder.path })
     }
     // Everything is indexed, season 0 and extras included, as in Plex: each

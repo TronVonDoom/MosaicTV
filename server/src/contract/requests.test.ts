@@ -68,7 +68,7 @@ test('the old error messages come through unchanged', () => {
   assert.equal(message(BlockCreate.safeParse({ collectionId: 1, days: '1', startMinute: 60, endMinute: 60 })), 'Start and end time cannot be the same.')
   assert.equal(message(BlockUpdate.safeParse({ startMinute: 60, endMinute: '60' })), 'Start and end time cannot be the same.')
   assert.equal(message(CollectionCreate.safeParse({})), 'name is required')
-  assert.equal(message(MemberCreate.safeParse({ kind: 'album' })), 'kind must be one of show, season, episode, movie, artist, music')
+  assert.equal(message(MemberCreate.safeParse({ kind: 'album' })), 'kind must be one of show, season, episode, movie, artist, music, song')
   assert.equal(message(MemberCreate.safeParse({ kind: 'season', showTitle: 'Doug' })), 'season is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'movie' })), 'mediaItemId is required')
   assert.equal(message(MemberCreate.safeParse({ kind: 'artist', libraryId: 2 })), 'artist is required')

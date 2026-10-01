@@ -182,7 +182,7 @@ export default function LibraryView() {
     if (!library || isTv || view === 'home') return
     const mine = ++request.current
     setLoading(true)
-    const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : 'other'
+    const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
     // On from the pages loaded — or, for a new search, sort or filter (or the
     // library read again), from the top.
     const from = params.page > loadedPages.current ? loadedPages.current + 1 : 1
@@ -359,9 +359,9 @@ export default function LibraryView() {
     else if (s.mediaItemId != null) openMovie(s.mediaItemId)
   }
 
-  const kindLabel = library?.kind === 'tv' ? 'TV Shows' : library?.kind === 'movie' ? 'Movies' : library?.kind === 'music' ? 'Music Videos' : 'Other'
+  const kindLabel = library?.kind === 'tv' ? 'TV Shows' : library?.kind === 'movie' ? 'Movies' : library?.kind === 'music' ? 'Music Videos' : library?.kind === 'audio' ? 'Music' : 'Other'
   const count = isTv ? visibleShows.length : total
-  const noun = isTv ? (count === 1 ? 'show' : 'shows') : library?.kind === 'movie' ? (count === 1 ? 'movie' : 'movies') : count === 1 ? 'item' : 'items'
+  const noun = isTv ? (count === 1 ? 'show' : 'shows') : library?.kind === 'movie' ? (count === 1 ? 'movie' : 'movies') : library?.kind === 'audio' ? (count === 1 ? 'song' : 'songs') : count === 1 ? 'item' : 'items'
   const firstLoad = loading && shows.length === 0 && items.length === 0
   const setMatch = (m: MatchFilter) => setParams((p) => ({ ...p, match: m, page: 1 }))
   const titles = home?.titles ?? library?.itemCount
@@ -547,13 +547,13 @@ export default function LibraryView() {
                         key={m.id}
                         title={m.title}
                         subtitle={
-                          m.type === 'music'
+                          m.type === 'music' || m.type === 'song'
                             ? m.artist ?? m.album ?? undefined
                             : [m.extra && extraLabel(m.extra), m.year].filter(Boolean).join(' · ') || undefined
                         }
                         badge={qualityOf(m.height) ?? undefined}
                         rating={m.rating}
-                        icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'audio' : 'clip'}
+                        icon={library?.kind === 'movie' ? 'movie' : library?.kind === 'music' || library?.kind === 'audio' ? 'audio' : 'clip'}
                         imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
                         // A movie opens its page over the grid; an extra or a clip, a quick look.
                         onClick={() => (library?.kind === 'movie' && !m.extra ? openMovie(m.id) : setSelectedId(m.id))}

@@ -181,7 +181,7 @@ export function programmesXml<R extends XmltvRow>(
     // An episode, or a show's extra: the show is the title.
     const ofShow = !!m && !!m.showTitle
     const isEp = ofShow && m!.type === 'episode' && !m!.extra
-    const isMusic = !!m && m.type === 'music'
+    const isMusic = !!m && (m.type === 'music' || m.type === 'song')
     // An extra says what it is, under its movie's or show's name.
     const extraName = m?.extra ? `${EXTRA_LABELS[m.extra] ?? 'Extra'}: ${m.title}` : null
     // Music: "Artist – Title" as the title, album as the sub-title. Episodes:

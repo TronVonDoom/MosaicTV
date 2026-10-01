@@ -23,6 +23,8 @@ type MemberMeta = {
   missing: boolean
   specials: number
   extras: number
+  /** What an artist pick's count counts: their music videos, or their songs. */
+  of: 'video' | 'song' | null
 }
 
 /** Artwork and counts for every member, in five queries however many there
@@ -56,8 +58,8 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
       : [],
     artists.length
       ? prisma.mediaItem.findMany({
-          where: { missing: false, type: 'music', extra: null, OR: artists.map((i) => ({ libraryId: i.libraryId ?? undefined, artist: i.artist })) },
-          select: { id: true, libraryId: true, artist: true, year: true, posterPath: true, showPosterPath: true },
+          where: { missing: false, type: { in: ['music', 'song'] }, extra: null, OR: artists.map((i) => ({ libraryId: i.libraryId ?? undefined, artist: i.artist })) },
+          select: { id: true, type: true, libraryId: true, artist: true, year: true, posterPath: true, showPosterPath: true },
           orderBy: { id: 'asc' },
         })
       : [],
@@ -80,6 +82,7 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
         missing: theirs.length === 0,
         specials: 0,
         extras: 0,
+        of: theirs[0]?.type === 'song' ? 'song' : 'video',
       })
       continue
     }
@@ -95,6 +98,7 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
         missing: !m || m.missing,
         specials: 0,
         extras: it.kind === 'movie' ? extras.find((x) => x.parentId === it.mediaItemId)?._count._all ?? 0 : 0,
+        of: null,
       })
       continue
     }
@@ -113,6 +117,7 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
       missing: eps.length === 0,
       specials,
       extras: mine.filter((g) => g.extra != null).reduce((n, g) => n + g._count._all, 0),
+      of: null,
     })
   }
   return out
@@ -153,7 +158,7 @@ collectionsRouter.post('/', async (req, res) => {
 })
 
 // Autocomplete for adding members: whole shows, their individual seasons,
-// single episodes, movies, and music videos — every one by an artist, or one
+// single episodes, movies, and music — every music video or song by an artist, or one
 // on its own. Seasons and episodes are what make a hand-picked running order
 // worth having (a "best of" marathon).
 collectionsRouter.get('/search', async (req, res) => {
@@ -190,17 +195,17 @@ collectionsRouter.get('/search', async (req, res) => {
       take: 8,
     }),
     prisma.mediaItem.groupBy({
-      by: ['artist', 'libraryId'],
-      where: { type: 'music', extra: null, missing: false, artist: { contains: q } },
+      by: ['artist', 'libraryId', 'type'],
+      where: { type: { in: ['music', 'song'] }, extra: null, missing: false, artist: { contains: q } },
       _count: { _all: true },
       orderBy: { artist: 'asc' },
       take: 8,
     }),
-    // Videos whose OWN title matches, as with episodes: an artist match is the
-    // artist's entry.
+    // Videos and songs whose OWN title matches, as with episodes: an artist
+    // match is the artist's entry.
     prisma.mediaItem.findMany({
-      where: { type: 'music', extra: null, missing: false, title: { contains: q } },
-      select: { id: true, libraryId: true, title: true, artist: true, year: true },
+      where: { type: { in: ['music', 'song'] }, extra: null, missing: false, title: { contains: q } },
+      select: { id: true, type: true, libraryId: true, title: true, artist: true, year: true },
       orderBy: [{ artist: 'asc' }, { title: 'asc' }],
       take: 8,
     }),
@@ -250,10 +255,11 @@ collectionsRouter.get('/search', async (req, res) => {
         artist: a.artist as string,
         libraryId: a.libraryId,
         libraryName: libName.get(a.libraryId) ?? '',
-        videoCount: a._count._all,
+        count: a._count._all,
+        of: a.type === 'song' ? ('song' as const) : ('video' as const),
       })),
     ...videos.map((m) => ({
-      kind: 'music' as const,
+      kind: m.type === 'song' ? ('song' as const) : ('music' as const),
       mediaItemId: m.id,
       libraryId: m.libraryId,
       title: m.title,
@@ -346,8 +352,8 @@ collectionsRouter.post('/:id/items', async (req, res) => {
   const show = showTitle != null ? await findShow(member.libraryId, showTitle) : null
   if (showTitle != null && !show) return res.status(404).json({ error: `No show called "${showTitle}"` })
   if (pick.kind === 'artist') {
-    const theirs = await prisma.mediaItem.count({ where: { libraryId: pick.libraryId ?? undefined, type: 'music', artist: pick.artist } })
-    if (theirs === 0) return res.status(404).json({ error: `No music videos by "${pick.artist}"` })
+    const theirs = await prisma.mediaItem.count({ where: { libraryId: pick.libraryId ?? undefined, type: { in: ['music', 'song'] }, artist: pick.artist } })
+    if (theirs === 0) return res.status(404).json({ error: `No music by "${pick.artist}" in that library` })
   }
   const item = await prisma.collectionItem.create({
     data: {

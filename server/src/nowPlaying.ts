@@ -122,7 +122,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
     mediaItemId: m.id,
     type: m.type,
     title: m.title,
-    subtitle: m.type === 'music' ? m.artist : m.year != null ? String(m.year) : null,
+    subtitle: m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null,
     year: m.year,
     overview: m.overview,
     genres: m.genres,

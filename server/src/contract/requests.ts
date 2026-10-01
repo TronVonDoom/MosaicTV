@@ -13,6 +13,7 @@ import {
   NO_AUDIO_PREFERENCE,
   asFillerMode,
   asGrid,
+  asMusicScreen,
   asMetadataSources,
   asOrderSetting,
   asPlaybackOrder,
@@ -93,6 +94,9 @@ export const ChannelUpdate = z.object({
   // What its whole shows, movies and smart filters bring in (see Channel).
   includeSpecials: flag.optional(),
   includeExtras: flag.optional(),
+  // What a song airs over, and whether a song's lyrics come first (see Channel).
+  musicScreen: loose.transform(asMusicScreen).optional(),
+  lyricsFirst: flag.optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 

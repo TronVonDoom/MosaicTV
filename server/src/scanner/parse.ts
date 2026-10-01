@@ -1,10 +1,11 @@
 import path from 'node:path'
 import { stripIdHints, type ExtraKind } from '../contract/index.js'
+import type { EmbeddedTags } from '../ffprobe.js'
 
-export type LibraryKind = 'tv' | 'movie' | 'music' | 'other'
+export type LibraryKind = 'tv' | 'movie' | 'music' | 'audio' | 'other'
 
 export type ParsedMedia = {
-  type: 'movie' | 'episode' | 'music' | 'other'
+  type: 'movie' | 'episode' | 'music' | 'song' | 'other'
   title: string
   showTitle: string | null
   season: number | null
@@ -12,6 +13,9 @@ export type ParsedMedia = {
   year: number | null
   artist: string | null
   album: string | null
+  /** A song's place on its album: its track, and the disc for a set. */
+  track?: number | null
+  disc?: number | null
   /** A featurette, trailer, deleted scene… filed with a movie or show, or null
    *  for the movie or episode itself (see extraKind). */
   extra: ExtraKind | null
@@ -182,8 +186,8 @@ const VIDEO_NOISE_RE = /\b(?:official|music video|video|lyrics?|visuali[sz]er|au
 // yt-dlp's default name ends with the video's id: "Vogue [GuJQSAiODqI]".
 const YOUTUBE_ID_RE = /\s*\[[A-Za-z0-9_-]{11}\]\s*$/
 // A dot held aside while a title is cleaned (a private-use character).
-const KEEP_DOT = ''
-const KEEP_DOTS = //g
+const KEEP_DOT = '\uE000'
+const KEEP_DOTS = /\uE000/g
 
 /** A music video's title from its name: the noise above gone, and the
  *  artist's name off the front when it repeats its folder's ("Madonna - Vogue"
@@ -196,6 +200,44 @@ function songTitle(raw: string, artist: string | null): string {
   const prefix = artist ? `${artist.toLowerCase()} - ` : null
   if (prefix && title.toLowerCase().startsWith(prefix) && title.length > prefix.length) title = title.slice(prefix.length).trim()
   return title || cleanTitle(raw)
+}
+
+// A song's number at the front of its name: "03 - Title", "03. Title",
+// "03 Title", a set's "1-03 Title". Unpadded, only with a separator — so
+// "99 Luftballons" keeps its number.
+const TRACK_RE = /^(?:(\d{1,2})-)?(0\d|\d{3}|\d{1,2}(?=\s*[-.]\s))\s*(?:[-.]\s*|\s+)(?=\S)/
+
+/** A song's track and disc from its file name, and the rest of the name. */
+function trackOf(baseName: string): { track: number | null; disc: number | null; rest: string } {
+  const m = baseName.match(TRACK_RE)
+  if (!m) return { track: null, disc: null, rest: baseName }
+  return { track: Number(m[2]), disc: m[1] ? Number(m[1]) : null, rest: baseName.slice(m[0].length) }
+}
+
+/** "3/12", "03" → 3. */
+const numberOf = (raw: string | undefined): number | null => {
+  const n = raw ? Number.parseInt(raw, 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/**
+ * A song as its own tags have it, where they say: its title, artist, album,
+ * year, track and disc — the file's name and folders fill in the rest. Songs
+ * go by their tags as Plex's music libraries do; a tag is part of the file,
+ * so this comes out the same at every scan.
+ */
+export function withTags(parsed: ParsedMedia, tags: EmbeddedTags | null): ParsedMedia {
+  if (!tags || parsed.type !== 'song') return parsed
+  const year = tags.date?.match(/^\d{4}/)?.[0]
+  return {
+    ...parsed,
+    title: tags.title || parsed.title,
+    artist: tags.artist || parsed.artist,
+    album: tags.album || parsed.album,
+    year: year ? Number(year) : parsed.year,
+    track: numberOf(tags.track) ?? parsed.track ?? null,
+    disc: numberOf(tags.disc) ?? parsed.disc ?? null,
+  }
 }
 
 // "Season 01", "Season 1", "S01", or "Specials" (season 0).
@@ -305,6 +347,34 @@ export function parseMedia(
       }
     }
     return { type: 'music', title, showTitle: null, season: null, episode: null, year: extractYear(baseName), artist, album, extra: null }
+  }
+
+  if (kind === 'audio') {
+    // Songs: Artist/Album/03 - Title.ext (a set's "1-03"), Artist/Title.ext,
+    // or a flat "Artist - Title.ext". Their own tags, read when they're
+    // probed, say it better — see withTags.
+    const { track, disc, rest } = trackOf(baseName)
+    let artist: string | null = null
+    let album: string | null = null
+    let year = extractYear(baseName)
+    let title = songTitle(rest, null)
+    if (segments.length >= 3) {
+      artist = cleanName(segments[0])
+      const albumFolder = segments[segments.length - 2]
+      album = cleanTitle(albumFolder) || cleanName(albumFolder)
+      year ??= extractYear(albumFolder)
+      title = songTitle(rest, artist)
+    } else if (segments.length === 2) {
+      artist = cleanName(segments[0])
+      title = songTitle(rest, artist)
+    } else {
+      const dash = rest.split(/\s+-\s+/)
+      if (dash.length >= 2) {
+        artist = cleanName(dash[0])
+        title = songTitle(dash.slice(1).join(' - '), null)
+      }
+    }
+    return { type: 'song', title, showTitle: null, season: null, episode: null, year, artist, album, track, disc, extra: null }
   }
 
   if (kind === 'movie') {

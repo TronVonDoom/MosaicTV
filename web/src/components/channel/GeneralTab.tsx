@@ -7,19 +7,20 @@ import {
   DEFAULT_COMINGUP,
   type ComingUpConfig,
   type EncodingProfile,
+  type MusicScreen,
 } from '../../lib/api'
 import { useDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
-import { Badge, Button, Card, Field, InfoHint, Input, Section, Select } from '../ui'
+import { Badge, Button, Card, Field, InfoHint, Input, Section, Segmented, Select, Switch } from '../ui'
 import type { ChannelTabProps } from './types'
 
 // Channel-level coming-up state is always a full config; "off" is enabled=false,
 // which we persist as null (see save()).
 const offComingUp = (): ComingUpConfig => ({ ...DEFAULT_COMINGUP, enabled: false })
 
-/** Identity and output: number, name, group, logo, encoding profile, and the
- *  channel-wide "coming up next" card. */
+/** Identity and output: number, name, group, logo, encoding profile, the
+ *  channel-wide "coming up next" card, and what its songs air over. */
 export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabProps) {
   const [profiles, setProfiles] = useState<EncodingProfile[]>([])
   const savedForm = () => ({
@@ -30,6 +31,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
     logoId: ch.logoId ?? (null as number | null),
     profileId: ch.profileId ?? (null as number | null),
     audioLanguage: ch.audioLanguage ?? '',
+    musicScreen: ch.musicScreen as MusicScreen,
+    lyricsFirst: ch.lyricsFirst,
   })
   const savedCu = () => parseComingUp(ch.comingUp) ?? offComingUp()
   const [form, setForm, clearFormDraft] = useDraft(drafts, 'general.form', savedForm)
@@ -56,6 +59,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
           logoId: form.logoId,
           profileId: form.profileId,
           audioLanguage: form.audioLanguage || null,
+          musicScreen: form.musicScreen,
+          lyricsFirst: form.lyricsFirst,
           comingUp: cu.enabled ? cu : null,
         }),
       'Channel saved',
@@ -188,6 +193,37 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
             </InfoHint>
           </p>
           <ComingUpFields cfg={cu} onChange={setCu} channelId={channelId} />
+        </Section>
+
+        <Section title="Music" className="mt-5">
+          <p className="text-ink-muted text-sm mb-3">
+            A song has no picture of its own, so it airs over a screen: its cover, title, artist and how far in it is.
+          </p>
+          <div className="divide-y divide-edge/60 rounded-xl border border-edge">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-ink">Now playing screen</div>
+                <div className="text-xs text-ink-faint mt-0.5">What a song airs over: its album cover, or a spectrum drawn from the song as it plays.</div>
+              </div>
+              <Segmented<MusicScreen>
+                options={[
+                  { value: 'album', label: 'Album' },
+                  { value: 'visualizer', label: 'Visualizer' },
+                ]}
+                value={form.musicScreen}
+                onChange={(v) => setForm({ ...form, musicScreen: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-6 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-ink">If lyrics exist, show lyrics first</div>
+                <div className="text-xs text-ink-faint mt-0.5">
+                  A song with timed lyrics — an .lrc file beside it, or lyrics in its tags — airs them, line by line, instead. Songs without keep the screen above.
+                </div>
+              </div>
+              <Switch checked={form.lyricsFirst} onChange={(v) => setForm({ ...form, lyricsFirst: v })} label="If lyrics exist, show lyrics first" />
+            </div>
+          </div>
         </Section>
 
         {/* Below everything it saves: the card fields grow the form well past

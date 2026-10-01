@@ -7,6 +7,7 @@ import { encoderArgs } from './capabilities.js'
 import { VAAPI_DEVICE, type StreamProfile } from './profile.js'
 import type { CardPosition, ComingUpConfig, WatermarkConfig } from './overlays.js'
 import type { RenderedCard } from './card.js'
+import type { SongScreen } from './songScreen.js'
 
 export type Segment = {
   filePath: string
@@ -40,6 +41,81 @@ export type Segment = {
   // Burn the source's first subtitle stream into the picture (programs only,
   // set when the profile asks for it and the file actually has subtitles).
   hasSubtitles?: boolean
+  // A song: no picture of its own, so it airs over its now-playing screen
+  // (songScreen.ts), drawn at the profile's size.
+  screen?: SongScreen
+}
+
+/** Where a song screen's images come in among the command's inputs, and the
+ *  song's sound for its spectrum (a label in the audio graph). */
+type ScreenInputs = { still: number; fill: number; grad: number; dim: number; lit: number; mask: number; audio: string | null }
+
+/**
+ * A song's picture (see songScreen.ts): its still frame, converted once and
+ * repeated — decoding a whole PNG for every frame cost twice the CPU — with
+ * what moves drawn on it: the progress bar filling, the elapsed time ticking,
+ * and for the visualizer a spectrum drawn from the song's own sound, for the
+ * lyrics the line being sung lit and the rest scrolling up past it. Song time
+ * is the encode's time plus where in the song it started. Ends unlabelled,
+ * like the picture chain it stands in for (the caller names its output).
+ */
+export function screenGraph(sc: SongScreen, inputs: ScreenInputs, fps: number): string {
+  const T = `(t+${sc.offset.toFixed(3)})`
+  const p: string[] = [`[${inputs.still}:v]format=yuv420p,loop=loop=-1:size=1:start=0,setpts=N/(${fps}*TB)[sc0]`]
+  // Progress: the fill slides along the track from out of sight past its start.
+  const b = sc.bar
+  p.push(`[sc0]split=2[sc0a][sc0b]`)
+  p.push(`[sc0b]crop=${b.w}:${b.h}:${b.x}:${b.y}[sctr]`)
+  p.push(`[sctr][${inputs.fill}:v]overlay=x='-w+w*min(1,${T}/${sc.duration.toFixed(3)})':y=0[sctf]`)
+  p.push(`[sc0a][sctf]overlay=${b.x}:${b.y}[sc1]`)
+  let cur = 'sc1'
+
+  // The elapsed time, "m:ss".
+  const c = sc.clock
+  const clock = `%{eif\\:trunc(${T}/60)\\:d}\\:%{eif\\:mod(trunc(${T})\\,60)\\:d\\:2}`
+  p.push(`[${cur}]drawtext=fontfile='${escapeFilterPath(c.font)}':text='${clock}':fontsize=${c.size}:fontcolor=${c.color}:x=${c.x}:y=${c.y}-ascent[sc2]`)
+  cur = 'sc2'
+
+  if (sc.spectrum && inputs.audio) {
+    // The song's spectrum at one pixel a bar (heard up to 11kHz, where music
+    // has something to show), blown up square, with a gap cut between the
+    // bars; it's the alpha over the gradient, and a faint copy of it hangs
+    // upside down underneath.
+    const s = sc.spectrum
+    const cell = Math.round(s.w / s.bars)
+    p.push(
+      `[${inputs.audio}]asetpts=PTS-STARTPTS,aresample=22050,aformat=channel_layouts=mono,showfreqs=s=${s.bars}x96:mode=bar:ascale=log:fscale=log:win_size=1024:overlap=0.5:averaging=2:colors=white,fps=${fps},format=gray,scale=${s.w}:${s.h}:flags=neighbor,drawgrid=w=${cell}:h=${s.h * 2}:t=${s.gap}:c=black[spa]`,
+    )
+    p.push(`[${inputs.grad}:v]format=rgba,loop=loop=-1:size=1:start=0,setpts=N/(${fps}*TB)[spg]`)
+    p.push(`[spg][spa]alphamerge,split=2[spc][spr]`)
+    p.push(`[spr]vflip,scale=${s.w}:${s.reflection},colorchannelmixer=aa=0.18[spf]`)
+    p.push(`[${cur}][spc]overlay=${s.x}:${s.y}[sc3]`)
+    p.push(`[sc3][spf]overlay=${s.x}:${s.y + s.h + Math.round(s.gap * 1.5)}[sc4]`)
+    cur = 'sc4'
+  }
+
+  if (sc.lyrics && sc.lyrics.times.length > 0) {
+    // The strip of dim lines scrolls up a line as each is sung, easing over
+    // 0.6s; the band the sung line sits in shows the lit strip at the same
+    // place, so that line alone is lit. Faded out at the window's top and bottom.
+    const L = sc.lyrics
+    // Even, as a 4:2:0 crop wants (it would round an odd one off by a row).
+    const band = 2 * Math.round((L.center - L.lineH / 2) / 2)
+    const ramps = L.times.slice(1).map((at) => `clip((${T}-${at.toFixed(2)})/0.6,0,1)`)
+    const top = `${band}-${L.lineH}*(${ramps.length ? ramps.join('+') : '0'})`
+    p.push(`[${cur}]split=2[sl0][sl1]`)
+    p.push(`[sl1]crop=${L.w}:${L.h}:${L.x}:${L.y}[slw]`)
+    p.push(`[slw][${inputs.dim}:v]overlay=x=0:y='${top}'[sld]`)
+    p.push(`[sld]split=2[sld0][sld1]`)
+    p.push(`[sld1]crop=${L.w}:${L.lineH}:0:${band}[slb]`)
+    p.push(`[slb][${inputs.lit}:v]overlay=x=0:y='${top}-${band}':enable='gte(${T},${L.times[0].toFixed(2)})'[slbl]`)
+    p.push(`[sld0][slbl]overlay=0:${band}[slc]`)
+    p.push(`[slc][${inputs.mask}:v]alphamerge[slm]`)
+    p.push(`[sl0][slm]overlay=${L.x}:${L.y}[sc5]`)
+    cur = 'sc5'
+  }
+  p.push(`[${cur}]null`)
+  return p.join(';')
 }
 
 // Escape a file path for use inside an ffmpeg filter argument (the subtitles
@@ -437,6 +513,18 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
   a.push('-i', seg.filePath) // input 0 = main video
 
   let idx = 1
+  // A song's screen: its still frame and the pieces that move on it, each read
+  // once (the graph repeats them). Paced by the song, which is metered above.
+  let screenIn: ScreenInputs | null = null
+  if (seg.screen) {
+    const sc = seg.screen
+    const once = (file: string) => {
+      a.push('-i', file)
+      return idx++
+    }
+    screenIn = { still: once(sc.png), fill: once(sc.bar.png), grad: sc.spectrum ? once(sc.spectrum.gradient) : -1, dim: -1, lit: -1, mask: -1, audio: sc.spectrum ? 'avis' : null }
+    if (sc.lyrics) Object.assign(screenIn, { dim: once(sc.lyrics.dim), lit: once(sc.lyrics.lit), mask: once(sc.lyrics.mask) })
+  }
   let logoIdx = -1
   if (useWatermark) {
     logoIdx = idx++
@@ -485,7 +573,10 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
   // subtitles filter re-opens the file for its own subtitle stream; it renders
   // scaled to the frame it's applied to, so it goes after the fit-to-output.
   const subs = seg.hasSubtitles && !seg.isFiller ? `subtitles=filename='${escapeFilterPath(seg.filePath)}',` : ''
-  const base = `[0:v]${deint}scale=iw*sar:ih,${fit},setsar=1,${subs}fps=${p.fps},format=yuv420p,setpts=PTS-STARTPTS`
+  const base =
+    seg.screen && screenIn
+      ? screenGraph(seg.screen, screenIn, p.fps)
+      : `[0:v]${deint}scale=iw*sar:ih,${fit},setsar=1,${subs}fps=${p.fps},format=yuv420p,setpts=PTS-STARTPTS`
   let vf: string
   if (useWatermark) {
     // Only "pad" leaves bars to stay clear of; stretch and crop fill the canvas.
@@ -512,7 +603,9 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
   // (measured: 1.0s -> 3.0s to first byte). dynaudnorm adapts continuously and
   // costs nothing at startup — less exact than R128, but this is live TV.
   const loud = p.normalizeLoudness ? 'dynaudnorm=f=150:g=5,' : ''
-  const af = `[${aIn}]asetpts=PTS-STARTPTS,${loud}aresample=48000,${audioFades(seg)}aformat=channel_layouts=${layout}[a]`
+  // A song's spectrum listens to the song as it is, before the leveller.
+  const tap = screenIn?.audio ? `[${aIn}]asplit=2[asong][${screenIn.audio}];[asong]` : `[${aIn}]`
+  const af = `${tap}asetpts=PTS-STARTPTS,${loud}aresample=48000,${audioFades(seg)}aformat=channel_layouts=${layout}[a]`
 
   a.push('-filter_complex', `${vf};${af}`, '-map', '[v]', '-map', '[a]')
   if (p.threads > 0) a.push('-threads', String(p.threads))

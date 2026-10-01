@@ -14,6 +14,7 @@ const KIND_LABELS: Record<LibraryKind, string> = {
   tv: 'TV Shows',
   movie: 'Movies',
   music: 'Music Videos',
+  audio: 'Music',
   other: 'Other / Bumpers',
 }
 
@@ -254,6 +255,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 <option value="tv">TV Shows</option>
                 <option value="movie">Movies</option>
                 <option value="music">Music Videos</option>
+                <option value="audio">Music (songs)</option>
                 <option value="other">Other</option>
               </Select>
             </Field>

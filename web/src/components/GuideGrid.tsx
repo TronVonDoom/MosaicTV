@@ -44,7 +44,7 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
         key: String(it.id),
         start,
         stop,
-        title: m.type === 'music' && m.artist ? `${m.artist} – ${m.title}` : m.title,
+        title: (m.type === 'music' || m.type === 'song') && m.artist ? `${m.artist} – ${m.title}` : m.title,
         sub: null,
         filler: false,
         entry: it,

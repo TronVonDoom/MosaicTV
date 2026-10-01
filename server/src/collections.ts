@@ -118,17 +118,23 @@ export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma
   return where
 }
 
-/** The single-item picks: a movie, an episode or a music video. */
-const isSingle = (it: { kind: string }) => it.kind === 'movie' || it.kind === 'episode' || it.kind === 'music'
+/** The single-item picks: a movie, an episode, a music video or a song. */
+const isSingle = (it: { kind: string }) => it.kind === 'movie' || it.kind === 'episode' || it.kind === 'music' || it.kind === 'song'
 
-/** An artist pick's files: every music video by them in the pick's library. */
+/** An artist pick's files: every music video or song by them in the pick's
+ *  library (a Music Videos library has the one, a Music library the other). */
 function artistPickWhere(it: { libraryId: number | null; artist: string | null }): Prisma.MediaItemWhereInput {
-  return { missing: false, durationSec: { gt: 0 }, type: 'music', extra: null, libraryId: it.libraryId ?? undefined, artist: it.artist }
+  return { missing: false, durationSec: { gt: 0 }, type: { in: ['music', 'song'] }, extra: null, libraryId: it.libraryId ?? undefined, artist: it.artist }
 }
 
-// An artist's videos as they came out: by year, then album, then title.
+// An artist's music as it came out: by year, then album, then its place on
+// the album, then title.
 const byRelease = (a: MediaItem, b: MediaItem) =>
-  (a.year ?? 0) - (b.year ?? 0) || (a.album ?? '').localeCompare(b.album ?? '') || a.title.localeCompare(b.title)
+  (a.year ?? 0) - (b.year ?? 0) ||
+  (a.album ?? '').localeCompare(b.album ?? '') ||
+  (a.disc ?? 0) - (b.disc ?? 0) ||
+  (a.track ?? 0) - (b.track ?? 0) ||
+  a.title.localeCompare(b.title)
 
 /** A show pick's files: its episodes and, when they air, its specials and
  *  extras — the whole show, or one season of it. (Only a show's episodes and
@@ -233,8 +239,8 @@ async function airingsForShows(where: {
  * The collection's members expanded into program units, in the order the user
  * arranged them: a "show"/"season" member becomes its episodes folded into
  * airings (multi-part episodes as one unit, the rest as units of one), an
- * "artist" member that artist's music videos as they came out, and a
- * "movie"/"episode"/"music" member a single unit. The smart filter (which has
+ * "artist" member that artist's music videos or songs as they came out, and a
+ * "movie"/"episode"/"music"/"song" member a single unit. The smart filter (which has
  * no user-defined position) contributes its units at the end.
  */
 async function resolveUnitGroups(c: CollectionWithItems, airs: Airs): Promise<ProgramUnit[]> {

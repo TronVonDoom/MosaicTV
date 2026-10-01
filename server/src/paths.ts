@@ -44,6 +44,14 @@ export function coversDir(): string {
   return d
 }
 
+// The now-playing screens songs air over, drawn once per song and look and
+// kept for its next airing (see songScreen.ts). Rebuildable at any time.
+export function screensDir(): string {
+  const d = path.join(dataDir(), 'screens')
+  fs.mkdirSync(d, { recursive: true })
+  return d
+}
+
 // Shrunk copies of local artwork (a poster.jpg on the media share is often a
 // multi-megabyte original) for the web UI's grids. Rebuildable at any time.
 export function thumbsDir(): string {
