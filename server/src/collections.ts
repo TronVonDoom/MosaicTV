@@ -73,18 +73,47 @@ export type ProgramUnit = MediaItem[]
 export type ResolvedList = {
   length: number
   at(pos: number): ProgramUnit
-  /** Each show's turns taken as of `pos`, for the rotating orders (see RotationProgress). */
+  /** Each show's turns taken as of `pos`, for the rotating orders (see Progress). */
   progressAt?(pos: number): Record<string, number>
+  /** What airs next as of `pos` — the list's, or each show's (see Progress). */
+  marksAt?(pos: number): Record<string, Mark>
 }
 
 /**
- * Where a rotation stands: `base` is its stored position (a turn counter) and
- * `shows` how many turns each show had taken by then, keyed by show group.
+ * A unit a list will air next: its first file and where it stood then.
+ */
+export type Mark = { id: number; i: number }
+
+/**
+ * Where a list stands: `base` is its stored position (a counter), `shows` how
+ * many turns each show of a rotation had taken by then, keyed by show group.
  * Counting each show separately is what lets a show join or leave a rotation
  * without shifting every other show's episode — with only the shared counter,
  * adding an eighth show to seven sent all seven back several episodes.
+ *
+ * `marks` is the unit that airs next at `base` — the list's (key "") or each
+ * show's — so the list carries on from that unit wherever a change has moved
+ * it. A counter alone lands somewhere else once the list grows or shrinks:
+ * the 2,400th song of five isn't the 2,400th of six, and a scan that added an
+ * episode sent a channel back to one it had just aired.
  */
-export type RotationProgress = { base: number; shows?: Record<string, number> }
+export type Progress = { base: number; shows?: Record<string, number>; marks?: Record<string, Mark> }
+
+/**
+ * Where a list's count `count` falls in `units`: on its marked unit, wherever
+ * it is now (the nearest, as a file can air inside two airings), else on what
+ * took its place. With no mark, the count itself.
+ */
+function startIndex(units: ProgramUnit[], count: number, mark?: Mark): number {
+  const n = units.length
+  if (n === 0) return 0
+  if (!mark) return mod(count, n)
+  let best = -1
+  units.forEach((u, i) => {
+    if (u[0].id === mark.id && (best < 0 || Math.abs(i - mark.i) < Math.abs(best - mark.i))) best = i
+  })
+  return best >= 0 ? best : mod(mark.i, n)
+}
 
 /**
  * What's left out of what comes in by the armful — a whole show, a season, the
@@ -367,13 +396,22 @@ function hash(n: number): number {
 
 const mod = (a: number, n: number) => ((a % n) + n) % n
 
-/** A fixed order, looped: position 0 and position `length` are the same unit. */
-function looped(units: ProgramUnit[]): ResolvedList {
+/** A fixed order, looped: position p and p + `length` are the same unit.
+ *  Position `progress.base` is its marked unit (see Progress). */
+export function looped(units: ProgramUnit[], progress: Progress = { base: 0 }): ResolvedList {
+  const n = units.length
+  const start = startIndex(units, progress.base, progress.marks?.[''])
+  const index = (pos: number) => mod(start + pos - progress.base, n)
   return {
-    length: units.length,
+    length: n,
     at(pos) {
-      if (units.length === 0) throw new Error('empty collection')
-      return units[pos % units.length]
+      if (n === 0) throw new Error('empty collection')
+      return units[index(pos)]
+    },
+    marksAt(pos): Record<string, Mark> {
+      if (n === 0) return {}
+      const i = index(pos)
+      return { '': { id: units[i][0].id, i } }
     },
   }
 }
@@ -419,14 +457,17 @@ function shuffled(units: ProgramUnit[], seed: number): ResolvedList {
   return redealt(units.length, (cycle) => extrasAfterParents(seededShuffleUnits(units, (seed ^ hash(cycle)) >>> 0)))
 }
 
-// Order within a single show/group: season, episode, year, title — and a
-// show's extras after its episodes.
+// Order within a single show/group: season, episode, year — then music's
+// album and place on it — then title, and a show's extras after its episodes.
 function byEpisode(a: MediaItem, b: MediaItem): number {
   return (
     (a.extra != null ? 1 : 0) - (b.extra != null ? 1 : 0) ||
     (a.season ?? 0) - (b.season ?? 0) ||
     (a.episode ?? 0) - (b.episode ?? 0) ||
     (a.year ?? 0) - (b.year ?? 0) ||
+    (a.album ?? '').localeCompare(b.album ?? '') ||
+    (a.disc ?? 0) - (b.disc ?? 0) ||
+    (a.track ?? 0) - (b.track ?? 0) ||
     a.title.localeCompare(b.title)
   )
 }
@@ -485,7 +526,7 @@ const slotTurns = (x: number, i: number, n: number) => Math.max(0, Math.floor((x
  * turn each, so each show's count follows from that, and every show picks up
  * exactly where it left off in the new order.
  */
-function startingTurns(groups: ShowGroup[], progress: RotationProgress): Record<string, number> {
+function startingTurns(groups: ShowGroup[], progress: Progress): Record<string, number> {
   const out: Record<string, number> = {}
   if (progress.shows) {
     // A show new to the rotation starts at its first episode.
@@ -511,23 +552,38 @@ function startingTurns(groups: ShowGroup[], progress: RotationProgress): Record<
  * 19-episode show and a 200-episode one would decay into the long one playing
  * alone. Every show gets an equal share instead, which is what "one from each
  * show in turn" has to mean on a channel that runs forever.
+ *
+ * Each show's next episode is its marked one (see Progress), so an episode
+ * added to a show or gone from it doesn't move the show's place.
  */
 function rotation(
   groups: ShowGroup[],
-  progress: RotationProgress,
+  progress: Progress,
   turn: { showAt(pos: number): number; before(pos: number, g: number): number },
   length: number,
 ): ResolvedList {
   const start = startingTurns(groups, progress)
   const taken = (g: number, pos: number) =>
     start[groups[g].key] + turn.before(pos, g) - turn.before(progress.base, g)
+  const first = groups.map((grp) => startIndex(grp.units, start[grp.key], progress.marks?.[grp.key]))
+  // Where show g's turn as of `pos` falls in its episodes.
+  const index = (g: number, pos: number) => mod(first[g] + taken(g, pos) - start[groups[g].key], groups[g].units.length)
   return {
     length,
     at(pos) {
       if (groups.length === 0) throw new Error('empty collection')
       const g = turn.showAt(pos)
-      const list = groups[g].units
-      return list[mod(taken(g, pos), list.length)]
+      return groups[g].units[index(g, pos)]
+    },
+    marksAt(pos) {
+      // A show no longer in the rotation keeps its mark, as it keeps its count.
+      const out: Record<string, Mark> = { ...progress.marks }
+      delete out[''] // a fixed order's, from when it aired in one
+      groups.forEach((grp, g) => {
+        const i = index(g, pos)
+        out[grp.key] = { id: grp.units[i][0].id, i }
+      })
+      return out
     },
     progressAt(pos) {
       // Shows no longer in the collection keep their count, so one that comes
@@ -543,7 +599,7 @@ function rotation(
 }
 
 /** Rotate shows: one unit from each show in turn, in the collection's order. */
-export function rotated(units: ProgramUnit[], progress: RotationProgress = { base: 0 }): ResolvedList {
+export function rotated(units: ProgramUnit[], progress: Progress = { base: 0 }): ResolvedList {
   const groups = showGroups(units)
   const n = groups.length
   return rotation(groups, progress, { showAt: (pos) => mod(pos, n), before: (pos, g) => slotTurns(pos, g, n) }, units.length)
@@ -557,7 +613,7 @@ export function rotated(units: ProgramUnit[], progress: RotationProgress = { bas
  * two. (Only the first two ever move, so the last show of the previous round
  * is always its unadjusted deal.) Two shows have no room to mix: they alternate.
  */
-export function mixedRotation(units: ProgramUnit[], seed: number, progress: RotationProgress = { base: 0 }): ResolvedList {
+export function mixedRotation(units: ProgramUnit[], seed: number, progress: Progress = { base: 0 }): ResolvedList {
   const groups = showGroups(units)
   const n = groups.length
   const deal = (r: number): number[] =>
@@ -597,20 +653,20 @@ export function mixedRotation(units: ProgramUnit[], seed: number, progress: Rota
 
 /**
  * Resolve a collection to an ordered, endlessly repeating list of units.
- * `progress` is where a rotation stands; the other orders ignore it.
+ * `progress` is where it stands; a shuffle, dealt afresh each pass, ignores it.
  */
 export async function resolveCollection(
   c: CollectionWithItems,
   order: PlaybackOrder,
   seed = 0,
-  progress?: RotationProgress,
+  progress?: Progress,
   airs?: Airs,
 ): Promise<ResolvedList> {
   // `resolveUnits` already returns the hand-picked order.
   const units = await resolveUnits(c, airs)
-  if (order === 'custom') return looped(units)
+  if (order === 'custom') return looped(units, progress)
   if (order === 'shuffle') return shuffled(units, seed)
   if (order === 'shuffleShows') return mixedRotation(units, seed, progress)
   if (order === 'rotate') return rotated(units, progress)
-  return looped(releaseOrder(units))
+  return looped(releaseOrder(units), progress)
 }

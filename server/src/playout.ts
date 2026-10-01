@@ -4,6 +4,7 @@ import {
   effectiveOrder,
   resolveCollection,
   type CollectionWithItems,
+  type Mark,
   type ProgramUnit,
   type ResolvedList,
 } from './collections.js'
@@ -78,8 +79,11 @@ type BlockWithCollection = TimeBlock & { collection: CollectionWithItems }
 export type State = {
   rotationIndex: number
   positions: Record<string, number>
-  // Each show's turns in a rotating order, by position key (see RotationProgress).
+  // Each show's turns in a rotating order, by position key (see Progress).
   shows?: Record<string, Record<string, number>>
+  // What each list airs next, by position key, so a list that grows or
+  // shrinks carries on from it (see Progress). A shuffle has none.
+  marks?: Record<string, Record<string, Mark>>
   // A rotation turn still under way: `left` more programs of rotation item
   // `id` before the rotation moves on. Set when a build stops at the horizon
   // mid-turn, and in the checkpoints inside a turn, so a turn is never cut
@@ -275,18 +279,33 @@ export async function planTimeline(
     let list = cache.get(ck)
     if (!list) {
       const seed = channelId * 100000 + collection.id
-      list = await resolveCollection(collection, order, seed, { base: posOf(key, legacyKey), shows: state.shows?.[key] })
+      list = await resolveCollection(collection, order, seed, {
+        base: posOf(key, legacyKey),
+        shows: state.shows?.[key],
+        marks: state.marks?.[key],
+      })
       cache.set(ck, list)
     }
     return list
   }
+  // The marks a list leaves at `pos`, in with the rest; a shuffle's clears the
+  // key's, which another order's list of it would otherwise read stale.
+  const withMarks = (marks: State['marks'], key: string, list: ResolvedList, pos: number): State['marks'] => {
+    const out = { ...marks }
+    const at = list.marksAt?.(pos)
+    if (at) out[key] = at
+    else delete out[key]
+    return out
+  }
   // Save a collection's new position — and, for a rotation, each show's turns
-  // as of it. A list of the same collection in another order was resolved
-  // against the old position, so it's dropped to be resolved afresh.
+  // as of it, and what airs next. A list of the same collection in another
+  // order was resolved against the old position, so it's dropped to be
+  // resolved afresh.
   const advance = (key: string, collectionId: number, list: ResolvedList, pos: number) => {
     state.positions[key] = pos
     const shows = list.progressAt?.(pos)
     if (shows) (state.shows ??= {})[key] = shows
+    state.marks = withMarks(state.marks, key, list, pos)
     for (const [ck, other] of cache) if (ck.startsWith(`${collectionId}:`) && other !== list) cache.delete(ck)
   }
   // The state a build would hold if it stopped right before the unit at `pos`
@@ -297,6 +316,7 @@ export async function planTimeline(
     const snap: State = { ...state, positions: { ...state.positions, [key]: pos }, turn }
     const shows = list.progressAt?.(pos)
     if (shows) snap.shows = { ...state.shows, [key]: shows }
+    snap.marks = withMarks(state.marks, key, list, pos)
     return JSON.stringify(snap)
   }
 

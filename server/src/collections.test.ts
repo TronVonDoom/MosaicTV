@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { MediaItem } from '@prisma/client'
-import { groupIntoAirings, mixedRotation, releaseOrder, rotated } from './collections.js'
+import { groupIntoAirings, looped, mixedRotation, releaseOrder, rotated } from './collections.js'
 
 // Minimal MediaItem — only the fields groupIntoAirings and its sort touch.
 function mi(id: number, over: Partial<MediaItem> = {}): MediaItem {
@@ -204,4 +204,68 @@ test("release order: shows in the collection's order, episodes in order, movies 
     releaseOrder(units).map((u) => (u[0].showTitle ? label(u) : u[0].title)),
     ['B 1', 'B 2', 'Earlier', 'Later', 'A 1'],
   )
+})
+
+// One song, as a unit; songs have no show, season or episode.
+const song = (title: string, year: number, id: number, over: Partial<MediaItem> = {}) => [
+  mi(id, { showTitle: null, season: null, episode: null, title, year, ...over }),
+]
+const titles = (list: { at(pos: number): MediaItem[] }, from: number, n: number) =>
+  Array.from({ length: n }, (_, k) => list.at(from + k)[0].title)
+
+test('release order: songs by year, then album, then their place on it', () => {
+  const units = [
+    song('Zebra', 1990, 1, { album: 'Second', track: 1 }),
+    song('Apple', 1990, 2, { album: 'First', track: 2 }),
+    song('Mango', 1990, 3, { album: 'First', track: 1 }),
+    song('Old', 1985, 4, { album: 'Zero', track: 9 }),
+  ]
+  assert.deepEqual(releaseOrder(units).map((u) => u[0].title), ['Old', 'Mango', 'Apple', 'Zebra'])
+})
+
+// --- a list that changes under its place ---
+
+const FOUR = [song('A', 1980, 1), song('B', 1990, 2), song('C', 2000, 3), song('D', 2010, 4)]
+
+test('a fixed order carries on from what it had next when a unit sorts in ahead of it', () => {
+  const before = looped(releaseOrder(FOUR))
+  assert.equal(titles(before, 22, 1)[0], 'C')
+  const saved = { base: 23, marks: before.marksAt!(23) }
+  const five = releaseOrder([...FOUR, song('Older', 1970, 5)])
+  assert.deepEqual(titles(looped(five, saved), 23, 4), ['D', 'Older', 'A', 'B'])
+  // The count alone lands on C again: what aired twice running on a channel
+  // whose library gained a song.
+  assert.equal(titles(looped(five, { base: 23 }), 23, 1)[0], 'C')
+})
+
+test('when what a fixed order had next is gone, what took its place airs', () => {
+  const before = looped(releaseOrder(FOUR))
+  const saved = { base: 21, marks: before.marksAt!(21) } // B next
+  assert.deepEqual(titles(looped(releaseOrder([FOUR[0], FOUR[2], FOUR[3]]), saved), 21, 3), ['C', 'D', 'A'])
+})
+
+test('a fixed order saved before marks carries on from its count', () => {
+  assert.deepEqual(titles(looped(releaseOrder(FOUR), { base: 6 }), 6, 3), ['C', 'D', 'A'])
+})
+
+test('an episode added to a show that has come round again keeps the show where it was', () => {
+  const [a, b] = [eps('A', 4, 1), eps('B', 4, 11)]
+  const before = rotated([...a, ...b])
+  // Twenty turns in, each show has had ten: the third time through, on episode 3.
+  assert.equal(label(before.at(20)), 'A 3')
+  const saved = { base: 20, shows: before.progressAt!(20), marks: before.marksAt!(20) }
+  const grown = rotated([...a, [epOf('A', 5, 5)], ...b], saved)
+  assert.deepEqual(
+    [20, 21, 22, 23, 24, 25].map((p) => label(grown.at(p))),
+    ['A 3', 'B 3', 'A 4', 'B 4', 'A 5', 'B 1'],
+  )
+  // By its count alone, A would start over at episode 1.
+  assert.equal(label(rotated([...a, [epOf('A', 5, 5)], ...b], { base: 20, shows: saved.shows }).at(20)), 'A 1')
+})
+
+test('a rotation resolved again from its marks continues the same timeline', () => {
+  const units = ['A', 'B', 'C'].flatMap((s, i) => eps(s, 5, i * 100))
+  const whole = mixedRotation(units, 7)
+  const resumed = mixedRotation(units, 7, { base: 17, shows: whole.progressAt!(17), marks: whole.marksAt!(17) })
+  for (let p = 17; p < 40; p++) assert.equal(label(resumed.at(p)), label(whole.at(p)))
 })
