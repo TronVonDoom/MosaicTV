@@ -56,6 +56,11 @@ export default function ChannelEditor() {
     load()
     loadCols()
   }, [load, loadCols])
+  // Settings saved elsewhere — another tab, another device — show up here,
+  // and a form's untouched fields follow them (see useSyncedDraft).
+  useLiveRefresh(load, ['channel'], {
+    when: (e) => 'resync' in e || (e.type === 'channel' && e.channelId === channelId),
+  })
 
   // What's on air right now, for the header.
   const loadNow = useCallback(

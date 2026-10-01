@@ -14,6 +14,8 @@ export type ServerEvent =
   /** A channel's timeline changed (a schedule edit, a build). `from` is where
    * a replan cut in, or null when it only grew at the end. */
   | { type: 'guide'; channelId: number; from: string | null }
+  /** A channel's settings changed, so a page open on them shows what's saved. */
+  | { type: 'channel'; channelId: number }
   /** Background work (ident builds, scans, metadata fetches) moved on. */
   | { type: 'activity' }
   /** A program started or ended on some channel. */

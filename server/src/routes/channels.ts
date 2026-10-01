@@ -34,6 +34,7 @@ import {
 import { readBody } from '../validate.js'
 import { programLabel } from '../labels.js'
 import { channelsNow } from '../nowPlaying.js'
+import { publish } from '../events.js'
 
 export const channelsRouter = Router()
 
@@ -173,6 +174,7 @@ channelsRouter.patch('/:id', async (req, res) => {
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
     // A new logo or picture size means new filler clips; build them ahead.
     if (logoId !== undefined || logoUrl !== undefined || profileId !== undefined) warmFiller().catch(() => {})
+    publish({ type: 'channel', channelId: id })
     res.json(c)
   } catch {
     res.status(409).json({ error: 'Update failed — is that channel number already in use?' })

@@ -5,11 +5,12 @@ import {
   AUDIO_LANGUAGES,
   parseComingUp,
   DEFAULT_COMINGUP,
+  type ChannelChanges,
   type ComingUpConfig,
   type EncodingProfile,
   type MusicScreen,
 } from '../../lib/api'
-import { useDraft } from '../../lib/hooks'
+import { useSyncedDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import { Badge, Button, Card, Field, InfoHint, Input, Section, Segmented, Select, Switch } from '../ui'
@@ -23,7 +24,9 @@ const offComingUp = (): ComingUpConfig => ({ ...DEFAULT_COMINGUP, enabled: false
  *  channel-wide "coming up next" card, and what its songs air over. */
 export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabProps) {
   const [profiles, setProfiles] = useState<EncodingProfile[]>([])
-  const savedForm = () => ({
+  // The form follows the channel as saved — this tab's own saves, and a
+  // change made anywhere else — in every field you haven't touched.
+  const [form, setForm, formChanges] = useSyncedDraft(drafts, 'general.form', {
     number: ch.number != null ? String(ch.number) : '',
     name: ch.name,
     group: ch.group ?? '',
@@ -34,14 +37,13 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
     musicScreen: ch.musicScreen as MusicScreen,
     lyricsFirst: ch.lyricsFirst,
   })
-  const savedCu = () => parseComingUp(ch.comingUp) ?? offComingUp()
-  const [form, setForm, clearFormDraft] = useDraft(drafts, 'general.form', savedForm)
-  const [cu, setCu, clearCuDraft] = useDraft<ComingUpConfig>(drafts, 'general.comingUp', savedCu)
+  const savedCu = parseComingUp(ch.comingUp) ?? offComingUp()
+  const [cu, setCu, cuChanges] = useSyncedDraft<ComingUpConfig>(drafts, 'general.comingUp', savedCu)
   // A card that's switched off saves as nothing, so its hidden fields don't
   // count as a change.
   const cuValue = (c: ComingUpConfig) => (c.enabled ? JSON.stringify(c) : null)
-  const dirty =
-    JSON.stringify(form) !== JSON.stringify(savedForm()) || cuValue(cu) !== cuValue(savedCu())
+  const cuChanged = Object.keys(cuChanges).length > 0 && cuValue(cu) !== cuValue(savedCu)
+  const dirty = Object.keys(formChanges).length > 0 || cuChanged
 
   useEffect(() => {
     api.profiles().then((r) => setProfiles(r.profiles)).catch(() => {})
@@ -49,26 +51,22 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    await guard(
-      () =>
-        api.updateChannel(channelId, {
-          number: form.number.trim() ? Number(form.number) : null,
-          name: form.name,
-          group: form.group || null,
-          logoUrl: form.logoUrl || null,
-          logoId: form.logoId,
-          profileId: form.profileId,
-          audioLanguage: form.audioLanguage || null,
-          musicScreen: form.musicScreen,
-          lyricsFirst: form.lyricsFirst,
-          comingUp: cu.enabled ? cu : null,
-        }),
-      'Channel saved',
-    )
-    // Committed — drop the draft so the next visit reflects the server, not a
-    // replay of what we just sent.
-    clearFormDraft()
-    clearCuDraft()
+    const all: ChannelChanges = {
+      number: form.number.trim() ? Number(form.number) : null,
+      name: form.name,
+      group: form.group || null,
+      logoUrl: form.logoUrl || null,
+      logoId: form.logoId,
+      profileId: form.profileId,
+      audioLanguage: form.audioLanguage || null,
+      musicScreen: form.musicScreen,
+      lyricsFirst: form.lyricsFirst,
+    }
+    // Only what was edited here: the rest stays as the server has it, which
+    // may be newer than what this page loaded.
+    const changes: ChannelChanges = Object.fromEntries(Object.entries(all).filter(([k]) => k in formChanges))
+    if (cuChanged) changes.comingUp = cu.enabled ? cu : null
+    await guard(() => api.updateChannel(channelId, changes), 'Channel saved')
   }
 
   return (

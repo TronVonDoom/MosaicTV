@@ -6,12 +6,17 @@ import { usePolling } from './hooks'
 // browser reconnects it on its own after a restart or a network blip.
 
 export type GuideEvent = { type: 'guide'; channelId: number; from: string | null }
-export type ServerEvent = GuideEvent | { type: 'activity' } | { type: 'onAir' } | { type: 'viewers' }
+export type ServerEvent =
+  | GuideEvent
+  | { type: 'channel'; channelId: number }
+  | { type: 'activity' }
+  | { type: 'onAir' }
+  | { type: 'viewers' }
 export type ServerEventType = ServerEvent['type']
 /** What a listener gets: the event, or a resync after a reconnect (events may have been missed). */
 export type Heard = ServerEvent | { type: ServerEventType; resync: true }
 
-const TYPES: ServerEventType[] = ['guide', 'activity', 'onAir', 'viewers']
+const TYPES: ServerEventType[] = ['guide', 'channel', 'activity', 'onAir', 'viewers']
 
 let source: EventSource | null = null
 let connected = false

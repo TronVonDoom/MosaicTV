@@ -79,6 +79,41 @@ export function useDraft<T>(
   return [state, set, clear]
 }
 
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+
+/**
+ * A form's draft (see useDraft) that keeps the saved values it was opened
+ * from, and follows them. When `saved` changes — the form saved, or the thing
+ * was changed somewhere else — a field you haven't touched takes the new value
+ * and one you have keeps yours. `changes` holds only the fields you've edited,
+ * which is all a save should send: a form that sends every field puts back,
+ * from a page left open, whatever was changed elsewhere since it loaded (a
+ * channel's screen switched to Visualizer went back to Album when a General
+ * tab opened before it was saved).
+ */
+export function useSyncedDraft<T extends object>(
+  cache: DraftCache,
+  key: string,
+  saved: T,
+): [T, (value: T) => void, Partial<T>] {
+  const [draft, setDraft] = useDraft(cache, key, () => ({ base: saved, form: saved }))
+  const savedJson = JSON.stringify(saved)
+  useEffect(() => {
+    setDraft((d) => {
+      if (JSON.stringify(d.base) === savedJson) return d
+      const form = { ...d.form }
+      for (const k of Object.keys(saved) as (keyof T)[]) if (same(d.form[k], d.base[k])) form[k] = saved[k]
+      return { base: saved, form }
+    })
+    // `saved` is a new object every render; what's in it is what counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedJson, setDraft])
+  const setForm = useCallback((form: T) => setDraft((d) => ({ ...d, form })), [setDraft])
+  const changes: Partial<T> = {}
+  for (const k of Object.keys(draft.form) as (keyof T)[]) if (!same(draft.form[k], draft.base[k])) changes[k] = draft.form[k]
+  return [draft.form, setForm, changes]
+}
+
 /**
  * Run `fn` every `intervalMs` while `enabled`. Pure interval semantics — it
  * does NOT fire immediately, so callers keep whatever initial load they
