@@ -172,7 +172,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
               Logo
               <InfoHint>
                 Shown in the guide, and used as the default on-screen watermark. A collection or time
-                block can override it.
+                block can override it. No logo shows none — on screen or in the guide.
               </InfoHint>
             </span>
           }

@@ -5,6 +5,7 @@ import { Select } from './ui'
 
 // A logo dropdown with an inline "+ Upload" so you never have to leave the page
 // to add a logo. Self-contained: fetches its own list and refreshes after upload.
+// The MosaicTV logo that ships with the app comes first, marked the default.
 export default function LogoPicker({
   value,
   onChange,
@@ -19,7 +20,11 @@ export default function LogoPicker({
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const refresh = () => api.logos().then(setLogos).catch(() => {})
+  const refresh = () =>
+    api
+      .logos()
+      .then((ls) => setLogos([...ls.filter((l) => l.builtIn), ...ls.filter((l) => !l.builtIn)]))
+      .catch(() => {})
   useEffect(() => {
     refresh()
   }, [])
@@ -59,7 +64,7 @@ export default function LogoPicker({
           <option value="">{noneLabel}</option>
           {logos.map((l) => (
             <option key={l.id} value={l.id}>
-              {l.name}
+              {l.builtIn ? `${l.name} (default)` : l.name}
             </option>
           ))}
         </Select>

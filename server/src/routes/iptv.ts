@@ -79,12 +79,15 @@ iptvRouter.get(/^\/channel\/(\d+)\/(seg_\d+\.ts)$/, (req, res) => {
   })
 })
 
+// A channel's icon in players' guides — none for a channel with no logo, so
+// the player shows its name instead.
+const guideLogo = (c: { logoId: number | null; logoUrl: string | null }, base: string): string | null =>
+  c.logoId ? `${base}/api/logos/${c.logoId}/image` : c.logoUrl || null
 
 // M3U playlist — one entry per channel, pointing at its (future) stream URL.
 iptvRouter.get('/channels.m3u', async (req, res) => {
   const channels = await prisma.channel.findMany({ orderBy: { number: 'asc' } })
   const base = baseUrl(req)
-  const fallback = `${base}/mosaictv-icon.png`
   // Global output mode: 'hls' (shared, one transcode per channel) or 'mpegts'
   // (per-client). The stream URL each channel advertises depends on it.
   const modeRow = await prisma.setting.findUnique({ where: { key: 'streamMode' } })
@@ -92,10 +95,10 @@ iptvRouter.get('/channels.m3u', async (req, res) => {
   let out = '#EXTM3U\n'
   for (const c of channels) {
     if (c.number == null) continue // draft — not published
-    const logo = c.logoId ? `${base}/api/logos/${c.logoId}/image` : c.logoUrl || fallback
+    const logo = guideLogo(c, base)
     out +=
       `#EXTINF:-1 tvg-id="${c.number}" tvg-chno="${c.number}" ` +
-      `tvg-name="${escapeXml(c.name)}" tvg-logo="${escapeXml(logo)}" ` +
+      `tvg-name="${escapeXml(c.name)}" ${logo ? `tvg-logo="${escapeXml(logo)}" ` : ''}` +
       `group-title="${escapeXml(c.group || 'MosaicTV')}",${c.name}\n`
     out += hls ? `${base}/iptv/channel/${c.number}/index.m3u8\n` : `${base}/iptv/channel/${c.number}.ts\n`
   }
@@ -193,7 +196,8 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
     if (c.number == null) continue // draft — not published
     xml += `  <channel id="${c.number}">\n`
     xml += `    <display-name>${escapeXml(c.name)}</display-name>\n`
-    xml += `    <icon src="${escapeXml(c.logoId ? `${base}/api/logos/${c.logoId}/image` : c.logoUrl || `${base}/mosaictv-icon.png`)}" />\n`
+    const logo = guideLogo(c, base)
+    if (logo) xml += `    <icon src="${escapeXml(logo)}" />\n`
     xml += '  </channel>\n'
   }
   xml += programmesXml(items, numById, programmeIcon)

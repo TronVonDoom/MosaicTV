@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from './db.js'
-import { assetsDir } from './paths.js'
+import { assetsDir, logosDir } from './paths.js'
 import { log } from './logs.js'
 
 // Bundled starter tracks (web/public/defaults, shipped via the frontend build
@@ -46,4 +46,43 @@ export async function seedDefaultAudio(): Promise<void> {
     seeded++
   }
   if (seeded > 0) log('info', 'system', `Seeded ${seeded} default audio track(s)`)
+}
+
+/** The Setting holding the built-in MosaicTV logo's id (and that it was seeded). */
+export const DEFAULT_LOGO_KEY = 'seeded_logo_mosaictv'
+
+/** The built-in MosaicTV logo's id — still there — or null. */
+export async function defaultLogoId(): Promise<number | null> {
+  const row = await prisma.setting.findUnique({ where: { key: DEFAULT_LOGO_KEY } })
+  const id = Number(row?.value)
+  if (!Number.isInteger(id)) return null
+  return (await prisma.logo.findUnique({ where: { id }, select: { id: true } }))?.id ?? null
+}
+
+/**
+ * Seed the MosaicTV logo as an ordinary logo, once. Before it, a channel with
+ * no logo quietly wore the bundled icon on screen and in players' guides; now
+ * "No logo" means none, so every channel that was relying on the icon is
+ * pointed at this logo instead and looks exactly as it did. Seeded once like
+ * the audio — deleting it doesn't bring it back — and retried on a later boot
+ * if the bundled icon isn't there yet (local dev without a built frontend).
+ */
+export async function seedDefaultLogo(): Promise<void> {
+  if (await prisma.setting.findUnique({ where: { key: DEFAULT_LOGO_KEY } })) return
+  const src = path.join(process.cwd(), 'public', 'mosaictv-icon.png')
+  if (!fs.existsSync(src)) return
+
+  const logo = await prisma.logo.create({ data: { name: 'MosaicTV', filename: 'pending', mime: 'image/png' } })
+  const filename = `logo-${logo.id}.png`
+  fs.copyFileSync(src, path.join(logosDir(), filename))
+  const moved = await prisma.$transaction(async (tx) => {
+    await tx.logo.update({ where: { id: logo.id }, data: { filename } })
+    const { count } = await tx.channel.updateMany({
+      where: { logoId: null, OR: [{ logoUrl: null }, { logoUrl: '' }] },
+      data: { logoId: logo.id },
+    })
+    await tx.setting.create({ data: { key: DEFAULT_LOGO_KEY, value: String(logo.id) } })
+    return count
+  })
+  log('info', 'system', `Added the MosaicTV logo${moved ? ` — ${moved} channel(s) that showed it with no logo of their own now use it` : ''}`)
 }

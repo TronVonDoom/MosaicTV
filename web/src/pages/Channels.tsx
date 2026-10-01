@@ -34,14 +34,26 @@ const PX: Record<Zoom, number> = { compact: 3.2, standard: 5.5, wide: 9 }
 /** New-channel dialog: just enough to name it, then straight into the editor. */
 function NewChannelDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
-  const [form, setForm] = useState<{ number: string; name: string; group: string; logoId: number | null }>({
+  // logoId undefined: not picked yet — it starts on the MosaicTV logo once the
+  // list says which that is.
+  const [form, setForm] = useState<{ number: string; name: string; group: string; logoId: number | null | undefined }>({
     number: '',
     name: '',
     group: '',
-    logoId: null,
+    logoId: undefined,
   })
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api
+      .logos()
+      .then((ls) => {
+        const builtIn = ls.find((l) => l.builtIn)
+        if (builtIn) setForm((f) => (f.logoId === undefined ? { ...f, logoId: builtIn.id } : f))
+      })
+      .catch(() => {})
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,7 +64,7 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
         number: form.number.trim() ? Number(form.number) : null,
         name: form.name,
         group: form.group || null,
-        logoId: form.logoId,
+        logoId: form.logoId ?? null,
       })
       navigate(`/channels/${created.id}`)
     } catch (err) {
@@ -94,7 +106,7 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
           <Input placeholder="Kids" value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })} />
         </Field>
         <Field label="Logo">
-          <LogoPicker value={form.logoId} onChange={(id) => setForm({ ...form, logoId: id })} />
+          <LogoPicker value={form.logoId ?? null} onChange={(id) => setForm({ ...form, logoId: id })} />
         </Field>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>

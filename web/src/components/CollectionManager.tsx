@@ -297,7 +297,7 @@ function CollectionSettings({
           {/* Not a <Field>: LogoPicker carries its own <label> (the upload button). */}
           <div className="flex flex-col gap-1.5">
             <span className="text-[12.5px] font-medium text-ink-soft">Logo</span>
-            <LogoPicker value={form.logoId} onChange={(id) => setForm({ ...form, logoId: id })} />
+            <LogoPicker value={form.logoId} onChange={(id) => setForm({ ...form, logoId: id })} noneLabel="The channel's logo" />
             <span className="text-xs text-ink-faint">On screen while this collection airs, unless its block sets one.</span>
           </div>
         </div>
@@ -562,7 +562,7 @@ export default function CollectionManager({
         {creating && (
           <form onSubmit={add} className="mx-1 mb-3 space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/[0.06] p-3">
             <Input autoFocus placeholder="Name — e.g. Nick Jr." value={name} onChange={(e) => setName(e.target.value)} className="w-full" />
-            <LogoPicker value={newLogoId} onChange={setNewLogoId} noneLabel="No logo" />
+            <LogoPicker value={newLogoId} onChange={setNewLogoId} noneLabel="The channel's logo" />
             <Button type="submit" size="sm" className="w-full" disabled={!name.trim()}>
               Create collection
             </Button>

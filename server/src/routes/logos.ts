@@ -6,6 +6,7 @@ import { prisma } from '../db.js'
 import { logosDir } from '../paths.js'
 import { parseWatermark, sanitizeWatermark } from '../streaming/overlays.js'
 import { warmFiller } from '../streaming/filler.js'
+import { defaultLogoId } from '../seedDefaults.js'
 
 export const logosRouter = Router()
 
@@ -16,17 +17,21 @@ const EXT: Record<string, string> = {
   'image/gif': 'gif',
 }
 
+type LogoRow = { id: number; name: string; mime: string; updatedAt: Date; watermark: string | null }
+const shape = (l: LogoRow, builtInId: number | null): Stored<Logo> => ({
+  id: l.id,
+  name: l.name,
+  mime: l.mime,
+  updatedAt: l.updatedAt,
+  watermark: parseWatermark(l.watermark),
+  builtIn: l.id === builtInId,
+})
+const toLogo = async (l: LogoRow) => shape(l, await defaultLogoId())
+
 logosRouter.get('/', async (_req, res) => {
   const logos = await prisma.logo.findMany({ orderBy: { createdAt: 'desc' } })
-  res.json(
-    logos.map((l): Stored<Logo> => ({
-      id: l.id,
-      name: l.name,
-      mime: l.mime,
-      updatedAt: l.updatedAt,
-      watermark: parseWatermark(l.watermark),
-    })),
-  )
+  const builtInId = await defaultLogoId()
+  res.json(logos.map((l) => shape(l, builtInId)))
 })
 
 // Upload via a data URL (no multipart dependency needed).
@@ -54,7 +59,7 @@ logosRouter.post('/', async (req, res) => {
   const filename = `logo-${logo.id}.${ext}`
   fs.writeFileSync(path.join(logosDir(), filename), buf)
   await prisma.logo.update({ where: { id: logo.id }, data: { filename } })
-  res.status(201).json({ id: logo.id, name, mime, updatedAt: logo.updatedAt, watermark: parseWatermark(logo.watermark) })
+  res.status(201).json(shape(logo, null))
 })
 
 // Update a logo's name and/or its per-logo watermark settings.
@@ -66,7 +71,7 @@ logosRouter.patch('/:id', async (req, res) => {
   if (typeof req.body?.name === 'string' && req.body.name.trim()) data.name = req.body.name.trim()
   if (req.body?.watermark !== undefined) data.watermark = JSON.stringify(sanitizeWatermark(req.body.watermark))
   const updated = await prisma.logo.update({ where: { id }, data })
-  res.json({ id: updated.id, name: updated.name, mime: updated.mime, updatedAt: updated.updatedAt, watermark: parseWatermark(updated.watermark) })
+  res.json(await toLogo(updated))
 })
 
 logosRouter.get('/:id/image', async (req, res) => {
@@ -100,13 +105,7 @@ logosRouter.put('/:id/image', async (req, res) => {
   const updated = await prisma.logo.update({ where: { id }, data: { filename, mime } })
   // Every filler branded with it needs rebuilding with the new image.
   warmFiller().catch(() => {})
-  res.json({
-    id: updated.id,
-    name: updated.name,
-    mime: updated.mime,
-    updatedAt: updated.updatedAt,
-    watermark: parseWatermark(updated.watermark),
-  })
+  res.json(await toLogo(updated))
 })
 
 logosRouter.delete('/:id', async (req, res) => {

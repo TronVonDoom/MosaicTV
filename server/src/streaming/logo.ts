@@ -59,13 +59,14 @@ export function logoFor(
 }
 
 // Resolve a logo (local path or http url) to a usable local file, downloading
-// and caching http logos. Falls back to the bundled icon so a bad URL never
-// breaks the stream.
+// and caching http logos. No logo is none — nothing on screen. A logo that's
+// set but can't be had falls back to the bundled icon, so a bad URL never
+// leaves a channel looking different from what it was set to show.
 const logoCache = new Map<string, string | undefined>()
 export async function localLogo(raw: string | null): Promise<string | undefined> {
+  if (!raw) return undefined
   const fallback = path.join(process.cwd(), 'public', 'mosaictv-icon.png')
   const fb = fs.existsSync(fallback) ? fallback : undefined
-  if (!raw) return fb
   if (logoCache.has(raw)) return logoCache.get(raw)
 
   let result: string | undefined

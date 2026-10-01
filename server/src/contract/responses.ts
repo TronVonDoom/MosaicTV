@@ -468,6 +468,8 @@ export type Logo = {
   /** When the image was last replaced — the cache-buster for its URL. */
   updatedAt?: Date
   watermark: WatermarkConfig
+  /** The MosaicTV logo that ships with the app — what a new channel starts with. */
+  builtIn?: boolean
 }
 
 export type AssetKind = 'audio' | 'filler'
