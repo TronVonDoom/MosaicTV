@@ -36,6 +36,9 @@ import {
 } from './contract/index.js'
 import { cleanDate, nfoReader, type Nfo, type NfoReader } from './nfo.js'
 import { embeddedCover } from './scanner/artwork.js'
+import { forgetMusicLookups, lookUpMusic, type MusicFound } from './musicbrainz.js'
+import { lookUpLyrics } from './lrclib.js'
+import { songLyrics } from './lyrics.js'
 import { probeTags, type EmbeddedTags } from './ffprobe.js'
 import { parseMedia } from './scanner/parse.js'
 import {
@@ -143,12 +146,19 @@ async function agentFor(libraryId: number): Promise<Agent> {
 const isMatchSource = (s: string): s is MatchSource => (MATCH_SOURCES as readonly string[]).includes(s)
 /** The online sources the library reads that can be asked. */
 const askable = (a: Agent): Provider[] => a.sources.filter(isMatchSource).flatMap((s) => (a.online[s] ? [a.online[s]!] : []))
-/** Whether the library reads anything: a music library only its files' .nfo
- *  and tags (TMDB and TheTVDB have no music videos). */
-const canRead = (a: Agent) => (a.kind !== 'music' && askable(a).length > 0) || a.sources.some((s) => !isMatchSource(s))
+/** Whether the library reads anything: a music video library its files' .nfo
+ *  and tags, or MusicBrainz (TMDB and TheTVDB have no music videos); a song
+ *  library only what's online — MusicBrainz or LRCLIB — its songs' tags being
+ *  read as they're scanned. */
+const canRead = (a: Agent) =>
+  a.kind === 'audio'
+    ? a.sources.some((s) => s === 'musicbrainz' || s === 'lrclib')
+    : (a.kind !== 'music' && askable(a).length > 0) || a.sources.some((s) => !isMatchSource(s))
 const nothingToReadIn = (a: Agent) =>
-  a.kind === 'music'
-    ? 'Nothing to read metadata from: let the library read .nfo files or the files’ own tags.'
+  a.kind === 'audio'
+    ? 'Nothing to look up: let the library ask MusicBrainz or LRCLIB. Its songs’ own tags are read as they’re scanned.'
+    : a.kind === 'music'
+    ? 'Nothing to read metadata from: let the library read .nfo files or the files’ own tags, or ask MusicBrainz.'
     : 'Nothing to read metadata from: add a TMDB or TheTVDB key under Settings, or let the library read .nfo files or the files’ own tags.'
 const noKey = (s: MatchSource) => `No ${MATCH_SOURCE_NAMES[s]} key configured. Add one under Settings.`
 
@@ -447,7 +457,7 @@ async function enrichMovie(
 
 // ── Music videos ────────────────────────────────────────────────────────────
 
-const MUSIC_ROW = { id: true, path: true, title: true, artist: true, album: true, year: true, genres: true, embedded: true, mtimeMs: true, posterPath: true } as const
+const MUSIC_ROW = { id: true, path: true, title: true, artist: true, album: true, year: true, genres: true, embedded: true, mtimeMs: true, posterPath: true, durationSec: true } as const
 type MusicRow = {
   id: number
   path: string
@@ -459,6 +469,7 @@ type MusicRow = {
   embedded: string | null
   mtimeMs: number | null
   posterPath: string | null
+  durationSec: number | null
 }
 
 const yearOf = (date: string | null) => (date && /^\d{4}/.test(date) ? Number(date.slice(0, 4)) : null)
@@ -477,9 +488,15 @@ async function enrichMusicVideo(a: Agent, item: MusicRow): Promise<{ read: boole
   const order = a.sources.filter((s) => !isMatchSource(s))
   const nfo = order.includes('nfo') ? await a.nfo.musicVideo(item.path) : null
   const tags = order.includes('embedded') ? await tagsOf(item) : null
-  const { details, used } = mergeDetails(order, { nfo: fromNfo(nfo), embedded: fromTags(tags) })
   const root = rootOf(a, item.path)
   const named = root ? parseMedia(item.path, root, 'music') : item
+  // MusicBrainz, when the library asks it: the album the video's song is on
+  // (the one the files name, if they do), its year, genres and cover.
+  const local = mergeDetails(order, { nfo: fromNfo(nfo), embedded: fromTags(tags) }).details
+  const mb = order.includes('musicbrainz')
+    ? await lookUpMusic({ title: item.title, artist: named.artist ?? local.artist, album: named.album ?? local.album, durationSec: item.durationSec, video: true })
+    : null
+  const { details, used } = mergeDetails(order, { nfo: fromNfo(nfo), embedded: fromTags(tags), musicbrainz: fromMusicBrainz(mb) })
   const cover =
     !item.posterPath && tags?.cover && item.mtimeMs != null ? await embeddedCover(item.path, item.mtimeMs, JSON.stringify(tags)) : null
   const data = {
@@ -497,15 +514,65 @@ async function enrichMusicVideo(a: Agent, item: MusicRow): Promise<{ read: boole
     album: named.album ?? details.album,
     year: named.year ?? yearOf(details.airDate),
     ...(cover ? { posterPath: cover } : {}),
-    metaSources: used,
+    // The album's cover online, in the column a scan leaves alone: art beside
+    // the file or inside it still comes first.
+    ...(mb?.cover ? { tmdbPosterPath: mb.cover } : {}),
+    // MusicBrainz counts once it's found the album, cover and all.
+    metaSources: withSource(used, mb ? 'musicbrainz' : null),
     metaAt: new Date(),
   }
   await prisma.mediaItem.update({ where: { id: item.id }, data })
-  return { read: used != null, genres: data.genres !== item.genres }
+  return { read: data.metaSources != null, genres: data.genres !== item.genres }
 }
 
-function musicWhere(libraryId: number, mode: EnrichMode) {
-  const base = { libraryId, type: 'music', missing: false }
+/** A list of sources ("nfo,embedded") with one more, once. */
+const withSource = (used: string | null, s: string | null) => (s && !(used ?? '').split(',').includes(s) ? [used, s].filter(Boolean).join(',') : used)
+
+const fromMusicBrainz = (mb: MusicFound | null): Partial<Details> | null =>
+  mb ? { album: mb.album, airDate: mb.date, genres: mb.genres } : null
+
+const SONG_ROW = { ...MUSIC_ROW, lyricsPath: true, lyrics: true } as const
+type SongRow = MusicRow & { lyricsPath: string | null; lyrics: string | null }
+
+/**
+ * Look one song up online, as far as its library asks: MusicBrainz for the
+ * album, year and genres its tags don't give, and its album's cover; LRCLIB
+ * for timed lyrics, when it has none beside it or in its tags. Its tags, read
+ * when it was scanned, still come first. `again` asks LRCLIB once more for a
+ * song it had nothing for. Whether anything was read, and whether its genres
+ * changed.
+ */
+async function enrichSong(a: Agent, item: SongRow, again: boolean): Promise<{ read: boolean; genres: boolean }> {
+  const tags = await tagsOf(item)
+  const order: MetadataSource[] = ['embedded', ...a.sources.filter((s) => s === 'musicbrainz')]
+  const mb = order.includes('musicbrainz')
+    ? await lookUpMusic({ title: item.title, artist: item.artist, album: item.album, durationSec: item.durationSec, video: false })
+    : null
+  const { details, used } = mergeDetails(order, { embedded: fromTags(tags), musicbrainz: fromMusicBrainz(mb) })
+  let lyrics: string | undefined
+  const unasked = item.lyrics == null || (again && item.lyrics === '')
+  if (a.sources.includes('lrclib') && unasked && !(await songLyrics({ lyricsPath: item.lyricsPath, embedded: item.embedded, lyrics: null }))) {
+    const found = await lookUpLyrics({ title: item.title, artist: item.artist, album: item.album, durationSec: item.durationSec })
+    // Couldn't ask: left to ask another time.
+    if (found !== undefined) lyrics = found ?? ''
+  }
+  const data = {
+    metaTitle: details.metaTitle,
+    album: item.album ?? details.album,
+    year: item.year ?? yearOf(details.airDate),
+    genres: details.genres,
+    airDate: details.airDate,
+    ...(mb?.cover ? { tmdbPosterPath: mb.cover } : {}),
+    ...(lyrics !== undefined ? { lyrics } : {}),
+    metaSources: withSource(withSource(used, mb ? 'musicbrainz' : null), lyrics ? 'lrclib' : null),
+    metaAt: new Date(),
+  }
+  await prisma.mediaItem.update({ where: { id: item.id }, data })
+  return { read: !!mb || !!lyrics, genres: data.genres !== item.genres }
+}
+
+function musicWhere(libraryId: number, mode: EnrichMode, type: 'music' | 'song' = 'music') {
+  const base = { libraryId, type, missing: false }
   if (mode === 'new') return { ...base, metaAt: null }
   if (mode === 'missing') return { ...base, metaSources: null }
   return base
@@ -815,6 +882,20 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
         genres ||= r.genres
       })
       if (genres) await genresChanged()
+    } else if (library.kind === 'audio') {
+      // A full refresh asks again what this run's lookups remember.
+      if (mode === 'all') forgetMusicLookups()
+      const items = await prisma.mediaItem.findMany({ where: musicWhere(library.id, mode, 'song'), select: SONG_ROW })
+      status.total = items.length
+      let genres = false
+      await runPool(items, CONCURRENCY, async (item) => {
+        status.currentTitle = item.title
+        const r = await enrichSong(a, item, mode === 'all')
+        if (r.read) status.matched++
+        else status.unmatched++
+        genres ||= r.genres
+      })
+      if (genres) await genresChanged()
     }
     // "other" libraries have nothing to read.
   } catch (err) {
@@ -841,8 +922,8 @@ export async function matchNewTitles(libraryId: number): Promise<void> {
       ? await prisma.mediaItem.count({ where: movieWhere(libraryId, 'new', a) })
       : a.kind === 'tv'
         ? await prisma.show.count({ where: { ...showWhere(libraryId, 'new', a), episodes: { some: { type: 'episode', extra: null, missing: false } } } })
-        : a.kind === 'music'
-          ? await prisma.mediaItem.count({ where: musicWhere(libraryId, 'new') })
+        : a.kind === 'music' || a.kind === 'audio'
+          ? await prisma.mediaItem.count({ where: musicWhere(libraryId, 'new', a.kind === 'audio' ? 'song' : 'music') })
           : 0
   if (waiting > 0) await enrichLibrary(libraryId, 'new')
 }

@@ -14,6 +14,7 @@ import path from 'node:path'
 import type { Filler, Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { dataDir } from '../paths.js'
+import { cachedRemoteImage } from '../artworkFiles.js'
 import { programLabel } from '../labels.js'
 import { log } from '../logs.js'
 import { hasSubtitleStream, pickAudioTrack, probeAudioLangs, probeSar } from '../ffprobe.js'
@@ -209,7 +210,10 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     // lyrics, when it has them and the channel puts them first.
     const lines = channel.lyricsFirst ? await songLyrics(mi) : null
     const layout: ScreenLayout = lines ? 'lyrics' : channel.musicScreen === 'visualizer' ? 'visualizer' : 'album'
-    const cover = [mi.posterPath, mi.showPosterPath].find((p): p is string => !!p && fs.existsSync(p)) ?? null
+    // Its own cover, else its album's from the Cover Art Archive, else its artist's picture.
+    const own = mi.posterPath && fs.existsSync(mi.posterPath) ? mi.posterPath : null
+    const online = !own && mi.tmdbPosterPath ? await cachedRemoteImage(mi.tmdbPosterPath, 'w500', 5000).catch(() => null) : null
+    const cover = own ?? online ?? (mi.showPosterPath && fs.existsSync(mi.showPosterPath) ? mi.showPosterPath : null)
     const facts = { id: mi.id, title: mi.title, artist: mi.artist, album: mi.album, year: mi.year, durationSec: mi.durationSec, cover }
     const screen = await songScreen(facts, layout, { w: profile.width, h: profile.height }, seek, lines).catch((e) => {
       log('warn', 'stream', `Channel ${channelNumber}: couldn't draw the screen for ${mi.title}`, String((e as Error)?.stack || e), tag)

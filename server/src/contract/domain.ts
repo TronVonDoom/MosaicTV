@@ -73,14 +73,25 @@ export type ExtraKind = (typeof EXTRA_KINDS)[number]
 
 /** Where a library's metadata can come from, as Plex's agent lists its
  *  sources: Kodi/Jellyfin .nfo files beside the media, the files' own tags,
- *  TMDB and TheTVDB. A library reads the ones it has on, first to last —
- *  TheTVDB after TMDB unless it's moved up, so it fills in what TMDB lacks. */
-export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb', 'tvdb'] as const
+ *  TMDB and TheTVDB — and for music, MusicBrainz (with the Cover Art Archive)
+ *  and LRCLIB's timed lyrics. A library reads the ones it has on, first to
+ *  last — TheTVDB after TMDB unless it's moved up, so it fills in what TMDB
+ *  lacks. */
+export const METADATA_SOURCES = ['nfo', 'embedded', 'tmdb', 'tvdb', 'musicbrainz', 'lrclib'] as const
 export type MetadataSource = (typeof METADATA_SOURCES)[number]
 export const DEFAULT_METADATA_SOURCES: MetadataSource[] = ['nfo', 'tmdb', 'tvdb']
 /** What a music library reads: TMDB and TheTVDB have no music videos, and a
  *  video's own tags (artist, album, year) are most of what there is. */
 export const MUSIC_METADATA_SOURCES: MetadataSource[] = ['nfo', 'embedded']
+
+/** The sources a library of a kind can read. A song goes by its own tags
+ *  first, whatever its library lists; MusicBrainz and LRCLIB are asked only
+ *  when switched on (they're free and keyless, so nothing else asks first). */
+export function metadataChoices(kind: string): MetadataSource[] {
+  if (kind === 'audio') return ['musicbrainz', 'lrclib']
+  if (kind === 'music') return ['nfo', 'embedded', 'musicbrainz']
+  return ['nfo', 'embedded', 'tmdb', 'tvdb']
+}
 
 /** A library's sources as stored ("nfo,tmdb"): known ones, in order, once each. */
 export function asMetadataSources(v: unknown): MetadataSource[] {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
-import { METADATA_SOURCES, MUSIC_METADATA_SOURCES } from '@contract'
+import { metadataChoices } from '@contract'
 import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type SourceKeys } from '../lib/api'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
@@ -34,6 +34,14 @@ const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string; music?:
     label: 'TheTVDB',
     hint: 'A second match — posters, summaries, cast and episode details, and its DVD and absolute orders (needs a key in Settings). After TMDB it fills in what TMDB lacks; above it, it goes first.',
   },
+  musicbrainz: {
+    label: 'MusicBrainz',
+    hint: 'The album each song is on, the year it came out, its genres, and its cover from the Cover Art Archive — for what the files don’t say. Free, no key; asks musicbrainz.org, a request a second.',
+  },
+  lrclib: {
+    label: 'LRCLIB',
+    hint: 'Timed lyrics for songs with none beside them or in their tags — what the Lyrics screen shows. Free, no key; asks lrclib.net.',
+  },
 }
 
 /**
@@ -43,9 +51,10 @@ const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string; music?:
  */
 function MetadataSources({ lib, disabled, onSaved }: { lib: Library; disabled: boolean; onSaved: (sources: MetadataSource[]) => void }) {
   const [saving, setSaving] = useState(false)
-  // A music library reads only what's on disk: TMDB and TheTVDB have no music videos.
+  // What a library of its kind can read: music has no TMDB or TheTVDB, and a
+  // song's own tags always come first, so a song library lists only what's online.
   const music = lib.kind === 'music'
-  const choices = music ? MUSIC_METADATA_SOURCES : METADATA_SOURCES
+  const choices = metadataChoices(lib.kind)
   const on = lib.metadataSources.filter((s) => choices.includes(s))
   const rows = [...on, ...choices.filter((s) => !on.includes(s))]
   async function save(next: MetadataSource[]) {
@@ -69,7 +78,11 @@ function MetadataSources({ lib, disabled, onSaved }: { lib: Library; disabled: b
   return (
     <div className="mt-3 pt-3 border-t border-edge/60">
       <div className="text-[12.5px] font-medium text-ink-soft">Metadata</div>
-      <p className="text-[11.5px] text-ink-faint mb-2">Read first to last — the first to give a detail wins, the rest fill in what it doesn’t.</p>
+      <p className="text-[11.5px] text-ink-faint mb-2">
+        {lib.kind === 'audio'
+          ? 'Each song’s own tags come first, read as it’s scanned; these fill in what they don’t say.'
+          : 'Read first to last — the first to give a detail wins, the rest fill in what it doesn’t.'}
+      </p>
       <ol className="space-y-1">
         {rows.map((s) => {
           const i = on.indexOf(s)
@@ -347,7 +360,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 />
               </div>
 
-              {(lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music') && (
+              {(lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music' || lib.kind === 'audio') && (
                 <MetadataSources
                   lib={lib}
                   disabled={busy}

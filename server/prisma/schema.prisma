@@ -542,6 +542,9 @@ model MediaItem {
   disc             Int?
   // A song's timed lyrics beside it ("<song>.lrc"); its tags may carry some too.
   lyricsPath       String?
+  // Timed lyrics found on LRCLIB (LRC), for a song with none of its own; ""
+  // when it was asked and has none, null when not asked yet.
+  lyrics           String?
   durationSec      Float?
   width            Int?
   height           Int?

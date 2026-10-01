@@ -45,7 +45,9 @@ export function useLibraryJobs(onFinish?: () => void) {
         title: `Refresh all metadata for “${lib.name}”?`,
         message:
           lib.kind === 'music'
-            ? 'Every music video is read again from its .nfo file and its own tags, whichever the library reads. Its artist, album and year stay as its folders and name have them; the metadata fills in only what they don’t say.'
+            ? 'Every music video is read again from its .nfo file, its own tags and MusicBrainz, whichever the library reads. Its artist, album and year stay as its folders and name have them; the metadata fills in only what they don’t say.'
+            : lib.kind === 'audio'
+            ? 'Every song is looked up again on MusicBrainz and LRCLIB, whichever the library asks — a request a second to MusicBrainz, so a big library takes a while. What a song’s own tags say still comes first.'
             : `Every ${noun}${lib.kind === 'tv' ? ' and episode' : ''} is read again from the library’s metadata sources, and automatic matches are looked up again — through the other source’s match where it lists one, else by title and year. A match you fixed by hand keeps its match and gets fresh details; one you unmatched stays unmatched. Takes a few minutes for a big library.`,
         confirmLabel: 'Refresh all',
       }))
@@ -90,7 +92,9 @@ export function LibraryActions({
   const noKey = online ? undefined : 'needs a TMDB or TheTVDB key'
   // A library that reads .nfo files or the files' tags has something to
   // refresh from without an online source.
-  const readsLocal = lib.metadataSources.some((s) => s === 'nfo' || s === 'embedded')
+  const readsLocal = lib.metadataSources.some((s) => s === 'nfo' || s === 'embedded' || s === 'musicbrainz')
+  // A song library reads only what's online (its songs' tags are read as they're scanned).
+  const looksUp = lib.metadataSources.some((s) => s === 'musicbrainz' || s === 'lrclib')
   const items: MenuItem[] = [
     {
       label: 'Force rescan…',
@@ -118,15 +122,15 @@ export function LibraryActions({
           },
         ] satisfies MenuItem[])
       : []),
-    // Music videos have nothing to match online: their .nfo and tags, read again.
-    ...(lib.kind === 'music'
+    // Music has nothing to match by hand: its sources, read again.
+    ...(lib.kind === 'music' || lib.kind === 'audio'
       ? ([
           'divider',
           {
             label: 'Refresh all metadata…',
             icon: 'download',
-            hint: readsLocal ? undefined : 'reads no .nfo or tags',
-            disabled: jobs.busy || !readsLocal,
+            hint: (lib.kind === 'audio' ? looksUp : readsLocal) ? undefined : lib.kind === 'audio' ? 'asks no one online' : 'reads no .nfo or tags',
+            disabled: jobs.busy || !(lib.kind === 'audio' ? looksUp : readsLocal),
             onSelect: () => jobs.startMetadata(lib, true),
           },
         ] satisfies MenuItem[])

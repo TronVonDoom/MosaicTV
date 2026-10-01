@@ -167,11 +167,11 @@ async function processFile(
     showTitle: show?.title ?? null,
     season: parsed.season,
     episode: parsed.episode,
-    // A music video's name leaves out what its .nfo or tags filled in.
-    year: song ? song.year : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
+    // Music's name and tags leave out what its .nfo or MusicBrainz filled in.
+    year: song ? song.year ?? existing?.year ?? null : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
     artist: song ? song.artist : parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
-    album: song ? song.album : parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
-    ...(song ? { track: song.track ?? null, disc: song.disc ?? null, genres: tags?.genre ?? null, lyricsPath } : {}),
+    album: song ? song.album ?? existing?.album ?? null : parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
+    ...(song ? { track: song.track ?? null, disc: song.disc ?? null, genres: tags?.genre ?? existing?.genres ?? null, lyricsPath } : {}),
     extra: parsed.extra,
     durationSec: unchanged ? existing!.durationSec : probe?.durationSec ?? null,
     width: unchanged ? existing!.width : probe?.width ?? null,

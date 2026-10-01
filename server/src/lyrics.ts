@@ -39,14 +39,17 @@ export function parseLrc(text: string): LyricLine[] {
 /** Enough timed lines to follow the song. */
 export const hasTimedLyrics = (lines: LyricLine[] | null): lines is LyricLine[] => !!lines && lines.filter((l) => l.text).length >= 3
 
-/** A song's timed lyrics: its .lrc beside it, else timed lyrics in its tags. */
-export async function songLyrics(mi: { lyricsPath: string | null; embedded: string | null }): Promise<LyricLine[] | null> {
+/** A song's timed lyrics: its .lrc beside it, else timed lyrics in its tags,
+ *  else what LRCLIB had for it (MediaItem.lyrics). */
+export async function songLyrics(mi: { lyricsPath: string | null; embedded: string | null; lyrics: string | null }): Promise<LyricLine[] | null> {
   if (mi.lyricsPath) {
     const text = await fs.readFile(mi.lyricsPath, 'utf8').catch(() => null)
     const lines = text ? parseLrc(text) : []
     if (hasTimedLyrics(lines)) return lines
   }
-  const tagged = storedTags(mi.embedded)?.lyrics
-  const lines = tagged ? parseLrc(tagged) : []
-  return hasTimedLyrics(lines) ? lines : null
+  for (const text of [storedTags(mi.embedded)?.lyrics, mi.lyrics]) {
+    const lines = text ? parseLrc(text) : []
+    if (hasTimedLyrics(lines)) return lines
+  }
+  return null
 }

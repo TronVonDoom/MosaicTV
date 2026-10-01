@@ -7,7 +7,7 @@ import { LibraryJobProgress, useLibraryJobs } from '../LibraryActions'
 import { Badge, Button, Input, Menu } from '../ui'
 import { SettingRow, SettingsGroup, SettingsSection } from './SettingsKit'
 
-const SOURCE_NAME: Record<MetadataSource, string> = { tmdb: 'TMDB', tvdb: 'TheTVDB', nfo: '.nfo files', embedded: 'file tags' }
+const SOURCE_NAME: Record<MetadataSource, string> = { tmdb: 'TMDB', tvdb: 'TheTVDB', nfo: '.nfo files', embedded: 'file tags', musicbrainz: 'MusicBrainz', lrclib: 'LRCLIB' }
 
 const link = 'text-indigo-300 hover:text-indigo-200'
 

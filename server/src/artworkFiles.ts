@@ -30,7 +30,7 @@ export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: 
     ? path.join(tmdbCacheDir(), `tvdb_${createHash('sha1').update(art).digest('hex').slice(0, 24)}${/^\.(jpe?g|png|webp)$/.test(ext) ? ext : '.jpg'}`)
     : path.join(tmdbCacheDir(), `${size}_${path.basename(art)}`)
   if (fs.existsSync(file)) return file
-  const source = address ? 'TheTVDB' : 'TMDB'
+  const source = !address ? 'TMDB' : /coverartarchive|archive\.org/i.test(art) ? 'Cover Art Archive' : 'TheTVDB'
 
   try {
     const res = await fetch(address ? art : `${TMDB_IMAGE_BASE}/${size}${art}`, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : undefined)
@@ -164,12 +164,17 @@ export async function posterFileFor(
   item: { libraryId: number; type: string; showTitle: string | null; posterPath: string | null; showPosterPath: string | null; tmdbPosterPath: string | null },
   width = 240,
 ): Promise<string | null> {
-  // An episode wears its show's poster; a music video with no cover of its
-  // own, its artist's picture.
-  const local =
-    item.type === 'episode' ? item.showPosterPath ?? item.posterPath : item.type === 'music' || item.type === 'song' ? item.posterPath ?? item.showPosterPath : item.posterPath
+  const music = item.type === 'music' || item.type === 'song'
+  // An episode wears its show's poster. Music its own cover, else its album's
+  // found online, and only then its artist's picture.
+  const local = item.type === 'episode' ? item.showPosterPath ?? item.posterPath : item.posterPath
   if (local && fs.existsSync(local)) return (await localThumb(local, width)) ?? local
-  let tmdbPath = item.tmdbPosterPath
+  if (music && item.tmdbPosterPath) {
+    const online = await cachedRemoteImage(item.tmdbPosterPath, 'w342', 3000)
+    if (online) return online
+  }
+  if (music && item.showPosterPath && fs.existsSync(item.showPosterPath)) return (await localThumb(item.showPosterPath, width)) ?? item.showPosterPath
+  let tmdbPath = music ? null : item.tmdbPosterPath
   if (item.type === 'episode' && item.showTitle) {
     const show = await prisma.show.findFirst({
       where: { libraryId: item.libraryId, title: item.showTitle },
