@@ -27,6 +27,8 @@ Channel
 - **Logo** — shown in players' guides, and doubles as the default on-screen
   watermark. See [Branding](branding.md).
 - **Coming up next** — an optional card naming the next program, with its poster.
+- **Music** — what a song airs over, and whether lyrics come first (see
+  [Music](#music)).
 
 ## Collections
 
@@ -34,11 +36,14 @@ Each channel manages its own collections (**Collections** tab). A collection
 resolves to a set of playable items from two sources, combined and deduped:
 
 1. **Members** — hand-picked entries added via the search box: a whole **show**,
-   a single **season** of one, an individual **episode**, or a **movie**. A
-   collection can hold any mix. **Drag members to reorder them**: *Your order*,
+   a single **season** of one, an individual **episode**, a **movie**, an
+   **artist** (every music video or song of theirs in one library, as they came
+   out — year, album, then track — and any added later), or one **music video**
+   or **song**. A collection can hold any mix. **Drag members to reorder them**: *Your order*,
    *Release order* and *Rotate shows* all follow that arrangement.
-2. **Smart filter** — optional: by library, media type, exact show, title
-   search, or genre. Filter results have no hand-picked position, so they come
+2. **Smart filter** — optional: by library, media type (music videos and songs
+   included), exact show, title search (which matches an artist too, so music
+   videos + "Madonna" is a Madonna block from every library), or genre. Filter results have no hand-picked position, so they come
    after the members, show by show, A–Z.
 
 Only playable items count (files that exist and have a known duration).
@@ -69,6 +74,24 @@ order set once — override it per slot when you actually want them to differ.
 
 **What airs** lists what the collection resolves to, in its order — the
 quickest way to check an arrangement came out the way you meant.
+
+## Music
+
+A music video airs like any program. A **song** has no picture, so it airs over
+a **now playing** screen drawn for it, set on the channel's **General** tab
+under **Music**:
+
+- **Album** (the default) — the cover large over a blur of itself, the title,
+  artist, album and year, and a progress bar with the time.
+- **Visualizer** — a spectrum drawn from the song as it plays, with the song
+  along the bottom.
+- **If lyrics exist, show lyrics first** — a song with timed lyrics (a `.lrc`
+  beside it, lyrics in its tags, or LRCLIB's) shows them instead: the cover and
+  song down the side, the line being sung lit, the rest scrolling past.
+
+The last 20 seconds of a song bring in the **Up next** card. A change to these
+re-draws the song on air in the new look. A channel can mix songs, music
+videos, shows and movies however its collections and schedule have them.
 
 ## Broadcast episodes (multi-segment shows)
 

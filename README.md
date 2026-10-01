@@ -30,6 +30,7 @@ simple to run and pleasant to configure.
 - 🧩 **Multi-segment episodes, aired as broadcast** — cartoons split into 7-minute shorts play as the half-hour episodes they aired as, even with a short borrowed from another show.
 - 📺 **Real commercial breaks** — breaks at each episode's act breaks (found from chapters or fades to black), filled from a folder of your old bumpers, promos and commercials.
 - 🎬 **Broadcast polish** — station logos and watermarks, station breaks with generated idents and music, and a frosted-glass "up next" card with the next show's poster.
+- 🎵 **Music channels** — music videos, or songs from your own files airing over a now-playing screen: the album art, a spectrum drawn from the song, or its lyrics as they're sung. MusicBrainz and LRCLIB fill in albums, covers and lyrics, free.
 - 🔍 **A library built in** — scanner, TMDB and TheTVDB artwork and metadata, show pages and a searchable poster wall.
 - 📡 **Works with what you watch on** — M3U + XMLTV for Jellyfin, Emby, VLC, TiviMate and any IPTV app, and a built-in HDHomeRun tuner for Plex (no Threadfin needed).
 - ⚡ **GPU encoding** — NVIDIA, Intel QuickSync, VAAPI, AMD AMF or Apple VideoToolbox, verified on your host, with a clean CPU fallback.
@@ -131,10 +132,10 @@ starts.
 
 ### Your library, with artwork
 
-A Plex-style scanner indexes TV, movies and music videos (incremental,
+A Plex-style scanner indexes TV, movies, music videos and music (incremental,
 ffprobe-backed), files each movie's and show's extras under it, and reads
 metadata the way Plex's agents do — .nfo files, the files' own tags, TMDB and
-TheTVDB, in the order you set: posters, backdrops, summaries, ratings, cast, and every
+TheTVDB (and for music, MusicBrainz and LRCLIB), in the order you set: posters, backdrops, summaries, ratings, cast, and every
 episode's name, air date and still, in the episode order the show follows. Browse each library as a
 poster wall with search and sort, open a show on its backdrop, and fetch or
 re-match metadata per library from Settings. Thumbnails are sized to the tile

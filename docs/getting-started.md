@@ -17,8 +17,8 @@ last; the whole thing takes about ten minutes plus scan time.
   host mount is `/mnt/user/media` → `/media`, then the host folder
   `/mnt/user/media/tv` is `/media/tv` here. The folder picker only browses
   under `/media`.
-- **Type** — TV Shows, Movies, or Music Videos. This controls how filenames
-  are parsed.
+- **Type** — TV Shows, Movies, Music Videos, or Music (audio files). This
+  controls how filenames are parsed.
 
 Everything in the folders is indexed, as in Plex — season 0 (shown as
 **Specials**) and **extras** too: featurettes, trailers, interviews and deleted
@@ -45,8 +45,28 @@ Music/Artist/Title.mkv
 Music/Artist - Title.mkv
 ```
 
+A music video's title comes off its name without the YouTube noise —
+"(Official Music Video)", "[4K]", yt-dlp's `[id]`, a repeated "Artist - ".
+Its picture is its own (`<video>.jpg`), else its album folder's cover, else the
+cover inside the file (as yt-dlp and Pinchflat embed them); an `artist.jpg` in
+the artist's folder pictures the artist.
+
 A music-video channel shows a lower-third naming the track as each one starts,
 and its guide entries read "Artist – Title" with the album as the sub-title.
+
+**Music** holds songs — MP3, FLAC, M4A/AAC, Ogg, Opus, WAV, WMA, AIFF and the
+like. A song goes by its own tags first (title, artist, album, year, track,
+disc), then by its folders and name:
+
+```
+Music/Artist/Album/03 - Title.flac
+Music/Artist - Title.mp3
+```
+
+Its cover is its album folder's (`cover.jpg`, `folder.jpg`, `front.jpg`) or the
+one inside the file. Timed lyrics come from a `.lrc` file beside it
+(`03 - Title.lrc`) or from its tags. A song has no picture, so it airs over a
+**now playing** screen — see [Channels](channels.md#music).
 
 ## 2. Scan it
 
@@ -92,6 +112,23 @@ it rather than showing another episode's; likewise when TheTVDB names the
 episode at a number otherwise than TMDB does (the first source in the list wins).
 Local artwork (`poster.jpg`, `folder.jpg`, Plex/Kodi/Jellyfin naming) is used
 first when present.
+
+**Music** has sources of its own. A Music Videos library reads its Kodi
+`<musicvideo>` .nfo files and its videos' own tags (both on to start with); a
+Music library reads every song's tags as it's scanned. Either can also switch
+on, free and with no key:
+
+- **MusicBrainz** — the album a song is on, the year it first came out, its
+  genres, and the album's cover from the Cover Art Archive, for whatever the
+  files don't say. It's asked a request a second, as MusicBrainz asks, so a big
+  library takes a while the first time; each album is asked about once for all
+  its songs, and live bootlegs and compilations are passed over for the studio
+  album.
+- **LRCLIB** (Music libraries) — timed lyrics for songs that have none of their
+  own, for the Lyrics screen.
+
+A music video's artist, album, title and year are its folders' and name's: the
+sources only fill in what those don't say, so an artist's picks stay put.
 
 A movie or show is found by its title and year — or, like Plex and Jellyfin, by
 an id in its folder name: `The Matrix (1999) {tmdb-603}`, `{imdb-tt0133093}`,
