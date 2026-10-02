@@ -690,6 +690,32 @@ type ReplanOptions = {
   now?: number
 }
 
+/**
+ * Where the timeline first goes missing between now and `end` (the next
+ * program a replan would cut at, else the end of what's built): programs gone
+ * with their files — renamed, deleted — take their guide rows with them, and a
+ * replan that picked up at the next program still there would keep the hole,
+ * the channel off the air until it. The hole starts where what's on air ends,
+ * or, with nothing on air, a moment from now; null when the timeline runs
+ * unbroken to `end`. Before `begins` (where the timeline starts) is no hole.
+ */
+async function firstGap(channelId: number, now: number, end: Date | null, begins: Date | null): Promise<Date | null> {
+  if (begins && begins.getTime() > now) now = begins.getTime()
+  if (!end || end.getTime() <= now + REPLAN_MARGIN_MS) return null
+  const rows = await prisma.playoutItem.findMany({
+    where: { channelId, stopTime: { gt: new Date(now) }, startTime: { lt: end } },
+    orderBy: { startTime: 'asc' },
+    select: { startTime: true, stopTime: true },
+  })
+  let edge = now
+  for (const r of rows) {
+    if (r.startTime.getTime() > edge + 1000) break
+    edge = Math.max(edge, r.stopTime.getTime())
+  }
+  if (edge + 1000 >= end.getTime()) return null
+  return new Date(edge > now ? edge : now + REPLAN_MARGIN_MS)
+}
+
 async function replanInner(channelId: number, opts: ReplanOptions): Promise<ReplanResult> {
   const now = opts.now ?? Date.now()
   const after = { channelId, startTime: { gte: new Date(now + REPLAN_MARGIN_MS) } }
@@ -710,6 +736,20 @@ async function replanInner(channelId: number, opts: ReplanOptions): Promise<Repl
         select: { startTime: true, state: true },
       })
   const until = new Date(now + (await horizonHours()) * 3600 * 1000)
+  // A hole before the cut (or before the end of what's built, with no cut):
+  // rebuilt from where it starts, so the channel's back on the air from now,
+  // not from whenever the next surviving program was.
+  const built = await prisma.channel.findUnique({ where: { id: channelId }, select: { playoutAnchor: true, playoutCursor: true, playoutState: true } })
+  const gap = await firstGap(channelId, now, cut?.startTime ?? built?.playoutCursor ?? null, built?.playoutAnchor ?? null)
+  if (gap) {
+    const state = opts.restart ? JSON.stringify(freshState()) : cut?.state ?? built?.playoutState ?? null
+    await prisma.$transaction([
+      prisma.playoutItem.deleteMany({ where: { channelId, startTime: { gte: gap } } }),
+      prisma.channel.update({ where: { id: channelId }, data: { playoutCursor: gap, playoutState: state } }),
+    ])
+    log('info', 'playout', `Channel ${channelId}: the guide had nothing from ${gap.toLocaleString()} on (programs gone with their files) — rebuilt from there`)
+    return { from: gap, built: await buildPlayoutInner(channelId, until) }
+  }
   if (cut) {
     const state = opts.restart ? JSON.stringify(freshState()) : cut.state
     await prisma.$transaction([

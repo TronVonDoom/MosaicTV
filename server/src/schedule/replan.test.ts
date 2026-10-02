@@ -161,3 +161,27 @@ test('restart begins every collection at its first episode, from the next progra
   const firstAlpha = (await timeline(fx.channelId)).find((r) => r.start >= cut.start && r.mediaItemId != null && alphaIds.has(r.mediaItemId))
   assert.equal(firstAlpha?.mediaItemId, alpha1.id)
 })
+
+test('programs gone from the guide leave no hole: a rebuild or a restart fills it from now', async () => {
+  const onAir = checkpoints[Math.floor(checkpoints.length / 4)]
+  const now = onAir.start + 60_000
+  const row = original.find((r) => r.start === onAir.start)!
+  const holeEnd = row.stop + 10 * HOUR
+  for (const restart of [false, true]) {
+    for (const gone of ['after what is on', 'what is on too'] as const) {
+      await fromScratch(fx.channelId, fx.start, fx.until)
+      // What a rescan after renaming files does: their guide rows go with them —
+      // the next ten hours, and the program on air as well in the second case.
+      const from = gone === 'what is on too' ? row.start : row.stop
+      await prisma.playoutItem.deleteMany({ where: { channelId: fx.channelId, startTime: { gte: new Date(from), lt: new Date(holeEnd) } } })
+      const res = await replanPlayout(fx.channelId, { now, restart })
+      const label = `${restart ? 'restart' : 'rebuild'}, ${gone}`
+      // From the end of what's on air, or, with nothing on, a moment from now.
+      assert.equal(res.from?.getTime(), gone === 'what is on too' ? now + 20_000 : row.stop, label)
+      const after = (await timeline(fx.channelId)).filter((r) => r.stop > res.from!.getTime())
+      assert.equal(after[0].start, res.from!.getTime(), `${label}: starts where the hole did`)
+      for (let i = 1; i < after.length; i++) assert.ok(after[i].start - after[i - 1].stop <= 1000, `${label}: a hole at ${new Date(after[i - 1].stop).toISOString()}`)
+      assert.ok(after[after.length - 1].stop > holeEnd, `${label}: built on past where the hole was`)
+    }
+  }
+})

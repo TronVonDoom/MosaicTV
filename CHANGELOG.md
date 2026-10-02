@@ -63,6 +63,11 @@ Music filed as a music app files it, and orders that speak its language.
   filed in a disc's folder (Album/Disc 2/) is one album, its songs by disc,
   and an album called "Disc 2" is no more. Each Music library is scanned
   once after the upgrade to put it together; nothing is probed again.
+- **No hole in the guide after renaming files.** Renamed or deleted files take
+  their guide entries with them at the next scan, and a rebuild — or Start
+  over — picked up at the next program still in the guide, which could be
+  days away: the channel sat off the air until then. A rebuild now starts
+  where the hole does — the end of what's on air, or a moment from now.
 - **A calmer now-playing screen.** The album look sits in the middle half of
   the frame — the cover in one column, the song beside it in the next — in
   smaller type, and a long title or album name takes a second line instead
