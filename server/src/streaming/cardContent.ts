@@ -6,6 +6,7 @@
 import type { MediaItem } from '@prisma/client'
 import { prisma } from '../db.js'
 import { posterFileFor } from '../metadata/artworkFiles.js'
+import { creditOf } from '../contract/index.js'
 import type { CardContent } from './card.js'
 
 /**
@@ -104,7 +105,7 @@ export async function upNextContent(next: {
       eyebrow: 'Up next',
       time,
       title: mi.title,
-      subtitle: [mi.artist, mi.album].filter(Boolean).join(' — ') || null,
+      subtitle: [creditOf(mi), mi.album].filter(Boolean).join(' — ') || null,
       meta: mi.year ? [String(mi.year)] : [],
       art: await artFor(mi),
     }
@@ -126,7 +127,7 @@ export async function nowPlayingContent(mi: MediaItem): Promise<CardContent> {
   return {
     eyebrow: 'Now playing',
     title: mi.title,
-    subtitle: [mi.artist, mi.album].filter(Boolean).join(' — ') || null,
+    subtitle: [creditOf(mi), mi.album].filter(Boolean).join(' — ') || null,
     meta: mi.year ? [String(mi.year)] : [],
     art: await artFor(mi),
   }

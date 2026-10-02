@@ -2,9 +2,9 @@
 // styles the UI shows. No knowledge of endpoints — resource URL builders live
 // in api.ts alongside the client.
 
-// Shared with the server's schedule warnings (contract/format.ts).
-export { formatDays, minutesToTime } from '@contract'
-import type { ExtraKind } from '@contract'
+// Shared with the server's schedule warnings and listings (contract/format.ts).
+export { creditOf, formatDays, minutesToTime } from '@contract'
+import { creditOf, type ExtraKind } from '@contract'
 
 /** "S01E02", or '' when the item isn't a numbered episode. */
 export function episodeCode(m: { season?: number | null; episode?: number | null }): string {
@@ -24,11 +24,12 @@ export function episodeCode(m: { season?: number | null; episode?: number | null
  * show's extra (the scanner sets it nowhere else), so that one check covers both.
  */
 export function programLabel(
-  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null; artist?: string | null },
+  m: { title: string; showTitle?: string | null; season?: number | null; episode?: number | null; extra?: string | null; artist?: string | null; trackArtist?: string | null },
   opts: { withTitle?: boolean } = {},
 ): string {
-  // Only a music video has an artist.
-  if (m.artist) return `${m.artist} – ${m.title}`
+  // Only music has an artist: who the song credits, else its album's.
+  const credit = creditOf(m)
+  if (credit) return `${credit} – ${m.title}`
   // A movie's extra says what it is: a trailer is often named for its film.
   if (!m.showTitle) return m.extra ? `${m.title} (${EXTRA_LABELS[m.extra as ExtraKind] ?? 'Extra'})` : m.title
   // An extra's number (a deleted scene filed as S02E05) isn't an episode's.

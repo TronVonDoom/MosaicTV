@@ -415,6 +415,7 @@ channelsRouter.get('/:id/playout', async (req, res) => {
           episode: true,
           type: true,
           artist: true,
+          trackArtist: true,
           durationSec: true,
           posterPath: true,
           tmdbPosterPath: true,

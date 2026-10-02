@@ -8,20 +8,20 @@
 
 import { prisma } from '../db.js'
 import { episodeCode } from '../labels.js'
-import type { AiredProgram, EpisodeAired } from '../contract/index.js'
+import { creditOf, type AiredProgram, type EpisodeAired } from '../contract/index.js'
 
 /** How long a finished program stays in the guide before it's archived. */
 export const GUIDE_GRACE_MS = 3600 * 1000
 /** How long history is kept. */
 export const KEEP_DAYS = 90
 
-type MediaForTitle = { title: string; showTitle: string | null; showId: number | null; season: number | null; episode: number | null; type: string; year: number | null; artist: string | null }
+type MediaForTitle = { title: string; showTitle: string | null; showId: number | null; season: number | null; episode: number | null; type: string; year: number | null; artist: string | null; trackArtist?: string | null }
 
 /** A program's title and subtitle as the history shows them. */
 export function airedTitle(m: MediaForTitle | null, rowTitle: string | null): { title: string; subtitle: string | null } {
   if (!m) return { title: rowTitle ?? 'Program', subtitle: null }
   if (m.showTitle) return { title: m.showTitle, subtitle: [episodeCode(m), m.title].filter(Boolean).join(' · ') || null }
-  return { title: m.title, subtitle: m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null }
+  return { title: m.title, subtitle: m.type === 'music' || m.type === 'song' ? creditOf(m) : m.year != null ? String(m.year) : null }
 }
 
 /**
@@ -54,7 +54,7 @@ export function joinActs<T extends { groupKey: string | null; mediaItemId: numbe
   return out
 }
 
-const MEDIA = { select: { title: true, showTitle: true, showId: true, season: true, episode: true, type: true, year: true, artist: true } } as const
+const MEDIA = { select: { title: true, showTitle: true, showId: true, season: true, episode: true, type: true, year: true, artist: true, trackArtist: true } } as const
 
 /**
  * Move a channel's programs that ended more than an hour before `now` from the

@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import type { Collection, ExtraKind, MediaSearchResult, Stored } from '../contract/index.js'
+import { creditOf, type Collection, type ExtraKind, type MediaSearchResult, type Stored } from '../contract/index.js'
 import type { CollectionItem } from '@prisma/client'
 import { prisma } from '../db.js'
 import { warmFiller } from '../streaming/filler.js'
-import { asPlaybackOrder, channelAirs, collectionCount, pickAirs, resolveCollection, type Airs } from '../schedule/collections.js'
+import { asPlaybackOrder, byArtistName, channelAirs, collectionCount, isByName, pickAirs, resolveCollection, type Airs } from '../schedule/collections.js'
 import { scheduleChanged } from '../schedule/scheduleChanges.js'
 import { CollectionCreate, CollectionUpdate, compareTitles, MemberCreate, MemberUpdate, Reorder } from '../contract/index.js'
 import { readBody } from '../validate.js'
@@ -58,8 +58,8 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
       : [],
     artists.length
       ? prisma.mediaItem.findMany({
-          where: { missing: false, type: { in: ['music', 'song'] }, extra: null, OR: artists.map((i) => ({ libraryId: i.libraryId ?? undefined, artist: i.artist })) },
-          select: { id: true, type: true, libraryId: true, artist: true, album: true, year: true, posterPath: true, tmdbPosterPath: true, showPosterPath: true },
+          where: { missing: false, type: { in: ['music', 'song'] }, extra: null, OR: artists.map((i) => ({ libraryId: i.libraryId ?? undefined, ...byArtistName(i.artist) })) },
+          select: { id: true, type: true, libraryId: true, artist: true, trackArtist: true, album: true, year: true, posterPath: true, tmdbPosterPath: true, showPosterPath: true },
           orderBy: { id: 'asc' },
         })
       : [],
@@ -71,7 +71,7 @@ async function memberMeta(items: CollectionItem[], airsOf: (i: CollectionItem) =
       // first video's or song's art, stands in for them. An album: its cover.
       const theirs = videos.filter(
         (v) =>
-          v.artist === it.artist &&
+          isByName(v, it.artist) &&
           (it.libraryId == null || v.libraryId === it.libraryId) &&
           (it.kind !== 'album' || v.album === it.album),
       )
@@ -306,11 +306,12 @@ collectionsRouter.get('/search', async (req, res) => {
         })
       : [],
     // Videos and songs whose OWN title matches, as with episodes: an artist
-    // match is the artist's entry.
+    // match is the artist's entry. A song credited to someone it isn't filed
+    // under (a singer on a soundtrack) turns up by their name too.
     music
       ? prisma.mediaItem.findMany({
-          where: { type: { in: musicTypes }, extra: null, missing: false, title: { contains: q } },
-          select: { id: true, type: true, libraryId: true, title: true, artist: true, year: true },
+          where: { type: { in: musicTypes }, extra: null, missing: false, OR: [{ title: { contains: q } }, { trackArtist: { contains: q } }] },
+          select: { id: true, type: true, libraryId: true, title: true, artist: true, trackArtist: true, year: true },
           orderBy: [{ artist: 'asc' }, { title: 'asc' }],
           take: take(8),
         })
@@ -381,7 +382,7 @@ collectionsRouter.get('/search', async (req, res) => {
       mediaItemId: m.id,
       libraryId: m.libraryId,
       title: m.title,
-      artist: m.artist,
+      artist: creditOf(m),
       year: m.year,
     })),
   ]
@@ -471,7 +472,7 @@ collectionsRouter.post('/:id/items', async (req, res) => {
   if (showTitle != null && !show) return res.status(404).json({ error: `No show called "${showTitle}"` })
   if (pick.kind === 'artist' || pick.kind === 'album') {
     const album = pick.kind === 'album' ? { album: pick.album } : {}
-    const theirs = await prisma.mediaItem.count({ where: { libraryId: pick.libraryId ?? undefined, type: { in: ['music', 'song'] }, artist: pick.artist, ...album } })
+    const theirs = await prisma.mediaItem.count({ where: { libraryId: pick.libraryId ?? undefined, type: { in: ['music', 'song'] }, ...byArtistName(pick.artist), ...album } })
     if (theirs === 0) {
       const what = pick.kind === 'album' ? `No album "${pick.album}" by "${pick.artist}"` : `No music by "${pick.artist}"`
       return res.status(404).json({ error: `${what} in that library` })

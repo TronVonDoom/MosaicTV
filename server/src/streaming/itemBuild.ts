@@ -16,6 +16,7 @@ import { prisma } from '../db.js'
 import { dataDir } from '../paths.js'
 import { cachedRemoteImage } from '../metadata/artworkFiles.js'
 import { programLabel } from '../labels.js'
+import { creditOf } from '../contract/index.js'
 import { log } from '../logs.js'
 import { hasSubtitleStream, pickAudioTrack, probeAudioLangs, probeSar } from '../ffprobe.js'
 import { effectiveAudioLanguage, globalAudioLanguage } from '../audio.js'
@@ -214,7 +215,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     const own = mi.posterPath && fs.existsSync(mi.posterPath) ? mi.posterPath : null
     const online = !own && mi.tmdbPosterPath ? await cachedRemoteImage(mi.tmdbPosterPath, 'w500', 5000).catch(() => null) : null
     const cover = own ?? online ?? (mi.showPosterPath && fs.existsSync(mi.showPosterPath) ? mi.showPosterPath : null)
-    const facts = { id: mi.id, title: mi.title, artist: mi.artist, album: mi.album, year: mi.year, durationSec: mi.durationSec, cover }
+    const facts = { id: mi.id, title: mi.title, artist: creditOf(mi), album: mi.album, year: mi.year, durationSec: mi.durationSec, cover }
     const screen = await songScreen(facts, layout, { w: profile.width, h: profile.height }, seek, lines).catch((e) => {
       log('warn', 'stream', `Channel ${channelNumber}: couldn't draw the screen for ${mi.title}`, String((e as Error)?.stack || e), tag)
       return null

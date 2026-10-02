@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
 import { api, ART, artworkUrl, type MediaItemDetail } from '../lib/api'
-import { episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
+import { creditOf, episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
 import { describeMatch, isMatched, MatchLinks, matchTarget, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import CastRow from './CastRow'
 import FileDetails from './title/FileDetails'
@@ -105,7 +105,7 @@ export default function MediaDetailModal({
         : item.type === 'movie'
           ? 'Movie'
           : item.type === 'music' || item.type === 'song'
-            ? [item.artist, item.album].filter(Boolean).join(' · ') || 'Music video'
+            ? [creditOf(item), item.album].filter(Boolean).join(' · ') || 'Music video'
             : null
 
   return (

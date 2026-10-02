@@ -7,7 +7,7 @@
 
 import { prisma } from '../db.js'
 import { episodeCode } from '../labels.js'
-import type { ChannelNow as ChannelNowDTO, NowUnit } from '../contract/index.js'
+import { creditOf, type ChannelNow as ChannelNowDTO, type NowUnit } from '../contract/index.js'
 
 type MediaForNow = {
   id: number
@@ -19,6 +19,7 @@ type MediaForNow = {
   episode: number | null
   year: number | null
   artist: string | null
+  trackArtist?: string | null
   overview: string | null
   genres: string | null
   rating: number | null
@@ -122,7 +123,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
     mediaItemId: m.id,
     type: m.type,
     title: m.title,
-    subtitle: m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null,
+    subtitle: m.type === 'music' || m.type === 'song' ? creditOf(m) : m.year != null ? String(m.year) : null,
     year: m.year,
     overview: m.overview,
     genres: m.genres,
@@ -142,6 +143,7 @@ const MEDIA_SELECT = {
   episode: true,
   year: true,
   artist: true,
+  trackArtist: true,
   overview: true,
   genres: true,
   rating: true,

@@ -184,7 +184,11 @@ export type MediaItem = {
   season: number | null
   episode: number | null
   year: number | null
+  /** Who music is filed under: a song's album artist (see creditOf). */
   artist: string | null
+  /** Who a song credits, when that's someone else — the singer on a
+   *  soundtrack. */
+  trackArtist: string | null
   album: string | null
   /** A song's place on its album. */
   track: number | null
@@ -662,6 +666,7 @@ export type PlayoutEntry = {
     episode: number | null
     type: string
     artist?: string | null
+    trackArtist?: string | null
     durationSec: number | null
     posterPath: string | null
     tmdbPosterPath: string | null

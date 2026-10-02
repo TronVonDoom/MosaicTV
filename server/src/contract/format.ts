@@ -1,5 +1,12 @@
 // How a schedule's times read, the same on both sides: the web's block list
-// and the server's schedule warnings say "Weekdays 6:30 PM" alike.
+// and the server's schedule warnings say "Weekdays 6:30 PM" alike. And who a
+// song is by, as every listing names it.
+
+/** Who a song or music video is by, as a guide, a card or a list names it:
+ *  who it credits (a soundtrack's singer, a game set's composer), else who
+ *  it's filed under — its album artist, whose page it's on. */
+export const creditOf = (m: { artist?: string | null; trackArtist?: string | null }): string | null =>
+  m.trackArtist || m.artist || null
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 

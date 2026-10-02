@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
 import type { Playout, PlayoutEntry } from '../lib/api'
-import { episodeCode, formatClock } from '../lib/format'
+import { creditOf, episodeCode, formatClock } from '../lib/format'
 import { cx } from './ui'
 import { useMediaQuery } from '../lib/hooks'
 
@@ -44,7 +44,7 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
         key: String(it.id),
         start,
         stop,
-        title: (m.type === 'music' || m.type === 'song') && m.artist ? `${m.artist} – ${m.title}` : m.title,
+        title: (m.type === 'music' || m.type === 'song') && creditOf(m) ? `${creditOf(m)} – ${m.title}` : m.title,
         sub: null,
         filler: false,
         entry: it,

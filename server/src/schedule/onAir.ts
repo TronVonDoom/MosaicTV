@@ -5,9 +5,9 @@
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { collectionWhere, hasFilter, type Airs } from './collections.js'
+import { byArtistName, collectionWhere, hasFilter, type Airs } from './collections.js'
 import { cleanEpisodeTitle, episodeCodeLabel } from '../streaming/cardContent.js'
-import type { LibraryHome, OnAirChannel, OnAirRow, OnAirSlot, TitleOnAir } from '../contract/index.js'
+import { creditOf, type LibraryHome, type OnAirChannel, type OnAirRow, type OnAirSlot, type TitleOnAir } from '../contract/index.js'
 
 const HOUR = 3600_000
 
@@ -24,7 +24,7 @@ const targetWhere = (t: OnAirTarget): Prisma.MediaItemWhereInput =>
 
 const CHANNEL = { select: { id: true, number: true, name: true, logoId: true } } as const
 const MEDIA = {
-  select: { id: true, title: true, showTitle: true, showId: true, libraryId: true, season: true, episode: true, type: true, year: true, artist: true },
+  select: { id: true, title: true, showTitle: true, showId: true, libraryId: true, season: true, episode: true, type: true, year: true, artist: true, trackArtist: true },
 } as const
 
 type Row = Prisma.PlayoutItemGetPayload<{ include: { channel: typeof CHANNEL; mediaItem: typeof MEDIA } }>
@@ -50,7 +50,7 @@ function slotOf(rows: Row[]): OnAirSlot {
     subtitle = [episodeCodeLabel(files), names].filter(Boolean).join(' · ') || null
   } else if (m) {
     title = m.title
-    subtitle = m.type === 'music' || m.type === 'song' ? m.artist : m.year != null ? String(m.year) : null
+    subtitle = m.type === 'music' || m.type === 'song' ? creditOf(m) : m.year != null ? String(m.year) : null
   }
   return {
     channel: channelOf(first.channel),
@@ -140,6 +140,15 @@ async function carriersOf(t: OnAirTarget): Promise<TitleOnAir['carriers']> {
           : ((i.kind === 'artist' || i.kind === 'album') && i.libraryId === t.libraryId && i.artist === t.artist) ||
             ((i.kind === 'music' || i.kind === 'song') && i.mediaItemId != null && partIds!.has(i.mediaItemId)),
     )
+    // A pick by a name they're credited under (a song's own artist) carries
+    // whichever of the artist's music it finds.
+    if (!hit && t.kind === 'artist' && partIds!.size > 0) {
+      for (const i of c.items) {
+        if ((i.kind !== 'artist' && i.kind !== 'album') || i.libraryId !== t.libraryId || i.artist == null) continue
+        const where = { id: { in: [...partIds!] }, ...byArtistName(i.artist), ...(i.kind === 'album' ? { album: i.album } : {}) }
+        if ((hit = (await prisma.mediaItem.count({ where })) > 0)) break
+      }
+    }
     if (!hit && hasFilter(c)) hit = (await prisma.mediaItem.count({ where: { AND: [collectionWhere(c, c.airs), targetWhere(t)] } })) > 0
     if (!hit) continue
     const ch = c.channel!
@@ -244,7 +253,7 @@ export async function reachedIn(libraryId: number): Promise<{ ids: Set<number>; 
       if ((i.kind === 'episode' || i.kind === 'music' || i.kind === 'song') && i.mediaItemId != null) singleEpisodes.push(i.mediaItemId)
       if ((i.kind === 'show' || i.kind === 'season') && i.showId != null) showIds.add(i.showId)
       if ((i.kind === 'artist' || i.kind === 'album') && i.artist != null && i.libraryId === libraryId)
-        music.push({ artist: i.artist, ...(i.kind === 'album' ? { album: i.album } : {}) })
+        music.push({ ...byArtistName(i.artist), ...(i.kind === 'album' ? { album: i.album } : {}) })
     }
     if (hasFilter(c)) {
       const rows = await prisma.mediaItem.findMany({

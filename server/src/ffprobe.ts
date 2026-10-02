@@ -30,7 +30,14 @@ export type EmbeddedTags = {
   description?: string
   date?: string
   genre?: string
+  /** Who the file credits: its artist, else its album's (as tagged). */
   artist?: string
+  /** Whose album it's on, which can differ from who's credited — "Various
+   *  Artists" on a soundtrack, the series on a game-music set. What music is
+   *  filed under, as in Plex. */
+  albumArtist?: string
+  /** "1" (or "true") when it's tagged as one track of a compilation. */
+  compilation?: string
   album?: string
   /** A song's place on its album, as tagged ("3/12", "1/2"). */
   track?: string
@@ -38,7 +45,15 @@ export type EmbeddedTags = {
   /** Lyrics written into the file — timed (LRC) or not. */
   lyrics?: string
   cover?: { stream: number; attachment?: true }
+  /** Which rules read these (TAGS_VERSION). A song whose tags were read by
+   *  older ones is probed again at the next scan. */
+  version?: number
 }
+
+/** Bumped when tags are read for something new (2: the album artist and the
+ *  compilation flag, kept apart from the artist), so songs read before are
+ *  read again at their library's next scan. */
+export const TAGS_VERSION = 2
 
 type FfprobeStream = {
   index?: number
@@ -61,13 +76,15 @@ type FfprobeJson = {
 
 // Where each detail lives among the names containers give their tags: MP4's
 // iTunes atoms, Matroska's upper-case names, ffmpeg's own.
-type TagField = Exclude<keyof EmbeddedTags, 'cover'>
+type TagField = Exclude<keyof EmbeddedTags, 'cover' | 'version'>
 const TAG_KEYS: Record<TagField, string[]> = {
   title: ['title'],
   description: ['description', 'synopsis', 'summary', 'comment', 'ldes', 'desc'],
   date: ['date_released', 'date', 'year', 'originaldate'],
   genre: ['genre'],
-  artist: ['artist', 'album_artist', 'performer'],
+  artist: ['artist', 'album_artist', 'albumartist', 'performer'],
+  albumArtist: ['album_artist', 'albumartist', 'album artist'],
+  compilation: ['compilation', 'itunescompilation'],
   album: ['album'],
   track: ['track', 'tracknumber'],
   disc: ['disc', 'discnumber'],
@@ -94,6 +111,7 @@ export function embeddedTags(raw: Record<string, string> | undefined, streams: F
   const attached = streams.find((s) => s.codec_type === 'attachment' && /^image\//i.test(s.tags?.mimetype ?? ''))
   if (pic?.index != null) out.cover = { stream: pic.index }
   else if (attached?.index != null) out.cover = { stream: attached.index, attachment: true }
+  out.version = TAGS_VERSION
   return out
 }
 

@@ -17,6 +17,7 @@ import { prisma } from '../db.js'
 import { bestCandidate } from './tmdb.js'
 import {
   asMetadataSources,
+  creditOf,
   isUnmatched,
   MATCH_SOURCE_NAMES,
   MATCH_SOURCES,
@@ -531,8 +532,8 @@ const withSource = (used: string | null, s: string | null) => (s && !(used ?? ''
 const fromMusicBrainz = (mb: MusicFound | null): Partial<Details> | null =>
   mb ? { album: mb.album, airDate: mb.date, genres: mb.genres } : null
 
-const SONG_ROW = { ...MUSIC_ROW, lyricsPath: true, lyrics: true } as const
-type SongRow = MusicRow & { lyricsPath: string | null; lyrics: string | null }
+const SONG_ROW = { ...MUSIC_ROW, trackArtist: true, lyricsPath: true, lyrics: true } as const
+type SongRow = MusicRow & { trackArtist: string | null; lyricsPath: string | null; lyrics: string | null }
 
 /**
  * Look one song up online, as far as its library asks: MusicBrainz for the
@@ -545,14 +546,16 @@ type SongRow = MusicRow & { lyricsPath: string | null; lyrics: string | null }
 async function enrichSong(a: Agent, item: SongRow, again: boolean): Promise<{ read: boolean; genres: boolean }> {
   const tags = await tagsOf(item)
   const order: MetadataSource[] = ['embedded', ...a.sources.filter((s) => s === 'musicbrainz')]
+  // Asked by who the song credits: the singer, not the soundtrack it's filed under.
+  const artist = creditOf(item)
   const mb = order.includes('musicbrainz')
-    ? await lookUpMusic({ title: item.title, artist: item.artist, album: item.album, durationSec: item.durationSec, video: false })
+    ? await lookUpMusic({ title: item.title, artist, album: item.album, durationSec: item.durationSec, video: false })
     : null
   const { details, used } = mergeDetails(order, { embedded: fromTags(tags), musicbrainz: fromMusicBrainz(mb) })
   let lyrics: string | undefined
   const unasked = item.lyrics == null || (again && item.lyrics === '')
   if (a.sources.includes('lrclib') && unasked && !(await songLyrics({ lyricsPath: item.lyricsPath, embedded: item.embedded, lyrics: null }))) {
-    const found = await lookUpLyrics({ title: item.title, artist: item.artist, album: item.album, durationSec: item.durationSec })
+    const found = await lookUpLyrics({ title: item.title, artist, album: item.album, durationSec: item.durationSec })
     // Couldn't ask: left to ask another time.
     if (found !== undefined) lyrics = found ?? ''
   }

@@ -142,6 +142,7 @@ export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma
       { title: { contains: c.filterSearch } },
       { showTitle: { contains: c.filterSearch } },
       { artist: { contains: c.filterSearch } },
+      { trackArtist: { contains: c.filterSearch } },
     ]
   }
   return where
@@ -149,6 +150,19 @@ export function collectionWhere(c: CollectionFilter, airs: Airs = PLAIN): Prisma
 
 /** The single-item picks: a movie, an episode, a music video or a song. */
 const isSingle = (it: { kind: string }) => it.kind === 'movie' || it.kind === 'episode' || it.kind === 'music' || it.kind === 'song'
+
+/**
+ * The music an artist's name finds: what's filed under them (their albums)
+ * and what credits them (their song on a soundtrack) — so a pick made by a
+ * song's own artist, before songs were filed under their album's, finds what
+ * it always did.
+ */
+export const byArtistName = (artist: string | null): Prisma.MediaItemWhereInput =>
+  artist == null ? { artist: null } : { OR: [{ artist }, { trackArtist: artist }] }
+
+/** Whether a song or music video is by an artist, as byArtistName finds it. */
+export const isByName = (m: { artist: string | null; trackArtist?: string | null }, artist: string | null): boolean =>
+  m.artist === artist || (artist != null && m.trackArtist === artist)
 
 /** An artist pick's files: every music video or song by them in the pick's
  *  library (a Music Videos library has the one, a Music library the other) —
@@ -160,7 +174,7 @@ function artistPickWhere(it: { kind: string; libraryId: number | null; artist: s
     type: { in: ['music', 'song'] },
     extra: null,
     libraryId: it.libraryId ?? undefined,
-    artist: it.artist,
+    ...byArtistName(it.artist),
     ...(it.kind === 'album' ? { album: it.album } : {}),
   }
 }

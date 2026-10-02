@@ -125,6 +125,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
           episode: true,
           type: true,
           artist: true,
+          trackArtist: true,
           album: true,
           overview: true,
           libraryId: true,

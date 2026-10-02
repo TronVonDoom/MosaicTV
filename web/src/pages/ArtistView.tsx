@@ -49,6 +49,8 @@ function TrackRow({ m, aired, next, live, onOpen }: { m: MediaItem; aired?: Arti
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-medium text-ink-soft group-hover:text-ink">{m.title}</span>
+        {/* Who it credits, on an album filed under someone else (a soundtrack's singer). */}
+        {m.trackArtist && <span className="block mt-0.5 text-[12.5px] text-ink-muted truncate">{m.trackArtist}</span>}
         {aired && <span className="block mt-0.5 font-mono text-[11px] uppercase text-ink-faint truncate">{formatAired(aired)}</span>}
       </span>
       {live && (

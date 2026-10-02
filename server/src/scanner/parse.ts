@@ -11,7 +11,12 @@ export type ParsedMedia = {
   season: number | null
   episode: number | null
   year: number | null
+  /** Who music is filed under: for a song, its album's artist where its tags
+   *  name one (see withTags). */
   artist: string | null
+  /** Who a song credits, when that's not who it's filed under: the singer on
+   *  a soundtrack, the composer on a game-music set. */
+  trackArtist?: string | null
   album: string | null
   /** A song's place on its album: its track, and the disc for a set. */
   track?: number | null
@@ -220,19 +225,34 @@ const numberOf = (raw: string | undefined): number | null => {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+/** Who a compilation's songs are filed under. */
+export const VARIOUS_ARTISTS = 'Various Artists'
+
+/** Whether a song's tags mark it as one track of a compilation. */
+export const taggedCompilation = (tags: Pick<EmbeddedTags, 'compilation'> | null | undefined): boolean =>
+  !!tags?.compilation && /^(1|true|yes)$/i.test(tags.compilation.trim())
+
 /**
  * A song as its own tags have it, where they say: its title, artist, album,
  * year, track and disc — the file's name and folders fill in the rest. Songs
  * go by their tags as Plex's music libraries do; a tag is part of the file,
  * so this comes out the same at every scan.
+ *
+ * It's filed under its album's artist, where the tags name one — "Various
+ * Artists" for a track tagged as part of a compilation without one — so an
+ * album stays one album whoever sings or wrote each song. Who the song itself
+ * credits is kept beside that (trackArtist) when it's someone else.
  */
 export function withTags(parsed: ParsedMedia, tags: EmbeddedTags | null): ParsedMedia {
   if (!tags || parsed.type !== 'song') return parsed
   const year = tags.date?.match(/^\d{4}/)?.[0]
+  const credit = tags.artist || parsed.artist
+  const artist = tags.albumArtist || (taggedCompilation(tags) ? VARIOUS_ARTISTS : null) || credit
   return {
     ...parsed,
     title: tags.title || parsed.title,
-    artist: tags.artist || parsed.artist,
+    artist,
+    trackArtist: credit && credit !== artist ? credit : null,
     album: tags.album || parsed.album,
     year: year ? Number(year) : parsed.year,
     track: numberOf(tags.track) ?? parsed.track ?? null,

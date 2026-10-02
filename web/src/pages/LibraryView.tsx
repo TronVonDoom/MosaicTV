@@ -33,7 +33,7 @@ import { StatFigure } from '../components/onair/OnAir'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
 import { EmptyState, Segmented, Select, Skeleton, buttonClass } from '../components/ui'
-import { artistLabel, artistPath, extraLabel, formatDuration, posterGradient } from '../lib/format'
+import { artistLabel, artistPath, creditOf, extraLabel, formatDuration, posterGradient } from '../lib/format'
 
 const PAGE_SIZE = 60
 // The app's header (h-14), which the grid's toolbar sticks under.
@@ -75,7 +75,7 @@ function SongRow({ m, onOpen }: { m: MediaItem; onOpen: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-medium text-ink-soft group-hover:text-ink">{m.title}</span>
-        <span className="block truncate text-[12.5px] text-ink-faint">{[artistLabel(m.artist), m.album].filter(Boolean).join(' — ')}</span>
+        <span className="block truncate text-[12.5px] text-ink-faint">{[artistLabel(creditOf(m)), m.album].filter(Boolean).join(' — ')}</span>
       </span>
       <span className="hidden sm:block w-12 shrink-0 text-right font-mono text-[12px] text-ink-faint tabular-nums">{m.year ?? ''}</span>
       <span className="w-14 shrink-0 text-right font-mono text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
@@ -746,7 +746,7 @@ export default function LibraryView() {
                         title={m.title}
                         subtitle={
                           m.type === 'music' || m.type === 'song'
-                            ? m.artist ?? m.album ?? undefined
+                            ? creditOf(m) ?? m.album ?? undefined
                             : [m.extra && extraLabel(m.extra), m.year].filter(Boolean).join(' · ') || undefined
                         }
                         badge={qualityOf(m.height) ?? undefined}

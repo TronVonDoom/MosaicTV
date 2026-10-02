@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { ffprobe, storedTags } from '../ffprobe.js'
-import { extraHome, extraKind, extraStem, parseMedia, withTags, type LibraryKind } from './parse.js'
+import { ffprobe, storedTags, TAGS_VERSION } from '../ffprobe.js'
+import { extraHome, extraKind, extraStem, parseMedia, taggedCompilation, withTags, VARIOUS_ARTISTS, type LibraryKind } from './parse.js'
 import { detectArtwork, embeddedCover, findLyrics } from './artwork.js'
 import { extensionsFor, walk } from './walk.js'
 import { removeGone } from './gone.js'
@@ -108,6 +108,8 @@ async function processFile(
   const sameFile = !!existing && existing.mtimeMs === mtimeMs
   // A song goes by its own tags (see withTags) — as stored, while the file's the same.
   const named = kind === 'audio' && sameFile ? withTags(parsed, storedTags(existing!.embedded)) : parsed
+  // Tags read by older rules (before the album artist was kept) are read again.
+  const staleTags = kind === 'audio' && !!existing?.embedded && storedTags(existing.embedded)?.version !== TAGS_VERSION
   // The show it files under: by the name its folder parses to, through the
   // show's names, so a renamed or merged show keeps its files.
   const show = parsed.showTitle ? await showFor(libraryId, parsed.showTitle, pass.shows) : null
@@ -131,6 +133,7 @@ async function processFile(
   // so nothing is re-probed and no forced re-scan is needed.
   if (
     !force &&
+    !staleTags &&
     existing &&
     existing.mtimeMs === mtimeMs &&
     existing.durationSec != null &&
@@ -151,7 +154,7 @@ async function processFile(
   }
 
   // Reuse existing probe results when the file itself hasn't changed.
-  const unchanged = !force && !!existing && existing.mtimeMs === mtimeMs && existing.durationSec != null
+  const unchanged = !force && !staleTags && !!existing && existing.mtimeMs === mtimeMs && existing.durationSec != null
   const probe = unchanged ? null : await ffprobe(filePath)
   const embedded = unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null
   if (music && !art.posterPath) art.posterPath = await embeddedCover(filePath, mtimeMs, embedded)
@@ -170,6 +173,7 @@ async function processFile(
     // Music's name and tags leave out what its .nfo or MusicBrainz filled in.
     year: song ? song.year ?? existing?.year ?? null : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
     artist: song ? song.artist : parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
+    trackArtist: song?.trackArtist ?? null,
     album: song ? song.album ?? existing?.album ?? null : parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
     ...(song ? { track: song.track ?? null, disc: song.disc ?? null, genres: tags?.genre ?? existing?.genres ?? null, lyricsPath } : {}),
     extra: parsed.extra,
@@ -243,6 +247,56 @@ async function followRefiledShows(libraryId: number, pass: ScanPass): Promise<vo
       log('info', 'system', `"${old.title}"'s files are all "${target.title}" now — ${r.picks} collection pick(s) and ${r.airings} broadcast episode(s) followed them`)
     }
   }
+}
+
+// The credit every other one on an album begins with — "Eminem" among
+// "Eminem feat. Rihanna" and "Eminem & Dr. Dre" — or null. Whole names only:
+// "Earth, Wind & Fire" and "AC/DC" are never cut short.
+function sharedCredit(credits: string[]): string | null {
+  const shortest = [...credits].sort((a, b) => a.length - b.length)[0]
+  const s = shortest.toLowerCase()
+  const leads = (c: string) => {
+    const l = c.toLowerCase()
+    return l === s || (l.startsWith(s) && /^[\s,;&/(]/.test(l.slice(s.length)))
+  }
+  return credits.every(leads) ? shortest : null
+}
+
+/**
+ * An album whose songs name no album artist, and don't say they're a
+ * compilation, but credit different people — a soundtrack tagged without an
+ * album artist — is filed as one album all the same: under the credit every
+ * other one begins with ("Eminem" beside "Eminem feat. Rihanna"), else under
+ * Various Artists. Each song keeps its own credit (trackArtist). An album is
+ * its songs in one folder under one album name. Returns how many were refiled.
+ */
+export async function fileUntaggedAlbums(libraryId: number): Promise<number> {
+  const songs = await prisma.mediaItem.findMany({
+    where: { libraryId, type: 'song', missing: false, album: { not: null } },
+    select: { id: true, path: true, album: true, artist: true, trackArtist: true, embedded: true },
+  })
+  const albums = new Map<string, typeof songs>()
+  for (const s of songs) {
+    const key = JSON.stringify([path.dirname(s.path), s.album])
+    albums.set(key, [...(albums.get(key) ?? []), s])
+  }
+  let refiled = 0
+  for (const list of albums.values()) {
+    if (list.length < 2) continue
+    // Tags that say who the album's by have filed it already (see withTags).
+    if (list.some((s) => { const t = storedTags(s.embedded); return !!t?.albumArtist || taggedCompilation(t) })) continue
+    const credits = list.map((s) => s.trackArtist ?? s.artist ?? '')
+    if (credits.some((c) => !c) || new Set(credits).size < 2) continue
+    const filedAs = sharedCredit(credits) ?? VARIOUS_ARTISTS
+    for (const [i, s] of list.entries()) {
+      const own = credits[i] === filedAs ? null : credits[i]
+      if (s.artist === filedAs && s.trackArtist === own) continue
+      await prisma.mediaItem.update({ where: { id: s.id }, data: { artist: filedAs, trackArtist: own } })
+      refiled++
+    }
+  }
+  if (refiled > 0) log('info', 'system', `Filed ${refiled} song(s) from albums with no album artist under one name each`)
+  return refiled
 }
 
 /** Run tasks with bounded concurrency. */
@@ -323,6 +377,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       })
     }
     await followRefiledShows(library.id, pass)
+    if (kind === 'audio') await fileUntaggedAlbums(library.id)
     // …and goes for good, as in Plex — unless it's under a folder this scan
     // couldn't read (see removeGone).
     const gone = await removeGone(library.id, unreadable)
@@ -450,19 +505,36 @@ const RESCAN_KEY = 'rescanLibraries'
 const PARSE_RULES = '3'
 const PARSE_KEY = 'parseRules'
 
+/** Add libraries to the ones an upgrade asked to scan (see rescanAfterUpgrade). */
+async function queueRescan(ids: number[]): Promise<void> {
+  if (ids.length === 0) return
+  const queued = await prisma.setting.findUnique({ where: { key: RESCAN_KEY } })
+  const all = [...new Set([...(queued?.value.split(',').map(Number) ?? []), ...ids])].filter((n) => n > 0).join(',')
+  await prisma.setting.upsert({ where: { key: RESCAN_KEY }, create: { key: RESCAN_KEY, value: all }, update: { value: all } })
+}
+
+// Bumped with TAGS_VERSION (2: songs filed under their album artist), so each
+// Music library is scanned once at the next start and its songs' tags read
+// again — they'd otherwise wait for someone to scan it.
+const MUSIC_RULES = '2'
+const MUSIC_KEY = 'musicRules'
+
 /** At boot: when the episode-name rules have changed, queue each TV library
- *  for a scan (see rescanAfterUpgrade) and mark its episodes to be read again. */
+ *  for a scan (see rescanAfterUpgrade) and mark its episodes to be read again;
+ *  when the song-tag rules have, each Music library. */
 export async function reparseAfterUpgrade(): Promise<void> {
   const done = await prisma.setting.findUnique({ where: { key: PARSE_KEY } })
-  if (done?.value === PARSE_RULES) return
-  const ids = (await prisma.library.findMany({ where: { kind: 'tv' }, select: { id: true } })).map((l) => l.id)
-  if (ids.length > 0) {
-    await prisma.mediaItem.updateMany({ where: { libraryId: { in: ids }, type: 'episode' }, data: { metaAt: null } })
-    const queued = await prisma.setting.findUnique({ where: { key: RESCAN_KEY } })
-    const all = [...new Set([...(queued?.value.split(',').map(Number) ?? []), ...ids])].filter((n) => n > 0).join(',')
-    await prisma.setting.upsert({ where: { key: RESCAN_KEY }, create: { key: RESCAN_KEY, value: all }, update: { value: all } })
+  if (done?.value !== PARSE_RULES) {
+    const ids = (await prisma.library.findMany({ where: { kind: 'tv' }, select: { id: true } })).map((l) => l.id)
+    if (ids.length > 0) await prisma.mediaItem.updateMany({ where: { libraryId: { in: ids }, type: 'episode' }, data: { metaAt: null } })
+    await queueRescan(ids)
+    await prisma.setting.upsert({ where: { key: PARSE_KEY }, create: { key: PARSE_KEY, value: PARSE_RULES }, update: { value: PARSE_RULES } })
   }
-  await prisma.setting.upsert({ where: { key: PARSE_KEY }, create: { key: PARSE_KEY, value: PARSE_RULES }, update: { value: PARSE_RULES } })
+  const music = await prisma.setting.findUnique({ where: { key: MUSIC_KEY } })
+  if (music?.value !== MUSIC_RULES) {
+    await queueRescan((await prisma.library.findMany({ where: { kind: 'audio' }, select: { id: true } })).map((l) => l.id))
+    await prisma.setting.upsert({ where: { key: MUSIC_KEY }, create: { key: MUSIC_KEY, value: MUSIC_RULES }, update: { value: MUSIC_RULES } })
+  }
 }
 
 /** Scan, one after another, the libraries an upgrade asked to (see RESCAN_KEY). */

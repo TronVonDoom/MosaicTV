@@ -537,7 +537,11 @@ model MediaItem {
   // Music videos ("music" type): performer and album from the Artist/Album/Title
   // folder layout (or an "Artist - Title" filename). Songs ("song", a Music
   // library's audio files): from their tags first; and their track and disc.
+  // `artist` is who music is filed under — a song's album artist where its
+  // tags name one, as in Plex — and `trackArtist` who the song itself credits
+  // when that's someone else (the singer on a soundtrack, null otherwise).
   artist           String?
+  trackArtist      String?
   album            String?
   track            Int?
   disc             Int?

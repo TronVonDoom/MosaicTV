@@ -10,7 +10,7 @@ import path from 'node:path'
 import { tempDb } from '../testDb.js'
 import { parseMedia } from '../scanner/parse.js'
 import { parseNfo } from './nfo.js'
-import { embeddedTags } from '../ffprobe.js'
+import { embeddedTags, TAGS_VERSION } from '../ffprobe.js'
 
 const { prisma, dir } = await tempDb('mosaictv-musicmeta-')
 const { scanLibrary } = await import('../scanner/scanner.js')
@@ -70,7 +70,7 @@ test('Kodi’s <musicvideo> .nfo gives its artists, album and the rest', () => {
 })
 
 test('a file’s tags give its artist (or album artist) and album, and say where its cover picture is', () => {
-  assert.deepEqual(embeddedTags({ ARTIST: 'Madonna', ALBUM: 'I’m Breathless', title: 'Vogue' }), { title: 'Vogue', artist: 'Madonna', album: 'I’m Breathless' })
+  assert.deepEqual(embeddedTags({ ARTIST: 'Madonna', ALBUM: 'I’m Breathless', title: 'Vogue' }), { title: 'Vogue', artist: 'Madonna', album: 'I’m Breathless', version: TAGS_VERSION })
   assert.equal(embeddedTags({ album_artist: 'Various' }).artist, 'Various')
   // An MP4's attached picture, and a Matroska attachment.
   assert.deepEqual(embeddedTags({}, [{ index: 0, codec_type: 'video' }, { index: 2, codec_type: 'video', disposition: { attached_pic: 1 } }]).cover, { stream: 2 })

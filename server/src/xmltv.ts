@@ -4,6 +4,7 @@
 // A program carries what its metadata says — its credits, first air date,
 // genres and rating — for guide clients to show.
 import { episodeCode, EXTRA_LABELS } from './labels.js'
+import { creditOf } from './contract/index.js'
 
 /** A playout row, with what the guide needs of its file. */
 export type XmltvRow = {
@@ -21,6 +22,7 @@ export type XmltvRow = {
     episode: number | null
     type: string
     artist: string | null
+    trackArtist?: string | null
     album: string | null
     overview: string | null
     // What its metadata says (see MediaItem); all optional.
@@ -188,8 +190,8 @@ export function programmesXml<R extends XmltvRow>(
     // show name as the title, episode name as the sub-title.
     const title = !m
       ? 'Station break'
-      : isMusic && m.artist
-        ? `${m.artist} – ${m.title}`
+      : isMusic && creditOf(m)
+        ? `${creditOf(m)} – ${m.title}`
         : ofShow
           ? (m.showTitle as string)
           : m.parent

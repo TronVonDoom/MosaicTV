@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Icon, { type IconName } from './Icon'
 import { api, type ArtistDetail, type CollectionItem, type LibraryKind, type MediaSearchResult, type ShowDetail } from '../lib/api'
-import { episodeCode, extraLabel, formatDuration } from '../lib/format'
+import { creditOf, episodeCode, extraLabel, formatDuration } from '../lib/format'
 import { Input, Segmented } from './ui'
 
 /** A shelf of the library: one kind of library's titles, or all of them. */
@@ -322,7 +322,7 @@ export default function MediaSearchInput({
       mediaItemId: t.id,
       libraryId: t.libraryId,
       title: t.title,
-      artist: t.artist,
+      artist: creditOf(t),
       year: t.year,
     }))
   }
