@@ -110,7 +110,13 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
       headline: `Every program is followed by a break up to the next line of the ${CLOCK_NAME[ch.grid] ?? ch.grid + '-minute'} clock${ch.actBreaks ? ', shared out across its act breaks' : ''}.`,
       detail: [
         off.length
-          ? `${describeBlocks(off)} ${off.length === 1 ? 'turns' : 'turn'} the clock off${offBreaks.length === off.length ? ' but still' : offBreaks.length ? '; some still' : ', so programs there run back to back'}${offBreaks.length ? ' break by leftover time or a hard start' : ''}.`
+          ? `${describeBlocks(off)} ${off.length === 1 ? 'turns' : 'turn'} the clock off${
+              offBreaks.length === off.length
+                ? `, but ${off.length === 1 ? 'still has' : 'all still have'} breaks to start or end on time`
+                : offBreaks.length
+                  ? `; ${offBreaks.length} of them still ${offBreaks.length === 1 ? 'has' : 'have'} breaks to start or end on time`
+                  : ', so programs there run back to back'
+            }.`
           : blocks.length
             ? `All ${blocks.length} block${blocks.length === 1 ? '' : 's'} keep the clock.`
             : 'It has no time blocks: the rotation runs on the clock around the day.',
@@ -124,7 +130,8 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
   if (blocks.length === 0) {
     return {
       headline: 'No breaks.',
-      detail: 'This channel has no time blocks, and only blocks make breaks — its programs run back to back.',
+      detail:
+        'Its programs run back to back. Turn on the broadcast clock to start them on the :00 and :30 with a break between, or add time blocks that end on time.',
       none: true,
     }
   }
@@ -140,8 +147,8 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
   const between = on.filter((b) => b.fillerMode === 'between').length
   const hard = on.filter((b) => b.startMode === 'hard').length
   const parts = [
-    atEnd ? `${atEnd} ${atEnd === 1 ? 'has' : 'have'} a break at the end` : '',
-    between ? `${between} spread${between === 1 ? 's' : ''} breaks between programs` : '',
+    atEnd ? `${atEnd} end${atEnd === 1 ? 's' : ''} on time with a break before the next block` : '',
+    between ? `${between} end${between === 1 ? 's' : ''} on time with short breaks between programs` : '',
     hard ? `${hard} start${hard === 1 ? 's' : ''} hard, so the gap before ${hard === 1 ? 'it' : 'each'} is a break${atEnd || between ? ' too' : ''}` : '',
   ].filter(Boolean)
   const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]

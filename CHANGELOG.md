@@ -39,6 +39,14 @@ Music filed as a music app files it, and orders that speak its language.
   channel that was showing it is moved onto it on upgrade, so nothing changes
   on air. *No logo* now shows none. A collection's picker says **The channel's
   logo** for what it always meant.
+- **Breaks that explain themselves.** A block's **Breaks** settings now say
+  what a break is — time between programs when the channel airs its idents —
+  and what each choice does, in that block's own times. *Leftover time* is
+  **End**: **Run over** (the last program can finish late), **Break at the
+  end** (only what fits plays, and the minutes left are one break, so the next
+  block starts on time — with a worked example) or **Between programs**. On a
+  broadcast clock, where those last two were the same, it's **Run over** or
+  **End on time**. The docs gained a section on starting and ending on time.
 
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 

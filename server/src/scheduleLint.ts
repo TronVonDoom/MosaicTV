@@ -41,6 +41,8 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
   const out: ScheduleWarning[] = []
   const when = (b: { days: string; startMinute: number; endMinute: number }) =>
     `${formatDays(b.days)} ${minutesToTime(b.startMinute)}–${minutesToTime(b.endMinute)}`
+  // The block editor's name for ending on time: one choice on a clock, two off it.
+  const endOnTime = (b: { grid: number | null }) => ((b.grid ?? ch.grid) ? 'End on time' : 'Break at the end')
 
   // A block with its breaks off, running into an exact-time start — inside it,
   // or soon after it ends, since its last program runs past its own end: that
@@ -67,8 +69,8 @@ export async function lintSchedule(channelId: number): Promise<ScheduleWarning[]
         severity: 'warn',
         blockId: other.id,
         message: self
-          ? `“${other.collection.name}” (${when(other)}) starts at an exact time but has no breaks, so its last program each time runs past its end and its next start can’t be on time — every airing after runs late. Set its leftover time to “At the end”.`
-          : `“${other.collection.name}” (${when(other)}) has no breaks, so its last program runs past ${minutesToTime(hard.startMinute)} and “${hard.collection.name}” can’t start on time — the rest of the day runs late. Set its leftover time to “At the end”.`,
+          ? `“${other.collection.name}” (${when(other)}) starts at an exact time but has no breaks, so its last program each time runs past its end and its next start can’t be on time — every airing after runs late. Set its End to “${endOnTime(other)}”.`
+          : `“${other.collection.name}” (${when(other)}) has no breaks, so its last program runs past ${minutesToTime(hard.startMinute)} and “${hard.collection.name}” can’t start on time — the rest of the day runs late. Set its End to “${endOnTime(other)}”.`,
       })
     }
   }

@@ -77,13 +77,6 @@ const emptyBlock = (): BlockForm => ({
   actBreaks: null,
 })
 
-// How a block's leftover time airs, and what its start does — the "when" of
-// its breaks (what they play is the Breaks tab's).
-const BREAK_HINTS: Record<string, string> = {
-  none: 'Programs run back to back.',
-  end: 'Leftover time at the end of the block becomes one break before the next block.',
-  between: 'Leftover time is spread out as short breaks between programs.',
-}
 // The broadcast clock, and how it reads in a block's summary line.
 const CLOCK_OPTIONS = [
   { value: '0', label: 'Off' },
@@ -92,15 +85,49 @@ const CLOCK_OPTIONS = [
   { value: '60', label: 'On the hour' },
 ] as const
 const clockName = (grid: number) => (grid === 15 ? 'quarter-hour clock' : grid === 30 ? ':00/:30 clock' : grid === 60 ? 'hourly clock' : 'no clock')
-const CLOCK_BREAKS: Record<string, string> = {
-  none: 'Programs start on the clock, each followed by a break up to the next line; the last one may run past the end of the block.',
-  end: 'Programs start on the clock, each followed by a break up to the next line — as many as finish inside the block; the rest of it is a break.',
-  between: 'Programs start on the clock, each followed by a break up to the next line — as many as finish inside the block; the rest of it is a break.',
+
+// What a block's start and end settings do, told in the block's own times —
+// the "when" of its breaks (what they play is the Breaks tab's). Someone
+// setting up their first channel meets these before they know what a break
+// is, so each one says what happens at the block's edges and why.
+function startHint(mode: StartMode, start: string): string {
+  return mode === 'hard'
+    ? `Starts at exactly ${start}. A program that wouldn’t finish by then is saved for later, and a break fills the minutes until ${start}.`
+    : `Waits for whatever is on at ${start} to finish, so it can start a few minutes late. No break.`
 }
 
-const START_HINTS: Record<string, string> = {
-  soft: 'Starts at the next program boundary, so there’s no gap to fill.',
-  hard: 'Starts exactly on time. Whatever time is left before it becomes a break.',
+// "30 seconds", "4 minutes", "1.5 minutes" — or, before a noun, "30-second".
+function spoken(min: number, adjective = false): string {
+  const [n, unit] = min < 1 ? [Math.round(min * 60), 'second'] : [Math.round(min * 10) / 10, 'minute']
+  return adjective ? `${n}-${unit}` : `${n} ${unit}${n === 1 ? '' : 's'}`
+}
+
+/** The hint under the End choice, and a worked example where one helps. */
+function endHint(mode: FillerMode, startMin: number, endMin: number, clock: number): { text: string; example?: string } {
+  const end = minutesToTime(endMin)
+  if (clock) {
+    return mode === 'none'
+      ? { text: `Each program starts on the clock and is followed by a break up to the next line. Programs keep coming until ${end}, so the last one can finish after it.` }
+      : { text: `Each program starts on the clock and is followed by a break up to the next line. Only programs that finish by ${end} play; the rest of the block is a break, so whatever comes next starts on time.` }
+  }
+  if (mode === 'none') {
+    return { text: `Programs play back to back. The last one starts before ${end} and can finish after it, pushing back whatever comes next. No break.` }
+  }
+  // An example in 22-minute episodes, the commonest half-hour runtime.
+  const span = (endMin - startMin + 1440) % 1440 || 1440
+  const fit = Math.floor(span / 22)
+  const left = span - fit * 22
+  const range = `${minutesToTime(startMin)}–${end}`
+  if (mode === 'end') {
+    return {
+      text: `Only programs that finish by ${end} play. The minutes left over become one break just before ${end}, so whatever comes next starts on time.`,
+      example: fit && left ? `For example, ${range} fits ${fit} 22-minute episodes; the last ${spoken(left)} are the break.` : undefined,
+    }
+  }
+  return {
+    text: `Only programs that finish by ${end} play, and the minutes left over are shared out as a short break after each one, so the block still ends at ${end}.`,
+    example: fit && left ? `For example, ${range} fits ${fit} 22-minute episodes, each followed by a ${spoken(left / fit, true)} break.` : undefined,
+  }
 }
 
 /**
@@ -497,8 +524,12 @@ export default function ScheduleTab({
                   {effectiveLabel(b.playbackOrder, b.collection)}
                   {b.startMode === 'hard' && ' · hard start'}
                   {(b.logoId || b.logoUrl) && ' · logo'}
-                  {b.fillerMode === 'end' && ' · break at the end'}
-                  {b.fillerMode === 'between' && ' · breaks between programs'}
+                  {(b.fillerMode || 'none') !== 'none' &&
+                    ((b.grid ?? ch.grid)
+                      ? ' · ends on time'
+                      : b.fillerMode === 'end'
+                        ? ' · ends on time with a break'
+                        : ' · ends on time with breaks between programs')}
                   {b.comingUp && ' · up-next'}
                   {b.grid != null && b.grid !== ch.grid && ` · ${clockName(b.grid)}`}
                   {b.actBreaks != null && b.actBreaks !== ch.actBreaks && (b.actBreaks ? ' · breaks inside programs' : ' · breaks after programs')}
@@ -560,6 +591,10 @@ export default function ScheduleTab({
           />
 
           <Section title="Breaks">
+            <p className="-mt-1 mb-4 text-[12.5px] text-ink-muted leading-relaxed">
+              A break is time between programs when the channel airs its idents — short station-ID loops set up on the
+              Breaks tab — instead of a show. Breaks are what let a block start or end exactly on time.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="text-[12.5px] font-medium text-ink-soft">Start</div>
@@ -572,23 +607,41 @@ export default function ScheduleTab({
                     { value: 'hard', label: 'Hard' },
                   ]}
                 />
-                <p className="text-xs text-ink-faint leading-snug">{START_HINTS[blk.startMode] ?? START_HINTS.soft}</p>
+                <p className="text-xs text-ink-faint leading-snug">
+                  {startHint(blk.startMode, minutesToTime(timeToMin(blk.start)))}
+                </p>
               </div>
               <div className="space-y-1.5">
-                <div className="text-[12.5px] font-medium text-ink-soft">Leftover time</div>
-                <Segmented
-                  size="sm"
-                  value={blk.fillerMode}
-                  onChange={(v) => setBlk({ ...blk, fillerMode: v })}
-                  options={[
-                    { value: 'none', label: 'Off' },
-                    { value: 'end', label: 'At the end' },
-                    { value: 'between', label: 'Between programs' },
-                  ]}
-                />
-                <p className="text-xs text-ink-faint leading-snug">
-                  {(blockClock ? CLOCK_BREAKS : BREAK_HINTS)[blk.fillerMode] ?? BREAK_HINTS.none}
-                </p>
+                <div className="text-[12.5px] font-medium text-ink-soft">End</div>
+                {(() => {
+                  // On a clock, "at the end" and "between programs" lay a
+                  // block out the same way, so it's one choice there.
+                  const mode = blk.fillerMode || 'none'
+                  const hint = endHint(mode, timeToMin(blk.start), timeToMin(blk.end), blockClock)
+                  return (
+                    <>
+                      <Segmented
+                        size="sm"
+                        value={blockClock > 0 && mode === 'between' ? 'end' : mode}
+                        onChange={(v) => setBlk({ ...blk, fillerMode: v })}
+                        options={
+                          blockClock
+                            ? [
+                                { value: 'none', label: 'Run over' },
+                                { value: 'end', label: 'End on time' },
+                              ]
+                            : [
+                                { value: 'none', label: 'Run over' },
+                                { value: 'end', label: 'Break at the end' },
+                                { value: 'between', label: 'Between programs' },
+                              ]
+                        }
+                      />
+                      <p className="text-xs text-ink-faint leading-snug">{hint.text}</p>
+                      {hint.example && <p className="text-xs text-ink-faint leading-snug">{hint.example}</p>}
+                    </>
+                  )
+                })()}
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <div className="text-[12.5px] font-medium text-ink-soft">Clock</div>

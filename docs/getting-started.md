@@ -213,6 +213,10 @@ On the **Schedule** tab:
   can have their own playback order, logo, breaks, and "coming up next"
   settings. **Soft start** waits for the current program to finish; **hard
   start** begins exactly on time, with a station break in the gap before it.
+  At the other end, **Run over** lets the last program finish past the
+  block's end, while **Break at the end** plays only what fits and fills the
+  last few minutes with a station break, so the next block starts on time —
+  see [Breaks: starting and ending on time](channels.md#breaks-starting-and-ending-on-time).
 
 A channel can be rotation-only, blocks-only, or both. Episode positions are
 remembered — shows resume where they left off, across days and rebuilds.

@@ -49,15 +49,20 @@ breaks** on its Breaks tab.
 
 ## Station breaks
 
-A break is what plays in the gaps the schedule opens:
+A break is time between programs when the channel airs its idents instead of
+a show — the station's answer to the commercial break. The schedule opens one
+only where it needs to keep time:
 
-- Inside a time block, its leftover time — at the end, or spread between its
-  programs — so the block ends exactly on schedule.
-- Before a **hard-start** block, so it begins exactly on time.
+- At the end of a time block, or spread between its programs, so the block
+  ends exactly on time (edit a block → **Breaks** → *End*).
+- Before a **hard-start** block, so it begins exactly on time (*Start*).
+- After each program on a **broadcast clock**, up to the next line — and, with
+  **breaks inside programs**, at its act breaks too (see
+  [The broadcast clock](channels.md#the-broadcast-clock)).
 
-Nothing else creates a break, and a rotation-only channel never has one. Both
-are set per block on the **Schedule** tab (edit a block → **Breaks**: *Start*
-soft or hard, and *Leftover time* off, at the end, or between programs).
+A channel with none of these never has a break: its programs run back to back.
+The block settings are explained in
+[Breaks: starting and ending on time](channels.md#breaks-starting-and-ending-on-time).
 
 The stream also shows the channel's breaks whenever it has nothing else to
 show, instead of going to black:

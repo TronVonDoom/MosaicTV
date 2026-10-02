@@ -178,7 +178,7 @@ export default function BreaksTab({
       <Card>
         <CardHeader
           title="Idents"
-          description="What plays during a break. Where more than one can play, breaks take turns in this order."
+          description="What plays during a break — the minutes between programs that keep the schedule on time. Where more than one can play, breaks take turns in this order."
           actions={
             <>
               <Button variant="secondary" size="sm" icon="copy" onClick={() => setCopy({ mode: 'from' })}>

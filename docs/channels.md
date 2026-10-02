@@ -234,22 +234,40 @@ Per block:
 
 - **Days + start/end time** (channel timezone = the container's `TZ`).
 - **Collection + playback order** — same options as rotation.
-- **Start mode**:
-  - **soft** — the block takes over at the next program boundary; nothing gets
-    cut off.
-  - **hard** — the block starts exactly on time; the gap before it is a
-    station break, so the previous program doesn't overrun.
 - **Logo override** — a different on-screen watermark while the block airs.
 - **"Coming up next" override** — per-block card settings, including
   turning it off for just this block.
+- **Breaks** — whether the block keeps to its times (below).
 
-- **Leftover time** — how time the block's programs don't fill is handled so
-  it ends on schedule: **off** (programs run back to back and may overrun),
-  **at the end** (one break before the block ends), or **between programs**
-  (short breaks spread between them).
+### Breaks: starting and ending on time
 
-Start and leftover time sit together under **Breaks** in the block editor —
-they decide *when* a block has breaks. *What* the breaks play is set on the
+A **break** is time between programs when the channel airs its idents —
+short station-ID loops — instead of a show. Programs rarely add up to a
+block's exact length, so breaks are how a block starts or ends on the minute.
+Under **Breaks** in the block editor:
+
+- **Start**
+  - **Soft** — the block waits for whatever is on at its start time to finish,
+    so it can start a few minutes late. No break.
+  - **Hard** — the block starts exactly on time. A program that wouldn't
+    finish before then is saved for later, and a break fills the minutes up to
+    the start.
+- **End**
+  - **Run over** — programs play back to back; the last one starts before the
+    block's end and can finish after it, pushing back whatever comes next. No
+    break.
+  - **Break at the end** — only programs that finish by the block's end play;
+    the minutes left over become one break just before it ends. A 6:00–9:00 PM
+    block of 22-minute episodes plays eight of them, then a 4-minute break, and
+    the next block starts at 9:00 sharp.
+  - **Between programs** — the same programs play, with the minutes left over
+    shared out as a short break after each one (30 seconds each, in that
+    example).
+
+  With a broadcast clock (below) the two on-time choices lay a block out the
+  same way, so the editor offers just **Run over** and **End on time**.
+
+These decide *when* a block has breaks. *What* the breaks play is set on the
 channel's **Breaks** tab (see [Station breaks](branding.md#station-breaks)),
 and the editor says which ident will play.
 
@@ -273,9 +291,9 @@ at 10:00.
 - A program that runs **a minute or less** past a line hands straight over
   (the next one starts that little bit late) rather than waiting a whole slot
   — files often carry a few seconds of black past their half hour.
-- In a block with leftover-time breaks, as many programs as finish inside it
-  play, each on the clock; the rest of the block is one break. With leftover
-  time off, the last one may run past the block's end.
+- In a block set to **End on time**, as many programs as finish inside it
+  play, each on the clock; the rest of the block is one break. Set to **Run
+  over**, the last one may run past the block's end.
 - A break never runs into an exact-time block's start, and the channel gets
   back on its clock after a block that has its own turned off.
 - The XMLTV guide lists a short break as part of the program before it, the

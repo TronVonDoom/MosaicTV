@@ -21,9 +21,9 @@ function breakText(b: Block, ch: ChannelDetail): string {
       ? `On the clock: each program is followed by a break up to the next line${acts}, and the gap before its hard start is a break too.`
       : `On the clock: each program is followed by a break up to the next line${acts}.`
   }
-  if (b.fillerMode === 'end' && b.startMode === 'hard') return 'Starts hard, so the gap before it is a break — and its leftover time at the end is one more.'
-  if (b.fillerMode === 'end') return 'Its leftover time at the end is one break.'
-  if (b.fillerMode === 'between') return 'Its leftover time is spread out as breaks between programs.'
+  if (b.fillerMode === 'end' && b.startMode === 'hard') return 'Starts hard, so the gap before it is a break — and it ends on time with one more before the next block.'
+  if (b.fillerMode === 'end') return 'Ends on time: the minutes its programs don’t fill are one break before the next block.'
+  if (b.fillerMode === 'between') return 'Ends on time: the minutes its programs don’t fill are shared out as short breaks between them.'
   if (b.startMode === 'hard') return 'Only the gap before its hard start is a break.'
   return 'Breaks are off — programs run back to back.'
 }
