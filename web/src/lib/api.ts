@@ -434,7 +434,6 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ ...data, season: data.season ?? -1 }),
     }),
-  deleteAiring: (id: number) => request<void>(`/api/airings/${id}`, { method: 'DELETE' }),
   browse: (path?: string) =>
     request<FsListing>(`/api/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   settings: () => request<SettingsInfo>('/api/settings'),

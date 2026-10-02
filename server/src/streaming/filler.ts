@@ -109,15 +109,6 @@ function animatedBuild(dims: Dims, loop: number): StyleBuild {
   }
 }
 
-// Proven fallback (the original) in case a filter isn't available on this build.
-function basicBuild(dims: Dims, loop: number): StyleBuild {
-  return {
-    inputs: gradientInput(dims, loop, 0.02, 'c0=0x111827:c1=0x4c1d95:c2=0x1e3a8a:c3=0x0e7490'),
-    filter: `[0:v]fps=${FPS},format=yuv420p[v]`,
-    tone: 98,
-    vol: 0.06,
-  }
-}
 
 // Retro test bars: classic SMPTE color bars with soft analog grain + vignette.
 function retroBuild(dims: Dims, loop: number): StyleBuild {

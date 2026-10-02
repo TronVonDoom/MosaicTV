@@ -2,7 +2,7 @@
   "name": "mosaictv",
   "version": "0.13.0",
   "private": true,
-  "description": "Turn your media library into scheduled 24/7 live TV channels with bumpers, filler, overlays, and M3U/XMLTV output.",
+  "description": "Turn your media library into scheduled 24/7 live TV channels with station breaks, logos, up-next cards, and M3U/XMLTV output.",
   "scripts": {
     "install:all": "npm install && npm --prefix server install && npm --prefix server run prisma:generate && npm --prefix web install",
     "dev": "concurrently -n server,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix web run dev\"",

@@ -210,16 +210,6 @@ export function hasSubtitleStream(filePath: string): Promise<boolean> {
   return probe
 }
 
-/** A media file's duration in seconds (0 on failure). */
-export function probeDuration(filePath: string): Promise<number> {
-  return ffprobeText([
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'default=nw=1:nk=1',
-    filePath,
-  ]).then((out) => parseFloat(out) || 0)
-}
-
 // ---- Audio track selection --------------------------------------------------
 
 // ISO 639 is two standards deep: files tag audio "eng" or "en", "jpn" or "ja",

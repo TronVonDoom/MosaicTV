@@ -68,7 +68,7 @@ export default function MaintenanceSettings() {
         <SettingRow
           label={
             <span className="inline-flex items-center gap-2.5">
-              <img src="/logo-icon.png" alt="" className="w-6 h-6" />
+              <img src="/mosaictv-icon.png" alt="" className="w-6 h-6" />
               <span>
                 Mosaic<span className="text-gradient-brand">TV</span>
               </span>

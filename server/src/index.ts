@@ -199,7 +199,6 @@ async function boot(): Promise<void> {
     console.log(`MosaicTV v${VERSION} listening on http://0.0.0.0:${PORT}`)
     console.log(`ffmpeg available: ${ffmpegAvailable}`)
     log('info', 'system', `MosaicTV v${VERSION} started — ffmpeg ${ffmpegAvailable ? 'available' : 'NOT available'}`)
-    log('info', 'system', 'Streaming pipeline: single-stage HLS segmenter')
     // Say which scope the resource graph is measuring: 'process' means we
     // couldn't find a cgroup and the numbers exclude ffmpeg entirely.
     log(

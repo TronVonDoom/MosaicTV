@@ -20,7 +20,8 @@ data/
 # ...but the server's dev .env holds only a non-secret sqlite path — keep it
 !server/.env
 
-# OS / editor cruft
+# OS / editor cruft (and Claude Code's per-machine launch configs and scratch)
+.claude/
 .DS_Store
 Thumbs.db
 .vscode/

@@ -30,12 +30,6 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 /** The panel surface every card, form, and list container is built from. */
 const CARD_SURFACE = 'rounded-2xl border border-edge surface-card'
 
-/** The card surface on its own, for elements that can't be a <Card> — e.g. a
- *  react-router <Link> that should look like one. */
-export function cardClass(extra?: string): string {
-  return cx(CARD_SURFACE, extra)
-}
-
 /** The standard panel surface: every card, form, and list container. */
 export function Card({
   interactive = false,
@@ -619,17 +613,6 @@ export function EmptyState({
  */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cx('skeleton rounded-lg', className ?? 'h-4 w-full')} aria-hidden="true" />
-}
-
-/** A stack of skeleton cards, for a list or grid that hasn't loaded yet. */
-export function SkeletonCards({ count = 3, className }: { count?: number; className?: string }) {
-  return (
-    <div className={cx('grid gap-4', className)}>
-      {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-24 rounded-2xl" />
-      ))}
-    </div>
-  )
 }
 
 /**

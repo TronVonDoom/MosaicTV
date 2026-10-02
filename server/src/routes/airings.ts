@@ -261,12 +261,3 @@ airingsRouter.put('/', async (req, res) => {
   await scheduleChangedEverywhere()
   res.json({ airings: saved.map(airingDto) })
 })
-
-// DELETE /api/airings/:id  -> ungroup a single airing.
-airingsRouter.delete('/:id', async (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' })
-  const { count } = await prisma.airing.deleteMany({ where: { id } })
-  if (count) await scheduleChangedEverywhere()
-  res.status(204).end()
-})

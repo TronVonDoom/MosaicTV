@@ -178,11 +178,6 @@ export function HeroMenu({ label, items }: { label: string; items: MenuItem[] })
   )
 }
 
-/** A rating chip for a title's facts: "TV-Y7", "PG-13". */
-export function RatingChip({ children }: { children: ReactNode }) {
-  return <span className="rounded-[3px] border border-white/30 px-1.5 py-px text-[11.5px] font-semibold tracking-wide text-ink-soft">{children}</span>
-}
-
 /** A star rating for a title's facts. */
 export function Stars({ value }: { value: number }) {
   return (

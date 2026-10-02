@@ -3,30 +3,10 @@
 // file one), so pointing DATABASE_URL at a scratch file here is safe.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { createRequire } from 'node:module'
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { tempDb } from './testDb.js'
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mosaictv-playout-'))
-process.env.DATABASE_URL = 'file:' + path.join(dir, 'test.db').replace(/\\/g, '/')
-const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const migrate = spawnSync(process.execPath, [createRequire(import.meta.url).resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
-  cwd: serverRoot,
-  env: process.env,
-  encoding: 'utf8',
-})
-if (migrate.status !== 0) throw new Error(migrate.stdout + migrate.stderr)
-
-const { prisma } = await import('./db.js')
+const { prisma } = await tempDb('mosaictv-playout-')
 const { buildPlayout, replanPlayout } = await import('./playout.js')
-
-test.after(async () => {
-  await prisma.$disconnect()
-  fs.rmSync(dir, { recursive: true, force: true })
-})
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -47,7 +27,7 @@ async function fixture() {
     }
     return ids
   }
-  const a = await show('Alpha', 25, 22 * 60)
+  await show('Alpha', 25, 22 * 60)
   const b = await show('Bravo', 30, 11 * 60)
   await show('Charlie', 12, 25 * 60)
   // Two of Bravo's 11-minute shorts at a time air as one broadcast episode.

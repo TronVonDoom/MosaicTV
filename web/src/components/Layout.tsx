@@ -215,7 +215,7 @@ function Sidebar({
         className={cx('flex items-center gap-2.5 h-16 shrink-0', collapsed ? 'justify-center px-0' : 'px-5')}
         title="MosaicTV"
       >
-        <img src="/logo-icon.png" alt="" className="w-8 h-8 shrink-0 drop-shadow-[0_4px_12px_rgb(139_92_246/0.45)]" />
+        <img src="/mosaictv-icon.png" alt="" className="w-8 h-8 shrink-0 drop-shadow-[0_4px_12px_rgb(139_92_246/0.45)]" />
         {!collapsed && (
           <span className="flex items-baseline gap-2 min-w-0">
             <span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">
@@ -504,7 +504,7 @@ export default function Layout() {
           <div className="flex items-center gap-3 h-14 px-4 sm:px-6 lg:px-8">
             <IconButton icon="menu" label="Open menu" className="lg:hidden -ml-1.5" onClick={() => setMobileOpen(true)} />
             <Link to="/" className="lg:hidden shrink-0 flex items-center gap-2 mr-1">
-              <img src="/logo-icon.png" alt="MosaicTV" className="w-7 h-7 shrink-0" />
+              <img src="/mosaictv-icon.png" alt="MosaicTV" className="w-7 h-7 shrink-0" />
             </Link>
 
             {/* A visible entry point for the palette — a shortcut nobody

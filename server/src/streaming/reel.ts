@@ -30,7 +30,7 @@ function hash(n: number): number {
  */
 export function reelPlan(clips: { durationSec: number }[], lengthSec: number, seed: number): ReelPiece[] {
   const order = clips
-    .map((c, i) => ({ i, k: hash(i * 7919 + seed) }))
+    .map((_, i) => ({ i, k: hash(i * 7919 + seed) }))
     .filter(({ i }) => clips[i].durationSec > 0.5)
     .sort((a, b) => a.k - b.k)
     .map((o) => o.i)

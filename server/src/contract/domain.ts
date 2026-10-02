@@ -64,9 +64,6 @@ export const MUSIC_SCREENS = ['album', 'visualizer'] as const
 export type MusicScreen = (typeof MUSIC_SCREENS)[number]
 export const asMusicScreen = (v: unknown): MusicScreen => (v === 'visualizer' ? 'visualizer' : 'album')
 
-/** Music on air: a music video, or a song. */
-export const isMusicType = (type: string | null | undefined): boolean => type === 'music' || type === 'song'
-
 /** The kinds of extra a movie or show can carry — featurettes, trailers,
  *  deleted scenes… — as Plex names them. */
 export const EXTRA_KINDS = ['behindthescenes', 'deleted', 'featurette', 'interview', 'scene', 'short', 'trailer', 'sample', 'other'] as const

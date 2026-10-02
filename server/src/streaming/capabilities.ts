@@ -70,15 +70,12 @@ export async function resolveEncoder(hwaccel: HwAccel): Promise<string> {
   return logEncoder('libx264')
 }
 
-// The outer concat process gets a connect-time buffer cushion from
-// -readrate_initial_burst (ffmpeg 6.1+) and, where present, a post-stall
-// catch-up rate from -readrate_catchup. Both only qualify an existing
-// -readrate, and older ffmpeg (Debian bookworm's 5.1) rejects them outright,
-// which would abort every stream. They also land on different schedules —
-// trixie's 7.1 has the burst but not the catch-up — so probe each on its own,
-// with -readrate set the way the stream path sets it, and use whichever the
-// running ffmpeg actually knows. A missing option just means a smaller
-// cushion, never a broken stream.
+// The segmenter keeps its lead over the wall clock with
+// -readrate_initial_burst (ffmpeg 6.1+), which only qualifies an existing
+// -readrate; older ffmpeg (Debian bookworm's 5.1) rejects it outright, which
+// would abort every stream. So probe it with -readrate set the way the stream
+// path sets it, and stream with plain -readrate when it isn't there. A missing
+// option just means no lead, never a broken stream.
 function probeReadrateOption(flag: string, value: string): Promise<boolean> {
   return new Promise((resolve) => {
     let stderr = ''
@@ -108,30 +105,6 @@ export function detectReadrateBurst(): Promise<boolean> {
     })
   }
   return readrateBurstProbe
-}
-
-let readrateCatchupProbe: Promise<boolean> | undefined
-export function detectReadrateCatchup(): Promise<boolean> {
-  if (!readrateCatchupProbe) {
-    readrateCatchupProbe = probeReadrateOption('-readrate_catchup', '1.5').then((ok) => {
-      if (!ok) log('info', 'ffmpeg', 'ffmpeg lacks -readrate_catchup — streams keep the initial burst, just no post-stall catch-up rate')
-      return ok
-    })
-  }
-  return readrateCatchupProbe
-}
-
-/**
- * The readrate cushion flags this ffmpeg supports, for the given initial-burst
- * length in seconds. The burst and the catch-up rate are probed independently,
- * so a build that has one but not the other uses the one it has instead of
- * dropping both.
- */
-export async function readrateBurstArgs(burstSec: number): Promise<string[]> {
-  const args: string[] = []
-  if (await detectReadrateBurst()) args.push('-readrate_initial_burst', String(burstSec))
-  if (await detectReadrateCatchup()) args.push('-readrate_catchup', '1.5')
-  return args
 }
 
 // ---- GPU decode (NVDEC) -----------------------------------------------------

@@ -78,15 +78,6 @@ export function closeSession(id: number): void {
   sessions.delete(id)
 }
 
-export function getSession(id: number | undefined): Session | undefined {
-  return id == null ? undefined : sessions.get(id)
-}
-
-/** Session tag for an id that arrived over the wire, for logging. */
-export function sessionTag(id: number | undefined): string | undefined {
-  return getSession(id)?.tag
-}
-
 export function activeSessions(): Session[] {
   return [...sessions.values()]
 }

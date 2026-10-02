@@ -26,7 +26,6 @@ const { ensureSegmenter, setSegmenterDeps, stopAllSegmenters, touchSegmenter, al
 const { fakeSpawner } = await import('./fakeEncoder.js')
 
 const SEC = 1000
-const MIN = 60 * SEC
 const SLOT = 180 // every episode is three minutes
 
 // Ten episodes, each told how to behave by its path: /fake/<behavior>/<n>.mkv.

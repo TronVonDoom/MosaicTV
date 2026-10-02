@@ -15,7 +15,6 @@ import {
   ArrowUpDown,
   Bell,
   CalendarRange,
-  Captions,
   Cast,
   Check,
   CheckCircle2,
@@ -26,7 +25,6 @@ import {
   Clapperboard,
   Clock3,
   Coffee,
-  Command,
   Copy,
   Cpu,
   Database,
@@ -37,14 +35,9 @@ import {
   Film,
   Filter,
   FolderOpen,
-  Gauge,
-  Globe,
-  HardDrive,
-  Hash,
   Heart,
   Image,
   Info,
-  KeyRound,
   LayoutDashboard,
   LayoutGrid,
   Layers,
@@ -79,7 +72,6 @@ import {
   Upload,
   Volume2,
   VolumeX,
-  Users,
   Wand2,
   X,
   Zap,
@@ -134,7 +126,6 @@ export type IconName =
   // Status & misc
   | 'live'
   | 'cast'
-  | 'users'
   | 'eye'
   | 'star'
   | 'info'
@@ -144,21 +135,13 @@ export type IconName =
   | 'bolt'
   | 'cpu'
   | 'server'
-  | 'disk'
   | 'database'
   | 'activity'
-  | 'gauge'
   | 'link'
   | 'grid'
   | 'list'
   | 'layers'
   | 'shuffle'
-  | 'hash'
-  | 'globe'
-  | 'captions'
-  | 'wand'
-  | 'key'
-  | 'command'
   | 'calendar'
   | 'sliders'
   | 'tv'
@@ -215,7 +198,6 @@ const GLYPH: Record<IconName, LucideIcon> = {
   menu: Menu,
   live: RadioTower,
   cast: Cast,
-  users: Users,
   eye: Eye,
   star: Star,
   info: Info,
@@ -225,21 +207,13 @@ const GLYPH: Record<IconName, LucideIcon> = {
   bolt: Zap,
   cpu: Cpu,
   server: Server,
-  disk: HardDrive,
   database: Database,
   activity: Activity,
-  gauge: Gauge,
   link: Link2,
   grid: LayoutGrid,
   list: List,
   layers: Layers,
   shuffle: Shuffle,
-  hash: Hash,
-  globe: Globe,
-  captions: Captions,
-  wand: Wand2,
-  key: KeyRound,
-  command: Command,
   calendar: CalendarRange,
   sliders: SlidersHorizontal,
   tv: MonitorPlay,
@@ -274,13 +248,11 @@ const COLOR: Partial<Record<IconName, string>> = {
   m3u: '#34d399',
   xmltv: '#22d3ee',
   live: '#ff5b6b',
-  users: '#fb7185',
   star: '#fbbf24',
   warning: '#fbbf24',
   success: '#34d399',
   cpu: '#38bdf8',
   server: '#2dd4bf',
-  disk: '#a78bfa',
   database: '#818cf8',
   activity: '#34d399',
   sparkles: '#c084fc',

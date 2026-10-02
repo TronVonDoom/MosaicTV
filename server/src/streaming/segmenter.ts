@@ -181,7 +181,6 @@ class ChannelSegmenter {
   private discontSeq = 0 // count of discontinuities evicted from the front
   private emittedAny = false
   private runSeq = 0
-  private loop: Promise<void> | null = null
   private restyled = false // the running encoder was killed by restyle()
   // Where the next frame sits on the schedule (epoch ms): the end of everything
   // encoded so far. Runs ~LEAD_SEC ahead of the wall clock.
@@ -214,7 +213,7 @@ class ChannelSegmenter {
     this.session = openSession(this.n, 'hls')
     this.running = true
     this.cursor = Date.now() // tune in at the live point; the first burst builds the lead
-    this.loop = this.runLoop().catch((e) =>
+    this.runLoop().catch((e) =>
       log('error', 'stream', `Channel ${this.n} segmenter loop crashed`, String(e?.stack || e), this.tag),
     )
     const end = Date.now() + READY_TIMEOUT_MS

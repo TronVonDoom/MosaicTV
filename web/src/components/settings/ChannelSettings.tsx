@@ -29,8 +29,8 @@ export default function ChannelSettings({ info, onChange }: { info: SettingsInfo
   useEffect(() => {
     api
       .logos()
-      .then((ls) => setSampleLogo(ls[0] ? logoImageUrl(ls[0]) : '/logo-icon.png'))
-      .catch(() => setSampleLogo('/logo-icon.png'))
+      .then((ls) => setSampleLogo(ls[0] ? logoImageUrl(ls[0]) : '/mosaictv-icon.png'))
+      .catch(() => setSampleLogo('/mosaictv-icon.png'))
   }, [])
   useEffect(() => {
     if (info && !wm) setWm(info.watermark)
