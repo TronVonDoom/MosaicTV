@@ -97,6 +97,7 @@ export const ChannelUpdate = z.object({
   // What a song airs over, and whether a song's lyrics come first (see Channel).
   musicScreen: loose.transform(asMusicScreen).optional(),
   lyricsFirst: flag.optional(),
+  songsAround: flag.optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 

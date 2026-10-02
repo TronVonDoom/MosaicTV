@@ -655,6 +655,8 @@ export type ChannelDetail = {
   musicScreen: MusicScreen
   /** A song with timed lyrics shows them instead. */
   lyricsFirst: boolean
+  /** The album look shows the program before and after a song along its bottom. */
+  songsAround: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }

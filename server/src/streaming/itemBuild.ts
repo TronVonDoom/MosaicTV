@@ -18,18 +18,18 @@ import { cachedRemoteImage } from '../metadata/artworkFiles.js'
 import { programLabel } from '../labels.js'
 import { creditOf } from '../contract/index.js'
 import { log } from '../logs.js'
-import { hasSubtitleStream, pickAudioTrack, probeAudioLangs, probeSar } from '../ffprobe.js'
+import { hasSubtitleStream, imageSize, pickAudioTrack, probeAudioLangs, probeSar } from '../ffprobe.js'
 import { effectiveAudioLanguage, globalAudioLanguage } from '../audio.js'
 import { nvdecIfReady } from './capabilities.js'
 import type { StreamProfile } from './profile.js'
 import { CARD_SCALE, DEFAULT_COMINGUP, parseComingUp, type ComingUpConfig, type WatermarkConfig } from './overlays.js'
-import { cardAnchor, cardEntry, cardRect, comingUpWindows, ffmpegArgs, placeCard, type CardOverlay, type FfmpegOutput, type Segment } from './filters.js'
+import { cardAnchor, cardEntry, cardRect, comingUpWindows, ffmpegArgs, placeCard, watermarkBox, type CardOverlay, type FfmpegOutput, type Segment } from './filters.js'
 import { renderCard, type CardContent } from './card.js'
-import { nowPlayingContent, upNextContent } from './cardContent.js'
+import { neighbourOf, nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
 import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
 import { reelClips, reelPlan, reelSeed, type ReelClipRow } from './reel.js'
-import { songScreen, type ScreenLayout } from './songScreen.js'
+import { songScreen, type Around, type Box, type ScreenLayout, type SongFacts } from './songScreen.js'
 import { songLyrics } from '../lyrics.js'
 
 // The channel shape the builder needs — timeBlocks with their collection and
@@ -96,6 +96,31 @@ export type BuildItemParams = {
  * edges, and the up-next and now-playing cards — returning args for the
  * segmenter to spawn rather than streaming them itself.
  */
+/**
+ * Where the logo sits on a frame of the profile's size, as the watermark draws
+ * it there — its width a share of the frame's, its height from the image's own
+ * shape — when it's in a bottom corner, where a song screen's corners are; null
+ * anywhere else, or with no logo.
+ */
+async function logoBox(logo: string | undefined, wm: WatermarkConfig, frame: { w: number; h: number }): Promise<Box | null> {
+  if (!logo || wm.mode === 'none' || !wm.position.startsWith('bottom')) return null
+  const size = await imageSize(logo)
+  if (!size) return null
+  const b = watermarkBox(wm, { x0: 0, y0: 0, mw: frame.w, mh: frame.h }, frame)
+  const h = Math.round((b.LW * size.h) / size.w)
+  return { x: wm.position === 'bottom-left' ? b.left : b.right - b.LW, y: b.bottom - h, w: b.LW, h }
+}
+
+/** Where a song sits on its album: its track of how many (on its disc, for a
+ *  set of more than one), and that disc. */
+async function albumPlace(mi: { libraryId: number; artist: string | null; album: string | null; track: number | null; disc: number | null }): Promise<Pick<SongFacts, 'track' | 'tracks' | 'disc'>> {
+  if (!mi.album || !mi.track) return { track: mi.track }
+  const songs = await prisma.mediaItem.findMany({ where: { libraryId: mi.libraryId, type: 'song', missing: false, extra: null, artist: mi.artist, album: mi.album }, select: { disc: true } })
+  const discs = new Set(songs.map((s) => s.disc ?? 1))
+  const set = discs.size > 1
+  return { track: mi.track, tracks: set ? songs.filter((s) => (s.disc ?? 1) === (mi.disc ?? 1)).length : songs.length, disc: set ? mi.disc ?? 1 : null }
+}
+
 export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem> {
   const { channelNumber, channel, profile, enc, defaultWm, logoPath, logoWm, item, next, nextProgram, prevKind, offset, segDur, output, readrate, tag } = params
 
@@ -123,6 +148,8 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
 
   let seg: Segment | null = null
   let label: string
+  // A song screen's corners: the programs either side of it (see songScreen.ts).
+  let around: Around = {}
 
   if (item.kind === 'filler' || !mi) {
     // The idents this break picks from: the active block's own, else the
@@ -215,8 +242,23 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     const own = mi.posterPath && fs.existsSync(mi.posterPath) ? mi.posterPath : null
     const online = !own && mi.tmdbPosterPath ? await cachedRemoteImage(mi.tmdbPosterPath, 'w500', 5000).catch(() => null) : null
     const cover = own ?? online ?? (mi.showPosterPath && fs.existsSync(mi.showPosterPath) ? mi.showPosterPath : null)
-    const facts = { id: mi.id, title: mi.title, artist: creditOf(mi), album: mi.album, year: mi.year, durationSec: mi.durationSec, cover }
-    const screen = await songScreen(facts, layout, { w: profile.width, h: profile.height }, seek, lines).catch((e) => {
+    const facts: SongFacts = { id: mi.id, title: mi.title, artist: creditOf(mi), album: mi.album, year: mi.year, durationSec: mi.durationSec, cover, ...(await albumPlace(mi)) }
+    // The album look's corners, as the channel has them: what aired before
+    // (within the last two hours) and what airs next, kept clear of the logo.
+    if (layout === 'album' && channel.songsAround) {
+      const before = await prisma.playoutItem.findFirst({
+        where: { channelId: item.channelId, kind: 'program', mediaItemId: { not: null }, id: { not: item.id }, stopTime: { lte: item.startTime, gte: new Date(item.startTime.getTime() - 2 * 3600_000) } },
+        orderBy: { startTime: 'desc' },
+        include: { mediaItem: true },
+      })
+      const logoAt = await logoBox(logo, wm, { w: profile.width, h: profile.height })
+      around = {
+        prev: before ? await neighbourOf(before).catch(() => null) : null,
+        next: nextProgram ? await neighbourOf(nextProgram).catch(() => null) : null,
+        avoid: logoAt ? [logoAt] : [],
+      }
+    }
+    const screen = await songScreen(facts, layout, { w: profile.width, h: profile.height }, seek, lines, around).catch((e) => {
       log('warn', 'stream', `Channel ${channelNumber}: couldn't draw the screen for ${mi.title}`, String((e as Error)?.stack || e), tag)
       return null
     })
@@ -314,8 +356,9 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     if (b - a > 1) await stageCard('now-playing', await nowPlayingContent(mi).catch(() => null), [{ a, b }])
   }
   // A song's screen leaves its bottom-right corner for what's next, over its
-  // last 20 seconds — whatever the channel's card does over programs.
-  if (!thisIsFiller && mi?.type === 'song' && seg.screen && nextProgram?.mediaItem) {
+  // last 20 seconds — whatever the channel's card does over programs — unless
+  // its corners name what's next the whole way through.
+  if (!thisIsFiller && mi?.type === 'song' && seg.screen && nextProgram?.mediaItem && !around.next) {
     const untilEnd = (item.stopTime.getTime() - item.startTime.getTime()) / 1000 - offset
     const a = Math.max(0, untilEnd - 20)
     const b = Math.min(segDur, untilEnd - 0.5)

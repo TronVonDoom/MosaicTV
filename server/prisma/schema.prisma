@@ -380,6 +380,10 @@ model Channel {
   // a song that has timed lyrics shows them instead.
   musicScreen       String             @default("album")
   lyricsFirst       Boolean            @default(false)
+  // The album look's bottom corners: the program before a song on the left
+  // and the one after on the right (see songScreen.ts), in place of the Up
+  // next card over a song's last seconds.
+  songsAround       Boolean            @default(true)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 
 /** Run ffprobe and resolve with its trimmed stdout ('' on any failure). */
 function ffprobeText(args: string[]): Promise<string> {
@@ -113,6 +114,28 @@ export function embeddedTags(raw: Record<string, string> | undefined, streams: F
   else if (attached?.index != null) out.cover = { stream: attached.index, attachment: true }
   out.version = TAGS_VERSION
   return out
+}
+
+const imageSizes = new Map<string, Promise<{ w: number; h: number } | null>>()
+
+/** An image's size in pixels (a logo's, for where it lands on a screen),
+ *  read once per file as it stands; null if it can't be read. */
+export function imageSize(file: string): Promise<{ w: number; h: number } | null> {
+  let key: string
+  try {
+    key = `${file}|${fs.statSync(file).mtimeMs}`
+  } catch {
+    return Promise.resolve(null)
+  }
+  let size = imageSizes.get(key)
+  if (!size) {
+    size = ffprobeText(['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', file]).then((out) => {
+      const [w, h] = out.split('x').map(Number)
+      return w > 0 && h > 0 ? { w, h } : null
+    })
+    imageSizes.set(key, size)
+  }
+  return size
 }
 
 /** A file's tags as a scan kept them (MediaItem.embedded); null when not read. */

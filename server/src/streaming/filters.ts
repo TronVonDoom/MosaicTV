@@ -48,7 +48,7 @@ export type Segment = {
 
 /** Where a song screen's images come in among the command's inputs, and the
  *  song's sound for its spectrum (a label in the audio graph). */
-type ScreenInputs = { still: number; fill: number; grad: number; dim: number; lit: number; mask: number; audio: string | null }
+type ScreenInputs = { still: number; fill: number; grad: number; dim: number; lit: number; mask: number; audio: string | null; extras: number[] }
 
 /**
  * A song's picture (see songScreen.ts): its still frame, converted once and
@@ -61,7 +61,16 @@ type ScreenInputs = { still: number; fill: number; grad: number; dim: number; li
  */
 export function screenGraph(sc: SongScreen, inputs: ScreenInputs, fps: number): string {
   const T = `(t+${sc.offset.toFixed(3)})`
-  const p: string[] = [`[${inputs.still}:v]format=yuv420p,loop=loop=-1:size=1:start=0,setpts=N/(${fps}*TB)[sc0]`]
+  const p: string[] = []
+  // This airing's extras (the album look's corners) go onto the still before
+  // it's repeated: laid on once, they cost nothing a frame.
+  let still = `${inputs.still}:v`
+  ;(sc.extras ?? []).forEach((e, i) => {
+    if (inputs.extras[i] == null) return
+    p.push(`[${still}][${inputs.extras[i]}:v]overlay=${e.x}:${e.y}[scx${i}]`)
+    still = `scx${i}`
+  })
+  p.push(`[${still}]format=yuv420p,loop=loop=-1:size=1:start=0,setpts=N/(${fps}*TB)[sc0]`)
   // Progress: the fill slides along the track from out of sight past its start.
   const b = sc.bar
   p.push(`[sc0]split=2[sc0a][sc0b]`)
@@ -522,7 +531,8 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
       a.push('-i', file)
       return idx++
     }
-    screenIn = { still: once(sc.png), fill: once(sc.bar.png), grad: sc.spectrum ? once(sc.spectrum.gradient) : -1, dim: -1, lit: -1, mask: -1, audio: sc.spectrum ? 'avis' : null }
+    screenIn = { still: once(sc.png), fill: once(sc.bar.png), grad: sc.spectrum ? once(sc.spectrum.gradient) : -1, dim: -1, lit: -1, mask: -1, audio: sc.spectrum ? 'avis' : null, extras: [] }
+    screenIn.extras = (sc.extras ?? []).map((e) => once(e.png))
     if (sc.lyrics) Object.assign(screenIn, { dim: once(sc.lyrics.dim), lit: once(sc.lyrics.lit), mask: once(sc.lyrics.mask) })
   }
   let logoIdx = -1

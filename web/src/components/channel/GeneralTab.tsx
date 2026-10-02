@@ -36,6 +36,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
     audioLanguage: ch.audioLanguage ?? '',
     musicScreen: ch.musicScreen as MusicScreen,
     lyricsFirst: ch.lyricsFirst,
+    songsAround: ch.songsAround,
   })
   const savedCu = parseComingUp(ch.comingUp) ?? offComingUp()
   const [cu, setCu, cuChanges] = useSyncedDraft<ComingUpConfig>(drafts, 'general.comingUp', savedCu)
@@ -61,6 +62,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
       audioLanguage: form.audioLanguage || null,
       musicScreen: form.musicScreen,
       lyricsFirst: form.lyricsFirst,
+      songsAround: form.songsAround,
     }
     // Only what was edited here: the rest stays as the server has it, which
     // may be newer than what this page loaded.
@@ -195,7 +197,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
 
         <Section title="Music" className="mt-5">
           <p className="text-ink-muted text-sm mb-3">
-            A song has no picture of its own, so it airs over a screen: its cover, title, artist and how far in it is. In its last 20 seconds a small Up next names what follows, in place of the card above.
+            A song has no picture of its own, so it airs over a screen: its cover, title, artist and how far in it is.
           </p>
           <div className="divide-y divide-edge/60 rounded-xl border border-edge">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
@@ -220,6 +222,15 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
                 </div>
               </div>
               <Switch checked={form.lyricsFirst} onChange={(v) => setForm({ ...form, lyricsFirst: v })} label="If lyrics exist, show lyrics first" />
+            </div>
+            <div className="flex items-center justify-between gap-6 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-ink">Show what played before and what's next</div>
+                <div className="text-xs text-ink-faint mt-0.5">
+                  On the Album screen, the song before sits in the bottom-left corner and the one after in the bottom-right, the whole way through — moved up out of the logo's way if it's down there. Off: a small Up next appears for a song's last 20 seconds instead.
+                </div>
+              </div>
+              <Switch checked={form.songsAround} onChange={(v) => setForm({ ...form, songsAround: v })} label="Show what played before and what's next" />
             </div>
           </div>
         </Section>

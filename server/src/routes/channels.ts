@@ -166,7 +166,7 @@ channelsRouter.patch('/:id', async (req, res) => {
   try {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
-    if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks || before.musicScreen !== c.musicScreen || before.lyricsFirst !== c.lyricsFirst)) restyleSegmenter(c.number)
+    if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks || before.musicScreen !== c.musicScreen || before.lyricsFirst !== c.lyricsFirst || before.songsAround !== c.songsAround)) restyleSegmenter(c.number)
     // A new broadcast clock, breaks inside programs turned on or off, or
     // specials or extras in or out lay the guide out anew from the next program.
     const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras].join('|')

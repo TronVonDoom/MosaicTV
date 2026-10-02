@@ -47,6 +47,9 @@ export type SongScreen = {
    *  every lineH), where they show (fading at the top and bottom by `mask`),
    *  the current line's centre in that window, and when each line is sung. */
   lyrics?: { dim: string; lit: string; mask: string; x: number; y: number; w: number; h: number; lineH: number; center: number; times: number[] }
+  /** Pictures laid over the still once, as the song starts — the album look's
+   *  corners — drawn for this airing rather than kept with the song. */
+  extras?: { png: string; x: number; y: number }[]
 }
 
 /** What the screen says of a song. */
@@ -59,13 +62,21 @@ export type SongFacts = {
   durationSec: number | null
   /** Its cover (or its artist's picture), on disk. */
   cover: string | null
+  /** Where it sits on its album: its track of how many (on its disc, for a
+   *  set), and its disc when the album has more than one. */
+  track?: number | null
+  tracks?: number | null
+  disc?: number | null
 }
 
-/** A song beside the one on air — the one before it, or after — as the album
- *  look's bottom corners show it. */
+/** A program beside the song on air — the one before it, or after — as the
+ *  album look's bottom corners show it. */
 export type Neighbour = { title: string; artist: string | null; cover: string | null }
-/** What to show in the album look's corners: either, both or neither. */
-export type Around = { prev?: Neighbour | null; next?: Neighbour | null }
+/** A box on the frame, in its pixels: the logo, which the corners keep clear of. */
+export type Box = { x: number; y: number; w: number; h: number }
+/** What the album look's corners show — either, both or neither — and what
+ *  they keep clear of. */
+export type Around = { prev?: Neighbour | null; next?: Neighbour | null; avoid?: Box[] }
 
 const VIOLET = '#a78bfa'
 const CYAN = '#22d3ee'
@@ -133,6 +144,10 @@ function cover(id: string, f: Frame, art: string | null, x: number, y: number, s
 
 const albumLine = (s: SongFacts) => [s.album, s.year].filter(Boolean).join(' · ')
 
+/** "Track 3 of 12 · Disc 2", "Track 3", or '' with no track to tell. */
+export const trackLine = (s: Pick<SongFacts, 'track' | 'tracks' | 'disc'>): string =>
+  s.track ? [`Track ${s.track}${s.tracks && s.tracks >= s.track ? ` of ${s.tracks}` : ''}`, s.disc ? `Disc ${s.disc}` : null].filter(Boolean).join(' · ') : ''
+
 /** Words in lines no wider than `maxW`, `max` of them at most — the last cut
  *  short with an ellipsis if there's more. */
 function wrapLines(str: string, weight: Weight, size: number, maxW: number, max: number, spacing = 0): string[] {
@@ -161,16 +176,12 @@ function svgOf(f: Frame, defs: string, body: string): string {
 const track = (x: number, y: number, w: number, h: number) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#ffffff" fill-opacity="0.18"/>`
 
 /**
- * One of the album look's bottom corners: the song before (left) or after
+ * One of the album look's bottom corners: the program before (left) or after
  * (right), small — its cover, a label, its title and artist — in the outer
- * column, clear of the song on air in the middle two.
+ * column, clear of the song on air in the middle two, `y` down the frame.
  */
-function corner(f: Frame, side: 'left' | 'right', label: string, n: Neighbour): { defs: string; body: string } {
-  const size = f.S(76)
-  const y = f.Y(912)
-  const gap = f.S(20)
-  const w = f.S(260)
-  const cx = side === 'left' ? f.X(96) : f.X(1824) - size
+function corner(f: Frame, side: 'left' | 'right', label: string, n: Neighbour, y: number): { defs: string; body: string } {
+  const { size, gap, w, cx } = cornerBox(f, side)
   const cv = cover(`${side}-n`, f, n.cover, cx, y, size, f.S(8))
   const tx = side === 'left' ? cx + size + gap : cx - gap
   const anchor = side === 'left' ? '' : 'text-anchor="end" '
@@ -181,7 +192,33 @@ function corner(f: Frame, side: 'left' | 'right', label: string, n: Neighbour): 
   return { defs: cv.defs, body }
 }
 
-function drawAlbum(f: Frame, song: SongFacts, art: string | null, around: Around = {}): Drawn {
+/** A corner's cover size, gaps, text width, the cover's left edge, and the
+ *  whole corner's left and right edges. */
+function cornerBox(f: Frame, side: 'left' | 'right') {
+  const size = f.S(76)
+  const gap = f.S(20)
+  const w = f.S(260)
+  const cx = side === 'left' ? f.X(96) : f.X(1824) - size
+  return { size, gap, w, cx, x0: side === 'left' ? cx : cx - gap - w, x1: side === 'left' ? cx + size + gap + w : cx + size }
+}
+
+/** The album look's corners on a clear frame, laid over its still as a song
+ *  starts (see SongScreen.extras); null when there's neither. A logo under
+ *  either lifts them both above it, so the two stay on one line. */
+function cornersSvg(f: Frame, around: Around): string | null {
+  const shown = (['left', 'right'] as const).filter((s) => (s === 'left' ? around.prev : around.next))
+  let y = f.Y(912)
+  for (const side of shown) {
+    const { size, gap, x0, x1 } = cornerBox(f, side)
+    for (const b of around.avoid ?? []) {
+      if (b.x < x1 && b.x + b.w > x0 && b.y < y + size + gap) y = Math.min(y, even(b.y - gap - size))
+    }
+  }
+  const sides = [around.prev ? corner(f, 'left', 'PREVIOUSLY', around.prev, y) : null, around.next ? corner(f, 'right', 'UP NEXT', around.next, y) : null].filter((x) => !!x)
+  return sides.length ? svgOf(f, sides.map((s) => s.defs).join(''), sides.map((s) => s.body).join('')) : null
+}
+
+function drawAlbum(f: Frame, song: SongFacts, art: string | null): Drawn {
   const bg = backdrop(f, art, 0.5)
   // Four columns of 480: the cover fills the second, the words the third.
   const size = f.S(400)
@@ -193,7 +230,6 @@ function drawAlbum(f: Frame, song: SongFacts, art: string | null, around: Around
   const bar = { x: tx, y: top + size - f.S(54), w: maxW, h: Math.max(2, f.S(6)) }
   const clockY = bar.y + f.S(36)
   const total = clockText(song.durationSec ?? 0)
-  const sides = [around.prev ? corner(f, 'left', 'PREVIOUSLY', around.prev) : null, around.next ? corner(f, 'right', 'UP NEXT', around.next) : null].filter((x) => !!x)
   // The column's narrow: a long title takes two lines, and so may the album.
   const titleLines = wrapLines(song.title, 800, f.S(56), maxW, 2, -f.S(0.9))
   const albumLines = albumLine(song) ? wrapLines(albumLine(song), 500, f.S(21), maxW, 2) : []
@@ -203,11 +239,11 @@ function drawAlbum(f: Frame, song: SongFacts, art: string | null, around: Around
     ${titleLines.map((l, i) => text(tx, top + f.S(122) + i * f.S(62), l, f.S(56), 800, `letter-spacing="${-f.S(0.9)}"`)).join('')}
     ${song.artist ? text(tx, below + f.S(48), fitText(song.artist, 600, f.S(32), maxW), f.S(32), 600, 'fill-opacity="0.92"') : ''}
     ${albumLines.map((l, i) => text(tx, below + f.S(86) + i * f.S(28), l, f.S(21), 500, 'fill-opacity="0.6"')).join('')}
+    ${trackLine(song) ? text(tx, below + f.S(86) + albumLines.length * f.S(28), trackLine(song), f.S(17), 500, 'fill-opacity="0.45"') : ''}
     ${track(bar.x, bar.y, bar.w, bar.h)}
-    ${text(tx + maxW - Math.round(textWidth(total, 600, clockSize)), clockY, total, clockSize, 600, 'fill-opacity="0.72"')}
-    ${sides.map((s) => s.body).join('')}`
+    ${text(tx + maxW - Math.round(textWidth(total, 600, clockSize)), clockY, total, clockSize, 600, 'fill-opacity="0.72"')}`
   return {
-    svg: svgOf(f, bg.defs + cv.defs + sides.map((s) => s.defs).join(''), body),
+    svg: svgOf(f, bg.defs + cv.defs, body),
     bar,
     clock: { font: fontFile(600), size: clockSize, color: 'white@0.72', x: tx, y: clockY },
   }
@@ -333,16 +369,24 @@ export async function songScreen(
   const lines = layout === 'lyrics' ? lyrics ?? [] : []
   // The corners are the album look's; their covers as the renderer reads them.
   const near = (n: Neighbour | null | undefined) => (n && layout === 'album' ? { ...n, cover: stamp(n.cover) ? imageHref(n.cover!) : null } : null)
-  const sides: Around = { prev: near(around.prev), next: near(around.next) }
+  const sides: Around = { prev: near(around.prev), next: near(around.next), avoid: around.avoid }
   const key = createHash('sha1')
-    .update(JSON.stringify([DRAWING, layout, f.W, f.H, song.title, song.artist, song.album, song.year, Math.floor(song.durationSec ?? 0), coverStamp, lines, [around.prev, around.next].map((n) => n && [n.title, n.artist, stamp(n.cover)])]))
+    .update(JSON.stringify([DRAWING, layout, f.W, f.H, song.title, song.artist, song.album, song.year, trackLine(song), Math.floor(song.durationSec ?? 0), coverStamp, lines]))
+    .digest('hex')
+    .slice(0, 20)
+  // The corners change with every airing: kept apart from the song's still,
+  // which is drawn once, and laid over it as the song starts.
+  const cornersKey = createHash('sha1')
+    .update(JSON.stringify([DRAWING, f.W, f.H, [around.prev, around.next].map((n) => n && [n.title, n.artist, stamp(n.cover)]), around.avoid ?? []]))
     .digest('hex')
     .slice(0, 20)
   const dir = screensDir()
   sweep(dir)
   const file = (part: string) => path.join(dir, `${key}${part}.png`)
   const art = coverStamp ? song.cover : null
-  const d = layout === 'visualizer' ? drawVisualizer(f, song, art ? imageHref(art) : null) : layout === 'lyrics' ? drawLyricsLayout(f, song, art ? imageHref(art) : null) : drawAlbum(f, song, art ? imageHref(art) : null, sides)
+  const d = layout === 'visualizer' ? drawVisualizer(f, song, art ? imageHref(art) : null) : layout === 'lyrics' ? drawLyricsLayout(f, song, art ? imageHref(art) : null) : drawAlbum(f, song, art ? imageHref(art) : null)
+  const corners = layout === 'album' ? cornersSvg(f, sides) : null
+  const cornersFile = path.join(dir, `corners-${cornersKey}.png`)
   const want: [string, () => string][] = [
     ['', () => d.svg],
     ['-fill', () => fillSvg(d.bar.w, d.bar.h)],
@@ -355,8 +399,8 @@ export async function songScreen(
         ] as [string, () => string][])
       : []),
   ]
-  for (const [part, svg] of want) {
-    const p = file(part)
+  for (const [part, svg] of [...want, ...(corners ? ([[`corners`, () => corners]] as [string, () => string][]) : [])]) {
+    const p = part === 'corners' ? cornersFile : file(part)
     if (fs.existsSync(p)) {
       // Aired again: keep it from the week's sweep.
       const now = new Date()
@@ -378,5 +422,6 @@ export async function songScreen(
     lyrics: d.lyricsAt
       ? { dim: file('-dim'), lit: file('-lit'), mask: file('-mask'), x: d.lyricsAt.x, y: d.lyricsAt.y, w: d.lyricsAt.w, h: d.lyricsAt.h, lineH: d.lyricsAt.lineH, center: d.lyricsAt.center, times: lines.map((l) => l.at) }
       : undefined,
+    extras: corners ? [{ png: cornersFile, x: 0, y: 0 }] : undefined,
   }
 }

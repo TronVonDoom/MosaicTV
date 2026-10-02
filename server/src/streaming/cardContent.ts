@@ -8,6 +8,7 @@ import { prisma } from '../db.js'
 import { posterFileFor } from '../metadata/artworkFiles.js'
 import { creditOf } from '../contract/index.js'
 import type { CardContent } from './card.js'
+import type { Neighbour } from './songScreen.js'
 
 /**
  * An episode title without a leading episode code the library carried over
@@ -120,6 +121,20 @@ export async function upNextContent(next: {
     rating: mi.rating,
     art: await artFor(mi),
   }
+}
+
+/**
+ * A program beside a song on air — the one before it, or after — as the album
+ * look's corners name it: a song or a music video by its title and who it
+ * credits, an episode by its show and title, a movie by its title and year;
+ * with its cover or poster.
+ */
+export async function neighbourOf(row: { channelId: number; startTime: Date; groupKey: string | null; mediaItem: MediaItem | null }): Promise<Neighbour | null> {
+  const mi = row.mediaItem
+  if (!mi) return null
+  if (mi.type === 'song' || mi.type === 'music') return { title: mi.title, artist: creditOf(mi), cover: (await artFor(mi))?.file ?? null }
+  const c = await upNextContent(row)
+  return c ? { title: c.title, artist: c.subtitle ?? c.meta[0] ?? null, cover: c.art?.file ?? null } : null
 }
 
 /** "Now playing" for a music video as it starts. */
