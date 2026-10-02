@@ -88,10 +88,12 @@ one inside the file. Timed lyrics come from a `.lrc` file beside it
 
 In the library, a Music or Music Videos library is filed as a music app files
 it: **Artists** (the default), **Albums**, or every **Song** (or video). An
-artist's page lists their albums oldest first, each with its cover and its
-songs in order (music on no album last), where they air, and **Add to a
-channel** — for the artist, or for one album. An artist picked into a
-collection brings in their albums and any song that credits them.
+artist's page shows where they air and their albums as covers, oldest first
+(music on no album last, as *Singles & other songs*); an album opens its own
+page of songs in order, each with the artist it credits. An artist with one
+album lists its songs straight away. **Add to a channel** is on both pages —
+for the artist, or for one album. An artist picked into a collection brings
+in their albums and any song that credits them.
 
 ## 2. Scan it
 
@@ -101,6 +103,11 @@ episodes. Re-scans are incremental — unchanged files are skipped, and files go
 disk are removed, as in Plex. Not while their folder can't be read, though: a
 share that isn't mounted looks like every file in it gone, so those wait,
 hidden, for a scan that can read it.
+
+The library follows the scan as it runs, as Plex's does: new titles turn up
+where they sort and removed ones go, on the grid and on any show, movie or
+artist page that's open — no refresh, and the page stays where you'd
+scrolled. Posters and names a metadata fetch brings in arrive the same way.
 
 ## 3. (Optional but recommended) Metadata
 
@@ -171,6 +178,19 @@ from it is on air now, the next hours of the channels airing it, and how much
 of it no channel airs yet (**Off air**) — with **All** a tab away. Open a movie
 or show for its page: where and when it airs, its story and cast, its seasons
 and episodes. A title no channel airs has **Add to a channel**.
+
+Anything in a library goes onto a channel from its **⋯** — a show, a season
+or one episode, a movie, an artist, an album or a song — or by a long press
+on a phone, or a right-click: pick one of a channel's collections. A title
+can be in any number of collections (a show in a weekday block's and a
+Saturday one's), but a collection takes it once: one that brings all of it
+in already — its whole show, its album, a smart filter — says **Already in**,
+and one with some of it says how much and adds the rest.
+
+On a phone or tablet, what a mouse finds on hover is simply shown — a
+collection poster's **×**, each item's **⋯** — and a long press on a
+collection's poster moves it earlier or later, or removes it (there's no
+dragging on a touch screen).
 
 ### Fixing a wrong match
 

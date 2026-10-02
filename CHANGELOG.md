@@ -60,7 +60,27 @@ Music filed as a music app files it, and orders that speak its language.
   the album-artist tags.
 - **`.plexignore`.** Folders and files a `.plexignore` names are left out of
   a library, as Plex leaves them out — a podcast's raw recordings in the music
-  folder no longer turn up as albums.
+  folder no longer turn up as albums. Files indexed before go at the next
+  scan, though they're still on disk.
+- **A library that follows its scan.** New titles turn up and removed ones go
+  while a scan runs, on the grid and on any open show, movie or artist page,
+  as in Plex — no refresh, and the grid keeps its place (it used to jump back
+  to the top once a scan finished). Metadata fetches arrive the same way.
+- **Add to a channel, from anywhere.** Every show, season, episode, movie,
+  artist, album and song has a **⋯** with *Add to a channel…*, opened by a
+  long press on a phone or a right-click too. A title can be in any number of
+  collections but in each just once: the dialog marks a collection that
+  brings it in already — the whole show for an episode, the album for a song,
+  a smart filter — as **Already in**, and one with part of it says how much
+  and adds the rest. Adding something a collection already has is refused.
+- **Albums of their own.** An artist's page shows their albums as covers;
+  each opens its own page of songs, so a 39-volume set is 39 covers rather
+  than one 1,300-song list.
+- **Phones and tablets.** Controls that only appeared on hover — a collection
+  poster's ×, the Watch button on a channel card — are always shown on a
+  touch screen, at a size a finger can hit, and a long press on a collection
+  poster moves it or removes it, standing in for dragging. The Breaks and
+  Guide tabs no longer push buttons off the side of a phone.
 
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 
