@@ -47,6 +47,20 @@ Music filed as a music app files it, and orders that speak its language.
   block starts on time — with a worked example) or **Between programs**. On a
   broadcast clock, where those last two were the same, it's **Run over** or
   **End on time**. The docs gained a section on starting and ending on time.
+- **Music filed by album artist.** Songs file under their album's artist, as
+  in Plex, instead of under whoever each track credits — so a soundtrack is
+  one album under Various Artists rather than one album per singer, and a
+  game-music set one album per volume rather than one per composer. Each song
+  keeps its own artist, shown beside it and in the guide, on the up-next card
+  and the now-playing screen. Tracks tagged as a compilation file under
+  Various Artists; an album with no album-artist tags whose songs credit
+  different people is still filed as one. Artist picks made before keep
+  finding the same songs, and Take turns and the shuffle's spacing go by the
+  album artist. Each Music library is scanned once after the upgrade to read
+  the album-artist tags.
+- **`.plexignore`.** Folders and files a `.plexignore` names are left out of
+  a library, as Plex leaves them out — a podcast's raw recordings in the music
+  folder no longer turn up as albums.
 
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 

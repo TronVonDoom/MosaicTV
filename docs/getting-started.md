@@ -29,6 +29,13 @@ movie, a show's on its page; the library's filter → **Unattached extras** find
 any with no movie of their own. Whether they air is up to each channel (see
 [Channels](channels.md)).
 
+A **`.plexignore`** file is honoured the way Plex reads it: one pattern a line
+(`#` for a comment), relative to the folder it's in — `*.wav`, `Extras/*` —
+with `*` and `?` standing for characters of one name. A folder a pattern
+matches is left out whole, so a `.plexignore` holding just `*` keeps its
+folder out of the library. Files it leaves out that were indexed before go at
+the next scan.
+
 MosaicTV expects Plex-style naming, which you likely already have:
 
 ```
@@ -63,6 +70,17 @@ Music/Artist/Album/03 - Title.flac
 Music/Artist - Title.mp3
 ```
 
+Songs are filed under their **album artist**, as Plex and other music apps
+file them, so an album stays one album whoever sings or wrote each song: a
+soundtrack tagged *Various Artists* is one album under Various Artists, a
+game-music set under its series. Each song keeps its own artist — shown
+beside it on the album, in the guide and on the now-playing screen, and what
+MusicBrainz and LRCLIB are asked by. A track tagged as part of a compilation
+with no album artist files under Various Artists. An album tagged with no
+album artist at all, whose songs credit different people, is still one album:
+under the name every credit begins with (*Eminem* beside *Eminem feat.
+Rihanna*), else Various Artists.
+
 Its cover is its album folder's (`cover.jpg`, `folder.jpg`, `front.jpg`) or the
 one inside the file. Timed lyrics come from a `.lrc` file beside it
 (`03 - Title.lrc`) or from its tags. A song has no picture, so it airs over a
@@ -72,7 +90,8 @@ In the library, a Music or Music Videos library is filed as a music app files
 it: **Artists** (the default), **Albums**, or every **Song** (or video). An
 artist's page lists their albums oldest first, each with its cover and its
 songs in order (music on no album last), where they air, and **Add to a
-channel** — for the artist, or for one album.
+channel** — for the artist, or for one album. An artist picked into a
+collection brings in their albums and any song that credits them.
 
 ## 2. Scan it
 
