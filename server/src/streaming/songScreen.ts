@@ -6,8 +6,11 @@
 // stepping line by line.
 //
 // Three looks, as the channel has it (Channel.musicScreen and lyricsFirst):
-//   album       the cover large on a blurred wash of itself, the title, artist
-//               and album beside it, and a progress bar
+//   album       the cover on a blurred wash of itself, the title, artist and
+//               album beside it, and a progress bar — the two of them in the
+//               middle half of the frame, as if it were four columns and the
+//               song took the middle two; the outer two hold, along the
+//               bottom, the song before it and the one after, when asked
 //   visualizer  a spectrum across the frame, the song along the bottom
 //   lyrics      the cover and the song down the left, its timed lyrics on the
 //               right — for a song that has them, on a channel that puts them first
@@ -58,10 +61,16 @@ export type SongFacts = {
   cover: string | null
 }
 
+/** A song beside the one on air — the one before it, or after — as the album
+ *  look's bottom corners show it. */
+export type Neighbour = { title: string; artist: string | null; cover: string | null }
+/** What to show in the album look's corners: either, both or neither. */
+export type Around = { prev?: Neighbour | null; next?: Neighbour | null }
+
 const VIOLET = '#a78bfa'
 const CYAN = '#22d3ee'
 // Bump to redraw every kept screen after a change to how they're drawn.
-const DRAWING = 3
+const DRAWING = 4
 
 /** "3:47". */
 export const clockText = (sec: number): string => {
@@ -124,6 +133,25 @@ function cover(id: string, f: Frame, art: string | null, x: number, y: number, s
 
 const albumLine = (s: SongFacts) => [s.album, s.year].filter(Boolean).join(' · ')
 
+/** Words in lines no wider than `maxW`, `max` of them at most — the last cut
+ *  short with an ellipsis if there's more. */
+function wrapLines(str: string, weight: Weight, size: number, maxW: number, max: number, spacing = 0): string[] {
+  const words = str.split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let line = ''
+  for (let i = 0; i < words.length; i++) {
+    const next = line ? `${line} ${words[i]}` : words[i]
+    if (!line || textWidth(next, weight, size, spacing) <= maxW) {
+      line = next
+      continue
+    }
+    if (lines.length === max - 1) return [...lines, fitText(`${line} ${words.slice(i).join(' ')}`, weight, size, maxW, spacing)]
+    lines.push(line)
+    line = words[i]
+  }
+  return [...lines, fitText(line, weight, size, maxW, spacing)]
+}
+
 type Drawn = { svg: string; bar: Omit<SongScreen['bar'], 'png'>; clock: SongScreen['clock']; spectrum?: Omit<NonNullable<SongScreen['spectrum']>, 'gradient'>; lyricsAt?: { x: number; y: number; w: number; h: number; lineH: number; center: number; size: number } }
 
 function svgOf(f: Frame, defs: string, body: string): string {
@@ -132,22 +160,57 @@ function svgOf(f: Frame, defs: string, body: string): string {
 
 const track = (x: number, y: number, w: number, h: number) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}" fill="#ffffff" fill-opacity="0.18"/>`
 
-function drawAlbum(f: Frame, song: SongFacts, art: string | null): Drawn {
+/**
+ * One of the album look's bottom corners: the song before (left) or after
+ * (right), small — its cover, a label, its title and artist — in the outer
+ * column, clear of the song on air in the middle two.
+ */
+function corner(f: Frame, side: 'left' | 'right', label: string, n: Neighbour): { defs: string; body: string } {
+  const size = f.S(76)
+  const y = f.Y(912)
+  const gap = f.S(20)
+  const w = f.S(260)
+  const cx = side === 'left' ? f.X(96) : f.X(1824) - size
+  const cv = cover(`${side}-n`, f, n.cover, cx, y, size, f.S(8))
+  const tx = side === 'left' ? cx + size + gap : cx - gap
+  const anchor = side === 'left' ? '' : 'text-anchor="end" '
+  const body = `${cv.body}
+    ${text(tx, y + f.S(20), label, f.S(14), 700, `${anchor}letter-spacing="${f.S(2.4)}" fill="${VIOLET}"`).replace('fill="#ffffff" ', '')}
+    ${text(tx, y + f.S(50), fitText(n.title, 700, f.S(22), w), f.S(22), 700, `${anchor}fill-opacity="0.95"`)}
+    ${n.artist ? text(tx, y + f.S(75), fitText(n.artist, 500, f.S(17), w), f.S(17), 500, `${anchor}fill-opacity="0.6"`) : ''}`
+  return { defs: cv.defs, body }
+}
+
+function drawAlbum(f: Frame, song: SongFacts, art: string | null, around: Around = {}): Drawn {
   const bg = backdrop(f, art, 0.5)
-  const cv = cover('cover', f, art, f.X(180), f.Y(230), f.S(560), f.S(18))
-  const tx = f.X(820)
-  const maxW = f.S(920)
-  const clockSize = f.S(24)
-  const bar = { x: tx, y: f.Y(740), w: maxW, h: Math.max(2, f.S(8)) }
+  // Four columns of 480: the cover fills the second, the words the third.
+  const size = f.S(400)
+  const top = f.Y(340)
+  const cv = cover('cover', f, art, f.X(480), top, size, f.S(14))
+  const tx = f.X(936)
+  const maxW = f.X(1440) - tx
+  const clockSize = f.S(19)
+  const bar = { x: tx, y: top + size - f.S(54), w: maxW, h: Math.max(2, f.S(6)) }
+  const clockY = bar.y + f.S(36)
   const total = clockText(song.durationSec ?? 0)
+  const sides = [around.prev ? corner(f, 'left', 'PREVIOUSLY', around.prev) : null, around.next ? corner(f, 'right', 'UP NEXT', around.next) : null].filter((x) => !!x)
+  // The column's narrow: a long title takes two lines, and so may the album.
+  const titleLines = wrapLines(song.title, 800, f.S(56), maxW, 2, -f.S(0.9))
+  const albumLines = albumLine(song) ? wrapLines(albumLine(song), 500, f.S(21), maxW, 2) : []
+  const below = top + f.S(122) + (titleLines.length - 1) * f.S(62)
   const body = `${bg.body}${cv.body}
-    ${text(tx, f.Y(285), 'NOW PLAYING', f.S(22), 700, `letter-spacing="${f.S(3.5)}" fill="${VIOLET}"`).replace('fill="#ffffff" ', '')}
-    ${text(tx, f.Y(380), fitText(song.title, 800, f.S(88), maxW, -f.S(1.5)), f.S(88), 800, `letter-spacing="${-f.S(1.5)}"`)}
-    ${song.artist ? text(tx, f.Y(440), fitText(song.artist, 600, f.S(46), maxW), f.S(46), 600, 'fill-opacity="0.92"') : ''}
-    ${albumLine(song) ? text(tx, f.Y(492), fitText(albumLine(song), 500, f.S(28), maxW), f.S(28), 500, 'fill-opacity="0.6"') : ''}
+    ${text(tx, top + f.S(52), 'NOW PLAYING', f.S(17), 700, `letter-spacing="${f.S(3)}" fill="${VIOLET}"`).replace('fill="#ffffff" ', '')}
+    ${titleLines.map((l, i) => text(tx, top + f.S(122) + i * f.S(62), l, f.S(56), 800, `letter-spacing="${-f.S(0.9)}"`)).join('')}
+    ${song.artist ? text(tx, below + f.S(48), fitText(song.artist, 600, f.S(32), maxW), f.S(32), 600, 'fill-opacity="0.92"') : ''}
+    ${albumLines.map((l, i) => text(tx, below + f.S(86) + i * f.S(28), l, f.S(21), 500, 'fill-opacity="0.6"')).join('')}
     ${track(bar.x, bar.y, bar.w, bar.h)}
-    ${text(tx + maxW - Math.round(textWidth(total, 600, clockSize)), f.Y(790), total, clockSize, 600, 'fill-opacity="0.72"')}`
-  return { svg: svgOf(f, bg.defs + cv.defs, body), bar, clock: { font: fontFile(600), size: clockSize, color: 'white@0.72', x: tx, y: f.Y(790) } }
+    ${text(tx + maxW - Math.round(textWidth(total, 600, clockSize)), clockY, total, clockSize, 600, 'fill-opacity="0.72"')}
+    ${sides.map((s) => s.body).join('')}`
+  return {
+    svg: svgOf(f, bg.defs + cv.defs + sides.map((s) => s.defs).join(''), body),
+    bar,
+    clock: { font: fontFile(600), size: clockSize, color: 'white@0.72', x: tx, y: clockY },
+  }
 }
 
 function drawVisualizer(f: Frame, song: SongFacts, art: string | null): Drawn {
@@ -256,19 +319,30 @@ function sweep(dir: string): void {
  * airing. `lyrics` is for the lyrics look (and asked for only when the song
  * has them).
  */
-export async function songScreen(song: SongFacts, layout: ScreenLayout, size: { w: number; h: number }, offset: number, lyrics: LyricLine[] | null): Promise<SongScreen> {
+export async function songScreen(
+  song: SongFacts,
+  layout: ScreenLayout,
+  size: { w: number; h: number },
+  offset: number,
+  lyrics: LyricLine[] | null,
+  around: Around = {},
+): Promise<SongScreen> {
   const f = frameOf(size.w, size.h)
-  const coverStamp = song.cover && fs.existsSync(song.cover) ? `${song.cover}|${fs.statSync(song.cover).mtimeMs}` : ''
+  const stamp = (p: string | null) => (p && fs.existsSync(p) ? `${p}|${fs.statSync(p).mtimeMs}` : '')
+  const coverStamp = stamp(song.cover)
   const lines = layout === 'lyrics' ? lyrics ?? [] : []
+  // The corners are the album look's; their covers as the renderer reads them.
+  const near = (n: Neighbour | null | undefined) => (n && layout === 'album' ? { ...n, cover: stamp(n.cover) ? imageHref(n.cover!) : null } : null)
+  const sides: Around = { prev: near(around.prev), next: near(around.next) }
   const key = createHash('sha1')
-    .update(JSON.stringify([DRAWING, layout, f.W, f.H, song.title, song.artist, song.album, song.year, Math.floor(song.durationSec ?? 0), coverStamp, lines]))
+    .update(JSON.stringify([DRAWING, layout, f.W, f.H, song.title, song.artist, song.album, song.year, Math.floor(song.durationSec ?? 0), coverStamp, lines, [around.prev, around.next].map((n) => n && [n.title, n.artist, stamp(n.cover)])]))
     .digest('hex')
     .slice(0, 20)
   const dir = screensDir()
   sweep(dir)
   const file = (part: string) => path.join(dir, `${key}${part}.png`)
   const art = coverStamp ? song.cover : null
-  const d = layout === 'visualizer' ? drawVisualizer(f, song, art ? imageHref(art) : null) : layout === 'lyrics' ? drawLyricsLayout(f, song, art ? imageHref(art) : null) : drawAlbum(f, song, art ? imageHref(art) : null)
+  const d = layout === 'visualizer' ? drawVisualizer(f, song, art ? imageHref(art) : null) : layout === 'lyrics' ? drawLyricsLayout(f, song, art ? imageHref(art) : null) : drawAlbum(f, song, art ? imageHref(art) : null, sides)
   const want: [string, () => string][] = [
     ['', () => d.svg],
     ['-fill', () => fillSvg(d.bar.w, d.bar.h)],

@@ -63,6 +63,10 @@ Music filed as a music app files it, and orders that speak its language.
   filed in a disc's folder (Album/Disc 2/) is one album, its songs by disc,
   and an album called "Disc 2" is no more. Each Music library is scanned
   once after the upgrade to put it together; nothing is probed again.
+- **A calmer now-playing screen.** The album look sits in the middle half of
+  the frame — the cover in one column, the song beside it in the next — in
+  smaller type, and a long title or album name takes a second line instead
+  of being cut short.
 - **`.plexignore`.** Folders and files a `.plexignore` names are left out of
   a library, as Plex leaves them out — a podcast's raw recordings in the music
   folder no longer turn up as albums. Files indexed before go at the next
