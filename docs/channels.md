@@ -90,16 +90,24 @@ A music video airs like any program. A **song** has no picture, so it airs over
 a **now playing** screen drawn for it, set on the channel's **General** tab
 under **Music**:
 
-- **Album** (the default) — the cover large over a blur of itself, the title,
-  artist, album and year, and a progress bar with the time.
+- **Album** (the default) — the cover over a blur of itself, with the title,
+  artist, album and year beside it, where the song sits on its album (*Track
+  3 of 12*, and the disc of a set), and a progress bar with the time — the
+  two in the middle half of the screen.
 - **Visualizer** — a spectrum drawn from the song as it plays, with the song
   along the bottom.
 - **If lyrics exist, show lyrics first** — a song with timed lyrics (a `.lrc`
   beside it, lyrics in its tags, or LRCLIB's) shows them instead: the cover and
   song down the side, the line being sung lit, the rest scrolling past.
 
-The last 20 seconds of a song bring in the **Up next** card. A change to these
-re-draws the song on air in the new look. A channel can mix songs, music
+- **Show what played before and what's next** (on to start with) — along the
+  bottom of the Album screen, the program before the song in the left corner
+  and the one after it in the right, the whole way through. A logo in a
+  bottom corner lifts them both above it.
+
+With that off (or on the other screens), the last 20 seconds of a song bring
+in the **Up next** card instead. A change to these re-draws the song on air
+in the new look. A channel can mix songs, music
 videos, shows and movies however its collections and schedule have them.
 
 ## Broadcast episodes (multi-segment shows)

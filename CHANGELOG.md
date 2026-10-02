@@ -66,7 +66,13 @@ Music filed as a music app files it, and orders that speak its language.
 - **A calmer now-playing screen.** The album look sits in the middle half of
   the frame — the cover in one column, the song beside it in the next — in
   smaller type, and a long title or album name takes a second line instead
-  of being cut short.
+  of being cut short. Under the album it says where the song sits on it:
+  *Track 3 of 12*, and *Disc 2* in a set.
+- **What played before, and what's next.** Along the bottom of the album look,
+  the program before the song sits in the left corner and the one after in
+  the right, the whole way through — in place of the Up next card over a
+  song's last 20 seconds. A logo in a bottom corner lifts them both above it.
+  On for every channel; switch it off under **General → Music**.
 - **`.plexignore`.** Folders and files a `.plexignore` names are left out of
   a library, as Plex leaves them out — a podcast's raw recordings in the music
   folder no longer turn up as albums. Files indexed before go at the next
