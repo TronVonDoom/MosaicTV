@@ -12,7 +12,7 @@ import { embeddedTags } from './ffprobe.js'
 
 const { prisma, dir } = await tempDb('mosaictv-songs-')
 const { scanLibrary } = await import('./scanner/scanner.js')
-const { resolveUnits } = await import('./collections.js')
+const { resolveUnits } = await import('./schedule/collections.js')
 
 // Made before any test runs: node:test closes the database once the tests it
 // knows of are done.

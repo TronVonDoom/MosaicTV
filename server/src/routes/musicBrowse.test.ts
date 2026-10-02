@@ -12,8 +12,8 @@ import { tempDb } from '../testDb.js'
 const { prisma } = await tempDb('mosaictv-music-browse-')
 const { collectionsRouter } = await import('./collections.js')
 const { musicRouter } = await import('./music.js')
-const { collectionCount, resolveUnits } = await import('../collections.js')
-const { libraryHome } = await import('../onAir.js')
+const { collectionCount, resolveUnits } = await import('../schedule/collections.js')
+const { libraryHome } = await import('../schedule/onAir.js')
 
 const app = express()
 app.use(express.json())

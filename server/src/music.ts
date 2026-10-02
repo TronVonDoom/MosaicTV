@@ -4,7 +4,7 @@
 // songs or videos on each.
 import type { MediaItem, Prisma } from '@prisma/client'
 import { prisma } from './db.js'
-import { episodesAired } from './aired.js'
+import { episodesAired } from './schedule/aired.js'
 import { compareTitles, type AlbumCard, type ArtistCard, type ArtistDetail, type Stored } from './contract/index.js'
 
 /** A library's music that's there to browse: songs and videos, not extras. */

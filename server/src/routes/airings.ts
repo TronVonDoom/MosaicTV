@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { AiringsReplace } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { findShow } from '../shows.js'

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getMetadataStatus } from '../metadata.js'
+import { getMetadataStatus } from '../metadata/metadata.js'
 import { getScanStatus } from '../scanner/scanner.js'
 import { identBuilds } from '../streaming/filler.js'
 import type { Activity } from '../contract/index.js'

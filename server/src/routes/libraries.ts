@@ -4,8 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { isScanning } from '../scanner/scanner.js'
-import { matchCounts } from '../metadata.js'
-import { libraryHome } from '../onAir.js'
+import { matchCounts } from '../metadata/metadata.js'
+import { libraryHome } from '../schedule/onAir.js'
 import { readBody } from '../validate.js'
 
 export const librariesRouter = Router()

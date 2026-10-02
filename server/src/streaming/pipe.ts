@@ -6,7 +6,7 @@
 import type { ChildProcess } from 'node:child_process'
 import type { Response } from 'express'
 import { prisma } from '../db.js'
-import { topUpPlayout } from '../playout.js'
+import { topUpPlayout } from '../schedule/playout.js'
 import { log } from '../logs.js'
 
 type SegmentResult = { code: number | null; stderr: string; spawnError?: Error; bytes: number; firstByteMs: number }

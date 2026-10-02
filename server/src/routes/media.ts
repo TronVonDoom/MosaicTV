@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
-import { episodesAired } from '../aired.js'
+import { episodesAired } from '../schedule/aired.js'
 import {
   asMatchFilter,
   asMatchSource,
@@ -13,8 +13,8 @@ import {
   type TitleOnAir,
   type Stored,
 } from '../contract/index.js'
-import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata.js'
-import { reachedIn, titleOnAir } from '../onAir.js'
+import { doubtfulMovieIds, matchMovie, refreshMovie, unmatchedMovieWhere, unmatchMovie } from '../metadata/metadata.js'
+import { reachedIn, titleOnAir } from '../schedule/onAir.js'
 import { readBody } from '../validate.js'
 import { answerMatch } from './metadata.js'
 

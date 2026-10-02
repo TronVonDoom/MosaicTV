@@ -5,7 +5,7 @@
 
 import type { MediaItem } from '@prisma/client'
 import { prisma } from '../db.js'
-import { posterFileFor } from '../artworkFiles.js'
+import { posterFileFor } from '../metadata/artworkFiles.js'
 import type { CardContent } from './card.js'
 
 /**

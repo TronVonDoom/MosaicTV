@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import type { Stored, TitleOnAir } from '../contract/index.js'
 import { albumCards, artistCards, artistDetail, asAlbumSort } from '../music.js'
-import { titleOnAir } from '../onAir.js'
+import { titleOnAir } from '../schedule/onAir.js'
 
 // A Music or Music Videos library by artist and album (see music.ts).
 export const musicRouter = Router()

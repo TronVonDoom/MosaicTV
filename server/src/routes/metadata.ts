@@ -1,8 +1,8 @@
 import { Router, type Response } from 'express'
 import { prisma } from '../db.js'
-import { enrichLibrary, getMetadataStatus, isEnriching, MatchError, nothingToRead } from '../metadata.js'
-import { getMovie, getTmdbKey, getTv, movieCandidate, resolveRef, searchMovies, searchShows, tvCandidate } from '../tmdb.js'
-import { getTvdbCreds, getTvdbMovie, getTvdbSeries, resolveTvdbRef, searchTvdb, tvdbCandidate } from '../tvdb.js'
+import { enrichLibrary, getMetadataStatus, isEnriching, MatchError, nothingToRead } from '../metadata/metadata.js'
+import { getMovie, getTmdbKey, getTv, movieCandidate, resolveRef, searchMovies, searchShows, tvCandidate } from '../metadata/tmdb.js'
+import { getTvdbCreds, getTvdbMovie, getTvdbSeries, resolveTvdbRef, searchTvdb, tvdbCandidate } from '../metadata/tvdb.js'
 import { asMatchSource, MATCH_SOURCE_NAMES, parseExternalRef, type MatchCandidate } from '../contract/index.js'
 
 export const metadataRouter = Router()

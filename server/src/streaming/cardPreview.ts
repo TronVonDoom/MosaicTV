@@ -6,7 +6,7 @@
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { logosDir } from '../paths.js'
-import { backdropFileFor } from '../artworkFiles.js'
+import { backdropFileFor } from '../metadata/artworkFiles.js'
 import { renderCardPreview, type CardContent, type PreviewLogo } from './card.js'
 import { clockLabel, upNextContent } from './cardContent.js'
 import { cardAnchor, placeCard } from './filters.js'

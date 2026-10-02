@@ -1,7 +1,7 @@
 import { Router } from 'express'
-import { getTmdbKey, setTmdbKey, validateKey } from '../tmdb.js'
-import { getTvdbCreds, setTvdbCreds, validateTvdb } from '../tvdb.js'
-import { matchAllNewTitles } from '../metadata.js'
+import { getTmdbKey, setTmdbKey, validateKey } from '../metadata/tmdb.js'
+import { getTvdbCreds, setTvdbCreds, validateTvdb } from '../metadata/tvdb.js'
+import { matchAllNewTitles } from '../metadata/metadata.js'
 import { loadWatermark } from '../streaming/overlays.js'
 import {
   AudioLanguageSave,
@@ -16,7 +16,7 @@ import {
 } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { prisma } from '../db.js'
-import { MAX_HORIZON_HOURS, MIN_HORIZON_HOURS, horizonHours } from '../playout.js'
+import { MAX_HORIZON_HOURS, MIN_HORIZON_HOURS, horizonHours } from '../schedule/playout.js'
 import { globalAudioLanguage } from '../audio.js'
 import {
   MAX_FRIENDLY_NAME,

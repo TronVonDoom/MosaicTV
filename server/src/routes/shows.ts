@@ -4,12 +4,12 @@ import { prisma } from '../db.js'
 import { asMatchSource, asMetadataSources, DEFAULT_METADATA_SOURCES, EpisodeOrderPick, MatchPick, ShowMerge, ShowRename, type Stored, type TitleOnAir } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { mergeShows, renameShow, showCards, ShowConflict } from '../shows.js'
-import { episodeOrders, MatchError, matchShow, refreshShow, setEpisodeOrder, unmatchShow } from '../metadata.js'
+import { episodeOrders, MatchError, matchShow, refreshShow, setEpisodeOrder, unmatchShow } from '../metadata/metadata.js'
 import { answerMatch } from './metadata.js'
-import { scheduleChangedEverywhere } from '../scheduleChanges.js'
+import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { publish } from '../events.js'
-import { episodesAired } from '../aired.js'
-import { titleOnAir } from '../onAir.js'
+import { episodesAired } from '../schedule/aired.js'
+import { titleOnAir } from '../schedule/onAir.js'
 
 export const showsRouter = Router()
 
