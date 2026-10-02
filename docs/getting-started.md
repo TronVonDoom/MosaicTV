@@ -187,10 +187,10 @@ Saturday one's), but a collection takes it once: one that brings all of it
 in already — its whole show, its album, a smart filter — says **Already in**,
 and one with some of it says how much and adds the rest.
 
-On a phone or tablet, what a mouse finds on hover is simply shown — a
-collection poster's **×**, each item's **⋯** — and a long press on a
-collection's poster moves it earlier or later, or removes it (there's no
-dragging on a touch screen).
+On a phone or tablet, what a mouse finds on hover is simply shown — each
+item's **⋯**, a channel card's Watch button — and a collection's posters are
+moved and removed with a long press (move earlier or later, or remove), in
+place of the mouse's drag and **×**.
 
 ### Fixing a wrong match
 

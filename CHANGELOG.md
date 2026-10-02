@@ -76,11 +76,11 @@ Music filed as a music app files it, and orders that speak its language.
 - **Albums of their own.** An artist's page shows their albums as covers;
   each opens its own page of songs, so a 39-volume set is 39 covers rather
   than one 1,300-song list.
-- **Phones and tablets.** Controls that only appeared on hover — a collection
-  poster's ×, the Watch button on a channel card — are always shown on a
-  touch screen, at a size a finger can hit, and a long press on a collection
-  poster moves it or removes it, standing in for dragging. The Breaks and
-  Guide tabs no longer push buttons off the side of a phone.
+- **Phones and tablets.** Controls that only appeared on hover — each item's
+  ⋯, the Watch button on a channel card — are always shown on a touch
+  screen, and a collection's posters are moved and removed with a long press
+  (Move earlier, Move later, Remove), in place of the mouse's drag and ×. The
+  Breaks and Guide tabs no longer push buttons off the side of a phone.
 
 ## 0.13.0 — On the clock, and on the radio (2026-10-01)
 

@@ -128,8 +128,9 @@ const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
   song: 'audio',
 }
 
-/** One member as a poster tile: drag to reorder, × to remove, and switches
- *  for its specials and extras when it has any. */
+/** One member as a poster tile: drag to reorder and × to remove — on a touch
+ *  screen, a long press for both — and switches for its specials and extras
+ *  when it has any. */
 function MemberTile({
   it,
   airs,
@@ -234,7 +235,7 @@ function MemberTile({
           onClick={onRemove}
           aria-label={`Remove ${title}`}
           title="Remove from collection"
-          className="absolute top-1.5 right-1.5 grid place-items-center w-7 h-7 touch:w-9 touch:h-9 rounded-md bg-black/60 backdrop-blur-md text-white/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100 hover:bg-rose-500 hover:text-white transition-[opacity,background-color]"
+          className="absolute top-1.5 right-1.5 grid place-items-center w-7 h-7 rounded-md bg-black/60 backdrop-blur-md text-white/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:hidden hover:bg-rose-500 hover:text-white transition-[opacity,background-color]"
         >
           <Icon name="close" size={14} />
         </button>
@@ -775,13 +776,24 @@ export default function CollectionManager({
                   />
                 ))}
               </div>
-              {selected.items.length > 1 && (
-                <p className="mt-4 text-[12px] text-ink-faint inline-flex items-center gap-1.5">
+              {/* On a touch screen a long press is the only way to move or
+                  remove a poster (there's no × there), so it's said even of one. */}
+              {selected.items.length > 0 && (
+                <p
+                  className={cx(
+                    'mt-4 text-[12px] text-ink-faint items-center gap-1.5',
+                    selected.items.length > 1 ? 'inline-flex' : 'hidden touch:inline-flex',
+                  )}
+                >
                   <Icon name="info" size={13} className="shrink-0" />
-                  <span>
-                    <span className="touch:hidden">Drag posters to reorder</span>
-                    <span className="hidden touch:inline">Press and hold a poster to move or remove it</span>: Your order, Release order and Take turns follow this arrangement.
-                  </span>
+                  {selected.items.length > 1 ? (
+                    <span>
+                      <span className="touch:hidden">Drag posters to reorder</span>
+                      <span className="hidden touch:inline">Press and hold a poster to move or remove it</span>: Your order, Release order and Take turns follow this arrangement.
+                    </span>
+                  ) : (
+                    <span>Press and hold a poster to remove it.</span>
+                  )}
                 </p>
               )}
             </>
