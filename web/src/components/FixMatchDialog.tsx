@@ -485,7 +485,7 @@ export default function FixMatchDialog({
                           {c.originalTitle && <div className="text-[12px] text-ink-faint truncate">{c.originalTitle}</div>}
                           {c.overview && <p className="mt-0.5 text-[12.5px] text-ink-muted leading-snug line-clamp-2">{c.overview}</p>}
                         </div>
-                        <span className="shrink-0 self-center text-[12.5px] font-medium text-indigo-300 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
+                        <span className="shrink-0 self-center text-[12.5px] font-medium text-indigo-300 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 touch:opacity-100 transition-opacity">
                           {saving === `${source}:${c.id}` ? 'Saving…' : 'Use this'}
                         </span>
                       </button>

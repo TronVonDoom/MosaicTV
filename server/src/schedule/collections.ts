@@ -413,6 +413,27 @@ export async function collectionCount(c: CollectionWithItems, airs?: Airs): Prom
   return filterN + showN + singleN + extrasN
 }
 
+/**
+ * Everything a collection brings in, as one condition on files: its shows,
+ * seasons, artists and albums (each with the specials and extras that air
+ * from it), its single picks, the extras of movies whose extras air, and its
+ * smart filter. What "is this in it already" is asked against.
+ */
+export function collectionBringsIn(c: CollectionWithItems, airs: Airs): Prisma.MediaItemWhereInput {
+  const or: Prisma.MediaItemWhereInput[] = [
+    ...c.items.filter((i) => (i.kind === 'show' || i.kind === 'season') && i.showId != null).map((i) => showPickWhere(i, pickAirs(i, airs))),
+    ...c.items.filter(isByArtist).map(artistPickWhere),
+  ]
+  const singles = c.items.filter((i) => isSingle(i) && i.mediaItemId != null).map((i) => i.mediaItemId as number)
+  if (singles.length > 0) or.push({ id: { in: singles } })
+  const withExtras = c.items
+    .filter((i) => i.kind === 'movie' && i.mediaItemId != null && pickAirs(i, airs).extras)
+    .map((i) => i.mediaItemId as number)
+  if (withExtras.length > 0) or.push({ parentId: { in: withExtras } })
+  if (hasFilter(c)) or.push(collectionWhere(c, airs))
+  return or.length > 0 ? { OR: or } : { id: -1 }
+}
+
 // Stable integer hash for deterministic shuffles.
 function hash(n: number): number {
   let x = (n ^ 0x9e3779b9) >>> 0

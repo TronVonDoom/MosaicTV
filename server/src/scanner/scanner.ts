@@ -7,6 +7,7 @@ import { detectArtwork, embeddedCover, findLyrics } from './artwork.js'
 import { extensionsFor, walk } from './walk.js'
 import { removeGone } from './gone.js'
 import { log } from '../logs.js'
+import { libraryChanged } from '../events.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { matchNewTitles } from '../metadata/metadata.js'
 import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
@@ -214,6 +215,7 @@ async function processFile(
   if (moved) status.moved++
   else if (existing) status.updated++
   else status.added++
+  libraryChanged(libraryId)
 }
 
 /**
@@ -348,8 +350,10 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     // so parsing/artwork use the correct relative root.
     const found: { file: string; root: string }[] = []
     const unreadable: string[] = []
+    // What a .plexignore left out: indexed before, it goes, though it's on disk.
+    const skipped: string[] = []
     for (const folder of library.folders) {
-      const files = await walk(folder.path, unreadable, extensionsFor(library.kind))
+      const files = await walk(folder.path, unreadable, extensionsFor(library.kind), skipped)
       for (const f of files) found.push({ file: f, root: folder.path })
     }
     // Everything is indexed, season 0 and extras included, as in Plex: each
@@ -380,7 +384,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     if (kind === 'audio') await fileUntaggedAlbums(library.id)
     // …and goes for good, as in Plex — unless it's under a folder this scan
     // couldn't read (see removeGone).
-    const gone = await removeGone(library.id, unreadable)
+    const gone = await removeGone(library.id, unreadable, skipped)
     Object.assign(status, { removed: gone.files, held: gone.held, unreachable: gone.unreachable })
     const linked = await linkExtras(library.id)
     // New, changed or vanished files change what the channels can air.
@@ -391,6 +395,8 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     status.running = false
     status.currentPath = null
     status.finishedAt = new Date().toISOString()
+    // Open pages follow: what's gone, refiled or moved since the last word.
+    libraryChanged(libraryId)
   }
   // As in Plex, what a scan adds is matched to TMDB straight after.
   if (!status.error) await matchNewTitles(library.id).catch(() => {})

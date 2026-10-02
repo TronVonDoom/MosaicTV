@@ -44,9 +44,11 @@ export type Gone = {
  * left with no parts; aired history keeps its rows, without the file.
  * `unreadable` are the folders the scan couldn't read: what's under them, or
  * under a library folder that came up empty, stays. So does a file that's on
- * disk after all (back since the scan looked): the next scan brings it back.
+ * disk after all (back since the scan looked): the next scan brings it back —
+ * unless it's in `skipped`, what a .plexignore leaves out, which goes whether
+ * it's on disk or not.
  */
-export async function removeGone(libraryId: number, unreadable: string[] = []): Promise<Gone> {
+export async function removeGone(libraryId: number, unreadable: string[] = [], skipped: string[] = []): Promise<Gone> {
   const library = await prisma.library.findUniqueOrThrow({ where: { id: libraryId }, include: { folders: true } })
   const missing = await prisma.mediaItem.findMany({ where: { libraryId, missing: true }, select: { id: true, path: true, showId: true } })
   const result: Gone = { files: 0, shows: 0, picks: 0, airings: 0, held: 0, unreachable: null }
@@ -68,8 +70,9 @@ export async function removeGone(libraryId: number, unreadable: string[] = []): 
   const gone: typeof missing = []
   const heldIds = new Set(held.map((m) => m.id))
   const candidates = missing.filter((m) => !heldIds.has(m.id))
+  const ruledOut = (p: string) => skipped.some((s) => p === s || isUnder(p, s))
   for (const batch of slices(candidates)) {
-    const here = await Promise.all(batch.map((m) => exists(m.path)))
+    const here = await Promise.all(batch.map((m) => (ruledOut(m.path) ? false : exists(m.path))))
     batch.forEach((m, i) => !here[i] && gone.push(m))
   }
   const fileIds = gone.map((m) => m.id)

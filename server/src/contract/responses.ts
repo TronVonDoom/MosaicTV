@@ -565,6 +565,16 @@ export type Collection = {
   itemCount: number
 }
 
+/** How much of a title — a movie, show, season, episode, artist, album or
+ *  song — each channel's collections bring in already (GET
+ *  /api/collections/covering): what "Add to a channel" marks. `total` is how
+ *  many playable files the title has; each collection listed brings in
+ *  `covered` of them, and one with all of them has it already. */
+export type Covering = {
+  total: number
+  collections: { id: number; covered: number }[]
+}
+
 export type MediaSearchResult =
   | { kind: 'show'; showTitle: string; libraryId: number; libraryName: string; episodeCount: number }
   | { kind: 'season'; showTitle: string; libraryId: number; libraryName: string; season: number; episodeCount: number }

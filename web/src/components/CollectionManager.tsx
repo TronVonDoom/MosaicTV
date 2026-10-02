@@ -14,6 +14,7 @@ import {
 import { holdsOf, orderLabel } from '../lib/playback'
 import { posterGradient, programLabel } from '../lib/format'
 import { confirmDialog } from '../lib/confirm'
+import { isTouchScreen, useItemMenu } from '../lib/itemMenu'
 import MediaSearchInput, { memberKey } from './MediaSearchInput'
 import LogoPicker from './LogoPicker'
 import OrderPicker from './OrderPicker'
@@ -141,6 +142,7 @@ function MemberTile({
   onDragEnter,
   onDrop,
   onRemove,
+  onMove,
 }: {
   it: CollectionItem
   airs: Airs
@@ -153,13 +155,23 @@ function MemberTile({
   onDragEnter: () => void
   onDrop: () => void
   onRemove: () => void
+  /** One place earlier or later — the long-press menu's stand-in for a drag,
+   *  which a touch screen can't do; null at that end. */
+  onMove: { earlier: (() => void) | null; later: (() => void) | null }
 }) {
   const [broken, setBroken] = useState(false)
+  const hold = useItemMenu([
+    { label: 'Move earlier', icon: 'chevronLeft', disabled: !onMove.earlier, onSelect: () => onMove.earlier?.() },
+    { label: 'Move later', icon: 'chevronRight', disabled: !onMove.later, onSelect: () => onMove.later?.() },
+    'divider',
+    { label: 'Remove from collection', icon: 'trash', danger: true, onSelect: onRemove },
+  ])
   const title = it.kind === 'season' ? it.showTitle ?? it.label ?? '' : it.label ?? it.showTitle ?? ''
   const art = it.meta?.artId != null && it.meta.artType && !broken ? artworkUrl(it.meta.artId, it.meta.artType, ART.poster) : null
   return (
     <div
-      draggable
+      // A touch screen can't drag-and-drop: a long press opens the tile's menu there.
+      draggable={!isTouchScreen()}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move'
         onDragStart()
@@ -172,9 +184,16 @@ function MemberTile({
         onDrop()
       }}
       title="Drag to reorder"
+      onContextMenu={hold.onContextMenu}
+      onPointerDown={hold.onPointerDown}
+      onPointerMove={hold.onPointerMove}
+      onPointerUp={hold.onPointerUp}
+      onPointerCancel={hold.onPointerCancel}
+      onClickCapture={hold.onClickCapture}
       className={cx(
         'group relative cursor-grab active:cursor-grabbing select-none transition-opacity',
         dragging && 'opacity-40',
+        hold.className,
       )}
     >
       <div
@@ -215,7 +234,7 @@ function MemberTile({
           onClick={onRemove}
           aria-label={`Remove ${title}`}
           title="Remove from collection"
-          className="absolute top-1.5 right-1.5 grid place-items-center w-7 h-7 rounded-md bg-black/60 backdrop-blur-md text-white/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-rose-500 hover:text-white transition-[opacity,background-color]"
+          className="absolute top-1.5 right-1.5 grid place-items-center w-7 h-7 touch:w-9 touch:h-9 rounded-md bg-black/60 backdrop-blur-md text-white/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100 hover:bg-rose-500 hover:text-white transition-[opacity,background-color]"
         >
           <Icon name="close" size={14} />
         </button>
@@ -749,12 +768,20 @@ export default function CollectionManager({
                       setOverId(null)
                     }}
                     onRemove={() => guard(() => api.deleteCollectionItem(selected.id, it.id))}
+                    onMove={{
+                      earlier: i > 0 ? () => moveMember(selected, it.id, selected.items[i - 1].id) : null,
+                      later: i < selected.items.length - 1 ? () => moveMember(selected, it.id, selected.items[i + 1].id) : null,
+                    }}
                   />
                 ))}
               </div>
               {selected.items.length > 1 && (
                 <p className="mt-4 text-[12px] text-ink-faint inline-flex items-center gap-1.5">
-                  <Icon name="info" size={13} /> Drag posters to reorder: Your order, Release order and Take turns follow this arrangement.
+                  <Icon name="info" size={13} className="shrink-0" />
+                  <span>
+                    <span className="touch:hidden">Drag posters to reorder</span>
+                    <span className="hidden touch:inline">Press and hold a poster to move or remove it</span>: Your order, Release order and Take turns follow this arrangement.
+                  </span>
                 </p>
               )}
             </>

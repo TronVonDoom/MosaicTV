@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { creditOf, type Collection, type ExtraKind, type MediaSearchResult, type Stored } from '../contract/index.js'
-import type { CollectionItem } from '@prisma/client'
+import { creditOf, type Collection, type Covering, type ExtraKind, type MediaSearchResult, type Stored } from '../contract/index.js'
+import type { CollectionItem, Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { warmFiller } from '../streaming/filler.js'
-import { asPlaybackOrder, byArtistName, channelAirs, collectionCount, isByName, pickAirs, resolveCollection, type Airs } from '../schedule/collections.js'
+import { asPlaybackOrder, byArtistName, channelAirs, collectionBringsIn, collectionCount, isByName, pickAirs, resolveCollection, type Airs } from '../schedule/collections.js'
 import { scheduleChanged } from '../schedule/scheduleChanges.js'
 import { CollectionCreate, CollectionUpdate, compareTitles, MemberCreate, MemberUpdate, Reorder } from '../contract/index.js'
 import { readBody } from '../validate.js'
@@ -220,6 +220,58 @@ async function browseShelf(shelf: Shelf, offset: number): Promise<{ results: Sto
   }
   return { results: all.slice(offset, offset + BROWSE_PAGE), total: all.length }
 }
+
+/**
+ * The playable files a title is, as a pick of it would name it: a movie,
+ * episode or song by id; a show's episodes (not its specials) or one season's;
+ * the music filed under an artist, or one album of theirs. Null when it
+ * doesn't say enough.
+ */
+function titleFiles(kind: string | null, t: { mediaItemId?: number | null; libraryId?: number | null; showId?: number | null; season?: number | null; artist?: string | null; album?: string | null }): Prisma.MediaItemWhereInput | null {
+  const playable = { missing: false, durationSec: { gt: 0 } }
+  if (kind === 'movie' || kind === 'episode' || kind === 'music' || kind === 'song') return t.mediaItemId != null ? { id: t.mediaItemId, ...playable } : null
+  if (kind === 'show' && t.showId != null) return { showId: t.showId, type: 'episode', extra: null, OR: [{ season: null }, { season: { gt: 0 } }], ...playable }
+  if (kind === 'season' && t.showId != null && t.season != null) return { showId: t.showId, season: t.season, type: 'episode', extra: null, ...playable }
+  if ((kind === 'artist' || kind === 'album') && t.libraryId != null && t.artist)
+    return { libraryId: t.libraryId, artist: t.artist, type: { in: ['music', 'song'] }, extra: null, ...(kind === 'album' ? { album: t.album ?? null } : {}), ...playable }
+  return null
+}
+
+/** How many of a title's files a collection brings in already. */
+async function coveredBy(c: Prisma.CollectionGetPayload<{ include: { items: true } }>, files: Prisma.MediaItemWhereInput, airs: Airs): Promise<number> {
+  return prisma.mediaItem.count({ where: { AND: [files, collectionBringsIn(c, airs)] } })
+}
+
+// GET /api/collections/covering?kind=&mediaItemId=&libraryId=&showTitle=&season=&artist=&album=
+// -> how much of a movie, episode, song, show, season, artist or album each
+// channel's collections bring in already, whichever way — the whole show for
+// an episode, an album for one of its songs, a smart filter. A title can sit
+// in any number of collections; this is what keeps it from going into the
+// same one twice. A show counts its episodes (not its specials), an artist
+// the music filed under them.
+collectionsRouter.get('/covering', async (req, res) => {
+  const q = req.query
+  const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
+  const num = (v: unknown) => (typeof v === 'string' && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+  const kind = str(q.kind)
+  const libraryId = num(q.libraryId)
+  const show = (kind === 'show' || kind === 'season') && libraryId != null && str(q.showTitle) ? await findShow(libraryId, str(q.showTitle)!) : null
+  const where = titleFiles(kind, { mediaItemId: num(q.mediaItemId), libraryId, showId: show?.id, season: num(q.season), artist: str(q.artist), album: str(q.album) })
+  if (!where) return res.status(400).json({ error: 'Say what to look for: kind, and its id, show, artist or album' })
+  const total = await prisma.mediaItem.count({ where })
+  const cols = await prisma.collection.findMany({ where: { channelId: { not: null } }, include: { items: true } })
+  const airsOf = new Map<number, Promise<Airs>>()
+  const collections: Covering['collections'] = []
+  if (total > 0) {
+    for (const c of cols) {
+      if (c.items.length === 0 && !c.libraryId && !c.filterType && !c.filterSearch && !c.filterGenre && !c.filterShow) continue
+      if (!airsOf.has(c.channelId!)) airsOf.set(c.channelId!, channelAirs(c.channelId))
+      const covered = await coveredBy(c, where, await airsOf.get(c.channelId!)!)
+      if (covered > 0) collections.push({ id: c.id, covered })
+    }
+  }
+  res.json({ total, collections } satisfies Covering)
+})
 
 // Autocomplete for adding members: whole shows, their individual seasons,
 // single episodes, movies, and music — every music video or song by an
@@ -459,7 +511,7 @@ collectionsRouter.post('/:id/items', async (req, res) => {
   const member = readBody(MemberCreate, req, res)
   if (!member) return
 
-  const col = await prisma.collection.findUnique({ where: { id: collectionId } })
+  const col = await prisma.collection.findUnique({ where: { id: collectionId }, include: { items: true } })
   if (!col) return res.status(404).json({ error: 'Collection not found' })
 
   const max = await prisma.collectionItem.aggregate({
@@ -476,6 +528,16 @@ collectionsRouter.post('/:id/items', async (req, res) => {
     if (theirs === 0) {
       const what = pick.kind === 'album' ? `No album "${pick.album}" by "${pick.artist}"` : `No music by "${pick.artist}"`
       return res.status(404).json({ error: `${what} in that library` })
+    }
+  }
+  // A title goes into a collection once: not again, and not when the
+  // collection brings in all of it already (its whole show, its album).
+  // Other collections, on this channel or any, can have it too.
+  const files = titleFiles(pick.kind, { ...pick, showId: show?.id })
+  if (files) {
+    const total = await prisma.mediaItem.count({ where: files })
+    if (total > 0 && (await coveredBy(col, files, await channelAirs(col.channelId))) >= total) {
+      return res.status(409).json({ error: `${pick.label ?? showTitle ?? 'That'} is in ${col.name} already` })
     }
   }
   const item = await prisma.collectionItem.create({

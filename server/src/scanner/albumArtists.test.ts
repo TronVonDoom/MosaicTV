@@ -140,6 +140,16 @@ test('a scan files albums whole, old picks still find their songs, and old tags 
   await scanLibrary(lib.id)
   assert.equal(getScanStatus().updated, 0)
   assert.equal((await row('Mixes/Summer/a.mp3')).artist, 'Various Artists')
+
+  // Indexed, then left out by a .plexignore: it goes for good, though it's
+  // still on disk — not kept, marked missing, as a file a share lost would be.
+  tone('Later/take.mp3', 'title=Take 2', 'artist=Nobody', 'album=Raw')
+  await scanLibrary(lib.id)
+  assert.equal(await prisma.mediaItem.count({ where: { path: { contains: 'Later' } } }), 1)
+  fs.writeFileSync(put('Later/.plexignore'), '*\n')
+  await scanLibrary(lib.id)
+  assert.equal(await prisma.mediaItem.count({ where: { path: { contains: 'Later' } } }), 0)
+  assert.equal(getScanStatus().removed, 1)
 })
 
 test('an upgrade queues each Music library to be scanned once', async () => {

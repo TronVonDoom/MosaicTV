@@ -12,6 +12,9 @@ import BreaksMap from './BreaksMap'
 import CopyIdentDialog from './CopyIdentDialog'
 import type { ChannelTabProps } from './types'
 
+// Below Tailwind's `sm`: a phone held upright.
+const isNarrow = () => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 639px)').matches
+
 const REORDER =
   'grid h-6 w-7 place-items-center rounded-md text-ink-faint transition-colors hover:bg-white/[0.06] hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-faint'
 
@@ -200,7 +203,9 @@ export default function BreaksTab({
               const blocks = blocksOf(i, ch.timeBlocks, list)
               const track = music.find((a) => a.id === i.audioAssetId)
               return (
-                <div key={i.id} className="flex items-center gap-4 rounded-xl border border-edge bg-sunken/60 py-2.5 pl-1.5 pr-3">
+                // On a phone: the arrows, the picture and its ⋯ along the top, what it
+                // is and where it plays underneath, the row's whole width.
+                <div key={i.id} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 sm:gap-4 rounded-xl border border-edge bg-sunken/60 py-2.5 pl-1.5 pr-3">
                   <div className="flex flex-col items-center">
                     <button
                       type="button"
@@ -229,10 +234,10 @@ export default function BreaksTab({
                       src={identThumbUrl(i, shows[0] ?? null)}
                       alt=""
                       loading="lazy"
-                      className="aspect-video w-40 rounded-lg bg-black object-cover transition hover:brightness-110"
+                      className="aspect-video w-24 sm:w-40 rounded-lg bg-black object-cover transition hover:brightness-110"
                     />
                   </button>
-                  <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="min-w-0 flex-1 basis-full sm:basis-auto order-last sm:order-none pl-1.5 sm:pl-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: colorOf(i.id) }} />
                       <span className="text-[15px] font-semibold">{i.name}</span>
@@ -290,13 +295,17 @@ export default function BreaksTab({
                         </div>
                       ))}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button variant="secondary" size="sm" icon="edit" onClick={() => setEditing({ ident: i })}>
-                      Edit
-                    </Button>
+                  <div className="flex shrink-0 items-center gap-1 ml-auto sm:ml-0">
+                    <span className="hidden sm:contents">
+                      <Button variant="secondary" size="sm" icon="edit" onClick={() => setEditing({ ident: i })}>
+                        Edit
+                      </Button>
+                    </span>
                     <Menu
                       label={`More for “${i.name}”`}
                       items={[
+                        // On a phone, where the Edit button gives way to room for the rest.
+                        ...(isNarrow() ? [{ label: 'Edit', icon: 'edit' as const, onSelect: () => setEditing({ ident: i }) }] : []),
                         { label: 'Duplicate', icon: 'copy', onSelect: () => duplicate(i) },
                         { label: 'Copy to other channels…', icon: 'tv', onSelect: () => setCopy({ mode: 'to', ident: i }) },
                         'divider',

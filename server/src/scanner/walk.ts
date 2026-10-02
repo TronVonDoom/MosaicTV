@@ -44,10 +44,17 @@ const ignored = (full: string, ignores: Ignore[]) =>
   })
 
 /** Recursively collect the media files (videos, unless `exts` says otherwise)
- *  under a directory, leaving out what a .plexignore along the way names. A
+ *  under a directory, leaving out what a .plexignore along the way names —
+ *  each file or folder it leaves out added to `skipped` when given. A
  *  directory that can't be read is skipped, and added to `unreadable` when
  *  given. */
-export async function walk(dir: string, unreadable?: string[], exts: Set<string> = VIDEO_EXTS, ignores: Ignore[] = []): Promise<string[]> {
+export async function walk(
+  dir: string,
+  unreadable?: string[],
+  exts: Set<string> = VIDEO_EXTS,
+  skipped?: string[],
+  ignores: Ignore[] = [],
+): Promise<string[]> {
   const out: string[] = []
   let entries: import('node:fs').Dirent[]
   try {
@@ -63,9 +70,12 @@ export async function walk(dir: string, unreadable?: string[], exts: Set<string>
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
-    if (ignores.length > 0 && ignored(full, ignores)) continue
+    if (ignores.length > 0 && ignored(full, ignores)) {
+      skipped?.push(full)
+      continue
+    }
     if (entry.isDirectory()) {
-      out.push(...(await walk(full, unreadable, exts, ignores)))
+      out.push(...(await walk(full, unreadable, exts, skipped, ignores)))
     } else if (entry.isFile() && exts.has(path.extname(entry.name).toLowerCase())) {
       out.push(full)
     }

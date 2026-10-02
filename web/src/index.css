@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* `touch:` — a screen you can't hover: a phone, a tablet, however wide. What
+   a mouse finds on hover (a tile's ×, its ⋯) is simply shown there, at a size
+   a finger can hit. Keyed on the input, not the width, so a tablet held
+   sideways gets it too. */
+@custom-variant touch (@media (hover: none));
+
 /* ── MosaicTV theme ───────────────────────────────────────────────────────
    A broadcast control room: deep graphite surfaces, one violet brand accent
    drawn from the logo's cool side, and a red tally light for anything live.
@@ -445,4 +451,13 @@
   .card-interactive:hover {
     transform: none;
   }
+}
+
+/* An item whose menu opens on a long press (see itemMenu.ts): no text
+   selection or iOS's own callout (Save Image, preview) under the finger. */
+.hold-menu,
+.hold-menu img {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }

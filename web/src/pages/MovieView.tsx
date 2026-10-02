@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { api, ART, artworkUrl, type MediaItemDetail, type OnAirSlot, type TitleOnAir } from '../lib/api'
 import { artistPath, extraLabel, formatAiring, formatClock, formatDuration } from '../lib/format'
+import { useLibraryChanges } from '../lib/events'
 import MediaDetailModal from '../components/MediaDetailModal'
 import CastRow from '../components/CastRow'
 import TitleLayer from '../components/title/TitleLayer'
@@ -100,6 +101,8 @@ export default function MovieView() {
       })
       .catch(() => setNotFound(true))
   const loadOnAir = () => api.mediaOnAir(id).then(setOnAir).catch(() => {})
+  // Its details follow a metadata fetch, or a scan, as it runs.
+  useLibraryChanges(item?.libraryId ?? -1, () => void load())
   useEffect(() => {
     setItem(null)
     setOnAir(null)
@@ -312,7 +315,6 @@ export default function MovieView() {
         <AddToChannel
           what={item.title}
           member={{ kind: 'movie', mediaItemId: item.id }}
-          already={new Set(onAir?.carriers.flatMap((c) => c.collections.map((x) => x.id)) ?? [])}
           onClose={() => setAdding(false)}
           onAdded={() => {
             // Its channel replans in the background; look again once it has.

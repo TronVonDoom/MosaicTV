@@ -58,6 +58,7 @@ import {
 } from './providers.js'
 import { showCards } from '../shows.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
+import { libraryChanged } from '../events.js'
 
 const CONCURRENCY = 4
 
@@ -860,6 +861,7 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
       await runPool(items, CONCURRENCY, async (item) => {
         status.currentTitle = item.title
         const r = await enrichMovie(a, item, research(item), true)
+        libraryChanged(library.id)
         if (r.matched) status.matched++
         else status.unmatched++
         genres ||= r.genres
@@ -872,6 +874,7 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
         status.currentTitle = show.title
         if ((await enrichShow(a, show, research(show), true)).matched) status.matched++
         else status.unmatched++
+        libraryChanged(library.id)
       })
     } else if (library.kind === 'music') {
       const items = await prisma.mediaItem.findMany({ where: musicWhere(library.id, mode), select: MUSIC_ROW })
@@ -880,6 +883,7 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
       await runPool(items, CONCURRENCY, async (item) => {
         status.currentTitle = item.title
         const r = await enrichMusicVideo(a, item)
+        libraryChanged(library.id)
         if (r.read) status.matched++
         else status.unmatched++
         genres ||= r.genres
@@ -894,6 +898,7 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
       await runPool(items, CONCURRENCY, async (item) => {
         status.currentTitle = item.title
         const r = await enrichSong(a, item, mode === 'all')
+        libraryChanged(library.id)
         if (r.read) status.matched++
         else status.unmatched++
         genres ||= r.genres
@@ -907,6 +912,7 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
     status.running = false
     status.currentTitle = null
     status.finishedAt = new Date().toISOString()
+    libraryChanged(library.id)
   }
 }
 

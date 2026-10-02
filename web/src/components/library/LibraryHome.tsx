@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ART, artworkUrl, tmdbImage, type Library, type LibraryHome as Home, type MediaItem, type OnAirSlot, type Show } from '../../lib/api'
 import { formatAiring, formatClock, posterGradient, splitSubtitle } from '../../lib/format'
+import { useLibraryChanges } from '../../lib/events'
 import ChannelLogo from '../ChannelLogo'
 import GuideStrip from '../onair/GuideStrip'
 import { OnAirHeading, OnAirLabel, Tally } from '../onair/OnAir'
@@ -180,13 +181,17 @@ export default function LibraryHome({
   const isTv = library.kind === 'tv'
   const noun = isTv ? 'shows' : 'movies'
   const [recent, setRecent] = useState<MediaItem[] | null>(null)
-  useEffect(() => {
+  const loadRecent = () => {
     if (isTv) return
     api
       .media({ libraryId: library.id, type: 'movie', sort: 'added', pageSize: 18 })
       .then((r) => setRecent(r.items))
-      .catch(() => setRecent([]))
-  }, [library.id, isTv])
+      .catch(() => setRecent((x) => x ?? []))
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadRecent, [library.id, isTv])
+  // What a scan just added turns up here as it's found.
+  useLibraryChanges(library.id, loadRecent)
 
   if (!home) {
     return (

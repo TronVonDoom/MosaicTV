@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { posterGradient } from '../lib/format'
+import { useItemMenu } from '../lib/itemMenu'
 import Icon, { type IconName } from './Icon'
+import { Menu, cx, type MenuItem } from './ui'
 
 /** "The Big Bang Theory" -> "BB", "Firefly" -> "FI". */
 function initials(title: string): string {
@@ -18,6 +20,8 @@ function initials(title: string): string {
  * artists) that lifts on hover, showing
  * its quality chip and TMDB rating (when known) as it does. No artwork: the title's
  * initials on a colour of its own, so a grid of unmatched titles still reads.
+ * With a `menu`, its actions sit in a ⋯ beside the title (always shown on a
+ * touch screen) and open on a long press or a right-click too.
  */
 export default function PosterCard({
   title,
@@ -29,6 +33,7 @@ export default function PosterCard({
   tag,
   square,
   onClick,
+  menu,
 }: {
   title: string
   subtitle?: string
@@ -41,13 +46,17 @@ export default function PosterCard({
   /** Square art: an album cover, an artist. */
   square?: boolean
   onClick: () => void
+  /** What can be done with it: "Add to a channel…". */
+  menu?: MenuItem[]
 }) {
   const [imgError, setImgError] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const showImage = imageUrl && !imgError
+  const hold = useItemMenu(menu ?? null)
 
   return (
-    <button onClick={onClick} className="group text-left w-full focus-visible:outline-none">
+    <div className="group relative">
+    <button onClick={onClick} {...hold} className={cx('text-left w-full focus-visible:outline-none', hold.className)}>
       <div
         className={(square ? 'aspect-square ' : 'aspect-[2/3] ') + 'relative rounded-xl overflow-hidden flex items-center justify-center shadow-[0_10px_30px_-12px_rgb(0_0_0/0.8)] transition-[transform,box-shadow] duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_22px_44px_-16px_rgb(0_0_0/0.9)] group-focus-visible:ring-2 group-focus-visible:ring-cue'}
         style={{ background: posterGradient(title) }}
@@ -95,10 +104,16 @@ export default function PosterCard({
         )}
         <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/10 group-hover:ring-cue/70 transition-colors" />
       </div>
-      <div className="mt-2 px-0.5">
+      <div className={cx('mt-2 px-0.5', menu && 'pr-8')}>
         <div className="text-[13px] font-medium text-ink-soft truncate group-hover:text-ink transition-colors">{title}</div>
         {subtitle && <div className="font-mono text-[10.5px] uppercase text-ink-faint truncate mt-1">{subtitle}</div>}
       </div>
     </button>
+    {menu && (
+      <div className="absolute bottom-0 right-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100 transition-opacity">
+        <Menu items={menu} label={`More for ${title}`} />
+      </div>
+    )}
+    </div>
   )
 }

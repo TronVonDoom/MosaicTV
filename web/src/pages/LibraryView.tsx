@@ -15,6 +15,7 @@ import {
   type MatchCounts,
   type MatchFilter,
   type MediaItem,
+  type MemberInput,
   type MediaSort,
   type OnAirSlot,
   type Show,
@@ -27,12 +28,15 @@ import { qualityOf, slotPath, type LibraryLayerContext } from './MovieView'
 import MediaDetailModal from '../components/MediaDetailModal'
 import { MatchReview, matchTarget, type MatchTarget } from '../components/FixMatchDialog'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
+import { useLibraryChanges } from '../lib/events'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
 import JumpBar from '../components/library/JumpBar'
 import { StatFigure } from '../components/onair/OnAir'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
-import { EmptyState, Segmented, Select, Skeleton, buttonClass } from '../components/ui'
+import { EmptyState, Menu, Segmented, Select, Skeleton, buttonClass, cx, type MenuItem } from '../components/ui'
+import AddToChannel from '../components/onair/AddToChannel'
+import { useItemMenu } from '../lib/itemMenu'
 import { artistLabel, artistPath, creditOf, extraLabel, formatDuration, posterGradient } from '../lib/format'
 
 const PAGE_SIZE = 60
@@ -53,15 +57,18 @@ const FILTER_HINTS: Record<Exclude<MatchFilter, 'all'>, string> = {
   offair: 'No channel’s collections bring these in. Open one and use Add to a channel to put it on the air.',
 }
 
-/** One song or music video in a list: its cover, title, artist and album, year and length. */
-function SongRow({ m, onOpen }: { m: MediaItem; onOpen: () => void }) {
+/** One song or music video in a list: its cover, title, artist and album, year and length — and its ⋯. */
+function SongRow({ m, onOpen, menu }: { m: MediaItem; onOpen: () => void; menu: MenuItem[] }) {
   const [broken, setBroken] = useState(false)
+  const hold = useItemMenu(menu)
   const cover = (m.posterPath || m.tmdbPosterPath) && !broken ? artworkUrl(m.id, 'poster', ART.tiny, m.tmdbPosterPath) : null
   return (
+    <div className="group flex items-center border-t border-edge transition-colors hover:bg-white/[0.025]">
     <button
       type="button"
       onClick={onOpen}
-      className="group w-full flex items-center gap-3 sm:gap-4 py-2 px-1 sm:px-2 text-left border-t border-edge transition-colors hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue"
+      {...hold}
+      className={cx('min-w-0 flex-1 flex items-center gap-3 sm:gap-4 py-2 touch:py-2.5 px-1 sm:px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue', hold.className)}
     >
       <span
         className="relative w-10 h-10 shrink-0 rounded overflow-hidden grid place-items-center ring-1 ring-inset ring-white/10"
@@ -80,6 +87,10 @@ function SongRow({ m, onOpen }: { m: MediaItem; onOpen: () => void }) {
       <span className="hidden sm:block w-12 shrink-0 text-right font-mono text-[12px] text-ink-faint tabular-nums">{m.year ?? ''}</span>
       <span className="w-14 shrink-0 text-right font-mono text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
     </button>
+    <div className="shrink-0 mr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100 transition-opacity">
+      <Menu items={menu} label={`More for ${m.title}`} />
+    </div>
+    </div>
   )
 }
 
@@ -100,6 +111,9 @@ export default function LibraryView() {
   const [items, setItems] = useState<MediaItem[]>([])
   const [total, setTotal] = useState(0)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  // A title being put on a channel, from its ⋯ (or a long press, a right-click).
+  const [adding, setAdding] = useState<{ what: string; member: MemberInput } | null>(null)
+  const addMenu = (what: string, member: MemberInput): MenuItem[] => [{ label: 'Add to a channel…', icon: 'plus', onSelect: () => setAdding({ what, member }) }]
   const [loading, setLoading] = useState(true)
   const [showSort, setShowSort] = useState<ShowSort>('title')
   const [keys, setKeys] = useState<SourceKeys>(NO_KEYS)
@@ -139,6 +153,8 @@ export default function LibraryView() {
   // shows, a music library's artists or albums — rather than paged from the server.
   const local = isTv || (isMusic && by !== 'songs')
   const matchable = library?.kind === 'tv' || library?.kind === 'movie'
+  // What a paged grid lists.
+  const mediaType = library?.kind === 'movie' ? 'movie' : library?.kind === 'music' ? 'music' : library?.kind === 'audio' ? 'song' : 'other'
   // A movie or TV library opens on its home; the rest are just their grid.
   const hasHome = matchable
   const viewParam = search.get('view')
@@ -201,14 +217,48 @@ export default function LibraryView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, hasHome, isMusic, showsVersion])
 
-  /** Everything again — a scan or a metadata fetch just finished. */
+  /** Everything again, from the top — after a title's match changed. */
   function reloadAll() {
     void loadLibrary()
     if (matchable) void loadCounts()
     setShowsVersion((v) => v + 1)
     setParams((p) => ({ ...p, page: 1 }))
   }
-  const jobs = useLibraryJobs(reloadAll)
+
+  /**
+   * What's shown, fetched again in place as the library changes under the
+   * page — a scan finding or letting go of files, a metadata fetch naming
+   * them — the way Plex's grid fills in mid-scan: new titles in where they
+   * sort, gone ones out, the scroll left where it is and no spinner.
+   */
+  function refreshInPlace() {
+    void loadLibrary()
+    if (matchable) void loadCounts()
+    if (hasHome || isMusic) void loadHome()
+    if (!library) return
+    if (isTv) {
+      api.shows(id).then((r) => setShows(r.shows)).catch(() => {})
+    } else if (isMusic && by !== 'songs') {
+      const load = by === 'artists' ? api.artists(id).then((r) => setArtists(r.artists)) : api.albums(id, albumSort).then((r) => setAlbums(r.albums))
+      load.catch(() => {})
+    } else if (view !== 'home') {
+      // Every page loaded so far, again, standing in for what's there.
+      const mine = ++request.current
+      const pages = Array.from({ length: Math.max(1, loadedPages.current) }, (_, i) => i + 1)
+      Promise.all(pages.map((page) => api.media({ libraryId: id, type: mediaType, page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort, match })))
+        .then((rs) => {
+          if (mine !== request.current) return
+          setItems(rs.flatMap((r) => r.items))
+          setTotal(rs[rs.length - 1].total)
+          setLetters(rs[0].letters ?? null)
+        })
+        .catch(() => {})
+    }
+  }
+  useLibraryChanges(id, refreshInPlace)
+  // A scan or a fetch that finished: in place too (the live updates already
+  // carried most of it; this is for a connection that dropped meanwhile).
+  const jobs = useLibraryJobs(refreshInPlace)
 
   const clearSearch = () =>
     setSearch(
@@ -246,7 +296,7 @@ export default function LibraryView() {
     if (!library || local || view === 'home') return
     const mine = ++request.current
     setLoading(true)
-    const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
+    const type = mediaType
     // On from the pages loaded — or, for a new search, sort or filter (or the
     // library read again), from the top.
     const from = params.page > loadedPages.current ? loadedPages.current + 1 : 1
@@ -683,6 +733,7 @@ export default function LibraryView() {
                               : undefined
                         }
                         onClick={() => openShow(s.showTitle)}
+                        menu={addMenu(s.showTitle, { kind: 'show', showTitle: s.showTitle, libraryId: id })}
                       />
                     ))}
                   </div>
@@ -702,6 +753,7 @@ export default function LibraryView() {
                         icon="audio"
                         imageUrl={a.artItemId != null && a.artType ? artworkUrl(a.artItemId, a.artType, ART.poster, a.artVersion) : undefined}
                         onClick={() => openArtist(a.artist)}
+                        menu={a.artist ? addMenu(a.artist, { kind: 'artist', artist: a.artist, libraryId: id, label: a.artist }) : undefined}
                       />
                     ))}
                   </div>
@@ -721,6 +773,7 @@ export default function LibraryView() {
                         icon="audio"
                         imageUrl={a.coverItemId != null ? artworkUrl(a.coverItemId, 'poster', ART.poster, a.coverVersion) : undefined}
                         onClick={() => openArtist(a.artist, a.album)}
+                        menu={a.artist ? addMenu(a.album, { kind: 'album', artist: a.artist, album: a.album, libraryId: id, label: a.album }) : undefined}
                       />
                     ))}
                   </div>
@@ -729,7 +782,12 @@ export default function LibraryView() {
                 <>
                   <div ref={grid} className="border-b border-edge">
                     {items.map((m) => (
-                      <SongRow key={m.id} m={m} onOpen={() => setSelectedId(m.id)} />
+                      <SongRow
+                        key={m.id}
+                        m={m}
+                        onOpen={() => setSelectedId(m.id)}
+                        menu={[...addMenu(m.title, { kind: m.type === 'song' ? 'song' : 'music', mediaItemId: m.id, libraryId: id, label: m.title }), { label: 'Details', icon: 'info', onSelect: () => setSelectedId(m.id) }]}
+                      />
                     ))}
                   </div>
                   <div ref={sentinel} className="h-10" />
@@ -755,6 +813,11 @@ export default function LibraryView() {
                         imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster, m.tmdbPosterPath) : undefined}
                         // A movie opens its page over the grid; an extra or a clip, a quick look.
                         onClick={() => (library?.kind === 'movie' && !m.extra ? openMovie(m.id) : setSelectedId(m.id))}
+                        menu={
+                          library?.kind === 'other'
+                            ? undefined
+                            : addMenu(m.title, { kind: m.type === 'song' ? 'song' : m.type === 'music' ? 'music' : 'movie', mediaItemId: m.id, libraryId: id, label: m.title })
+                        }
                       />
                     ))}
                   </div>
@@ -787,6 +850,7 @@ export default function LibraryView() {
           }}
         />
       )}
+      {adding && <AddToChannel what={adding.what} member={adding.member} onClose={() => setAdding(null)} />}
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={() => movieChanged(selectedId)} />
       )}

@@ -119,8 +119,10 @@ export default function GuideTab({
   return (
     <Card>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 max-w-full">
           <h2 className="font-semibold text-[15px] tracking-tight">Guide</h2>
+          {/* Four views don't fit a phone's width: they scroll sideways there. */}
+          <div className="max-w-full overflow-x-auto">
           <Segmented
             size="sm"
             value={view}
@@ -132,6 +134,7 @@ export default function GuideTab({
               { value: 'ahead', label: 'Weeks ahead', icon: 'calendar' },
             ]}
           />
+          </div>
           <InfoHint>
             The guide is generated ahead of time, as far out as the schedule horizon in Settings.
             It's what the XMLTV feed publishes and what the channel actually plays. Change the

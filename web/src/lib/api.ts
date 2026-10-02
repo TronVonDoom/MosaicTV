@@ -67,6 +67,7 @@ import type {
   EncodingProfile,
   ActBreakProgress,
   FsListing,
+  Covering,
   ScheduleWarning,
   GridMinutes,
   Health,
@@ -120,6 +121,7 @@ export type {
   EncodingProfile,
   ActBreakProgress,
   FsListing,
+  Covering,
   ScheduleWarning,
   GridMinutes,
   Health,
@@ -495,6 +497,15 @@ export const api = {
     request<{ results: MediaSearchResult[]; total?: number }>(
       `/api/collections/search?q=${encodeURIComponent(q)}${opts.kind ? `&kind=${opts.kind}` : ''}${opts.offset ? `&offset=${opts.offset}` : ''}`,
     ),
+  /** How much of a title each channel's collections bring in already. */
+  covering: (m: MemberInput) => {
+    const q = new URLSearchParams({ kind: m.kind })
+    for (const k of ['mediaItemId', 'libraryId', 'showTitle', 'season', 'artist', 'album'] as const) {
+      const v = m[k]
+      if (v != null && v !== '') q.set(k, String(v))
+    }
+    return request<Covering>(`/api/collections/covering?${q}`)
+  },
   addCollectionItem: (collectionId: number, member: MemberInput) =>
     request<CollectionItem>(`/api/collections/${collectionId}/items`, {
       method: 'POST',

@@ -12,11 +12,12 @@ export type ServerEvent =
   | { type: 'activity' }
   | { type: 'onAir' }
   | { type: 'viewers' }
+  | { type: 'library'; libraryId: number }
 export type ServerEventType = ServerEvent['type']
 /** What a listener gets: the event, or a resync after a reconnect (events may have been missed). */
 export type Heard = ServerEvent | { type: ServerEventType; resync: true }
 
-const TYPES: ServerEventType[] = ['guide', 'channel', 'activity', 'onAir', 'viewers']
+const TYPES: ServerEventType[] = ['guide', 'channel', 'activity', 'onAir', 'viewers', 'library']
 
 let source: EventSource | null = null
 let connected = false
@@ -108,6 +109,17 @@ export function useLiveRefresh(
 
 /** A guide event (or resync) that concerns channel `id`. */
 export const guideFor = (id: number) => (e: Heard) => 'resync' in e || (e.type === 'guide' && e.channelId === id)
+
+/**
+ * Re-run `load` as library `id` changes — a scan finding, refiling or letting
+ * go of files, a metadata fetch naming them — so a page shows what's there
+ * the way Plex's do mid-scan: new titles in, gone ones out. `load` should
+ * refresh in place (no spinner, no jump to the top); the server sends this at
+ * most every few seconds.
+ */
+export function useLibraryChanges(id: number, load: () => void): void {
+  useLiveRefresh(load, ['library'], { when: (e) => 'resync' in e || (e.type === 'library' && e.libraryId === id), fallbackMs: 120_000 })
+}
 
 /**
  * Follow a long-running server job (a library scan, a TMDB metadata fetch):

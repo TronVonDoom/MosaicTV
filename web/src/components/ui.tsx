@@ -65,13 +65,14 @@ export function CardHeader({
   className?: string
 }) {
   return (
-    <div className={cx('flex items-start gap-3 mb-4', className)}>
+    // On a phone the actions drop under the title rather than off the edge.
+    <div className={cx('flex flex-wrap sm:flex-nowrap items-start gap-3 mb-4', className)}>
       {icon && <IconTile name={icon} size="sm" />}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-auto">
         <h2 className="font-display font-bold uppercase text-[16px] leading-tight tracking-[0.12em] text-ink">{title}</h2>
         {description && <p className="text-[13px] text-ink-muted mt-1 leading-relaxed">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
     </div>
   )
 }
@@ -899,41 +900,63 @@ export function Menu({
       )}
       {open &&
         createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            // React events bubble through portals: keep a click on an item from
-            // also reaching the card the trigger sits in.
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={onMenuKeyDown}
-            className="fixed z-[60] min-w-48 rounded-xl border border-edge-strong bg-overlay/95 backdrop-blur p-1 shadow-2xl shadow-black/60 modal-in"
-          >
-            {items.map((it, i) =>
-              it === 'divider' ? (
-                <div key={i} className="my-1 h-px bg-edge" />
-              ) : (
-                <button
-                  key={i}
-                  role="menuitem"
-                  disabled={it.disabled}
-                  onClick={() => {
-                    setOpen(false)
-                    it.onSelect()
-                  }}
-                  className={cx(
-                    'w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40 disabled:pointer-events-none',
-                    it.danger ? 'text-rose-300 hover:bg-rose-500/12' : 'text-ink-soft hover:bg-white/[0.06] hover:text-ink',
-                  )}
-                >
-                  {it.icon && <Icon name={it.icon} size={15} className="shrink-0 opacity-80" />}
-                  <span className="flex-1">{it.label}</span>
-                  {it.hint && <span className="text-[11px] text-ink-faint">{it.hint}</span>}
-                </button>
-              ),
-            )}
-          </div>,
+          <MenuPanel ref={menuRef} items={items} onDone={() => setOpen(false)} onKeyDown={onMenuKeyDown} />,
           document.body,
         )}
+    </div>
+  )
+}
+
+/**
+ * A menu's popover: its items, in the one look every menu has — opened from
+ * a ⋯ button (Menu), or where a long press or a right-click asked for it
+ * (ContextMenuHost). Fixed-position; whoever opens it places it.
+ */
+export function MenuPanel({
+  items,
+  onDone,
+  onKeyDown,
+  ref,
+}: {
+  items: MenuItem[]
+  /** An item was chosen: close. */
+  onDone: () => void
+  onKeyDown?: (e: React.KeyboardEvent) => void
+  ref?: React.Ref<HTMLDivElement>
+}) {
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      // React events bubble through portals: keep a click on an item from
+      // also reaching the card the trigger sits in.
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={onKeyDown}
+      className="fixed z-[60] min-w-48 rounded-xl border border-edge-strong bg-overlay/95 backdrop-blur p-1 shadow-2xl shadow-black/60 modal-in"
+    >
+      {items.map((it, i) =>
+        it === 'divider' ? (
+          <div key={i} className="my-1 h-px bg-edge" />
+        ) : (
+          <button
+            key={i}
+            role="menuitem"
+            disabled={it.disabled}
+            onClick={() => {
+              onDone()
+              it.onSelect()
+            }}
+            className={cx(
+              'w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40 disabled:pointer-events-none touch:py-3 touch:text-[14px]',
+              it.danger ? 'text-rose-300 hover:bg-rose-500/12' : 'text-ink-soft hover:bg-white/[0.06] hover:text-ink',
+            )}
+          >
+            {it.icon && <Icon name={it.icon} size={15} className="shrink-0 opacity-80" />}
+            <span className="flex-1">{it.label}</span>
+            {it.hint && <span className="text-[11px] text-ink-faint">{it.hint}</span>}
+          </button>
+        ),
+      )}
     </div>
   )
 }

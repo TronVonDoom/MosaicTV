@@ -7,6 +7,7 @@ import ConnectPlayers from './ConnectPlayers'
 import NotificationBell from './NotificationBell'
 import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
+import ContextMenuHost from './ContextMenuHost'
 import { api, type Channel, type Health, type Library } from '../lib/api'
 import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
 import { usePolling } from '../lib/hooks'
@@ -553,6 +554,7 @@ export default function Layout() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onConnect={() => setConnectOpen(true)} />
       {connectOpen && <ConnectPlayers onClose={() => setConnectOpen(false)} />}
       <ConfirmHost />
+      <ContextMenuHost />
       <ToastContainer />
     </div>
   )

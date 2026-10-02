@@ -22,6 +22,10 @@ export type ServerEvent =
   | { type: 'onAir' }
   /** Someone started or stopped watching a channel. */
   | { type: 'viewers' }
+  /** A library's titles changed — a scan found, refiled or let go of files,
+   *  a metadata fetch named or pictured them — so its pages follow, as Plex's
+   *  do while it scans. Sent at most every LIBRARY_EVERY_MS per library. */
+  | { type: 'library'; libraryId: number }
 
 type Client = { res: Response; id: number }
 const clients = new Set<Client>()
@@ -33,6 +37,30 @@ export function publish(event: ServerEvent): void {
   if (clients.size === 0) return
   const frame = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
   for (const c of clients) c.res.write(frame)
+}
+
+// A scan changes hundreds of files a minute; open pages reload what they show
+// on a library event, so it's sent at most this often per library — the first
+// change at once, then one more for whatever came after, when the wait is up.
+const LIBRARY_EVERY_MS = 2500
+const libraryWaits = new Map<number, { timer: NodeJS.Timeout; again: boolean }>()
+
+/** Say a library's titles changed (see the 'library' event). */
+export function libraryChanged(libraryId: number): void {
+  if (clients.size === 0) return
+  const wait = libraryWaits.get(libraryId)
+  if (wait) {
+    wait.again = true
+    return
+  }
+  publish({ type: 'library', libraryId })
+  const timer = setTimeout(() => {
+    const w = libraryWaits.get(libraryId)
+    libraryWaits.delete(libraryId)
+    if (w?.again) libraryChanged(libraryId)
+  }, LIBRARY_EVERY_MS)
+  timer.unref()
+  libraryWaits.set(libraryId, { timer, again: false })
 }
 
 /** GET /api/events — hold the response open and stream events down it. */

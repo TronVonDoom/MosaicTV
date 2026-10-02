@@ -9,12 +9,14 @@ import {
   type AiringAppearance,
   type AiringSegmentInfo,
   type MediaItem,
+  type MemberInput,
   type OnAirSlot,
   type SeasonGroup,
   type ShowDetail,
   type TitleOnAir,
 } from '../lib/api'
-import { formatAirDate, formatAired, formatAiring, formatDuration, parseCast, posterGradient } from '../lib/format'
+import { formatAirDate, formatAired, formatAiring, formatDuration, parseCast, posterGradient, programLabel } from '../lib/format'
+import { useItemMenu } from '../lib/itemMenu'
 import CastRow from '../components/CastRow'
 import EpisodeOrderDialog from '../components/EpisodeOrderDialog'
 import MediaDetailModal from '../components/MediaDetailModal'
@@ -29,8 +31,9 @@ import TitleOnAirSection from '../components/onair/TitleOnAirSection'
 import AddToChannel from '../components/onair/AddToChannel'
 import { MonoFacts, OnAirHeading, RatingBox, Tally } from '../components/onair/OnAir'
 import Icon from '../components/Icon'
-import { Badge, Banner, Button, Skeleton, cx } from '../components/ui'
+import { Badge, Banner, Button, Menu, Skeleton, cx, type MenuItem } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
+import { useLibraryChanges } from '../lib/events'
 import { OnAirCue, slotPath, type LibraryLayerContext } from './MovieView'
 
 // Season 0 is the show's specials, as Plex calls it.
@@ -99,6 +102,7 @@ function EpisodeRow({
   aired,
   next,
   onOpen,
+  menu,
 }: {
   ep: MediaItem
   showTitle: string
@@ -107,7 +111,10 @@ function EpisodeRow({
   aired?: ShowDetail['aired'][number]
   next?: OnAirSlot
   onOpen: () => void
+  /** Its ⋯ (and a long press, a right-click): "Add to a channel…". */
+  menu: MenuItem[]
 }) {
+  const hold = useItemMenu(menu)
   // TMDB's still, else a frame from the file itself, else its number.
   const [failed, setFailed] = useState(0)
   const pictures = [
@@ -118,13 +125,15 @@ function EpisodeRow({
   const first = formatAirDate(ep.airDate)
   const when = next && formatAiring(next.start)
   return (
+    <div className={cx('group relative border-t border-edge transition-colors hover:bg-white/[0.025]', group && 'bg-indigo-500/[0.05]')}>
     <button
       type="button"
       onClick={onOpen}
+      {...hold}
       className={cx(
-        'group relative w-full flex gap-4 sm:gap-5 py-3.5 px-1 sm:px-2 text-left border-t border-edge transition-colors hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue',
-        group && 'bg-indigo-500/[0.05]',
+        'relative w-full flex gap-4 sm:gap-5 py-3.5 pl-1 sm:pl-2 pr-10 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue',
         ep.missing && 'opacity-55',
+        hold.className,
       )}
     >
       <div
@@ -177,6 +186,10 @@ function EpisodeRow({
         {first && <span className="font-display font-bold text-[11.5px] tracking-[0.16em] uppercase text-ink-faint">First aired</span>}
       </div>
     </button>
+    <div className="absolute top-3 right-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100 transition-opacity">
+      <Menu items={menu} label={`More for ${ep.title}`} />
+    </div>
+    </div>
   )
 }
 
@@ -211,7 +224,8 @@ export default function ShowView() {
   const [libraryName, setLibraryName] = useState<string | null>(null)
   const [identity, setIdentity] = useState<'rename' | 'merge' | null>(null)
   const [ordering, setOrdering] = useState(false)
-  const [adding, setAdding] = useState(false)
+  // What's being put on a channel: the show, a season or one episode.
+  const [adding, setAdding] = useState<{ what: string; member: MemberInput } | null>(null)
   // Files a scan no longer finds (usually an old copy of one it does): hidden
   // unless asked for.
   const [showMissing, setShowMissing] = useState(false)
@@ -249,6 +263,9 @@ export default function ShowView() {
       .catch(() => setAppearances([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, showTitle])
+
+  // Its seasons and episodes follow a scan or a metadata fetch as it runs.
+  useLibraryChanges(id, () => void loadDetail())
 
   useEffect(() => {
     if (detail?.id != null) void loadOnAir(detail.id)
@@ -403,6 +420,7 @@ export default function ShowView() {
   const airing = onAir?.now ?? onAir?.next[0] ?? null
   const bug = airing?.channel ?? onAir?.carriers[0]?.channel ?? null
 
+  const addShow = () => setAdding({ what: showTitle, member: { kind: 'show', showTitle, libraryId: detail?.libraryId ?? id } })
   const openSlot = (s: OnAirSlot) => {
     if (s.showId != null && s.showId === detail?.id && s.mediaItemId != null) return setSelectedId(s.mediaItemId)
     const to = slotPath(s)
@@ -466,7 +484,7 @@ export default function ShowView() {
                   <Icon name="play" size={16} className="fill-current" /> Tune in
                 </Link>
               )}
-              <HeroButton icon="plus" onClick={() => setAdding(true)} variant={onAir?.now ? 'secondary' : 'primary'}>
+              <HeroButton icon="plus" onClick={addShow} variant={onAir?.now ? 'secondary' : 'primary'}>
                 Add to a channel
               </HeroButton>
               <HeroMenu
@@ -492,7 +510,7 @@ export default function ShowView() {
           </Banner>
         )}
 
-        {detail?.id != null && <TitleOnAirSection onAir={onAir} kind="show" name={showTitle} onAdd={() => setAdding(true)} onOpen={openSlot} />}
+        {detail?.id != null && <TitleOnAirSection onAir={onAir} kind="show" name={showTitle} onAdd={addShow} onOpen={openSlot} />}
 
         {detail && (
           <Story
@@ -564,6 +582,22 @@ export default function ShowView() {
                       />
                     </div>
                     <div className="flex items-center gap-2">
+                      {!grouping && (
+                        <Menu
+                          label={`More for ${seasonLabel(current.season)}`}
+                          items={[
+                            {
+                              label: `Add ${seasonLabel(current.season)} to a channel…`,
+                              icon: 'plus',
+                              onSelect: () =>
+                                setAdding({
+                                  what: `${showTitle} — ${seasonLabel(current.season)}`,
+                                  member: { kind: 'season', showTitle, libraryId: detail.libraryId ?? id, season: current.season, label: `${showTitle} — Season ${current.season}` },
+                                }),
+                            },
+                          ]}
+                        />
+                      )}
                       {!grouping && groupCount > 0 && (
                         <Badge tone="accent">
                           {groupCount} broadcast episode{groupCount === 1 ? '' : 's'}
@@ -595,6 +629,14 @@ export default function ShowView() {
                             aired={detail.aired[ep.id]}
                             next={nextByEpisode.get(ep.id)}
                             onOpen={() => setSelectedId(ep.id)}
+                            menu={[
+                              {
+                                label: 'Add to a channel…',
+                                icon: 'plus',
+                                onSelect: () => setAdding({ what: programLabel(ep), member: { kind: 'episode', mediaItemId: ep.id, label: programLabel(ep) } }),
+                              },
+                              { label: 'Details', icon: 'info', onSelect: () => setSelectedId(ep.id) },
+                            ]}
                           />
                           {/* Segments of other shows woven in after it, under its text. */}
                           {foreignSegs.get(ep.id)?.map(({ seg, groupNo }) => (
@@ -643,10 +685,9 @@ export default function ShowView() {
       {match.dialog}
       {adding && detail?.id != null && (
         <AddToChannel
-          what={showTitle}
-          member={{ kind: 'show', showTitle, libraryId: detail.libraryId ?? id }}
-          already={new Set(onAir?.carriers.flatMap((c) => c.collections.map((x) => x.id)) ?? [])}
-          onClose={() => setAdding(false)}
+          what={adding.what}
+          member={adding.member}
+          onClose={() => setAdding(null)}
           onAdded={() => {
             // Its channel replans in the background; look again once it has.
             void loadOnAir(detail.id!)
