@@ -148,7 +148,10 @@ async function processFile(
     existing.showTitle === (show?.title ?? null) &&
     existing.season === parsed.season &&
     existing.episode === parsed.episode &&
-    existing.extra === parsed.extra
+    existing.extra === parsed.extra &&
+    // A song whose album or disc reads differently now (a set's discs, each
+    // tagged as an album, made one) is rewritten from its kept tags.
+    (kind !== 'audio' || (existing.album === (named.album ?? existing.album) && existing.disc === (named.disc ?? existing.disc)))
   ) {
     status.skipped++
     return
@@ -519,10 +522,11 @@ async function queueRescan(ids: number[]): Promise<void> {
   await prisma.setting.upsert({ where: { key: RESCAN_KEY }, create: { key: RESCAN_KEY, value: all }, update: { value: all } })
 }
 
-// Bumped with TAGS_VERSION (2: songs filed under their album artist), so each
-// Music library is scanned once at the next start and its songs' tags read
-// again — they'd otherwise wait for someone to scan it.
-const MUSIC_RULES = '2'
+// Bumped when songs are read differently (2: filed under their album artist,
+// with TAGS_VERSION; 3: a set's discs, each tagged as an album, are one album),
+// so each Music library is scanned once at the next start — they'd otherwise
+// wait for someone to scan it.
+const MUSIC_RULES = '3'
 const MUSIC_KEY = 'musicRules'
 
 /** At boot: when the episode-name rules have changed, queue each TV library

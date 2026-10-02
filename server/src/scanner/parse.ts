@@ -228,6 +228,24 @@ const numberOf = (raw: string | undefined): number | null => {
 /** Who a compilation's songs are filed under. */
 export const VARIOUS_ARTISTS = 'Various Artists'
 
+// One disc of a set, tagged or filed as an album of its own: "(CD1)",
+// "[Disc 2]", ", Disc 2", " - CD 3", " Disc 3" at the end of its name.
+const DISC_SUFFIX = /(?:[\s,.:\-–—]+[([]?|[([])\s*(?:cd|disc|disk)\s*(\d{1,2})\s*[)\]]?\s*$/i
+// A folder that's only a disc: "Disc 2", "CD1".
+const DISC_FOLDER = /^(?:cd|disc|disk)\s*(\d{1,2})$/i
+
+/**
+ * An album's name less the disc a set's tags or folders gave each disc of
+ * it, and that disc: "The Ultimate Hits (CD1)" and "The Ultimate Hits, Disc
+ * 2" are discs 1 and 2 of "The Ultimate Hits" — one album, as a music app
+ * shows a set. A name with no disc in it comes back as it was.
+ */
+export function albumDisc(name: string): { album: string; disc: number | null } {
+  const m = name.match(DISC_SUFFIX)
+  const album = m ? name.slice(0, m.index).trim() : ''
+  return m && album ? { album, disc: Number(m[1]) } : { album: name, disc: null }
+}
+
 /** Whether a song's tags mark it as one track of a compilation. */
 export const taggedCompilation = (tags: Pick<EmbeddedTags, 'compilation'> | null | undefined): boolean =>
   !!tags?.compilation && /^(1|true|yes)$/i.test(tags.compilation.trim())
@@ -248,15 +266,18 @@ export function withTags(parsed: ParsedMedia, tags: EmbeddedTags | null): Parsed
   const year = tags.date?.match(/^\d{4}/)?.[0]
   const credit = tags.artist || parsed.artist
   const artist = tags.albumArtist || (taggedCompilation(tags) ? VARIOUS_ARTISTS : null) || credit
+  // A set whose discs are each tagged as an album: the disc in the name wins
+  // over the disc tag, which counts within that one-disc "album" (1 of 1).
+  const named = tags.album ? albumDisc(tags.album) : null
   return {
     ...parsed,
     title: tags.title || parsed.title,
     artist,
     trackArtist: credit && credit !== artist ? credit : null,
-    album: tags.album || parsed.album,
+    album: named?.album ?? parsed.album,
     year: year ? Number(year) : parsed.year,
     track: numberOf(tags.track) ?? parsed.track ?? null,
-    disc: numberOf(tags.disc) ?? parsed.disc ?? null,
+    disc: named?.disc ?? (named ? numberOf(tags.disc) : null) ?? parsed.disc ?? null,
   }
 }
 
@@ -373,15 +394,24 @@ export function parseMedia(
     // Songs: Artist/Album/03 - Title.ext (a set's "1-03"), Artist/Title.ext,
     // or a flat "Artist - Title.ext". Their own tags, read when they're
     // probed, say it better — see withTags.
-    const { track, disc, rest } = trackOf(baseName)
+    const { track, disc: trackDisc, rest } = trackOf(baseName)
+    let disc = trackDisc
     let artist: string | null = null
     let album: string | null = null
     let year = extractYear(baseName)
     let title = songTitle(rest, null)
     if (segments.length >= 3) {
       artist = cleanName(segments[0])
-      const albumFolder = segments[segments.length - 2]
-      album = cleanTitle(albumFolder) || cleanName(albumFolder)
+      // Artist/Album/Disc 2/03 - Title.flac: the album is the folder above.
+      let albumFolder = segments[segments.length - 2]
+      const discFolder = segments.length >= 4 ? albumFolder.trim().match(DISC_FOLDER) : null
+      if (discFolder) {
+        albumFolder = segments[segments.length - 3]
+        disc = Number(discFolder[1])
+      }
+      const named = albumDisc(cleanTitle(albumFolder) || cleanName(albumFolder))
+      album = named.album
+      disc = named.disc ?? disc
       year ??= extractYear(albumFolder)
       title = songTitle(rest, artist)
     } else if (segments.length === 2) {

@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { tempDb } from '../testDb.js'
-import { parseMedia, withTags } from './parse.js'
+import { albumDisc, parseMedia, withTags } from './parse.js'
 import { embeddedTags, TAGS_VERSION } from '../ffprobe.js'
 import { extensionsFor, ignorePatterns, walk } from './walk.js'
 
@@ -150,6 +150,51 @@ test('a scan files albums whole, old picks still find their songs, and old tags 
   await scanLibrary(lib.id)
   assert.equal(await prisma.mediaItem.count({ where: { path: { contains: 'Later' } } }), 0)
   assert.equal(getScanStatus().removed, 1)
+})
+
+test('a set whose discs are each tagged or filed as an album is one album, by disc', () => {
+  const cases: [string, string, number | null][] = [
+    ['The Ultimate Hits (CD1)', 'The Ultimate Hits', 1],
+    ['The Ultimate Hits, Disc 2', 'The Ultimate Hits', 2],
+    ['Triple Live Disc 3', 'Triple Live', 3],
+    ['Best Of [Disc 2]', 'Best Of', 2],
+    ['Album - CD 3', 'Album', 3],
+    // Not discs.
+    ['Discovery', 'Discovery', null],
+    ['Now 2', 'Now 2', null],
+    ['Disc 1', 'Disc 1', null],
+    ['Super Smash Bros. Anthology - Vol. 02: Super Mario', 'Super Smash Bros. Anthology - Vol. 02: Super Mario', null],
+  ]
+  for (const [name, album, disc] of cases) assert.deepEqual(albumDisc(name), { album, disc }, name)
+  // The disc in the name beats a disc tag that counts within that one disc.
+  const tagged = song({ artist: 'Garth Brooks', album: 'The Ultimate Hits, Disc 2', disc: '1/1', track: '3' })
+  assert.deepEqual([tagged.album, tagged.disc, tagged.track], ['The Ultimate Hits', 2, 3])
+  // A disc's own folder: Artist/Album/Disc 2/.
+  const filed = parseMedia('/music/Garth Brooks/The Ultimate Hits/Disc 2/03 - Song.mp3', '/music', 'audio')
+  assert.deepEqual([filed.album, filed.disc, filed.track], ['The Ultimate Hits', 2, 3])
+  assert.deepEqual([song({ album: 'No Fences', disc: '1/2' }).album, song({ album: 'No Fences', disc: '1/2' }).disc], ['No Fences', 1])
+})
+
+test('a scan makes a set one album, and a rescan mends one scanned before', { skip: !hasFfmpeg && 'no ffmpeg here' }, async () => {
+  const put = (rel: string) => {
+    const p = path.join(root, rel)
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    return p
+  }
+  const tone = (rel: string, ...tags: string[]) => ff('-f', 'lavfi', '-i', 'sine=d=2', ...tags.flatMap((t) => ['-metadata', t]), put(rel))
+  tone('Garth Brooks/Triple Live (Disc 1)/01.mp3', 'title=Rodeo', 'artist=Garth Brooks', 'album=Triple Live (Disc 1)', 'disc=1/1', 'track=1')
+  tone('Garth Brooks/Triple Live, Disc 2/01.mp3', 'title=The Thunder Rolls', 'artist=Garth Brooks', 'album=Triple Live, Disc 2', 'disc=1/1', 'track=1')
+  await scanLibrary(lib.id)
+  const garth = (await albumCards(lib.id, 'title')).filter((a) => a.artist === 'Garth Brooks')
+  assert.deepEqual(garth.map((a) => [a.album, a.items]), [['Triple Live', 2]])
+  assert.deepEqual([(await row('Garth Brooks/Triple Live, Disc 2/01.mp3')).album, (await row('Garth Brooks/Triple Live, Disc 2/01.mp3')).disc], ['Triple Live', 2])
+  // Scanned before discs were read off album names: the next scan mends it,
+  // from the tags it kept.
+  const old = await row('Garth Brooks/Triple Live (Disc 1)/01.mp3')
+  await prisma.mediaItem.update({ where: { id: old.id }, data: { album: 'Triple Live (Disc 1)', disc: 1 } })
+  await scanLibrary(lib.id)
+  assert.equal((await row('Garth Brooks/Triple Live (Disc 1)/01.mp3')).album, 'Triple Live')
+  assert.equal(getScanStatus().updated, 1)
 })
 
 test('an upgrade queues each Music library to be scanned once', async () => {

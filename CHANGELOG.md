@@ -58,6 +58,11 @@ Music filed as a music app files it, and orders that speak its language.
   finding the same songs, and Take turns and the shuffle's spacing go by the
   album artist. Each Music library is scanned once after the upgrade to read
   the album-artist tags.
+- **A set is one album.** A set whose discs are each tagged as an album of
+  their own — "The Ultimate Hits (CD1)", "The Ultimate Hits, Disc 2" — or
+  filed in a disc's folder (Album/Disc 2/) is one album, its songs by disc,
+  and an album called "Disc 2" is no more. Each Music library is scanned
+  once after the upgrade to put it together; nothing is probed again.
 - **`.plexignore`.** Folders and files a `.plexignore` names are left out of
   a library, as Plex leaves them out — a podcast's raw recordings in the music
   folder no longer turn up as albums. Files indexed before go at the next
