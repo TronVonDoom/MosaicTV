@@ -84,9 +84,9 @@ never re-airs as loose parts.
 The full walkthrough is in
 [Channels & Scheduling](docs/channels.md#broadcast-episodes-multi-segment-shows).
 
-<img src="docs/screenshots/broadcast-episodes.webp" alt="Dexter's Laboratory season 1, each segment tagged with the broadcast episode it belongs to" width="100%" />
+<img src="docs/screenshots/broadcast-episodes.webp" alt="Captain Comet season 1, each seven-minute short tagged with the broadcast episode it belongs to" width="100%" />
 
-<img src="docs/screenshots/broadcast-episodes-editor.webp" alt="Grouping 2 Stupid Dogs: each broadcast episode is two dog cartoons with a Secret Squirrel short between them" width="100%" />
+<img src="docs/screenshots/broadcast-episodes-editor.webp" alt="Grouping Dino Dudes: each broadcast episode is two Dino Dudes stories with a Professor Penguin short between them" width="100%" />
 
 ### Five playback orders, explained as you pick
 
@@ -152,7 +152,7 @@ and cached, so big libraries stay quick to browse.
 opacity — previewed live over a frame from your library in 16:9 or 4:3. Music
 and video clips for your station breaks live here too.
 
-<img src="docs/screenshots/studio-logos.webp" alt="Studio: logos with a live watermark preview" width="100%" />
+<img src="docs/screenshots/studio-logos.webp" alt="Studio: the channels' logos, one open with its watermark settings and a live preview" width="100%" />
 
 ### Station breaks
 
@@ -187,7 +187,7 @@ Pick **Glass** or a cable-style **Broadcast** bar, put it in any corner or
 along any edge (clear of your logo), in three sizes. A live preview shows your
 channel's actual next program, with its logo where the watermark sits.
 
-<img src="docs/screenshots/up-next-card.webp" alt="An up-next card for a Dexter's Laboratory broadcast episode, over Aaahh!!! Real Monsters" width="100%" />
+<img src="docs/screenshots/up-next-card.webp" alt="An up-next card for a Dino Dudes broadcast episode, naming every segment, over Captain Comet" width="100%" />
 
 ### The default watermark
 
