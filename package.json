@@ -1,6 +1,6 @@
 {
   "name": "mosaictv",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "description": "Turn your media library into scheduled 24/7 live TV channels with station breaks, logos, up-next cards, and M3U/XMLTV output.",
   "scripts": {

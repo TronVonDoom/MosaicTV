@@ -1,9 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 — Filed by artist, added from anywhere (2026-10-04)
 
-Music filed as a music app files it, and orders that speak its language.
+Music filed as a music app files it, a library that follows its scan, Add to a
+channel from any title, phones that can do it all — and an image tag that
+moves only on a release.
 
+- **`:latest` is now the latest release.** It used to move with every change
+  to `main`, so an install that updates itself could take something
+  unfinished. Now `:latest` moves only when a version is released; every
+  change lands on **`:edge`** first, for anyone who wants to test what's
+  next. Each release is still there pinned as `:vX.Y.Z`. Nothing to do: an
+  install on `:latest` stays on it.
+- **The exact build, in Settings.** **Settings → Maintenance** shows the
+  version you're running, and on `:edge` the commit too (`0.14.0+cb8eee7`) —
+  put it in a bug report.
+- **Credits.** **Settings → Maintenance** names where artwork, details and
+  lyrics come from — TMDB, TheTVDB, MusicBrainz, the Cover Art Archive,
+  LRCLIB — and FFmpeg, which does the encoding.
 - **Artists, albums, songs.** A Music or Music Videos library lists its
   artists — square tiles, their own picture or their newest cover — with
   **Albums** and **Songs** (or **Videos**) a click away. An artist's page has
