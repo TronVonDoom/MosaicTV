@@ -75,6 +75,8 @@ export async function upNextContent(next: {
   const time = clockLabel(next.startTime)
 
   if (mi.type === 'episode' && mi.showTitle) {
+    // A program split at its act breaks is the same file several times over,
+    // so each file is named once, as the guide names it (describeUnit).
     const segs = next.groupKey
       ? (
           await prisma.playoutItem.findMany({
@@ -85,6 +87,7 @@ export async function upNextContent(next: {
         )
           .map((r) => r.mediaItem)
           .filter((m): m is MediaItem => !!m)
+          .filter((m, i, all) => all.findIndex((o) => o.id === m.id) === i)
       : [mi]
     const host = segs.filter((s) => s.showTitle === mi.showTitle)
     const show = await prisma.show.findFirst({ where: { libraryId: mi.libraryId, title: mi.showTitle } })
