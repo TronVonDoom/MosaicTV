@@ -44,6 +44,15 @@ Authelia/Authentik.
   (`/media`, override with `MEDIA_ROOT`) — it can't wander the host
   filesystem.
 - Media is only ever read, never modified.
-- Nothing phones home; the only outbound calls are to TMDB and TheTVDB
-  (metadata you request, once you add their keys) and any logo URLs you
-  configure.
+- Nothing phones home — no analytics, no update checks. MosaicTV only goes
+  out to the internet for what you've switched on:
+  - **TMDB** and **TheTVDB** — artwork and details for shows and movies, once
+    you add their keys.
+  - **MusicBrainz** and the **Cover Art Archive** — albums, years, genres and
+    covers for a Music or Music Videos library that has them turned on.
+  - **LRCLIB** — synced lyrics for a Music library that has it turned on, for
+    songs with no lyrics of their own.
+  - Any **logo URL** you give a channel.
+
+  Each request names the song, show or movie it's looking up — nothing about
+  you, your server or what you watch.

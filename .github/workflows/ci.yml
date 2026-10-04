@@ -4,7 +4,8 @@ name: CI
 # Dockerfile's build stages (web: tsc + vite build; server: prisma generate +
 # tsc), then rehearse the startup migration against databases from earlier
 # releases. The image workflow calls this too and only publishes if it passes
-# — a push to main reaches the live box within minutes, so this is the gate.
+# — a push to main publishes :edge and a release tag :latest, so this is the
+# gate.
 
 on:
   push:

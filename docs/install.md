@@ -2,8 +2,20 @@
 
 MosaicTV ships as a single Docker container:
 **`ghcr.io/tronvondoom/mosaictv:latest`** — web UI, database, and ffmpeg all
-included. It runs anywhere Docker runs: Unraid, Synology/QNAP, Proxmox, a
-Raspberry Pi 5, or any Linux box.
+included. It runs on any 64-bit Intel or AMD (amd64) Docker host: Unraid,
+Synology/QNAP models with an Intel or AMD CPU, Proxmox, or any Linux box. There
+is no ARM image yet, so a Raspberry Pi or an ARM NAS can't run it.
+
+### Which tag
+
+| Tag | What it is |
+| --- | ---------- |
+| `:latest` | The newest release. Moves only when a version is released — use this. |
+| `:v0.14.0` (any `vX.Y.Z`) | One release, pinned. It never changes, so it never updates either. |
+| `:edge` | Every change as it lands on `main`, before a release. For testing what's next — it can break. |
+
+**Settings → Maintenance** shows the version you're running; on `:edge` it
+ends with the commit (`0.14.0+cb8eee7`). Put it in any bug report.
 
 Every install needs the same two mounts and one port:
 
@@ -68,7 +80,8 @@ docker run -d \
 4. Open the WebUI from the Docker page.
 
 **Updating:** Docker tab → MosaicTV → **Force Update** (or "Check for Updates").
-It pulls the newest image built by CI.
+It pulls the newest release (or, with the Repository set to `:edge`, the
+newest build of `main`).
 
 **NVIDIA GPU on Unraid:** install the **Nvidia-Driver** plugin (Community
 Apps), then edit the container: add `--runtime=nvidia` to **Extra Parameters**
@@ -98,6 +111,18 @@ services:
 
 Edit the paths and timezone, then **Deploy**. To update: re-pull the image and
 re-deploy the stack.
+
+## Updating with `docker run` or Compose
+
+```bash
+docker pull ghcr.io/tronvondoom/mosaictv:latest
+```
+
+then remove and re-create the container with the same command (Compose:
+`docker compose pull && docker compose up -d`). Your channels live in the data
+folder and come straight back. Before any version that changes the database,
+MosaicTV copies it to `backups/` in the data folder first, and puts the copy
+back by itself if the change fails.
 
 ---
 

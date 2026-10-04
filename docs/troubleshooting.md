@@ -47,8 +47,10 @@ Install ffmpeg and make sure it's on the PATH.
 
 ### A channel isn't in the M3U / guide
 - Draft channels (no **number**) are excluded on purpose — set a number.
-- The channel needs a schedule (rotation and/or blocks) and a built playout —
-  open the **Guide** tab and hit **Build 48h** once.
+- The channel needs a schedule — a rotation and/or blocks with something in
+  them. Its guide builds by itself from there; the channel's **Guide** tab
+  shows it, and **Logs** says why if it couldn't ("couldn't rebuild the
+  guide").
 
 ### The stream stops when a second device tunes in
 That's your *player's* tuner limit, not MosaicTV: raise Jellyfin's

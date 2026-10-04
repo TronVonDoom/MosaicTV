@@ -11,12 +11,13 @@
 // bootlegs a famous song has.
 
 import { log } from '../logs.js'
+import { VERSION } from '../version.js'
 
 const BASE = () => process.env.MUSICBRAINZ_BASE_URL ?? 'https://musicbrainz.org/ws/2'
 const CAA = () => process.env.COVERART_BASE_URL ?? 'https://coverartarchive.org'
 const INTERVAL_MS = () => Number(process.env.MUSICBRAINZ_INTERVAL_MS ?? 1100)
 
-export const musicUserAgent = () => `MosaicTV/${process.env.APP_VERSION ?? 'dev'} ( https://github.com/TronVonDoom/mosaictv )`
+export const musicUserAgent = () => `MosaicTV/${VERSION} (https://github.com/TronVonDoom/mosaictv )`
 
 /** What MusicBrainz says of a song's album. */
 export type MusicFound = {

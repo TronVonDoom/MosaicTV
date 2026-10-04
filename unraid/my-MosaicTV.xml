@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/TronVonDoom/mosaictv/issues</Support>
   <Project>https://github.com/TronVonDoom/mosaictv</Project>
-  <Overview>Turn your media library into scheduled 24/7 live TV channels with bumpers, filler, watermark overlays, and M3U/XMLTV output for Plex/Jellyfin/Emby or any IPTV player. Works on any CPU; optional NVIDIA GPU hardware transcoding.</Overview>
+  <Overview>Turn your media library into scheduled 24/7 live TV channels: multi-segment cartoons aired as the half-hours they were broadcast as, station idents and commercial breaks, station logos, a frosted-glass up-next card, music channels with a now-playing screen, and a TV guide. M3U/XMLTV for Jellyfin, Emby or any IPTV player, and a built-in HDHomeRun tuner for Plex. Encodes on any CPU; optional NVIDIA GPU transcoding.</Overview>
   <Category>MediaServer:Video MediaApp:Video</Category>
   <WebUI>http://[IP]:[PORT:8688]/</WebUI>
   <TemplateURL/>
@@ -18,8 +18,8 @@
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
-  <DonateText/>
-  <DonateLink/>
+  <DonateText>MosaicTV is free. If it's earned a spot on your server, you can chip in.</DonateText>
+  <DonateLink>https://github.com/sponsors/TronVonDoom</DonateLink>
   <Description>Turn your media library into scheduled 24/7 live TV channels. Encodes on the CPU by default. For NVIDIA hardware transcoding: install the Nvidia-Driver plugin, add --runtime=nvidia to Extra Parameters, and set the NVIDIA GPUs variable to 'all' (see the docs).</Description>
   <Networking>
     <Mode>bridge</Mode>

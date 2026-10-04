@@ -38,25 +38,11 @@ import { assetsRouter } from './routes/assets.js'
 import { profilesRouter } from './routes/profiles.js'
 import { fillersRouter } from './routes/fillers.js'
 import { apiErrorHandler, catchAsyncErrors } from './asyncRoutes.js'
+import { VERSION } from './version.js'
 
 const app = express()
 const PORT = Number(process.env.PORT ?? 8688)
 const startedAt = Date.now()
-
-// Single source of truth for the version: the server's own package.json, which
-// sits beside the compiled dist/ in the image and beside src/ in dev. Reading
-// it here means a release bump touches one file instead of drifting from a
-// hardcoded constant.
-function appVersion(): string {
-  if (process.env.APP_VERSION) return process.env.APP_VERSION
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'))
-    return String(pkg.version ?? 'unknown')
-  } catch {
-    return 'unknown'
-  }
-}
-const VERSION = appVersion()
 
 app.use(express.json({ limit: '10mb' })) // logo uploads arrive as base64 data URLs
 

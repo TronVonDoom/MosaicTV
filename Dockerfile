@@ -55,5 +55,11 @@ COPY --from=web-build /web/dist ./public
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
+# Set by CI ("0.14.0" for a release, "0.14.0+cb8eee7" otherwise); empty means
+# the version in package.json. Last, so a new commit doesn't rebuild the layers
+# above it.
+ARG APP_VERSION=
+ENV APP_VERSION=${APP_VERSION}
+
 EXPOSE 8688
 CMD ["./docker-entrypoint.sh"]

@@ -9,6 +9,24 @@ import { SettingRow, SettingsGroup, SettingsSection } from './SettingsKit'
 
 const REPO = 'https://github.com/TronVonDoom/mosaictv'
 
+/** Where MosaicTV's metadata comes from, and the credit each asks for. */
+const CREDITS: { name: string; what: string; href: string }[] = [
+  {
+    name: 'TMDB',
+    what: 'Artwork and details for shows and movies. This product uses the TMDB API but is not endorsed or certified by TMDB.',
+    href: 'https://www.themoviedb.org/',
+  },
+  {
+    name: 'TheTVDB',
+    what: 'Artwork, details and episode orders for shows. Metadata provided by TheTVDB — please consider adding missing information or subscribing.',
+    href: 'https://thetvdb.com/',
+  },
+  { name: 'MusicBrainz', what: 'Albums, release years and genres for music.', href: 'https://musicbrainz.org/' },
+  { name: 'Cover Art Archive', what: 'Album covers.', href: 'https://coverartarchive.org/' },
+  { name: 'LRCLIB', what: 'Synced lyrics for the now-playing screen.', href: 'https://lrclib.net/' },
+  { name: 'FFmpeg', what: 'Every frame MosaicTV encodes, and every file it reads.', href: 'https://ffmpeg.org/' },
+]
+
 function uptime(s: number): string {
   const d = Math.floor(s / 86400)
   const h = Math.floor((s % 86400) / 3600)
@@ -99,6 +117,22 @@ export default function MaintenanceSettings() {
             </div>
           ))}
         </dl>
+      </SettingsGroup>
+
+      <SettingsGroup title="Credits" description="Where artwork, details and lyrics come from — each source only when it’s switched on — and what does the encoding.">
+        {CREDITS.map((c) => (
+          <SettingRow key={c.name} label={c.name} description={c.what}>
+            <a
+              href={c.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 h-8 text-[12.5px] text-ink-soft border border-edge hover:border-edge-strong hover:text-ink transition-colors"
+            >
+              {new URL(c.href).hostname.replace(/^www\./, '')}
+              <Icon name="external" size={13} className="text-ink-faint" />
+            </a>
+          </SettingRow>
+        ))}
       </SettingsGroup>
 
       <SettingsGroup title="Backup">
