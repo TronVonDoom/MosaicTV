@@ -1,4 +1,5 @@
 import express from 'express'
+import compression from 'compression'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -45,6 +46,20 @@ const PORT = Number(process.env.PORT ?? 8688)
 const startedAt = Date.now()
 
 app.use(express.json({ limit: '10mb' })) // logo uploads arrive as base64 data URLs
+
+// Gzip what the web app reads — a big library's lists and a show's page are
+// hundreds of KB of JSON that shrink about tenfold — and the app's own files.
+// Never the live updates (a held-open stream that must reach the page as each
+// event is written), anything under /iptv, or the tuner's discovery files:
+// what players and Plex read is left exactly as it was. Pictures, video and
+// the backup are already compressed, and the default filter passes them by.
+const TUNER_FILES = new Set(['/discover.json', '/lineup.json', '/lineup_status.json'])
+app.use(
+  compression({
+    filter: (req, res) =>
+      req.path !== '/api/events' && !req.path.startsWith('/iptv') && !TUNER_FILES.has(req.path) && compression.filter(req, res),
+  }),
+)
 
 // --- ffmpeg detection -------------------------------------------------------
 let ffmpegAvailable = false
@@ -129,8 +144,19 @@ app.use('/', hdhrRouter)
 
 // --- Static frontend (production only) --------------------------------------
 const publicDir = path.join(process.cwd(), 'public')
+const assetsDir = path.join(publicDir, 'assets')
 if (fs.existsSync(publicDir)) {
-  app.use(express.static(publicDir))
+  app.use(
+    express.static(publicDir, {
+      // The build names its scripts, styles and fonts by their content
+      // (assets/index-3f9a1c.js), so a name never changes what it holds: the
+      // browser keeps them for good rather than asking again on every load.
+      // index.html, which names them, is asked about each time.
+      setHeaders: (res, file) => {
+        if (path.dirname(file) === assetsDir) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      },
+    }),
+  )
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next()
     res.sendFile(path.join(publicDir, 'index.html'))
