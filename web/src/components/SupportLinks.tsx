@@ -5,7 +5,7 @@ import { cx } from './ui'
 // .github/FUNDING.yml names the same accounts for the repo's Sponsor button,
 // so change them together. A blank handle hides its button.
 const GITHUB_SPONSORS = 'TronVonDoom'
-const KO_FI = ''
+const KO_FI = 'tronvondoom'
 
 type SupportLink = { handle: string; href: string; label: string; icon: IconName; hover: string; glyph?: string }
 
