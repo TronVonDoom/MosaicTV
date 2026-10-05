@@ -143,21 +143,32 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
       none: true,
     }
   }
-  const atEnd = on.filter((b) => b.fillerMode === 'end').length
-  const between = on.filter((b) => b.fillerMode === 'between').length
+  // A block can keep a clock of its own with the channel's off: every program
+  // there is followed by a break, whatever its end and start are set to.
+  const clocked = on.filter((b) => clockOf(b, ch) > 0)
+  const grids = [...new Set(clocked.map((b) => clockOf(b, ch)))]
+  const clockName = grids.length === 1 ? `${CLOCK_NAME[grids[0]] ?? grids[0] + '-minute'} clock` : 'clocks'
+  const unclocked = on.filter((b) => clockOf(b, ch) === 0)
+  const atEnd = unclocked.filter((b) => b.fillerMode === 'end').length
+  const between = unclocked.filter((b) => b.fillerMode === 'between').length
   const hard = on.filter((b) => b.startMode === 'hard').length
   const parts = [
+    clocked.length
+      ? `${clocked.length} run${clocked.length === 1 ? 's' : ''} on ${clocked.length === 1 ? 'its' : 'their'} own ${clockName}, with a break after every program up to the next line`
+      : '',
     atEnd ? `${atEnd} end${atEnd === 1 ? 's' : ''} on time with a break before the next block` : '',
     between ? `${between} end${between === 1 ? 's' : ''} on time with short breaks between programs` : '',
-    hard ? `${hard} start${hard === 1 ? 's' : ''} hard, so the gap before ${hard === 1 ? 'it' : 'each'} is a break${atEnd || between ? ' too' : ''}` : '',
+    hard ? `${hard} start${hard === 1 ? 's' : ''} hard, so the gap before ${hard === 1 ? 'it' : 'each'} is a break${clocked.length || atEnd || between ? ' too' : ''}` : '',
   ].filter(Boolean)
-  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
+  // Every block in `on` is counted above (breaksOn's three reasons), but a
+  // missing sentence is no reason to take the whole tab down.
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '')
   const rest = blocks.length - on.length
   return {
     headline: `${on.length} of ${blocks.length} block${blocks.length === 1 ? '' : 's'} ${on.length === 1 ? 'has' : 'have'} breaks — ${nameBlocks(on)}.`,
     detail:
-      `${list.charAt(0).toUpperCase()}${list.slice(1)}.` +
-      (rest ? ` The other ${rest} block${rest === 1 ? '' : 's'} play${rest === 1 ? 's' : ''} programs back to back.` : ''),
+      (list ? `${list.charAt(0).toUpperCase()}${list.slice(1)}.` : '') +
+      (rest ? `${list ? ' ' : ''}${rest === 1 ? 'The other block plays' : `The other ${rest} blocks play`} programs back to back.` : ''),
     none: false,
   }
 }
