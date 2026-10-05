@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.2 — Square covers (2026-10-04)
+
+- **Music's covers are square everywhere.** Album covers, artist pictures
+  and songs showed as tall posters in a few places outside the library's own
+  grids: a music channel's Collections tab, the now-playing art on a
+  channel's card and at the top of its page, and the Library page's tile
+  wall and "Recently added" shelf for a music library. They're square now,
+  as they are in the library. Movies and shows keep their posters.
+
 ## 0.15.1 — Channels by number (2026-10-04)
 
 A fix for a blank Breaks tab, and channel pages that go by the number you
