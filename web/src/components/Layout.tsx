@@ -9,6 +9,7 @@ import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
 import ContextMenuHost from './ContextMenuHost'
 import { api, type Channel, type Health, type Library } from '../lib/api'
+import { channelPath } from '../lib/channels'
 import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
 import { usePolling } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
@@ -113,7 +114,7 @@ function subItems(
         .sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.name.localeCompare(b.name))
         .map((c) => ({
           key: String(c.id),
-          to: `/channels/${c.id}`,
+          to: channelPath(c),
           label: (
             <>
               <span className="w-7 shrink-0 font-mono text-[11px] text-ink-faint tabular-nums">{c.number ?? '—'}</span>
@@ -121,7 +122,7 @@ function subItems(
             </>
           ),
           title: c.number != null ? `${c.number} · ${c.name}` : `${c.name} (draft)`,
-          active: under(`/channels/${c.id}`),
+          active: under(channelPath(c)),
         }))
     case '/library':
       return [

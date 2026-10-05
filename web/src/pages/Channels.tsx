@@ -5,6 +5,7 @@ import GuideGrid from '../components/GuideGrid'
 import LogoPicker from '../components/LogoPicker'
 import MediaDetailModal from '../components/MediaDetailModal'
 import { api, type Channel, type ChannelNow, type Playout } from '../lib/api'
+import { channelPath } from '../lib/channels'
 import { copyText } from '../lib/clipboard'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
@@ -66,7 +67,7 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
         group: form.group || null,
         logoId: form.logoId ?? null,
       })
-      navigate(`/channels/${created.id}`)
+      navigate(channelPath(created))
     } catch (err) {
       setError(errorMessage(err, 'Failed to create channel'))
       setBusy(false)
@@ -285,8 +286,8 @@ export default function Channels() {
                       { label: 'Copy stream URL', icon: 'copy' as const, onSelect: () => copyStream(c) },
                     ]
                   : []),
-                { label: 'Edit schedule', icon: 'calendar' as const, onSelect: () => navigate(`/channels/${c.id}#schedule`) },
-                { label: 'View guide', icon: 'guide' as const, onSelect: () => navigate(`/channels/${c.id}#guide`) },
+                { label: 'Edit schedule', icon: 'calendar' as const, onSelect: () => navigate(channelPath(c, 'schedule')) },
+                { label: 'View guide', icon: 'guide' as const, onSelect: () => navigate(channelPath(c, 'guide')) },
                 'divider' as const,
                 { label: 'Delete channel', icon: 'trash' as const, danger: true, onSelect: () => del(c) },
               ]}

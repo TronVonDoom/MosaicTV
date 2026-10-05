@@ -45,7 +45,7 @@ export default function App() {
         <Route path="guide" element={<Navigate to="/channels#guide" replace />} />
 
         <Route path="channels" element={<Channels />} />
-        <Route path="channels/:id" element={<ChannelEditor />} />
+        <Route path="channels/:slug" element={<ChannelEditor />} />
 
         <Route path="library" element={<Library />} />
         {/* A movie's, show's or artist's page opens over its library's grid. */}

@@ -5,6 +5,7 @@ import MediaDetailModal from './MediaDetailModal'
 import { api, logoImageUrl, type Channel, type Library, type MediaSearchResult } from '../lib/api'
 import { scoreMatch } from '../lib/search'
 import { artistPath } from '../lib/format'
+import { channelPath } from '../lib/channels'
 import { Kbd, cx } from './ui'
 
 export type Command = {
@@ -130,7 +131,7 @@ export default function CommandPalette({
       image: c.logoId ? logoImageUrl(c.logoId) : undefined,
       group: 'Channels',
       keywords: [c.group ?? '', c.number ?? ''].join(' '),
-      run: go(`/channels/${c.id}`),
+      run: go(channelPath(c)),
     }))
 
     const libraryCmds: Command[] = libraries.map((l) => ({

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, assetFileUrl, type Asset, type Ident } from '../../lib/api'
+import { channelPath } from '../../lib/channels'
 import { confirmDialog } from '../../lib/confirm'
 import { toast } from '../../lib/toast'
 import UploadDialog from '../UploadDialog'
@@ -177,7 +178,7 @@ export default function AudioStudio({ onCount }: { onCount: (n: number) => void 
                     {usedBy(selected.id).map((i) => (
                       <li key={i.id}>
                         <Link
-                          to={`/channels/${i.channelId}#breaks`}
+                          to={i.channel ? channelPath(i.channel, 'breaks') : '/channels'}
                           className="flex items-center gap-2.5 rounded-lg border border-edge bg-sunken/60 px-3 py-2 text-[13px] hover:border-edge-strong"
                         >
                           <Icon name="tv" size={15} className="text-ink-faint" />

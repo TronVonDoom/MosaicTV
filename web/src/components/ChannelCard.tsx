@@ -4,6 +4,7 @@ import ChannelLogo from './ChannelLogo'
 import Icon from './Icon'
 import { ART, artworkUrl, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
 import { formatClock, formatRemaining, posterGradient } from '../lib/format'
+import { channelPath } from '../lib/channels'
 import { Badge, LiveBadge, Menu, ProgressBar, buttonClass, cx, type MenuItem } from './ui'
 
 /**
@@ -221,7 +222,7 @@ export default function ChannelCard({
                 'No schedule yet'
               )}
             </span>
-            <Link to={`/channels/${channel.id}`} className={buttonClass('secondary', 'sm')}>
+            <Link to={channelPath(channel)} className={buttonClass('secondary', 'sm')}>
               <Icon name="edit" size={14} /> Edit
             </Link>
             {menu && <Menu items={menu} />}

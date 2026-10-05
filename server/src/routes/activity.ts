@@ -26,7 +26,8 @@ export function activityItems(): Activity[] {
 
   // Idents building in the background (after an edit, a new logo, a boot).
   const builds = identBuilds()
-  const breaksOf = (channelId: number | null) => (channelId != null ? `/channels/${channelId}#breaks` : '/channels')
+  // By id ("id-7"): the page moves itself to the channel's number (web lib/channels).
+  const breaksOf = (channelId: number | null) => (channelId != null ? `/channels/id-${channelId}#breaks` : '/channels')
   for (const b of builds.running) {
     items.push({
       id: `ident:${b.title}:${b.startedAt}`,

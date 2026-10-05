@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import type { Channel, Stats } from '../lib/api'
+import { channelPath } from '../lib/channels'
 import { cx } from './ui'
 
 type Step = { title: string; hint: string; to: string; done: boolean; icon: IconName }
@@ -48,15 +49,15 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
   const built = channels.some((c) => c.playoutCount > 0)
   const onAir = channels.some((c) => c.number != null)
   const firstChannel = channels[0]
-  const channelPath = firstChannel ? `/channels/${firstChannel.id}` : '/channels'
+  const firstPath = firstChannel ? channelPath(firstChannel) : '/channels'
 
   const steps: Step[] = [
     { title: 'Add a library', hint: 'Point at a folder under /media', to: '/library#sources', done: stats.libraries > 0, icon: 'folder' },
     { title: 'Scan your media', hint: 'Index shows, movies & music, then grab their art and details', to: '/library#sources', done: stats.items > 0, icon: 'libraries' },
     { title: 'Create a channel', hint: 'Name it — the number can wait', to: '/channels', done: channels.length > 0, icon: 'channels' },
-    { title: 'Schedule it', hint: 'Collections, then a rotation or time blocks', to: `${channelPath}#schedule`, done: scheduled, icon: 'calendar' },
-    { title: 'Build the guide', hint: 'Guide tab → Build', to: `${channelPath}#guide`, done: built, icon: 'guide' },
-    { title: 'Go live', hint: 'Give it a number to join the M3U & guide', to: channelPath, done: onAir, icon: 'live' },
+    { title: 'Schedule it', hint: 'Collections, then a rotation or time blocks', to: `${firstPath}#schedule`, done: scheduled, icon: 'calendar' },
+    { title: 'Build the guide', hint: 'Guide tab → Build', to: `${firstPath}#guide`, done: built, icon: 'guide' },
+    { title: 'Go live', hint: 'Give it a number to join the M3U & guide', to: firstPath, done: onAir, icon: 'live' },
   ]
   if (steps.every((s) => s.done)) return null
 

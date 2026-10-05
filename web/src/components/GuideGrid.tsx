@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
 import type { Playout, PlayoutEntry } from '../lib/api'
 import { creditOf, episodeCode, formatClock } from '../lib/format'
+import { channelPath } from '../lib/channels'
 import { cx } from './ui'
 import { useMediaQuery } from '../lib/hooks'
 
@@ -173,7 +174,7 @@ export default function GuideGrid({
           {channels.map((c) => (
             <div key={c.id} className="flex border-b border-edge/60 last:border-b-0" style={{ height: rowHeight }}>
               <Link
-                to={`/channels/${c.id}#guide`}
+                to={channelPath(c, 'guide')}
                 title={c.name}
                 className={cx(
                   'group sticky left-0 z-20 shrink-0 flex items-center border-r border-edge bg-[#0f121a] hover:bg-[#141824] transition-colors',
