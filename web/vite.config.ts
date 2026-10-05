@@ -15,6 +15,11 @@ const contractId = contract.split(path.sep).join('/')
 // Express backend on :8688. In production the backend serves the built app.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    // Tells one build from the next, so what the last one kept in the browser
+    // (lib/cache.ts) — shaped as that build read it — isn't shown by this one.
+    __BUILD_ID__: JSON.stringify(Date.now().toString(36)),
+  },
   resolve: {
     alias: { '@contract': path.join(contract, 'index.ts') },
     // The contract imports zod from outside this package; use ours (the Docker

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, ART, artworkUrl, type AlbumCard, type ArtistDetail, type MediaItem, type MemberInput, type OnAirSlot, type TitleOnAir } from '../lib/api'
+import { ART, artworkUrl, type AlbumCard, type ArtistDetail, type MediaItem, type MemberInput, type OnAirSlot } from '../lib/api'
 import { artistFromPath, artistLabel, artistPath, formatAired, formatAiring, formatDuration, posterGradient } from '../lib/format'
 import { useLibraryChanges } from '../lib/events'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { useItemMenu } from '../lib/itemMenu'
 import MediaDetailModal from '../components/MediaDetailModal'
 import TitleLayer from '../components/title/TitleLayer'
@@ -156,35 +158,19 @@ export default function ArtistView() {
   const [params] = useSearchParams()
   const albumKey = params.get('album') == null ? null : params.get('album') === '~' ? '' : params.get('album')!
 
-  const [detail, setDetail] = useState<ArtistDetail | null>(null)
-  const [notFound, setNotFound] = useState(false)
-  const [onAir, setOnAir] = useState<TitleOnAir | null>(null)
-  const [libraryName, setLibraryName] = useState<string | null>(null)
+  // The artist as last seen (kept), while they're fetched again.
+  const detailRead = useCached(reads.artist(id, artist))
+  const detail = detailRead.data ?? null
+  const notFound = detailRead.error != null
+  const onAirRead = useCached(reads.artistOnAir(id, artist))
+  const onAir = onAirRead.data ?? null
+  const libraryName = useCached(reads.libraries).data?.find((l) => l.id === id)?.name ?? null
   const [selectedId, setSelectedId] = useState<number | null>(null)
   // What's being put on a channel: the artist, an album, or one song or video.
   const [adding, setAdding] = useState<{ what: string; member: MemberInput } | null>(null)
 
-  const loadDetail = () =>
-    api
-      .artistDetail(id, artist)
-      .then((d) => {
-        setDetail(d)
-        setNotFound(false)
-      })
-      .catch(() => setNotFound(true))
-  const loadOnAir = () => api.artistOnAir(id, artist).then(setOnAir).catch(() => {})
-  useEffect(() => {
-    setDetail(null)
-    setOnAir(null)
-    setNotFound(false)
-    void loadDetail()
-    void loadOnAir()
-    api
-      .libraries()
-      .then((libs) => setLibraryName(libs.find((l) => l.id === id)?.name ?? null))
-      .catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, artist])
+  const loadDetail = detailRead.reload
+  const loadOnAir = onAirRead.reload
   // Their albums and songs follow a scan as it runs.
   useLibraryChanges(id, () => void loadDetail())
 

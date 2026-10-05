@@ -13,11 +13,18 @@ import '@fontsource/barlow-condensed/800.css'
 import '@fontsource/barlow-condensed/600-italic.css'
 import './index.css'
 import App from './App'
+import { kept } from './lib/cache'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
+// The first screen draws from what the last visit kept (lib/cache.ts) when the
+// disk has it ready in time — it nearly always does — rather than flashing
+// skeletons for the length of a request. A disk that's slow to answer doesn't
+// hold the app up past a moment.
+Promise.race([kept, new Promise((r) => setTimeout(r, 250))]).then(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </StrictMode>,
+  ),
 )

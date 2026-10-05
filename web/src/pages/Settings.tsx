@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
-import { api, type SettingsInfo } from '../lib/api'
+import type { SettingsInfo } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import MetadataSettings from '../components/settings/MetadataSettings'
 import ChannelSettings, { HORIZONS } from '../components/settings/ChannelSettings'
 import StreamingSettings from '../components/settings/StreamingSettings'
@@ -25,11 +27,10 @@ const TAB_IDS = SETTINGS_SECTIONS.map((t) => t.id)
 export default function Settings() {
   // The watermark joined the Channels section.
   const [tab, setTab] = useHashTab<SettingsTab>(TAB_IDS, 'metadata', { watermark: 'channels' })
-  const [info, setInfo] = useState<SettingsInfo | null>(null)
-  useEffect(() => {
-    api.settings().then(setInfo).catch(() => {})
-  }, [])
-  const patch = useCallback((p: Partial<SettingsInfo>) => setInfo((i) => (i ? { ...i, ...p } : i)), [])
+  const settings = useCached(reads.settings)
+  const info = settings.data ?? null
+  const { set } = settings
+  const patch = useCallback((p: Partial<SettingsInfo>) => set((i) => (i ? { ...i, ...p } : i)), [set])
 
   // An old section's link (or none) lands on where it is now, so the address
   // and the sidebar agree with what's shown.

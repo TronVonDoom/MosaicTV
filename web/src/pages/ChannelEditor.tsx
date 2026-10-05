@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { api, type ChannelDetail, type ChannelNow, type Collection } from '../lib/api'
-import { channelSlug, resolveChannelSlug } from '../lib/channels'
+import type { Collection } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
+import { channelIdIn, channelSlug } from '../lib/channels'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import { useHashTab, useNow, type DraftCache } from '../lib/hooks'
@@ -18,6 +20,8 @@ import { Banner, Button, EmptyState, Skeleton, buttonClass } from '../components
 import Icon from '../components/Icon'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import { StatFigure, Tally } from '../components/onair/OnAir'
+
+const NO_COLLECTIONS: Collection[] = []
 
 const TAB_IDS = ['general', 'collections', 'schedule', 'breaks', 'guide'] as const
 type Tab = (typeof TAB_IDS)[number]
@@ -45,26 +49,22 @@ const NotFound = ({ what }: { what: string }) => (
 
 /**
  * /channels/:slug — a channel's number, or a draft's "id-7" (lib/channels) —
- * turned into the channel to edit. Addresses already worked out are kept, so
- * the editor's own move to a new address (its number changed) doesn't reload it.
+ * turned into the channel to edit, through the channel list: the one kept
+ * from last time opens it at once, and the fresh one has the last word (a
+ * number given to another channel elsewhere). The editor's own moves to a new
+ * address (its number changed) are kept, so it isn't reloaded while the list
+ * catches up.
  */
 export default function ChannelEditor() {
   const { slug = '' } = useParams()
-  const [known, setKnown] = useState<Record<string, number | null>>({})
-  const id = known[slug]
+  const channels = useCached(reads.channels)
+  const [moved, setMoved] = useState<Record<string, number>>({})
+  const list = channels.data
+  const found = list || !/^\d+$/.test(slug) ? channelIdIn(slug, list ?? []) : undefined
+  // A kept list that doesn't know the number (a channel just made) waits for the fresh one.
+  const id = moved[slug] ?? (found === null && channels.stale ? undefined : found)
 
-  useEffect(() => {
-    if (slug in known) return
-    let current = true
-    resolveChannelSlug(slug)
-      .then((found) => current && setKnown((k) => ({ ...k, [slug]: found })))
-      .catch(() => {})
-    return () => {
-      current = false
-    }
-  }, [slug, known])
-
-  const onMoved = useCallback((to: string, channelId: number) => setKnown((k) => ({ ...k, [to]: channelId })), [])
+  const onMoved = useCallback((to: string, channelId: number) => setMoved((k) => ({ ...k, [to]: channelId })), [])
 
   if (id === undefined) return <Loading />
   if (id === null) return <NotFound what={/^\d+$/.test(slug) ? `channel ${slug}` : 'such channel'} />
@@ -91,33 +91,26 @@ function ChannelEditorFor({
 }) {
   const navigate = useNavigate()
   const { hash } = useLocation()
-  const [ch, setCh] = useState<ChannelDetail | null>(null)
-  const [missing, setMissing] = useState(false)
-  const [cols, setCols] = useState<Collection[]>([])
+  const chRead = useCached(reads.channel(channelId))
+  const ch = chRead.data ?? null
+  // Gone (deleted elsewhere), or never there. Once it has loaded, a failed refresh keeps what's on screen.
+  const missing = !ch && chRead.error != null
+  const colsRead = useCached(reads.collections(channelId))
+  const cols = colsRead.data ?? NO_COLLECTIONS
   const [error, setError] = useState<string | null>(null)
   // "#fillers" is what the Breaks tab was called — old links still land on it.
   const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'general', { fillers: 'breaks' })
   // A block the Breaks tab asked to open on the Schedule tab.
   const [scheduleFocus, setScheduleFocus] = useState<number | null>(null)
-  const [now, setNow] = useState<ChannelNow | null>(null)
+  const nowRead = useCached(reads.channelsNow)
+  const now = nowRead.data?.find((r) => r.channelId === channelId) ?? null
   const nowMs = useNow(15000)
 
   // In-progress form values for the tabs, held here so they survive a tab
   // unmounting — and die when you leave the channel. See useDraft.
   const drafts = useRef<DraftCache>(new Map()).current
 
-  const load = useCallback(
-    () =>
-      api
-        .channel(channelId)
-        .then((c) => {
-          setCh(c)
-          setMissing(false)
-        })
-        // Once it has loaded, a failed refresh keeps what's on screen.
-        .catch(() => setMissing(true)),
-    [channelId],
-  )
+  const load = chRead.reload
 
   // The address follows the channel's number — /channels/64 — including when
   // it's changed here or on another device.
@@ -127,15 +120,8 @@ function ChannelEditorFor({
     onMoved(want, channelId)
     navigate(`/channels/${want}${hash}`, { replace: true })
   }, [want, slug, hash, channelId, onMoved, navigate])
-  const loadCols = useCallback(
-    () => api.collections(channelId).then(setCols).catch(() => {}),
-    [channelId],
-  )
+  const loadCols = colsRead.reload
 
-  useEffect(() => {
-    load()
-    loadCols()
-  }, [load, loadCols])
   // Settings saved elsewhere — another tab, another device — show up here,
   // and a form's untouched fields follow them (see useSyncedDraft).
   useLiveRefresh(load, ['channel'], {
@@ -143,18 +129,7 @@ function ChannelEditorFor({
   })
 
   // What's on air right now, for the header.
-  const loadNow = useCallback(
-    () =>
-      api
-        .channelsNow()
-        .then((rows) => setNow(rows.find((r) => r.channelId === channelId) ?? null))
-        .catch(() => {}),
-    [channelId],
-  )
-  useEffect(() => {
-    loadNow()
-  }, [loadNow])
-  useLiveRefresh(loadNow, ['onAir', 'viewers', 'guide'], {
+  useLiveRefresh(nowRead.reload, ['onAir', 'viewers', 'guide'], {
     when: (e) => e.type !== 'guide' || guideFor(channelId)(e),
     fallbackMs: 20000,
   })

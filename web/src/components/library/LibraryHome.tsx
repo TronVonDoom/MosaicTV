@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, ART, artworkUrl, tmdbImage, type Library, type LibraryHome as Home, type MediaItem, type OnAirSlot, type Show } from '../../lib/api'
+import { ART, artworkUrl, tmdbImage, type Library, type LibraryHome as Home, type OnAirSlot, type Show } from '../../lib/api'
+import { useCached } from '../../lib/cache'
+import { reads } from '../../lib/reads'
 import { formatAiring, formatClock, posterGradient, splitSubtitle } from '../../lib/format'
 import { useLibraryChanges } from '../../lib/events'
 import ChannelLogo from '../ChannelLogo'
@@ -180,18 +182,10 @@ export default function LibraryHome({
 }) {
   const isTv = library.kind === 'tv'
   const noun = isTv ? 'shows' : 'movies'
-  const [recent, setRecent] = useState<MediaItem[] | null>(null)
-  const loadRecent = () => {
-    if (isTv) return
-    api
-      .media({ libraryId: library.id, type: 'movie', sort: 'added', pageSize: 18 })
-      .then((r) => setRecent(r.items))
-      .catch(() => setRecent((x) => x ?? []))
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(loadRecent, [library.id, isTv])
+  const recentRead = useCached(isTv ? null : reads.recent(library.id, 'movie'))
+  const recent = recentRead.data?.items ?? (recentRead.error ? [] : null)
   // What a scan just added turns up here as it's found.
-  useLibraryChanges(library.id, loadRecent)
+  useLibraryChanges(library.id, () => void (!isTv && recentRead.reload()))
 
   if (!home) {
     return (

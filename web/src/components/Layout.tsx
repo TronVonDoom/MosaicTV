@@ -9,6 +9,8 @@ import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
 import ContextMenuHost from './ContextMenuHost'
 import { api, type Channel, type Health, type Library } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { channelPath } from '../lib/channels'
 import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
 import { usePolling } from '../lib/hooks'
@@ -393,13 +395,18 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
-  // How many channels are actually on air, so the rail can say so at a glance
-  // instead of making the user open the Dashboard to find out.
-  const [live, setLive] = useState<Live | null>(null)
-  // The channels and libraries the rail lists under Channels and Library.
-  const [channelList, setChannelList] = useState<Channel[] | null>(null)
-  const [libraries, setLibraries] = useState<Library[] | null>(null)
+  // The channels and libraries the rail lists under Channels and Library —
+  // kept from the last visit, so the rail is whole from the first frame.
+  const channels = useCached(reads.channels)
+  const channelList = channels.data ?? null
+  const libraries = useCached(reads.libraries).data ?? null
   const [health, setHealth] = useState<Health | null>(null)
+  // How many channels are actually on air, so the rail can say so at a glance
+  // instead of making the user open the Dashboard to find out. Not from the
+  // copy kept on disk, which doesn't know who's watching.
+  const onAir = channelList?.filter((c) => c.number != null)
+  const live: Live | null =
+    onAir && !channels.stored && !channels.error ? { channels: onAir.length, viewers: onAir.reduce((n, c) => n + c.viewers, 0) } : null
 
   // ⌘K / Ctrl-K from anywhere. Bound on the window rather than a focus trap so
   // it works while a form field has focus — which is most of the time.
@@ -417,15 +424,6 @@ export default function Layout() {
   // The mobile drawer closes itself on navigation.
   useEffect(() => setMobileOpen(false), [location.pathname])
 
-  const loadLive = () =>
-    api
-      .channels()
-      .then((cs) => {
-        setChannelList(cs)
-        const onAir = cs.filter((c) => c.number != null)
-        setLive({ channels: onAir.length, viewers: onAir.reduce((n, c) => n + c.viewers, 0) })
-      })
-      .catch(() => setLive(null))
   const loadHealth = () =>
     api
       .health()
@@ -433,16 +431,13 @@ export default function Layout() {
       .catch(() => {})
 
   useEffect(() => {
-    loadLive()
     loadHealth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  useLiveRefresh(loadLive, ['viewers', 'onAir'], { fallbackMs: 10000 })
-  // Libraries change only on the Library page, so that's when to look again.
-  const inLibrary = location.pathname.startsWith('/library')
-  useEffect(() => {
-    api.libraries().then(setLibraries).catch(() => {})
-  }, [inLibrary])
+  // Who's watching, what's on, and a channel renamed or renumbered (here or elsewhere).
+  useLiveRefresh(channels.reload, ['viewers', 'onAir', 'channel'], { fallbackMs: 10000 })
+  // The libraries change only on the Library page, whose own read of them
+  // (the same one) brings the rail up to date.
   usePolling(loadHealth, 30000)
 
   // Remember only an explicit choice, so the width default keeps applying

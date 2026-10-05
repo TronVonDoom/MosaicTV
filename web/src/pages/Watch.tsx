@@ -4,7 +4,9 @@ import CastButton from '../components/CastButton'
 import ChannelLogo from '../components/ChannelLogo'
 import Icon, { type IconName } from '../components/Icon'
 import { Kbd, LiveBadge, cx, osdButtonClass } from '../components/ui'
-import { api, logoImageUrl, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
+import { logoImageUrl, type NowUnit } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { castChannel, stopCasting } from '../lib/cast'
 import { useLiveRefresh } from '../lib/events'
 import { formatClock } from '../lib/format'
@@ -54,8 +56,12 @@ export default function Watch() {
   const rootRef = useRef<HTMLDivElement>(null)
   const nowMs = useNow(1000)
 
-  const [channels, setChannels] = useState<Channel[] | null>(null)
-  const [rows, setRows] = useState<Record<number, ChannelNow>>({})
+  // The lineup the last visit kept, so tuning starts without waiting on it.
+  const channelsRead = useCached(reads.channels)
+  const nowRead = useCached(reads.channelsNow)
+  // A list that won't load at all is an empty lineup, not a black screen forever.
+  const channels = channelsRead.data ?? (channelsRead.error ? [] : null)
+  const rows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((x) => [x.channelId, x])), [nowRead.data])
   const [current, setCurrent] = useState<number | null>(null)
   const [previous, setPrevious] = useState<number | null>(null)
   const [digits, setDigits] = useState('')
@@ -82,20 +88,7 @@ export default function Watch() {
   const channel = lineup.find((c) => c.number === current) ?? null
   const row = channel ? rows[channel.id] : undefined
 
-  const loadChannels = useCallback(() => {
-    api.channels().then(setChannels).catch(() => setChannels((c) => c ?? []))
-  }, [])
-  const loadNow = useCallback(() => {
-    api
-      .channelsNow()
-      .then((r) => setRows(Object.fromEntries(r.map((x) => [x.channelId, x]))))
-      .catch(() => {})
-  }, [])
-  useEffect(() => {
-    loadChannels()
-    loadNow()
-  }, [loadChannels, loadNow])
-  useLiveRefresh(loadNow, ['onAir', 'guide'], { fallbackMs: 15_000 })
+  useLiveRefresh(nowRead.reload, ['onAir', 'guide'], { fallbackMs: 15_000 })
 
   // Where to start: the channel in the address, else the last one watched here,
   // else the lowest number.

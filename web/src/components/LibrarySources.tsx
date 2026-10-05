@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
 import { metadataChoices } from '@contract'
-import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type SourceKeys } from '../lib/api'
+import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
@@ -120,12 +122,18 @@ type PickerTarget =
   | { mode: 'new'; index: number }
   | { mode: 'add'; libraryId: number }
 
+const NO_LIBRARIES: Library[] = []
+
 /** The "Sources" half of the Library page: add libraries, point them at
  *  folders, scan them, and pull metadata. Browsing what's inside lives in
  *  LibraryBrowse. */
 export default function LibrarySources({ focusAddForm }: { focusAddForm?: number }) {
-  const [libraries, setLibraries] = useState<Library[]>([])
-  const [keys, setKeys] = useState<SourceKeys | null>(null)
+  // The same list the sidebar shows, so a library added or removed here is
+  // there at once too.
+  const librariesRead = useCached(reads.libraries)
+  const libraries = librariesRead.data ?? NO_LIBRARIES
+  const settings = useCached(reads.settings).data
+  const keys = settings ? keysOf(settings) : null
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<{ name: string; kind: LibraryKind; folders: string[] }>({
     name: '',
@@ -144,14 +152,9 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
     nameRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [focusAddForm])
 
-  const refresh = () => api.libraries().then(setLibraries).catch(() => {})
+  const refresh = () => void librariesRead.reload()
 
   const jobs = useLibraryJobs(refresh)
-
-  useEffect(() => {
-    refresh()
-    api.settings().then((s) => setKeys(keysOf(s))).catch(() => {})
-  }, [])
 
   /** Run an action, surfacing any failure in the page's error banner. */
   async function guard(fallback: string, fn: () => Promise<void>) {
@@ -364,7 +367,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 <MetadataSources
                   lib={lib}
                   disabled={busy}
-                  onSaved={(sources) => setLibraries((ls) => ls.map((l) => (l.id === lib.id ? { ...l, metadataSources: sources } : l)))}
+                  onSaved={(sources) => librariesRead.set((ls) => (ls ?? []).map((l) => (l.id === lib.id ? { ...l, metadataSources: sources } : l)))}
                 />
               )}
 

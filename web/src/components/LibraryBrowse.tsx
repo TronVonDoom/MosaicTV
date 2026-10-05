@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, ART, artworkUrl, type Library, type LibraryHome, type LibraryKind, type LibrarySample, type MediaItem, type Show } from '../lib/api'
+import { ART, artworkUrl, type Library, type LibraryHome, type LibraryKind, type LibrarySample, type MediaItem, type Show } from '../lib/api'
+import { peek, refresh, useCached, type Read } from '../lib/cache'
+import { reads } from '../lib/reads'
 import MediaDetailModal from './MediaDetailModal'
 import PosterCard from './PosterCard'
 import PosterRail, { RailItem } from './PosterRail'
@@ -69,30 +71,24 @@ function PosterMosaic({ sample, name, square }: { sample: LibrarySample | undefi
  *  rather than only a way through it. */
 function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: number) => void }) {
   const navigate = useNavigate()
-  const [items, setItems] = useState<MediaItem[] | null>(null)
-  const [shows, setShows] = useState<Show[] | null>(null)
-
-  useEffect(() => {
-    if (library.kind === 'tv') {
-      api
-        .shows(library.id)
-        .then((r) =>
-          setShows(
-            r.shows
-              .filter((s) => (s.rating ?? 0) > 0 && (s.posterItemId != null || s.tmdbPosterPath))
-              .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-              .slice(0, 18),
-          ),
-        )
-        .catch(() => setShows([]))
-    } else {
-      const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
-      api
-        .media({ libraryId: library.id, type, sort: 'added', pageSize: 18 })
-        .then((r) => setItems(r.items))
-        .catch(() => setItems([]))
-    }
-  }, [library])
+  const isTv = library.kind === 'tv'
+  const type = library.kind === 'movie' ? 'movie' : library.kind === 'music' ? 'music' : library.kind === 'audio' ? 'song' : 'other'
+  // The whole show list is the library page's own read too, so opening it from here is instant.
+  const showsRead = useCached(isTv ? reads.shows(library.id) : null)
+  const itemsRead = useCached(isTv ? null : reads.recent(library.id, type))
+  const shows = useMemo<Show[] | null>(
+    () =>
+      showsRead.data
+        ? showsRead.data.shows
+            .filter((s) => (s.rating ?? 0) > 0 && (s.posterItemId != null || s.tmdbPosterPath))
+            .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+            .slice(0, 18)
+        : showsRead.error
+          ? []
+          : null,
+    [showsRead.data, showsRead.error],
+  )
+  const items: MediaItem[] | null = itemsRead.data?.items ?? (itemsRead.error ? [] : null)
 
   if (library.kind === 'tv') {
     if (!shows || shows.length === 0) return null
@@ -155,37 +151,52 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
   )
 }
 
+const NO_LIBRARIES: Library[] = []
+const sampleOf = (l: Library) => reads.sample(l.id, 18)
+const homeOf = (l: Library) => (l.kind === 'tv' || l.kind === 'movie' ? reads.libraryHome(l.id) : null)
+
+/** What was kept for each library from a per-library read, by library id. */
+function keptFor<T>(libs: Library[] | undefined, readOf: (l: Library) => Read<T> | null): Record<number, T> {
+  const out: Record<number, T> = {}
+  for (const l of libs ?? []) {
+    const r = readOf(l)
+    if (!r) continue
+    const v = peek(r)
+    if (v !== undefined) out[l.id] = v
+  }
+  return out
+}
+
 /** The "Browse" half of the Library page: one card per library, leading into
  *  its contents, then a shelf from each. Managing and scanning lives in Sources. */
 export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => void }) {
-  const [libraries, setLibraries] = useState<Library[]>([])
-  const [samples, setSamples] = useState<Record<number, LibrarySample>>({})
+  const librariesRead = useCached(reads.libraries)
+  const libraries = librariesRead.data ?? NO_LIBRARIES
+  const loaded = librariesRead.data !== undefined || librariesRead.error != null
+  // Each library's shelf and home as last seen (kept), then fresh as each arrives.
+  const [samples, setSamples] = useState<Record<number, LibrarySample>>(() => keptFor(librariesRead.data, sampleOf))
   // What's on from each, and what of it no channel airs.
-  const [homes, setHomes] = useState<Record<number, LibraryHome>>({})
-  const [loaded, setLoaded] = useState(false)
+  const [homes, setHomes] = useState<Record<number, LibraryHome>>(() => keptFor(librariesRead.data, homeOf))
   const [detailId, setDetailId] = useState<number | null>(null)
   const navigate = useNavigate()
 
+  const libraryKey = libraries.map((l) => `${l.id}:${l.kind}`).join(',')
   useEffect(() => {
-    api
-      .libraries()
-      .then((libs) => {
-        setLibraries(libs)
-        for (const l of libs) {
-          api
-            .librarySample(l.id, 18)
-            .then((s) => setSamples((prev) => ({ ...prev, [l.id]: s })))
-            .catch(() => {})
-          if (l.kind === 'tv' || l.kind === 'movie')
-            api
-              .libraryHome(l.id)
-              .then((h) => setHomes((prev) => ({ ...prev, [l.id]: h })))
-              .catch(() => {})
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [])
+    for (const l of libraries) {
+      // A shelf is a new shuffle each read: one already showing stays put for
+      // this visit (rather than reshuffling under the pointer), and the new
+      // one is kept for the next.
+      refresh(sampleOf(l))
+        .then((s) => setSamples((prev) => (prev[l.id] ? prev : { ...prev, [l.id]: s })))
+        .catch(() => {})
+      const home = homeOf(l)
+      if (home)
+        refresh(home)
+          .then((h) => setHomes((prev) => ({ ...prev, [l.id]: h })))
+          .catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryKey])
 
   if (!loaded) {
     return (

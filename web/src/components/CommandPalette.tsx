@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import MediaDetailModal from './MediaDetailModal'
-import { api, logoImageUrl, type Channel, type Library, type MediaSearchResult } from '../lib/api'
+import { api, logoImageUrl, type MediaSearchResult } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { scoreMatch } from '../lib/search'
 import { artistPath } from '../lib/format'
 import { channelPath } from '../lib/channels'
@@ -26,6 +28,9 @@ export type Command = {
 /** Everything about a command that a query should be able to match. */
 const searchText = (c: Command) => `${c.label} ${c.context ?? ''} ${c.keywords ?? ''}`
 
+// Nothing yet, the same nothing each render (it's a memo's input).
+const NONE: never[] = []
+
 /**
  * ⌘K / Ctrl-K jump-to-anything. Covers the fixed destinations, every channel
  * and library by name, and — once two letters are typed — the shows and movies
@@ -36,9 +41,9 @@ const searchText = (c: Command) => `${c.label} ${c.context ?? ''} ${c.keywords ?
  * first row narrows that library's grid to what's typed (the `q` in its
  * address), and the palette opens on the search already standing.
  *
- * The catalogue is fetched when the palette opens rather than kept live: it's
- * only read while the overlay is up, and a stale entry costs one wrong
- * navigation, not a broken app.
+ * The catalogue opens on what was kept (lib/cache.ts) and is fetched again as
+ * it opens rather than kept live: it's only read while the overlay is up, and
+ * a stale entry costs one wrong navigation, not a broken app.
  */
 export default function CommandPalette({
   open,
@@ -53,8 +58,9 @@ export default function CommandPalette({
   const location = useLocation()
   const [query, setQuery] = useState('')
   const [cursor, setCursor] = useState(0)
-  const [channels, setChannels] = useState<Channel[]>([])
-  const [libraries, setLibraries] = useState<Library[]>([])
+  // What the rail lists already (kept), read again each time the palette opens.
+  const channels = useCached(open ? reads.channels : null).data ?? NONE
+  const libraries = useCached(open ? reads.libraries : null).data ?? NONE
   const [media, setMedia] = useState<MediaSearchResult[]>([])
   const [detailId, setDetailId] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -78,12 +84,6 @@ export default function CommandPalette({
   // Selected, so typing replaces it.
   useLayoutEffect(() => {
     if (open) inputRef.current?.select()
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    api.channels().then(setChannels).catch(() => {})
-    api.libraries().then(setLibraries).catch(() => {})
   }, [open])
 
   // Library search, debounced — it's a server round-trip per keystroke otherwise.

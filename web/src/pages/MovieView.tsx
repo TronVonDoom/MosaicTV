@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { api, ART, artworkUrl, type MediaItemDetail, type OnAirSlot, type TitleOnAir } from '../lib/api'
+import { ART, artworkUrl, type OnAirSlot, type TitleOnAir } from '../lib/api'
 import { artistPath, extraLabel, formatAiring, formatClock, formatDuration } from '../lib/format'
 import { useLibraryChanges } from '../lib/events'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import MediaDetailModal from '../components/MediaDetailModal'
 import CastRow from '../components/CastRow'
 import TitleLayer from '../components/title/TitleLayer'
@@ -85,31 +87,20 @@ export default function MovieView() {
   const navigate = useNavigate()
   const location = useLocation()
   const grid = useOutletContext<LibraryLayerContext | undefined>()
-  const [item, setItem] = useState<MediaItemDetail | null>(null)
-  const [onAir, setOnAir] = useState<TitleOnAir | null>(null)
-  const [notFound, setNotFound] = useState(false)
+  // The movie as last seen (kept), while it's fetched again.
+  const itemRead = useCached(reads.mediaItem(id))
+  const item = itemRead.data ?? null
+  const notFound = itemRead.error != null
+  const onAirRead = useCached(reads.mediaOnAir(id))
+  const onAir = onAirRead.data ?? null
   const [adding, setAdding] = useState(false)
   // An extra, opened for a quick look.
   const [peek, setPeek] = useState<number | null>(null)
 
-  const load = () =>
-    api
-      .mediaItem(id)
-      .then((m) => {
-        setItem(m)
-        setNotFound(false)
-      })
-      .catch(() => setNotFound(true))
-  const loadOnAir = () => api.mediaOnAir(id).then(setOnAir).catch(() => {})
+  const load = itemRead.reload
+  const loadOnAir = onAirRead.reload
   // Its details follow a metadata fetch, or a scan, as it runs.
   useLibraryChanges(item?.libraryId ?? -1, () => void load())
-  useEffect(() => {
-    setItem(null)
-    setOnAir(null)
-    void load()
-    void loadOnAir()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
 
   const toGrid = `/library/${libraryId}`
   // Back where you came from — the grid, a search — or to the grid when this

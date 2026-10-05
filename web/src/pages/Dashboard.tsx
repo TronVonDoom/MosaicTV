@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import GettingStarted from '../components/GettingStarted'
 import ChannelCard from '../components/ChannelCard'
 import GuideGrid from '../components/GuideGrid'
 import MediaDetailModal from '../components/MediaDetailModal'
 import ResourceChart from '../components/ResourceChart'
-import { api, type Channel, type ChannelNow, type Playout, type Stats } from '../lib/api'
+import type { Playout } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { formatLongDuration } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
@@ -14,45 +16,35 @@ import Icon from '../components/Icon'
 import { Kicker, Masthead } from '../components/onair/Masthead'
 import { StatFigure } from '../components/onair/OnAir'
 
+const NO_GUIDES: Record<number, Playout> = {}
+
 export default function Dashboard() {
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [channels, setChannels] = useState<Channel[] | null>(null)
-  const [nowRows, setNowRows] = useState<Record<number, ChannelNow>>({})
-  const [guides, setGuides] = useState<Record<number, Playout>>({})
+  const statsRead = useCached(reads.stats)
+  const channelsRead = useCached(reads.channels)
+  const nowRead = useCached(reads.channelsNow)
+  const stats = statsRead.data ?? null
+  const channels = channelsRead.data ?? null
+  const nowRows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((r) => [r.channelId, r])), [nowRead.data])
   const [detailId, setDetailId] = useState<number | null>(null)
   const nowMs = useNow(15000)
 
-  const load = useCallback(() => {
-    api.stats().then(setStats).catch(() => {})
-    api.channels().then(setChannels).catch(() => {})
-    api
-      .channelsNow()
-      .then((rows) => setNowRows(Object.fromEntries(rows.map((r) => [r.channelId, r]))))
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
-  useLiveRefresh(load, ['onAir', 'viewers', 'guide'], { fallbackMs: 20000 })
+  useLiveRefresh(
+    () => {
+      void statsRead.reload()
+      void channelsRead.reload()
+      void nowRead.reload()
+    },
+    ['onAir', 'viewers', 'guide'],
+    { fallbackMs: 20000 },
+  )
 
   const onAir = (channels ?? []).filter((c) => c.number != null)
 
   // Guides are heavier and change slowly: fetch when the set of on-air
   // channels changes, and refresh every few minutes rather than every poll.
-  const onAirKey = onAir.map((c) => c.id).join(',')
-  const loadGuides = useCallback(() => {
-    const ids = onAirKey ? onAirKey.split(',').map(Number) : []
-    Promise.all(ids.map((id) => api.playout(id, 14).then((p) => [id, p] as const).catch(() => null))).then((entries) => {
-      const map: Record<number, Playout> = {}
-      for (const e of entries) if (e) map[e[0]] = e[1]
-      setGuides(map)
-    })
-  }, [onAirKey])
-  useEffect(() => {
-    loadGuides()
-  }, [loadGuides])
-  useLiveRefresh(loadGuides, ['guide'], { fallbackMs: 300000 })
+  const guidesRead = useCached(onAir.length > 0 ? reads.guides(onAir.map((c) => c.id), 14) : null)
+  const guides = guidesRead.data ?? NO_GUIDES
+  useLiveRefresh(guidesRead.reload, ['guide'], { fallbackMs: 300000 })
 
   // Rows that come out even — never one orphan under a row of three — and
   // every channel above the fold on a desktop, so the guide below stays in
@@ -81,7 +73,8 @@ export default function Dashboard() {
             {channels != null && (
               <>
                 <StatFigure value={onAir.length} label="On air" />
-                <StatFigure value={onAir.reduce((n, c) => n + c.viewers, 0)} label="Watching" />
+                {/* The channel list kept on disk doesn't know who's watching. */}
+                <StatFigure value={channelsRead.stored ? '—' : onAir.reduce((n, c) => n + c.viewers, 0)} label="Watching" />
               </>
             )}
             <div className="flex items-center gap-2 flex-wrap">

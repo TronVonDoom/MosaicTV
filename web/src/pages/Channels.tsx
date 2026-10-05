@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ChannelCard from '../components/ChannelCard'
 import GuideGrid from '../components/GuideGrid'
 import LogoPicker from '../components/LogoPicker'
 import MediaDetailModal from '../components/MediaDetailModal'
-import { api, type Channel, type ChannelNow, type Playout } from '../lib/api'
+import { api, type Channel, type Playout } from '../lib/api'
+import { peek, remember, useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { channelPath } from '../lib/channels'
 import { copyText } from '../lib/clipboard'
 import { confirmDialog } from '../lib/confirm'
@@ -67,6 +69,8 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
         group: form.group || null,
         logoId: form.logoId ?? null,
       })
+      // Into the channel list everything reads, so its page knows it at once.
+      remember(reads.channels, [...(peek(reads.channels) ?? []).filter((c) => c.id !== created.id), created])
       navigate(channelPath(created))
     } catch (err) {
       setError(errorMessage(err, 'Failed to create channel'))
@@ -122,29 +126,27 @@ function NewChannelDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+const NO_GUIDES: Record<number, Playout> = {}
+
 export default function Channels() {
   const navigate = useNavigate()
-  const [channels, setChannels] = useState<Channel[] | null>(null)
-  const [nowRows, setNowRows] = useState<Record<number, ChannelNow>>({})
+  const channelsRead = useCached(reads.channels)
+  const nowRead = useCached(reads.channelsNow)
+  // A list that won't load at all is an empty lineup, not a page loading forever.
+  const channels = channelsRead.data ?? (channelsRead.error ? [] : null)
+  const nowRows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((r) => [r.channelId, r])), [nowRead.data])
   const [creating, setCreating] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [span, setSpan] = useState<Span>('24')
   const [zoom, setZoom] = useState<Zoom>('standard')
   const [jump, setJump] = useState(0)
-  const [guides, setGuides] = useState<Record<number, Playout>>({})
   const [detailId, setDetailId] = useState<number | null>(null)
   const nowMs = useNow(15000)
 
-  const refresh = useCallback(() => {
-    api.channels().then(setChannels).catch(() => setChannels((c) => c ?? []))
-    api
-      .channelsNow()
-      .then((rows) => setNowRows(Object.fromEntries(rows.map((r) => [r.channelId, r]))))
-      .catch(() => {})
-  }, [])
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+  const refresh = () => {
+    void channelsRead.reload()
+    void nowRead.reload()
+  }
   // Now-playing and viewers, kept fresh as they change.
   useLiveRefresh(refresh, ['onAir', 'viewers', 'guide'], { fallbackMs: 15000 })
 
@@ -179,21 +181,9 @@ export default function Channels() {
 
   // The guide below the cards: fetched when the on-air set or the span
   // changes, and again whenever a channel's guide does.
-  const liveKey = live.map((c) => c.id).join(',')
-  const loadGuides = useCallback(() => {
-    const ids = liveKey ? liveKey.split(',').map(Number) : []
-    Promise.all(ids.map((id) => api.playout(id, Number(span) + 1).then((p) => [id, p] as const).catch(() => null))).then(
-      (entries) => {
-        const map: Record<number, Playout> = {}
-        for (const e of entries) if (e) map[e[0]] = e[1]
-        setGuides(map)
-      },
-    )
-  }, [liveKey, span])
-  useEffect(() => {
-    loadGuides()
-  }, [loadGuides])
-  useLiveRefresh(loadGuides, ['guide'], { fallbackMs: 300000 })
+  const guidesRead = useCached(live.length > 0 ? reads.guides(live.map((c) => c.id), Number(span) + 1) : null)
+  const guides = guidesRead.data ?? NO_GUIDES
+  useLiveRefresh(guidesRead.reload, ['guide'], { fallbackMs: 300000 })
 
   // "/channels#guide" (the dashboard's Full guide link, the old /guide route)
   // lands on the guide once there's a guide to land on.
@@ -211,7 +201,8 @@ export default function Channels() {
         lead="Every channel you run, what it's airing, and the guide your players see."
         aside={
           <>
-            {channels != null && <StatFigure value={watching} label="Watching" />}
+            {/* The channel list kept on disk doesn't know who's watching. */}
+            {channels != null && <StatFigure value={channelsRead.stored ? '—' : watching} label="Watching" />}
             <Button icon="plus" onClick={() => setCreating(true)}>
               New channel
             </Button>

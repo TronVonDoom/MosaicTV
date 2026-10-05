@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import LibraryBrowse from '../components/LibraryBrowse'
 import LibrarySources from '../components/LibrarySources'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import { StatFigure } from '../components/onair/OnAir'
-import { api, type Stats } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { useHashTab } from '../lib/hooks'
 
 // "Browse" and "Sources" used to be two sibling nav items (Browse / Libraries),
@@ -26,11 +27,16 @@ export default function Library() {
   const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'browse', { libraries: 'sources' })
   // Bumped when Browse's empty state asks Sources to focus its add-library form.
   const [addRequest, setAddRequest] = useState(0)
-  const [stats, setStats] = useState<Stats | null>(null)
+  const statsRead = useCached(reads.stats)
+  const stats = statsRead.data ?? null
 
   // Re-read on a tab switch, so the figures catch up with a library just added.
+  const statsTab = useRef(tab)
   useEffect(() => {
-    api.stats().then(setStats).catch(() => {})
+    if (statsTab.current === tab) return
+    statsTab.current = tab
+    void statsRead.reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
   const startAddLibrary = () => {

@@ -9,10 +9,6 @@ import {
   NO_KEYS,
   readsOnline,
   tmdbImage,
-  type SourceKeys,
-  type Library,
-  type LibraryHome as Home,
-  type MatchCounts,
   type MatchFilter,
   type MediaItem,
   type MemberInput,
@@ -29,6 +25,8 @@ import MediaDetailModal from '../components/MediaDetailModal'
 import { MatchReview, matchTarget, type MatchTarget } from '../components/FixMatchDialog'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from '../components/LibraryActions'
 import { useLibraryChanges } from '../lib/events'
+import { peek, remember, useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
 import JumpBar from '../components/library/JumpBar'
 import { StatFigure } from '../components/onair/OnAir'
@@ -46,6 +44,11 @@ type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
 /** A music library by artist (as a TV one is by show), by album, or every song or video. */
 type MusicView = 'artists' | 'albums' | 'songs'
 type ArtistSort = 'title' | 'items' | 'year' | 'added'
+
+// Nothing read yet — the same nothing each render, as memos' inputs.
+const NO_SHOWS: Show[] = []
+const NO_ARTISTS: ArtistCard[] = []
+const NO_ALBUMS: AlbumCard[] = []
 
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-5 gap-y-7'
 
@@ -101,11 +104,10 @@ export default function LibraryView() {
   const location = useLocation()
   const [search, setSearch] = useSearchParams()
 
-  const [library, setLibrary] = useState<Library | null>(null)
-  const [home, setHome] = useState<Home | null>(null)
-  const [shows, setShows] = useState<Show[]>([])
-  const [artists, setArtists] = useState<ArtistCard[]>([])
-  const [albums, setAlbums] = useState<AlbumCard[]>([])
+  // Which library this is, from the list the sidebar keeps too — so a library
+  // opened before knows its kind, and starts its grid, from the first frame.
+  const libraries = useCached(reads.libraries)
+  const library = libraries.data?.find((l) => l.id === id) ?? null
   const [artistSort, setArtistSort] = useState<ArtistSort>('title')
   const [albumSort, setAlbumSort] = useState<AlbumSort>('title')
   const [items, setItems] = useState<MediaItem[]>([])
@@ -116,12 +118,10 @@ export default function LibraryView() {
   const addMenu = (what: string, member: MemberInput): MenuItem[] => [{ label: 'Add to a channel…', icon: 'plus', onSelect: () => setAdding({ what, member }) }]
   const [loading, setLoading] = useState(true)
   const [showSort, setShowSort] = useState<ShowSort>('title')
-  const [keys, setKeys] = useState<SourceKeys>(NO_KEYS)
+  const settings = useCached(reads.settings).data
+  const keys = useMemo(() => (settings ? keysOf(settings) : NO_KEYS), [settings])
   // The review filter's titles, being fixed one by one.
   const [reviewing, setReviewing] = useState<MatchTarget[] | null>(null)
-  const [counts, setCounts] = useState<MatchCounts | null>(null)
-  // Bumped to fetch the shows again (after a scan or a metadata fetch).
-  const [showsVersion, setShowsVersion] = useState(0)
   // One object, so a new search, sort or filter and "back to page 1" land
   // together — separately, a stale page-3 fetch could append to the new results.
   const [params, setParams] = useState<{ page: number; q: string; sort: MediaSort; match: MatchFilter }>(() => ({
@@ -188,40 +188,40 @@ export default function LibraryView() {
   // What the grid asks the server for: the review filter, or what's off air.
   const match: MatchFilter = view === 'offair' ? 'offair' : params.match
 
-  const loadLibrary = () =>
-    api
-      .libraries()
-      .then((libs) => setLibrary(libs.find((l) => l.id === id) ?? null))
-      .catch(() => {})
-  const loadCounts = () => api.libraryMatches(id).then(setCounts).catch(() => {})
-  const loadHome = () => api.libraryHome(id).then(setHome).catch(() => {})
-
-  // Resolve which library this is.
-  useEffect(() => {
-    setHome(null)
-    void loadLibrary()
-    api.settings().then((s) => setKeys(keysOf(s))).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
-  useEffect(() => {
-    if (matchable) void loadCounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, matchable])
+  const countsRead = useCached(matchable ? reads.matches(id) : null)
+  const counts = countsRead.data ?? null
+  const loadCounts = () => void countsRead.reload()
   // The home's on-now and the guide move with the clock: fresh each minute.
   // (A music library has no home, but its header's counts come from it.)
+  const homeRead = useCached(hasHome || isMusic ? reads.libraryHome(id) : null)
+  const home = homeRead.data ?? null
   useEffect(() => {
     if (!hasHome && !isMusic) return
-    void loadHome()
-    const t = setInterval(() => void loadHome(), 60_000)
+    const t = setInterval(() => void homeRead.reload(), 60_000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, hasHome, isMusic, showsVersion])
+  }, [id, hasHome, isMusic])
+  // The grids that come whole — a TV library's shows, a music library's
+  // artists or albums — fetched once, then searched and sorted here.
+  const showsRead = useCached(library && isTv ? reads.shows(id) : null)
+  const artistsRead = useCached(library && isMusic && by === 'artists' ? reads.artists(id) : null)
+  const albumsRead = useCached(library && isMusic && by === 'albums' ? reads.albums(id, albumSort) : null)
+  const shows = showsRead.data?.shows ?? NO_SHOWS
+  const artists = artistsRead.data?.artists ?? NO_ARTISTS
+  const albums = albumsRead.data?.albums ?? NO_ALBUMS
+  /** Whichever whole grid is showing, again. */
+  const reloadWhole = () => {
+    if (isTv) void showsRead.reload()
+    else if (isMusic && by === 'artists') void artistsRead.reload()
+    else if (isMusic && by === 'albums') void albumsRead.reload()
+  }
 
   /** Everything again, from the top — after a title's match changed. */
   function reloadAll() {
-    void loadLibrary()
-    if (matchable) void loadCounts()
-    setShowsVersion((v) => v + 1)
+    void libraries.reload()
+    if (matchable) loadCounts()
+    if (hasHome || isMusic) void homeRead.reload()
+    reloadWhole()
     setParams((p) => ({ ...p, page: 1 }))
   }
 
@@ -232,15 +232,12 @@ export default function LibraryView() {
    * sort, gone ones out, the scroll left where it is and no spinner.
    */
   function refreshInPlace() {
-    void loadLibrary()
-    if (matchable) void loadCounts()
-    if (hasHome || isMusic) void loadHome()
+    void libraries.reload()
+    if (matchable) loadCounts()
+    if (hasHome || isMusic) void homeRead.reload()
     if (!library) return
-    if (isTv) {
-      api.shows(id).then((r) => setShows(r.shows)).catch(() => {})
-    } else if (isMusic && by !== 'songs') {
-      const load = by === 'artists' ? api.artists(id).then((r) => setArtists(r.artists)) : api.albums(id, albumSort).then((r) => setAlbums(r.albums))
-      load.catch(() => {})
+    if (local) {
+      reloadWhole()
     } else if (view !== 'home') {
       // Every page loaded so far, again, standing in for what's there.
       const mine = ++request.current
@@ -251,6 +248,7 @@ export default function LibraryView() {
           setItems(rs.flatMap((r) => r.items))
           setTotal(rs[rs.length - 1].total)
           setLetters(rs[0].letters ?? null)
+          if (!params.q) remember(reads.firstPage(id, mediaType, params.sort, match, PAGE_SIZE), rs[0])
         })
         .catch(() => {})
     }
@@ -269,30 +267,13 @@ export default function LibraryView() {
       { replace: true },
     )
 
-  // TV: one fetch, then filter and sort in the browser.
-  useEffect(() => {
-    if (!library || !isTv) return
-    setLoading(true)
-    api
-      .shows(id)
-      .then((r) => setShows(r.shows))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [library, isTv, id, showsVersion])
-
-  // Music: its artists, or its albums, whole.
-  useEffect(() => {
-    if (!library || !isMusic || by === 'songs') return
-    setLoading(true)
-    const load = by === 'artists' ? api.artists(id).then((r) => setArtists(r.artists)) : api.albums(id, albumSort).then((r) => setAlbums(r.albums))
-    load.catch(() => {}).finally(() => setLoading(false))
-  }, [library, isMusic, by, id, albumSort, showsVersion])
-
   // Movies and the rest: paged from the server. A new search or sort starts over.
   useEffect(() => {
     setParams((p) => (p.q === q ? p : { ...p, q, page: 1 }))
   }, [q])
-  useEffect(() => {
+  // A layout effect, so a first page kept from before is in place before the
+  // grid is first drawn, rather than a frame of skeletons ahead of it.
+  useLayoutEffect(() => {
     if (!library || local || view === 'home') return
     const mine = ++request.current
     setLoading(true)
@@ -301,6 +282,14 @@ export default function LibraryView() {
     // library read again), from the top.
     const from = params.page > loadedPages.current ? loadedPages.current + 1 : 1
     const pages = Array.from({ length: params.page - from + 1 }, (_, i) => from + i)
+    // The grid as it opens (no search) starts from its first page as last seen.
+    const firstPage = from === 1 && !params.q ? reads.firstPage(id, type, params.sort, match, PAGE_SIZE) : null
+    const kept = firstPage && params.page === 1 ? peek(firstPage) : undefined
+    if (kept) {
+      setItems(kept.items)
+      setTotal(kept.total)
+      setLetters(kept.letters ?? null)
+    }
     Promise.all(pages.map((page) => api.media({ libraryId: id, type, page, pageSize: PAGE_SIZE, q: params.q || undefined, sort: params.sort, match })))
       .then((rs) => {
         if (mine !== request.current) return // superseded by a newer search/sort/page
@@ -308,6 +297,7 @@ export default function LibraryView() {
         setItems((prev) => (from === 1 ? fresh : [...prev, ...fresh]))
         setTotal(rs[rs.length - 1].total)
         if (from === 1) setLetters(rs[0].letters ?? null)
+        if (firstPage) remember(firstPage, rs[0])
         loadedPages.current = params.page
       })
       .catch(() => {})
@@ -332,7 +322,7 @@ export default function LibraryView() {
    *  stays in a filtered grid until the grid is next loaded, rather than
    *  vanishing from under the pointer. */
   function movieChanged(itemId: number) {
-    void loadCounts()
+    loadCounts()
     api
       .mediaItem(itemId)
       .then((it) => setItems((prev) => prev.map((m) => (m.id === it.id ? it : m))))
@@ -528,8 +518,18 @@ export default function LibraryView() {
             : library?.kind === 'music'
               ? one('music video', 'music videos')
               : one('item', 'items')
-  const firstLoad =
-    loading && (isTv ? shows.length === 0 : isMusic && by === 'artists' ? artists.length === 0 : isMusic && by === 'albums' ? albums.length === 0 : items.length === 0)
+  // Nothing to draw yet: a whole grid neither kept nor read, or a paged one's first page on its way.
+  const waiting = (r: { data: unknown; error: Error | null }) => r.data === undefined && r.error == null
+  // A kept list that doesn't know this library (one just added) waits for the fresh one.
+  const firstLoad = !library
+    ? libraries.data === undefined || libraries.stale
+    : isTv
+      ? waiting(showsRead)
+      : isMusic && by === 'artists'
+        ? waiting(artistsRead)
+        : isMusic && by === 'albums'
+          ? waiting(albumsRead)
+          : loading && items.length === 0
   const setMatch = (m: MatchFilter) => setParams((p) => ({ ...p, match: m, page: 1 }))
   const titles = home?.titles ?? library?.itemCount
 
@@ -860,8 +860,9 @@ export default function LibraryView() {
           {
             movieChanged,
             showsChanged: () => {
-              void loadCounts()
-              setShowsVersion((v) => v + 1)
+              loadCounts()
+              void showsRead.reload()
+              if (hasHome) void homeRead.reload()
             },
           } satisfies LibraryLayerContext
         }

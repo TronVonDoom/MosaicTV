@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from './Icon'
-import { api, ART, artworkUrl, type MediaItemDetail } from '../lib/api'
+import { ART, artworkUrl } from '../lib/api'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { creditOf, episodeCode, extraLabel, formatAirDate, formatAired, formatDuration, posterGradient } from '../lib/format'
 import { describeMatch, isMatched, MatchLinks, matchTarget, useMatchActions, type MatchTarget } from './FixMatchDialog'
 import CastRow from './CastRow'
@@ -30,20 +32,19 @@ export default function MediaDetailModal({
   from?: 'show' | 'movie'
 }) {
   const navigate = useNavigate()
-  const [item, setItem] = useState<MediaItemDetail | null>(null)
   const [imageOk, setImageOk] = useState(true)
   const [fileOpen, setFileOpen] = useState(false)
   // The item, or one of its extras opened from it.
   const [shown, setShown] = useState(id)
   useEffect(() => setShown(id), [id])
 
-  const load = () => api.mediaItem(shown).then(setItem).catch(() => {})
+  // As last seen (kept), while it's fetched again.
+  const itemRead = useCached(reads.mediaItem(shown))
+  const item = itemRead.data ?? null
+  const load = itemRead.reload
   useEffect(() => {
-    setItem(null)
     setImageOk(true)
     setFileOpen(false)
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown])
 
   const target: MatchTarget | null =

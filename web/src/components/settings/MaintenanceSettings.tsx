@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, backupUrl, type Health, type Stats } from '../../lib/api'
+import { forgetAll } from '../../lib/cache'
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
 import { toast } from '../../lib/toast'
@@ -58,6 +59,8 @@ export default function MaintenanceSettings() {
     setResetBusy(true)
     try {
       await api.resetInstance(wipeAssets)
+      // What the browser kept of the old instance isn't this one's any more.
+      forgetAll()
       toast.info('Instance reset. Reloading…')
       setTimeout(() => window.location.reload(), 1200)
     } catch (err) {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import {
-  api,
   ART,
   artworkUrl,
   tmdbImage,
@@ -13,7 +12,6 @@ import {
   type OnAirSlot,
   type SeasonGroup,
   type ShowDetail,
-  type TitleOnAir,
 } from '../lib/api'
 import { formatAirDate, formatAired, formatAiring, formatDuration, parseCast, posterGradient, programLabel } from '../lib/format'
 import { useItemMenu } from '../lib/itemMenu'
@@ -34,6 +32,8 @@ import Icon from '../components/Icon'
 import { Badge, Banner, Button, Menu, Skeleton, cx, type MenuItem } from '../components/ui'
 import { confirmDialog } from '../lib/confirm'
 import { useLibraryChanges } from '../lib/events'
+import { useCached } from '../lib/cache'
+import { reads } from '../lib/reads'
 import { OnAirCue, slotPath, type LibraryLayerContext } from './MovieView'
 
 // Season 0 is the show's specials, as Plex calls it.
@@ -193,6 +193,10 @@ function EpisodeRow({
   )
 }
 
+// None yet — the same none each render, as memos' inputs.
+const NO_AIRINGS: Airing[] = []
+const NO_APPEARANCES: AiringAppearance[] = []
+
 /**
  * A show's page, over its library's grid, set as a network's feature on it:
  * its backdrop with the title as a lower-third, where and when it airs (the
@@ -209,19 +213,23 @@ export default function ShowView() {
   const grid = useOutletContext<LibraryLayerContext | undefined>()
   const [params, setParams] = useSearchParams()
 
-  const [detail, setDetail] = useState<ShowDetail | null>(null)
-  const [onAir, setOnAir] = useState<TitleOnAir | null>(null)
+  // The show as last seen (kept), while it's fetched again.
+  const detailRead = useCached(showTitle ? reads.show(id, showTitle) : null)
+  const detail = detailRead.data ?? null
+  const onAirRead = useCached(detail?.id != null ? reads.showOnAir(detail.id) : null)
+  const onAir = onAirRead.data ?? null
   const [selectedId, setSelectedId] = useState<number | null>(null)
   // Toggles the season view between the episode list and the airings editor.
   const [grouping, setGrouping] = useState(false)
   // True while the editor has unsaved groupings — guards leaving grouping mode.
   const [editorDirty, setEditorDirty] = useState(false)
   // The show's defined broadcast episodes, for the "grouped" markers.
-  const [airings, setAirings] = useState<Airing[]>([])
+  const airingsRead = useCached(showTitle ? reads.airings(id, showTitle) : null)
+  const airings = airingsRead.data?.airings ?? NO_AIRINGS
   // Places episodes of THIS show are woven into OTHER shows' broadcast episodes.
-  const [appearances, setAppearances] = useState<AiringAppearance[]>([])
+  const appearances = useCached(showTitle ? reads.appearances(id, showTitle) : null).data?.appearances ?? NO_APPEARANCES
   // Only for the breadcrumb — the show payload doesn't carry its library's name.
-  const [libraryName, setLibraryName] = useState<string | null>(null)
+  const libraryName = useCached(reads.libraries).data?.find((l) => l.id === id)?.name ?? null
   const [identity, setIdentity] = useState<'rename' | 'merge' | null>(null)
   const [ordering, setOrdering] = useState(false)
   // What's being put on a channel: the show, a season or one episode.
@@ -230,14 +238,8 @@ export default function ShowView() {
   // unless asked for.
   const [showMissing, setShowMissing] = useState(false)
 
-  const reloadAirings = () =>
-    api
-      .airings(id, showTitle)
-      .then((r) => setAirings(r.airings))
-      .catch(() => setAirings([]))
-
-  const loadDetail = () => api.showDetail(id, showTitle).then(setDetail).catch(() => {})
-  const loadOnAir = (showId: number) => api.showOnAir(showId).then(setOnAir).catch(() => {})
+  const reloadAirings = () => void airingsRead.reload()
+  const loadDetail = detailRead.reload
 
   // Its matches: fixed, refreshed or taken away from the show's menu.
   const showMatch: MatchTarget | null =
@@ -250,34 +252,10 @@ export default function ShowView() {
   })
   const matchStatus = showMatch && describeMatch(showMatch)
 
-  useEffect(() => {
-    if (!showTitle) return
-    setDetail(null)
-    setOnAir(null)
-    setGrouping(false)
-    void loadDetail()
-    reloadAirings()
-    api
-      .airingAppearances(id, showTitle)
-      .then((r) => setAppearances(r.appearances))
-      .catch(() => setAppearances([]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, showTitle])
+  useEffect(() => setGrouping(false), [id, showTitle])
 
   // Its seasons and episodes follow a scan or a metadata fetch as it runs.
   useLibraryChanges(id, () => void loadDetail())
-
-  useEffect(() => {
-    if (detail?.id != null) void loadOnAir(detail.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail?.id])
-
-  useEffect(() => {
-    api
-      .libraries()
-      .then((ls) => setLibraryName(ls.find((l) => l.id === id)?.name ?? null))
-      .catch(() => {})
-  }, [id])
 
   // The open season: the one the address names, else the first real one.
   const seasonParam = params.get('season')
@@ -690,8 +668,8 @@ export default function ShowView() {
           onClose={() => setAdding(null)}
           onAdded={() => {
             // Its channel replans in the background; look again once it has.
-            void loadOnAir(detail.id!)
-            setTimeout(() => void loadOnAir(detail.id!), 4000)
+            void onAirRead.reload()
+            setTimeout(() => void onAirRead.reload(), 4000)
           }}
         />
       )}
