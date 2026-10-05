@@ -15,6 +15,7 @@ import type {
   LogLevel,
   MediaType,
   MemberKind,
+  MusicGuide,
   MusicScreen,
   OrderSetting,
   PlaybackOrder,
@@ -657,6 +658,8 @@ export type ChannelDetail = {
   lyricsFirst: boolean
   /** The album look shows the program before and after a song along its bottom. */
   songsAround: boolean
+  /** How the guide lists songs and music videos: a block an hour, or each one. */
+  musicGuide: MusicGuide
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }
@@ -670,6 +673,10 @@ export type PlayoutEntry = {
   title: string | null
   /** Shared by the segments of one multi-part airing; null for a lone item. */
   groupKey?: string | null
+  /** The block of songs it's listed in (see musicBlocks.ts), shared by every
+   *  row of the block — its songs and the breaks between them; null when the
+   *  row is listed on its own. */
+  block?: GuideBlock | null
   mediaItem: {
     id: number
     title: string
@@ -686,6 +693,10 @@ export type PlayoutEntry = {
 }
 
 export type Playout = { now: string; items: PlayoutEntry[] }
+
+/** A run of songs (and music videos) listed in the guide as one program: an
+ *  hour's worth, named after the collection they came from. */
+export type GuideBlock = { key: string; title: string }
 
 /** One program a channel aired (an airing's segments folded into one). */
 export type AiredProgram = {

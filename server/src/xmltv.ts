@@ -2,9 +2,10 @@
 // episode's segments folded into one programme, a program split at its act
 // breaks listed once, and a short break after a program listed as part of it.
 // A program carries what its metadata says — its credits, first air date,
-// genres and rating — for guide clients to show.
+// genres and rating — for guide clients to show. A block of songs is one
+// programme an hour (see musicBlocks.ts).
 import { episodeCode, EXTRA_LABELS } from './labels.js'
-import { creditOf } from './contract/index.js'
+import { artistsLine, creditOf, minutesToTime, type GuideBlock } from './contract/index.js'
 
 /** A playout row, with what the guide needs of its file. */
 export type XmltvRow = {
@@ -95,11 +96,13 @@ export function xmltvTime(d: Date): string {
   )
 }
 
-/** Every programme, in channel then start order (as `items` must be). */
+/** Every programme, in channel then start order (as `items` must be).
+ *  `blocks` are the rows' blocks of songs, row for row (guideBlocks). */
 export function programmesXml<R extends XmltvRow>(
   items: R[],
   numById: Map<number, number | null>,
   programmeIcon: (m: R['mediaItem']) => string | null,
+  blocks: (GuideBlock | null)[] = [],
 ): string {
   let xml = ''
   // A break that follows a program is listed as part of it, the way a paper
@@ -126,6 +129,34 @@ export function programmesXml<R extends XmltvRow>(
     const chno = numById.get(it.channelId)
     if (chno == null) {
       i++
+      continue
+    }
+
+    // A block of songs: one programme, named after their collection, the
+    // artists as its sub-title and the songs, with their times, as its
+    // description.
+    const block = blocks[i]
+    if (block) {
+      let run = 1
+      while (i + run < items.length && blocks[i + run]?.key === block.key) run++
+      const rows = items.slice(i, i + run)
+      // A song split at its act breaks is one song.
+      const songs = rows.filter((s, k) => s.kind === 'program' && s.mediaItem && !(k > 0 && s.groupKey && rows[k - 1].groupKey === s.groupKey))
+      const lines = songs.map((s) => {
+        const m = s.mediaItem!
+        const by = creditOf(m)
+        return `${minutesToTime(s.startTime.getHours() * 60 + s.startTime.getMinutes())}  ${by ? `${by} – ` : ''}${m.title}`
+      })
+      const artists = artistsLine(songs.map((s) => s.mediaItem!))
+      xml += `  <programme start="${xmltvTime(it.startTime)}" stop="${xmltvTime(listedStop(i + run))}" channel="${chno}">\n`
+      xml += `    <title>${escapeXml(block.title)}</title>\n`
+      if (artists) xml += `    <sub-title>${escapeXml(artists)}</sub-title>\n`
+      if (lines.length) xml += `    <desc>${escapeXml(lines.join('\n'))}</desc>\n`
+      xml += `    <category>Music</category>\n`
+      const icon = songs.map((s) => programmeIcon(s.mediaItem)).find((x) => !!x)
+      if (icon) xml += `    <icon src="${escapeXml(icon)}" />\n`
+      xml += '  </programme>\n'
+      i += run + (foldsBreak(i + run) ? 1 : 0)
       continue
     }
 

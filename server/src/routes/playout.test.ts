@@ -81,5 +81,5 @@ test('rows carry only the contract fields, never the checkpoint', () => {
   assert.ok(!text.includes('"state"'), 'state is not sent')
   assert.ok(!text.includes('xxxx'), 'no checkpoint content is sent')
   for (const item of playout.items)
-    assert.deepEqual(Object.keys(item).sort(), ['groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
 })

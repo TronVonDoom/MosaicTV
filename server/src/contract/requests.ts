@@ -14,6 +14,7 @@ import {
   asFillerMode,
   asGrid,
   asMusicScreen,
+  asMusicGuide,
   asMetadataSources,
   asOrderSetting,
   asPlaybackOrder,
@@ -98,6 +99,8 @@ export const ChannelUpdate = z.object({
   musicScreen: loose.transform(asMusicScreen).optional(),
   lyricsFirst: flag.optional(),
   songsAround: flag.optional(),
+  // How the guide lists songs: a block an hour, or each one (see Channel).
+  musicGuide: loose.transform(asMusicGuide).optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 

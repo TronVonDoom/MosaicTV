@@ -28,8 +28,8 @@ Channel
   watermark. New channels start on the bundled MosaicTV logo; **No logo** shows
   none at all. See [Branding](branding.md).
 - **Coming up next** — an optional card naming the next program, with its poster.
-- **Music** — what a song airs over, and whether lyrics come first (see
-  [Music](#music)).
+- **Music** — what a song airs over, whether lyrics come first, and how the
+  guide lists songs (see [Music](#music)).
 
 ## Collections
 
@@ -109,6 +109,19 @@ With that off (or on the other screens), the last 20 seconds of a song bring
 in the **Up next** card instead. A change to these re-draws the song on air
 in the new look. A channel can mix songs, music
 videos, shows and movies however its collections and schedule have them.
+
+- **In the guide** — a song is a few minutes long, too short to read in a
+  guide. With **Hour blocks** (the default), songs and music videos that air
+  one after another are listed as one program an hour, named after the
+  collection they came from — *80s Hits, 8:00–9:02* — the way a cable guide
+  lists a music channel. The block on now names the song playing, the others
+  the artists coming up, and selecting one opens its set list: every song with
+  its time and cover. A block ends with the first song that starts on or after
+  the hour; less than a quarter of an hour left over joins the block beside it,
+  and a lone song between shows is listed as itself. **Each song** lists every
+  song on its own instead. It applies to the guide here, in the Android app and
+  in the XMLTV guide your players read, where a block's songs are its
+  description.
 
 ## Broadcast episodes (multi-segment shows)
 

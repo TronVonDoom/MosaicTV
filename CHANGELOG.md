@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Songs read as hour blocks in the guide.** A song is three or four minutes
+  long, a sliver too narrow for its name. Songs and music videos that air one
+  after another are now listed as one program an hour, named after the
+  collection they came from — *80s Hits, 8:00–9:02* — the way a cable guide
+  lists a music channel. The block on now names the song playing and the rest
+  the artists coming up, with marks along the bottom where each song starts;
+  select one for its set list, every song with its time and cover. Plex,
+  Jellyfin and other players get the same blocks in the XMLTV guide, the set
+  list as the description. A channel that would rather list each song sets
+  **In the guide** to **Each song**, under **Music** on its General tab.
+  Guide rows built before the upgrade are named after the channel's
+  collection, or the channel, until the guide reaches past them.
+
 ## 0.15.2 — Square covers (2026-10-04)
 
 - **Music's covers are square everywhere.** Album covers, artist pictures

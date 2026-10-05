@@ -1,26 +1,53 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
-import type { Playout, PlayoutEntry } from '../lib/api'
-import { creditOf, episodeCode, formatClock } from '../lib/format'
+import Icon from './Icon'
+import { ART, artworkUrl, type Playout, type PlayoutEntry } from '../lib/api'
+import { artistsLine, creditOf, episodeCode, formatClock } from '../lib/format'
 import { channelPath } from '../lib/channels'
-import { cx } from './ui'
+import { LiveBadge, Modal, ModalHeader, cx } from './ui'
 import { useMediaQuery } from '../lib/hooks'
 
 export type GuideChannel = { id: number; number: number | null; name: string; logoId: number | null }
 
-/** One block on the grid: a program, a multi-part airing folded into one, or
- *  a station break. `entry` is the first segment — what a click opens. */
-type Block = { key: string; start: number; stop: number; title: string; sub: string | null; filler: boolean; entry: PlayoutEntry }
+/** One block on the grid: a program, a multi-part airing folded into one, a
+ *  station break, or an hour of songs (`songs`, see musicBlocks.ts). `entry`
+ *  is the first segment — what a click opens. */
+type Block = {
+  key: string
+  start: number
+  stop: number
+  title: string
+  sub: string | null
+  filler: boolean
+  entry: PlayoutEntry
+  music: boolean
+  songs?: PlayoutEntry[]
+}
+
+const isMusic = (m: PlayoutEntry['mediaItem']) => m?.type === 'music' || m?.type === 'song'
+/** "a-ha – Take On Me". */
+const songLabel = (m: NonNullable<PlayoutEntry['mediaItem']>) => (creditOf(m) ? `${creditOf(m)} – ${m.title}` : m.title)
 
 /** Fold a channel's playout into blocks, merging segments that share a
- *  groupKey the way the XMLTV guide does. */
+ *  groupKey the way the XMLTV guide does, and the rows of a block of songs. */
 function toBlocks(items: PlayoutEntry[]): Block[] {
   const out: Block[] = []
   for (const it of items) {
     const start = new Date(it.startTime).getTime()
     const stop = new Date(it.stopTime).getTime()
     const last = out[out.length - 1]
+    if (it.block) {
+      const song = it.kind === 'program' && it.mediaItem ? it : null
+      if (last?.songs && last.key === it.block.key) {
+        last.stop = stop
+        // A song split at its act breaks is one song.
+        if (song && !(song.groupKey && last.songs[last.songs.length - 1]?.groupKey === song.groupKey)) last.songs.push(song)
+      } else {
+        out.push({ key: it.block.key, start, stop, title: it.block.title, sub: null, filler: false, entry: it, music: true, songs: song ? [song] : [] })
+      }
+      continue
+    }
     if (it.groupKey && last && last.entry.groupKey === it.groupKey) {
       last.stop = stop
       if (it.mediaItem?.title && last.sub && !last.sub.includes(it.mediaItem.title)) last.sub += ` / ${it.mediaItem.title}`
@@ -28,7 +55,7 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
     }
     const m = it.mediaItem
     if (!m) {
-      out.push({ key: String(it.id), start, stop, title: 'Station break', sub: null, filler: true, entry: it })
+      out.push({ key: String(it.id), start, stop, title: 'Station break', sub: null, filler: true, entry: it, music: false })
     } else if (m.showTitle) {
       const code = episodeCode(m)
       out.push({
@@ -39,19 +66,22 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
         sub: [code, m.title].filter(Boolean).join(' · ') || null,
         filler: false,
         entry: it,
+        music: false,
       })
     } else {
       out.push({
         key: String(it.id),
         start,
         stop,
-        title: (m.type === 'music' || m.type === 'song') && creditOf(m) ? `${creditOf(m)} – ${m.title}` : m.title,
+        title: isMusic(m) ? songLabel(m) : m.title,
         sub: null,
         filler: false,
         entry: it,
+        music: isMusic(m),
       })
     }
   }
+  for (const b of out) if (b.songs) b.sub = artistsLine(b.songs.map((s) => s.mediaItem!))
   return out
 }
 
@@ -91,6 +121,8 @@ export default function GuideGrid({
   const CH_W = narrow ? 76 : 208
   const RULER_H = 40
   const scrollRef = useRef<HTMLDivElement>(null)
+  // The block of songs whose set list is open.
+  const [setList, setSetList] = useState<Block | null>(null)
 
   // Start half an hour before the current half-hour, so what just ended is
   // still in view; recomputed only when that boundary moves.
@@ -208,15 +240,20 @@ export default function GuideGrid({
                   const current = b.start <= nowMs && b.stop > nowMs
                   const past = b.stop <= nowMs
                   const pct = current ? ((nowMs - b.start) / (b.stop - b.start)) * 100 : 0
-                  const clickable = !!onSelect && !b.filler && !!b.entry.mediaItem
-                  const title = `${b.title}${b.sub ? ` — ${b.sub}` : ''}\n${formatClock(b.start)} – ${formatClock(b.stop)}`
+                  // A block of songs opens its set list; anything else, its details.
+                  const clickable = b.songs ? b.songs.length > 0 : !!onSelect && !b.filler && !!b.entry.mediaItem
+                  // A block of songs on now names the song playing.
+                  const playing = current && b.songs ? b.songs.find((s) => new Date(s.startTime).getTime() <= nowMs && new Date(s.stopTime).getTime() > nowMs) : undefined
+                  const sub = playing?.mediaItem ? songLabel(playing.mediaItem) : b.sub
+                  const songCount = b.songs ? ` · ${b.songs.length} ${b.songs.length === 1 ? 'song' : 'songs'}` : ''
+                  const title = `${b.title}${sub ? ` — ${sub}` : ''}\n${formatClock(b.start)} – ${formatClock(b.stop)}${songCount}`
                   return (
                     <button
                       key={b.key}
                       type="button"
                       title={title}
                       disabled={!clickable}
-                      onClick={() => clickable && onSelect!(b.entry)}
+                      onClick={() => clickable && (b.songs ? setSetList(b) : onSelect!(b.entry))}
                       className={cx(
                         // overflow-clip, not -hidden: hidden makes the block a scroll
                         // container of its own, and the sticky title would pin to
@@ -240,20 +277,35 @@ export default function GuideGrid({
                           style={{ width: `${pct}%` }}
                         />
                       )}
-                      {w > 36 && (
+                      {/* Where each song of a block of songs begins: marks
+                          along its foot, like a record's tracks. */}
+                      {b.songs?.slice(1).map((s) => (
+                        <span
+                          key={s.id}
+                          className="absolute bottom-1 h-1.5 w-px bg-white/15 pointer-events-none"
+                          style={{ left: x(new Date(s.startTime).getTime()) - left - 1.5 }}
+                        />
+                      ))}
+                      {w > 36 ? (
                         // Sticky within its block: a program that began before
                         // the scrolled-to window keeps its title in view,
                         // pinned just right of the channel column.
                         <span className="sticky inline-block max-w-full align-top" style={{ left: CH_W + 10 }}>
-                          <span className={cx('block truncate text-[12.5px] leading-tight', b.filler ? 'italic' : 'font-medium')}>
-                            {b.title}
+                          <span className={cx('flex items-center gap-1 text-[12.5px] leading-tight', b.filler ? 'italic' : 'font-medium')}>
+                            {b.songs && <Icon name="audio" size={12} className="shrink-0 text-indigo-300/80" />}
+                            <span className="truncate">{b.title}</span>
                           </span>
                           {rowHeight >= 56 && (
                             <span className="block truncate text-[11px] leading-tight mt-0.5 text-ink-faint tabular-nums">
-                              {b.sub ?? `${formatClock(b.start)} – ${formatClock(b.stop)}`}
+                              {playing && <span className="text-indigo-300/90">Now · </span>}
+                              {sub ?? `${formatClock(b.start)} – ${formatClock(b.stop)}`}
                             </span>
                           )}
                         </span>
+                      ) : (
+                        // Too narrow for a name: a song listed on its own says
+                        // it's music, at least.
+                        b.music && w > 12 && <Icon name="audio" size={11} className="absolute inset-0 m-auto text-ink-faint" />
                       )}
                     </button>
                   )
@@ -271,6 +323,80 @@ export default function GuideGrid({
           )}
         </div>
       </div>
+      {setList && <SetList block={setList} nowMs={nowMs} onClose={() => setSetList(null)} onSelect={onSelect} />}
     </div>
+  )
+}
+
+/**
+ * A block of songs' set list: each song with its time and cover, the one on
+ * now marked, the ones already over dimmed. A song opens its details, as a
+ * program in the guide does.
+ */
+function SetList({
+  block,
+  nowMs,
+  onClose,
+  onSelect,
+}: {
+  block: Block
+  nowMs: number
+  onClose: () => void
+  onSelect?: (entry: PlayoutEntry) => void
+}) {
+  const songs = block.songs ?? []
+  return (
+    <Modal onClose={onClose} panelClassName="w-full max-w-lg">
+      <ModalHeader
+        icon="audio"
+        title={block.title}
+        subtitle={`${formatClock(block.start)} – ${formatClock(block.stop)} · ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}`}
+        onClose={onClose}
+      />
+      <div className="p-2 max-h-[min(60vh,560px)] overflow-y-auto">
+        {songs.map((s) => {
+          const m = s.mediaItem!
+          const start = new Date(s.startTime).getTime()
+          const stop = new Date(s.stopTime).getTime()
+          const now = start <= nowMs && stop > nowMs
+          return (
+            <button
+              key={s.id}
+              type="button"
+              disabled={!onSelect}
+              onClick={() => onSelect?.(s)}
+              className={cx(
+                'w-full flex items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors enabled:hover:bg-white/[0.04]',
+                now && 'bg-indigo-500/[0.09]',
+                stop <= nowMs && 'opacity-50',
+              )}
+            >
+              <span className="w-[4.5rem] shrink-0 text-[12px] tabular-nums text-ink-faint">{formatClock(start)}</span>
+              <Cover song={m} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13.5px] font-medium text-ink">{m.title}</span>
+                <span className="block truncate text-[12px] text-ink-faint">{creditOf(m) ?? 'Unknown artist'}</span>
+              </span>
+              {now && <LiveBadge label="Now" />}
+            </button>
+          )
+        })}
+      </div>
+    </Modal>
+  )
+}
+
+/** A song's cover in the set list, or a note where it has none (or it won't load). */
+function Cover({ song }: { song: NonNullable<PlayoutEntry['mediaItem']> }) {
+  const [failed, setFailed] = useState(false)
+  const src = song.posterPath || song.tmdbPosterPath ? artworkUrl(song.id, 'poster', ART.tiny, song.tmdbPosterPath) : null
+  return (
+    <span className="size-10 shrink-0 overflow-hidden rounded-md bg-raised grid place-items-center">
+      {src && !failed ? (
+        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-cover" />
+      ) : (
+        <Icon name="audio" size={16} className="text-ink-ghost" />
+      )}
+    </span>
   )
 }

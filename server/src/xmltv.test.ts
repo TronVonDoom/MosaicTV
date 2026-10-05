@@ -51,3 +51,23 @@ test('a broadcast episode lists each of its files once', () => {
   assert.match(xml, /stop="20260901193000 \+0000"/)
   assert.equal(xml.match(/<programme /g)?.length, 1)
 })
+
+test('a block of songs is one programme: its collection, its artists, and its songs with their times', () => {
+  const song = (id: number, artist: string, title: string) => ({ id, title, showTitle: null, season: null, episode: null, type: 'song', artist, album: 'Hits', overview: null })
+  const rows = [
+    row(0, 4, 'program', song(1, 'a-ha', 'Take On Me')),
+    row(4, 8, 'program', song(2, 'Prince', 'Kiss')),
+    row(8, 12, 'program', song(3, 'Madonna', 'Holiday')),
+    row(12, 13, 'program', song(4, 'a-ha', 'The Sun Always Shines on T.V.')),
+    row(13, 15, 'filler', null),
+    row(15, 37, 'program', file(9, 'Tommy Pickles', 1)),
+  ]
+  const block = { key: '1:m0', title: '80s Hits' }
+  const xml = programmesXml(rows, new Map([[1, 31]]), (m) => (m ? `/art/${m.id}` : null), [block, block, block, block, null, null])
+  assert.equal(xml.match(/<programme /g)?.length, 2)
+  assert.match(xml, /start="20260901190000 \+0000" stop="20260901191500 \+0000" channel="31">\s*<title>80s Hits<\/title>\s*<sub-title>a-ha, Prince, Madonna<\/sub-title>/)
+  const at = (min: number) => new Date(T + min * MIN)
+  const clock = (d: Date) => `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`
+  assert.ok(xml.includes(`<desc>${clock(at(0))}  a-ha – Take On Me\n${clock(at(4))}  Prince – Kiss\n`), xml)
+  assert.match(xml, /<category>Music<\/category>\s*<icon src="\/art\/1" \/>/)
+})

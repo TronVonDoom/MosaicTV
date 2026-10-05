@@ -8,6 +8,7 @@ import {
   type ChannelChanges,
   type ComingUpConfig,
   type EncodingProfile,
+  type MusicGuide,
   type MusicScreen,
 } from '../../lib/api'
 import { useSyncedDraft } from '../../lib/hooks'
@@ -37,6 +38,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
     musicScreen: ch.musicScreen as MusicScreen,
     lyricsFirst: ch.lyricsFirst,
     songsAround: ch.songsAround,
+    musicGuide: ch.musicGuide as MusicGuide,
   })
   const savedCu = parseComingUp(ch.comingUp) ?? offComingUp()
   const [cu, setCu, cuChanges] = useSyncedDraft<ComingUpConfig>(drafts, 'general.comingUp', savedCu)
@@ -63,6 +65,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
       musicScreen: form.musicScreen,
       lyricsFirst: form.lyricsFirst,
       songsAround: form.songsAround,
+      musicGuide: form.musicGuide,
     }
     // Only what was edited here: the rest stays as the server has it, which
     // may be newer than what this page loaded.
@@ -231,6 +234,22 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
                 </div>
               </div>
               <Switch checked={form.songsAround} onChange={(v) => setForm({ ...form, songsAround: v })} label="Show what played before and what's next" />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-ink">In the guide</div>
+                <div className="text-xs text-ink-faint mt-0.5">
+                  Hour blocks: songs and music videos in a row are listed as one program an hour, named after their collection, the way a cable guide lists a music channel — select one for its songs. Each song: every one listed on its own, a few minutes wide. Here, in the apps and in the XMLTV guide your players read.
+                </div>
+              </div>
+              <Segmented<MusicGuide>
+                options={[
+                  { value: 'hour', label: 'Hour blocks' },
+                  { value: 'song', label: 'Each song' },
+                ]}
+                value={form.musicGuide}
+                onChange={(v) => setForm({ ...form, musicGuide: v })}
+              />
             </div>
           </div>
         </Section>

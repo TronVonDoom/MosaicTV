@@ -9,6 +9,7 @@ import {
   streamMpegtsViaSegmenter,
 } from '../streaming/segmenter.js'
 import { escapeXml, programmesXml } from '../xmltv.js'
+import { guideBlocks } from '../schedule/musicBlocks.js'
 import { baseUrl } from '../http.js'
 import { clientName } from '../sessions.js'
 
@@ -201,7 +202,7 @@ iptvRouter.get('/xmltv.xml', async (req, res) => {
     if (logo) xml += `    <icon src="${escapeXml(logo)}" />\n`
     xml += '  </channel>\n'
   }
-  xml += programmesXml(items, numById, programmeIcon)
+  xml += programmesXml(items, numById, programmeIcon, await guideBlocks(items, channels))
   xml += '</tv>\n'
   res.setHeader('Content-Type', 'application/xml')
   res.send(xml)

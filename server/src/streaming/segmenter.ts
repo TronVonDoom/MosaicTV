@@ -136,6 +136,7 @@ function identItem(channelId: number, startMs: number, stopMs: number): PlayoutI
     startTime: new Date(startMs),
     stopTime: new Date(stopMs),
     groupKey: null,
+    collectionId: null,
     state: null,
     streamed: null,
     inPoint: null,

@@ -34,6 +34,7 @@ import {
 import { readBody } from '../validate.js'
 import { programLabel } from '../labels.js'
 import { channelsNow } from '../schedule/nowPlaying.js'
+import { guideBlocks } from '../schedule/musicBlocks.js'
 import { publish } from '../events.js'
 
 export const channelsRouter = Router()
@@ -172,6 +173,8 @@ channelsRouter.patch('/:id', async (req, res) => {
     const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras].join('|')
     if (before && airs(before) !== airs(c)) scheduleChanged(id)
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
+    // Songs listed another way: the same guide, read anew.
+    if (before && before.musicGuide !== c.musicGuide) publish({ type: 'guide', channelId: id, from: null })
     // A new logo or picture size means new filler clips; build them ahead.
     if (logoId !== undefined || logoUrl !== undefined || profileId !== undefined) warmFiller().catch(() => {})
     publish({ type: 'channel', channelId: id })
@@ -399,7 +402,8 @@ channelsRouter.get('/:id/playout', async (req, res) => {
   const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
   const now = new Date()
   // Just what the guide draws: never the scheduler's checkpoint (`state`, a
-  // few KB a row) or the stream's bookkeeping.
+  // few KB a row) or the stream's bookkeeping. The channel and collection are
+  // read to work out blocks of songs, and left out of the answer.
   const select = {
     id: true,
     startTime: true,
@@ -407,6 +411,8 @@ channelsRouter.get('/:id/playout', async (req, res) => {
     kind: true,
     title: true,
     groupKey: true,
+    channelId: true,
+    collectionId: true,
     mediaItem: {
       select: {
         id: true,
@@ -444,5 +450,23 @@ channelsRouter.get('/:id/playout', async (req, res) => {
     })
     items.unshift(...earlier)
   }
-  res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { id: true, name: true, musicGuide: true } })
+  // Likewise a block of songs on the air began songs ago: read back two hours
+  // (no block started longer ago), so it's listed whole from its start.
+  let before: typeof items = []
+  if (items[0] && items[0].startTime <= now && channel?.musicGuide === 'hour') {
+    before = await prisma.playoutItem.findMany({
+      where: { channelId, stopTime: { gt: new Date(now.getTime() - 2 * 3600 * 1000) }, startTime: { lt: items[0].startTime } },
+      orderBy: { startTime: 'asc' },
+      select,
+    })
+  }
+  const blocks = await guideBlocks([...before, ...items], channel ? [channel] : [])
+  const on = blocks[before.length]
+  let keep = before.length
+  while (on && keep > 0 && blocks[keep - 1]?.key === on.key) keep--
+  const rows = [...before, ...items]
+    .slice(keep)
+    .map(({ channelId: _channel, collectionId: _collection, ...it }, i) => ({ ...it, block: blocks[keep + i] }))
+  res.json({ now: now.toISOString(), items: rows } satisfies Stored<Playout>)
 })

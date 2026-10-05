@@ -239,6 +239,8 @@ export type PlannedRow = {
   state: string | null
   inPoint: number | null
   blockId: number | null
+  /** The collection it was scheduled from (a break: the one airing around it). */
+  collectionId: number | null
 }
 
 /**
@@ -321,14 +323,16 @@ export async function planTimeline(
   }
 
   const created: PlannedRow[] = []
-  // The block being laid out (null = the rotation), for the look-ahead.
+  // The block being laid out (null = the rotation), for the look-ahead, and
+  // the collection airing, which names the guide's blocks of songs.
   let placing: number | null = null
+  let airing: number | null = null
   const pushProgram = (id: number, start: Date, stop: Date, groupKey: string | null, state: string | null, inPoint: number | null = null) =>
-    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state, inPoint, blockId: placing })
+    created.push({ mediaItemId: id, kind: 'program', title: null, startTime: start, stopTime: stop, groupKey, state, inPoint, blockId: placing, collectionId: airing })
   // A break. One inside a program (between its acts) carries the program's
   // groupKey, so the guide shows the program as one entry across it.
   const pushFiller = (start: Date, stop: Date, groupKey: string | null = null) =>
-    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null, blockId: placing })
+    created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null, blockId: placing, collectionId: airing })
 
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
@@ -465,6 +469,7 @@ export async function planTimeline(
     placing = block?.id ?? null
 
     if (block) {
+      airing = block.collectionId
       const key = 'c' + block.collectionId
       const legacy = 'b' + block.id
       const items = await listFor(block.collection, block.playbackOrder, key, legacy)
@@ -599,6 +604,7 @@ export async function planTimeline(
       // Cleared however this turn ends: a block or a hard start ending it early
       // drops the rest, as it always has. Only stopping at the horizon keeps it.
       state.turn = undefined
+      airing = ri.collectionId
       const key = 'c' + ri.collectionId
       const legacy = 'r' + ri.id
       const items = await listFor(ri.collection, ri.playbackOrder, key, legacy)

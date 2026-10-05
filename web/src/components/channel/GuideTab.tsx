@@ -196,7 +196,9 @@ export default function GuideTab({
         />
       ) : (
         <div className="rounded-xl border border-edge bg-sunken/40 divide-y divide-edge/60 overflow-hidden">
-          {playout.items.slice(0, 60).map((it, i) => {
+          {/* From what's on now: the read also sends a block of songs on air
+              from its start, songs already over included, for the timeline. */}
+          {playout.items.filter((it) => new Date(it.stopTime) > new Date(playout.now)).slice(0, 60).map((it, i) => {
             const isNow =
               new Date(it.startTime) <= new Date(playout.now) &&
               new Date(it.stopTime) > new Date(playout.now)

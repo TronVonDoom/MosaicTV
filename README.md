@@ -188,7 +188,9 @@ spectrum drawn from the song, or its lyrics, lit line by line as they're sung â€
 with what played before and what's next along the bottom. Music is filed by
 album artist the way music apps file it, **Take turns** works by artist, and
 MusicBrainz, the Cover Art Archive and LRCLIB fill in albums, covers and synced
-lyrics, free. Music videos get a matching **Now playing** card.
+lyrics, free. Music videos get a matching **Now playing** card. In the guide, a
+run of songs reads as one block an hour named after its collection, with the set
+list a click away, instead of a sliver per song.
 
 <img src="docs/screenshots/now-playing.webp" alt="The Music channel's now-playing screen: Cloudtop Cruise from Mario Kart 8, on the Super Smash Bros. anthology" width="100%" />
 

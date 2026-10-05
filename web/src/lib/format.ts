@@ -3,7 +3,7 @@
 // in api.ts alongside the client.
 
 // Shared with the server's schedule warnings and listings (contract/format.ts).
-export { creditOf, formatDays, minutesToTime } from '@contract'
+export { artistsLine, creditOf, formatDays, minutesToTime } from '@contract'
 import { creditOf, type ExtraKind } from '@contract'
 
 /** "S01E02", or '' when the item isn't a numbered episode. */

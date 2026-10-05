@@ -64,6 +64,12 @@ export const MUSIC_SCREENS = ['album', 'visualizer'] as const
 export type MusicScreen = (typeof MUSIC_SCREENS)[number]
 export const asMusicScreen = (v: unknown): MusicScreen => (v === 'visualizer' ? 'visualizer' : 'album')
 
+/** How the guide lists songs and music videos (Channel.musicGuide): a run of
+ *  them as one block an hour named after their collection, or each on its own. */
+export const MUSIC_GUIDES = ['hour', 'song'] as const
+export type MusicGuide = (typeof MUSIC_GUIDES)[number]
+export const asMusicGuide = (v: unknown): MusicGuide => (v === 'song' ? 'song' : 'hour')
+
 /** The kinds of extra a movie or show can carry — featurettes, trailers,
  *  deleted scenes… — as Plex names them. */
 export const EXTRA_KINDS = ['behindthescenes', 'deleted', 'featurette', 'interview', 'scene', 'short', 'trailer', 'sample', 'other'] as const

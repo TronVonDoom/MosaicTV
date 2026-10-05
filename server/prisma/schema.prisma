@@ -223,28 +223,28 @@ model AiringSegment {
 // later, filler). Members are hand-picked shows and movies; the optional smart
 // filter adds a query-based set (unioned in).
 model Collection {
-  id              Int              @id @default(autoincrement())
-  name            String
+  id            Int              @id @default(autoincrement())
+  name          String
   // Owning channel (null = orphan/unassigned). Cascade-deletes with the channel.
-  channel         Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId       Int?
+  channel       Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId     Int?
   // The collection's own on-screen logo (falls back to the channel logo).
-  logo            Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
-  logoId          Int?
+  logo          Logo?            @relation(fields: [logoId], references: [id], onDelete: SetNull)
+  logoId        Int?
   // The order this collection plays in when a rotation item or time block asks
   // for "inherit" (which is the default for new ones), so a collection airing in
   // several blocks only needs its order set once.
-  defaultOrder    String           @default("chronological")
+  defaultOrder  String           @default("chronological")
   // Optional smart filter (advanced).
-  libraryId       Int?
-  filterType      String? // "movie" | "episode" | "other"
-  filterShow      String? // exact show title (legacy; prefer members)
-  filterSearch    String? // title/show contains
-  filterGenre     String? // genre contains
-  createdAt       DateTime         @default(now())
-  items           CollectionItem[]
-  rotationItems   RotationItem[]
-  timeBlocks      TimeBlock[]
+  libraryId     Int?
+  filterType    String? // "movie" | "episode" | "other"
+  filterShow    String? // exact show title (legacy; prefer members)
+  filterSearch  String? // title/show contains
+  filterGenre   String? // genre contains
+  createdAt     DateTime         @default(now())
+  items         CollectionItem[]
+  rotationItems RotationItem[]
+  timeBlocks    TimeBlock[]
 
   @@index([channelId])
 }
@@ -384,6 +384,10 @@ model Channel {
   // and the one after on the right (see songScreen.ts), in place of the Up
   // next card over a song's last seconds.
   songsAround       Boolean            @default(true)
+  // How the guide lists songs and music videos: "hour" folds a run of them
+  // into one block an hour, named after their collection (the way a cable
+  // guide lists a music channel); "song" lists each on its own.
+  musicGuide        String             @default("hour")
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -441,31 +445,36 @@ model TimeBlock {
 
 // A single scheduled program on a channel's timeline.
 model PlayoutItem {
-  id          Int        @id @default(autoincrement())
-  channel     Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId   Int
-  mediaItem   MediaItem? @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
-  mediaItemId Int? // null for filler
-  kind        String     @default("program") // "program" | "filler"
-  title       String? // label for filler / EPG
-  startTime   DateTime
-  stopTime    DateTime
+  id           Int        @id @default(autoincrement())
+  channel      Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId    Int
+  mediaItem    MediaItem? @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  mediaItemId  Int? // null for filler
+  kind         String     @default("program") // "program" | "filler"
+  title        String? // label for filler / EPG
+  startTime    DateTime
+  stopTime     DateTime
+  // The collection it was scheduled from (a rotation item's or a time
+  // block's), which names a block of songs in the guide (musicBlocks.ts).
+  // Null on rows built before it was kept. No relation: a deleted
+  // collection's rows are replanned away, and a stale id just reads as none.
+  collectionId Int?
   // Ties together the consecutive segments of one multi-part airing so the guide
   // can collapse them into a single programme. Unique per scheduled airing
   // ("channelId:startMs"); null for a normal single-file program or filler.
-  groupKey    String?
+  groupKey     String?
   // Where every collection and the rotation stood just before this program was
   // scheduled (JSON, the playout builder's State) — a checkpoint. Set on the
   // first segment of each program; null on later segments and on filler. A
   // schedule edit cuts the timeline at the next checkpoint and rebuilds from
   // it, so the guide follows the edit without skipping or repeating episodes.
-  state       String?
+  state        String?
   // How it went on the stream, set by the segmenter as it plays it: "ok", or
   // what went wrong ("held: …"). Null while nobody has watched it.
-  streamed    String?
+  streamed     String?
   // Where in the file this row starts, in seconds: set on the second and later
   // acts of a program split at its act breaks (null = the top of the file).
-  inPoint     Float?
+  inPoint      Float?
 
   @@index([channelId, startTime])
 }

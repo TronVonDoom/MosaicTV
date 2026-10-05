@@ -8,6 +8,15 @@
 export const creditOf = (m: { artist?: string | null; trackArtist?: string | null }): string | null =>
   m.trackArtist || m.artist || null
 
+/** Who a block of songs plays, in the order they come up, as its second line
+ *  in a guide: "a-ha, Prince, Madonna + 9 more". Null when none are named. */
+export function artistsLine(songs: { artist?: string | null; trackArtist?: string | null }[], shown = 3): string | null {
+  const names = [...new Set(songs.map(creditOf).filter((n): n is string => !!n))]
+  if (!names.length) return null
+  const more = names.length - shown
+  return names.slice(0, shown).join(', ') + (more > 0 ? ` + ${more} more` : '')
+}
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 /** "1,2,3,4,5" -> "Weekdays"; "0,6" -> "Weekends"; else "Mon, Wed". */
