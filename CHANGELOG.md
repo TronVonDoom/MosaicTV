@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 — Backups that come back, and GPUs that encode (2026-10-05)
+
+A backup you can restore from Settings, Intel and AMD GPUs that encode at
+last, live segments that can stay in RAM — and a round of fixes from a look
+over the whole project, several of them found in a live server's logs.
 
 - **Restore a backup, from Settings.** **Settings → Maintenance → Restore a
   backup** takes the `.tar.gz` that **Download a backup** saves and puts the
