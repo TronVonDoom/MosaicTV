@@ -1,18 +1,21 @@
-// Records the demo channels' live streams at the moments worth showing — a
-// program, its up-next card, a break, a music video's Now playing card — and
-// keeps a frame every two seconds from each, to pick the best from.
+// Records a MosaicTV's channels at the moments worth showing — a program, its
+// up-next card, a break, a song starting — and keeps a frame every two seconds
+// from each, to pick the best from. It only watches: the streams are read the
+// way any player reads them.
 //
-//   DEMO_DIR=… MOSAIC=http://localhost:8830 node site/demo/frames.mjs [window-minutes]
+//   CAPTURE_DIR=… MOSAIC=http://your-server:8688 node site/capture/frames.mjs [window-minutes] [channel numbers]
 //
-// Runs until every moment inside the window (default 40 minutes) has passed.
+// Runs until every moment inside the window (default 40 minutes) has passed;
+// `13,31,64` keeps it to those channels.
 
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const DEMO = process.env.DEMO_DIR
-const BASE = process.env.MOSAIC ?? 'http://localhost:8830'
-const OUT = path.join(DEMO, 'caps')
+const DIR = process.env.CAPTURE_DIR
+const BASE = process.env.MOSAIC
+if (!DIR || !BASE) throw new Error('Set CAPTURE_DIR and MOSAIC')
+const OUT = path.join(DIR, 'caps')
 const WINDOW = Number(process.argv[2] ?? 40) * 60_000
 const only = process.argv[3] ? process.argv[3].split(',').map(Number) : null
 fs.mkdirSync(OUT, { recursive: true })

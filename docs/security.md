@@ -2,7 +2,7 @@
 
 **MosaicTV has no login. Treat it as LAN-only.**
 
-Like most self-hosted media tools of its kind (ErsatzTV, Threadfin, xTeVe…),
+Like most self-hosted media tools of its kind (Threadfin, xTeVe…),
 MosaicTV assumes it runs on a trusted home network. Anyone who can reach port
 8688 can open the admin UI, change your channels, and read your media library
 listing. That's the deal — so control who can reach the port.

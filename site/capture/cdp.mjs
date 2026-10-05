@@ -31,7 +31,9 @@ export async function launch({ port = 9333, headless = true } = {}) {
     '--hide-scrollbars',
     '--mute-audio',
     '--autoplay-policy=no-user-gesture-required',
-    '--disable-features=Translate,MediaRouter',
+    // The private-network checks too: a page shots.mjs serves itself (WEB=)
+    // counts as public, and would be refused the instance's streams.
+    '--disable-features=Translate,MediaRouter,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,LocalNetworkAccessChecks',
     ...(headless ? ['--headless=new'] : []),
     'about:blank',
   ]

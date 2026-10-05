@@ -1,5 +1,5 @@
 // A contact sheet of images, for looking over generated art at a glance.
-//   node site/demo/sheet.mjs <out.jpg> <columns> <tileWidth> <image>…
+//   node site/capture/sheet.mjs <out.jpg> <columns> <tileWidth> <image>…
 
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'

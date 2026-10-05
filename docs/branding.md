@@ -74,6 +74,8 @@ show, instead of going to black:
 
 ### The Breaks tab
 
+<img src="screenshots/breaks.webp" alt="Nickelodeon's Breaks tab: the next break, which blocks have breaks, and its two idents" width="100%" />
+
 Each channel's **Breaks** tab is the one place its breaks are set up:
 
 - **Next break** — when it is, what it leads into, which ident it'll play, and
@@ -94,7 +96,7 @@ Each channel's **Breaks** tab is the one place its breaks are set up:
 
 An ident belongs to one channel. Each has:
 
-- a **look** — **Frosted glass**, **Spotlight**, **Your own clip** (a
+- a **look** — **Mosaic** (the default), **Frosted glass**, **Your own clip** (a
   video uploaded to **Studio → Clips**), or **Clips from a folder** (a break
   reel, below);
 - a **logo** — **Follow the block** (the logo of whichever block is on, so one
@@ -106,7 +108,7 @@ An ident belongs to one channel. Each has:
   those blocks are on. Pick blocks one by one or by the logo they air with.
 
 Every channel keeps at least one "everywhere else" ident — a new channel starts
-with a frosted-glass one made from its logo — so every break has something the
+with a Mosaic one made from its logo — so every break has something the
 tab lists. Where several idents can play, breaks take turns in the list's
 order (move them up and down to change it). The order carries on across a
 restart, and a break that's rebuilt (a retry, a restart mid-break) keeps the
@@ -122,12 +124,14 @@ another. **Duplicate** makes a second copy on the same channel.
 
 ### Looks
 
+<img src="screenshots/idents.webp" alt="Mosaic made from the Nickelodeon logo, and frosted glass made from Cartoon Network's" width="100%" />
+
 | Look | What it is |
 | ---- | ---------- |
-| **Frosted glass** | Rows of logos glide behind frosted glass, still recognisable through the frost, with out-of-focus lights drifting up at different depths. A more heavily frosted band sits behind your logo, which floats in front on a soft shadow, and light plays across the glass as it runs. Under **Advanced**, **Divider between the halves** adds a lit glass seam between your logo and the MosaicTV mark |
-| **Spotlight** | A lit glass card with a sweeping gleam, your logo above the wordmark |
+| **Mosaic** | Your logo on a wall of glass tiles, with rings of light spreading out from behind it through the tiles every few seconds. The wall shades through violet, blue, cyan and magenta as the colours drift across it, a few tiles sparkle now and then, and the MosaicTV mark sits small below your logo |
+| **Frosted glass** | Rows of logos glide behind frosted glass, still recognisable through the frost, with out-of-focus lights drifting up at different depths. Each logo in the rows keeps room either side, so a wordmark drawn right to its edges still reads as one logo after another. A more heavily frosted band sits behind your logo, which floats in front on a soft shadow, and light plays across the glass as it runs. Under **Advanced**, **Divider between the halves** adds a lit glass seam between your logo and the MosaicTV mark |
 | **Your own clip** | A bumper or ident reel you upload, looped for the length of the break |
-| **Clips from a folder** | A break reel: a folder of clips on your media share — bumpers, promos, old commercials. Each break plays a fresh mix of them, one after another, and the channel's frosted glass covers whatever time they don't fill. The same break always gets the same clips (a restart mid-break carries on), no clip plays twice in one break, and clips play with their own sound. **Look again** picks up clips added to the folder since |
+| **Clips from a folder** | A break reel: a folder of clips on your media share — bumpers, promos, old commercials. Each break plays a fresh mix of them, one after another, and Mosaic, from the logo on the air, covers whatever time they don't fill. The same break always gets the same clips (a restart mid-break carries on), no clip plays twice in one break, and clips play with their own sound. **Look again** picks up clips added to the folder since |
 
 **Advanced** also has the logo's size. The picture is always built at the
 channel's own size.
@@ -135,7 +139,8 @@ channel's own size.
 Earlier builds also offered `logowall`, `pulse`, `animated`, `retro` and
 `vintage`. Idents on a retired look keep playing and stay editable; new ones
 can't pick it. (`animated` is also the internal fallback whenever a branded
-clip can't be built.)
+clip can't be built.) **Spotlight** was replaced by Mosaic: an ident that had
+it became a Mosaic one on upgrading.
 
 The **music** isn't part of the clip: it's laid over the break as it airs,
 starting at the top of every break and playing straight through, looping if
@@ -145,7 +150,7 @@ tone plays. Changing the music never rebuilds a clip.
 
 A generated clip is a **seamless loop** — every moving part comes back to where
 it started by the end, so a long break shows no jump where the clip repeats.
-Spotlight loops every 30 seconds; frosted glass every two minutes or so, the
+Mosaic loops every 30 seconds; frosted glass every two minutes or so, the
 time its slowest lights take to rise back round.
 
 ### Preview
@@ -190,6 +195,8 @@ Near the end of a program, a card slides in naming what's on next: the next
 program's poster, its title, the episode (`S1 · E4`) and episode title, and
 its year, genres and rating, under an **UP NEXT** label with the time it
 starts. A movie shows its runtime instead of an episode.
+
+<img src="screenshots/up-next-card.webp" alt="An up-next card for Are You Afraid of the Dark? kept inside the 4:3 picture of The Ren & Stimpy Show" width="100%" />
 
 There are two styles:
 

@@ -123,6 +123,8 @@ Grouping belongs to the show, not to a channel: **Library** → the show → a
 season → **Group broadcast episodes**. Every channel that airs the show uses
 it.
 
+<img src="screenshots/broadcast-episodes-editor.webp" alt="Grouping 2 Stupid Dogs: each broadcast episode is two dog cartoons with a Super Secret Secret Squirrel short between them" width="100%" />
+
 ### Grouping a season
 
 The editor shows the season as a running order, one row per program:
@@ -163,6 +165,8 @@ short can be borrowed into more than one show and airs inside each.
 - In the guide, a broadcast episode is one program. The XMLTV listing has one
   entry spanning all its segments, with each segment named in the subtitle
   and description.
+
+<img src="screenshots/broadcast-episodes.webp" alt="2 Stupid Dogs season 1, each episode tagged with its broadcast episode and Goldflipper woven in" width="100%" />
 
 ### How it airs
 
@@ -237,6 +241,8 @@ it left off, even across guide rebuilds and container restarts.
 
 Blocks override the rotation during specific day/time windows (*Sat–Sun
 08:00–11:00 → Cartoons*). Add them from the weekly grid or the form.
+
+<img src="screenshots/schedule.webp" alt="Nickelodeon's week of time blocks: Nickelodeon by day, Nick at Nite every night, SNICK on Saturday at 8" width="100%" />
 
 Per block:
 

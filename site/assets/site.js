@@ -12,7 +12,7 @@ addEventListener('scroll', onScroll, { passive: true })
 onScroll()
 
 // ── The TV ──────────────────────────────────────────────────────────────────
-// Each channel is a frame captured from the demo instance's own stream (logo,
+// Each channel is a frame captured from a real channel's stream (logo,
 // up-next card and all). Flip with the buttons, ↑/↓, a number, or a swipe.
 {
   const tv = $('#tv')
@@ -139,7 +139,7 @@ $$('[data-swap]').forEach((group) => {
   )
 })
 
-// ── Broadcast episodes: three shorts fold into the half-hour they aired as ──
+// ── Broadcast episodes: the shorts fold into the half-hour they aired as ───
 {
   const fold = $('#fold')
   if (fold) {
@@ -154,8 +154,8 @@ $$('[data-swap]').forEach((group) => {
         el.style.opacity = Number(w) > 0 && Number(l) < 100 ? '1' : '0'
       })
       $('#fold-verdict', fold).innerHTML = on
-        ? '<span><b>One program</b> in the guide, 2:00–2:30</span><span>Breaks between the parts, as it aired</span>'
-        : '<span><b>Three seven-minute programs</b>, shuffled in with everything else</span><span>Part two airs on Tuesday</span>'
+        ? '<span><b>One program in the guide</b>, 8:00–8:23 — its three parts play back to back</span><span>The squirrel back between the dogs, where it aired in 1993</span>'
+        : '<span><b>Three separate programs</b>, each on its own in the guide</span><span>Goldflipper is another show, and Where’s the Bone airs another day</span>'
     }
     buttons.forEach((b) => b.addEventListener('click', () => set(b.dataset.fold === '1')))
     set(false)
@@ -188,4 +188,128 @@ $$('.copy').forEach((b) =>
 {
   const io = new IntersectionObserver((es) => es.forEach((e) => (e.isIntersecting ? e.target.play?.().catch(() => {}) : e.target.pause?.())), { threshold: 0.25 })
   $$('video[data-auto]').forEach((v) => io.observe(v))
+}
+
+// ── The closing wall: glass tiles lit by rings of light, like the Mosaic ident ──
+{
+  const canvas = $('#mosaic-bg')
+  if (canvas) {
+    const ctx = canvas.getContext('2d')
+    const STOPS = [[139, 92, 246], [59, 110, 246], [34, 200, 238], [236, 72, 153]]
+    const hash = (x, y, s) => {
+      const v = Math.sin(x * 12.9898 + y * 78.233 + s) * 43758.5453
+      return v - Math.floor(v)
+    }
+    // A hue round the four stops, as a colour.
+    const colour = (h) => {
+      const f = ((h % 1) + 1) % 1 * 4
+      const i = Math.floor(f)
+      const a = STOPS[i]
+      const b = STOPS[(i + 1) % 4]
+      const t = f - i
+      return a.map((v, k) => v + (b[k] - v) * t)
+    }
+    let w, h, cols, rows, tile, dpr
+    const size = () => {
+      dpr = Math.min(devicePixelRatio || 1, 1.5)
+      const r = canvas.getBoundingClientRect()
+      w = canvas.width = Math.round(r.width * dpr)
+      h = canvas.height = Math.round(r.height * dpr)
+      tile = 30 * dpr
+      cols = Math.ceil(w / tile)
+      rows = Math.ceil(h / tile)
+    }
+    const draw = (t) => {
+      ctx.fillStyle = '#06070b'
+      ctx.fillRect(0, 0, w, h)
+      const cx = cols / 2
+      const cy = rows / 2
+      const gap = Math.max(2, tile * 0.1)
+      for (let y = 0; y < rows; y++)
+        for (let x = 0; x < cols; x++) {
+          const d = Math.hypot(x - cx, (y - cy) * 1.15)
+          let p = t / 5 - d / 17
+          p -= Math.floor(p)
+          const ring = Math.exp(-9 * p) * (0.3 + 0.7 * Math.exp(-d / 26))
+          const spark = hash(x, y, 3.1) > 0.9 ? Math.max(0, Math.sin(2 * Math.PI * (t / 7.5 + hash(x, y, 7.7)))) ** 24 : 0
+          const light = 0.1 + 0.14 * hash(x, y, 1.3) + 0.95 * ring + 0.7 * spark
+          const [r, g, b] = colour(x / cols * 0.55 + y / rows * 0.3 + t / 30)
+          const hot = Math.max(0, light - 0.7) * 280
+          ctx.fillStyle = `rgb(${Math.min(255, r * light * 1.25 + hot)},${Math.min(255, g * light * 1.25 + hot)},${Math.min(255, b * light * 1.25 + hot)})`
+          ctx.beginPath()
+          ctx.roundRect(x * tile + gap / 2, y * tile + gap / 2, tile - gap, tile - gap, tile * 0.16)
+          ctx.fill()
+        }
+    }
+    size()
+    addEventListener('resize', () => (size(), draw(performance.now() / 1000)))
+    let on = false
+    const loop = (ms) => {
+      if (!on) return
+      draw(ms / 1000)
+      requestAnimationFrame(loop)
+    }
+    if (reduced) draw(1.4)
+    else
+      new IntersectionObserver((es) => {
+        on = es[0].isIntersecting
+        if (on) requestAnimationFrame(loop)
+      }).observe(canvas)
+  }
+}
+
+// ── Click a picture to see it full size ────────────────────────────────────
+// Screenshots are shown small; each is published big enough to read.
+{
+  const pictures = $$('.shot img, .frame img, .thumb img, .phone img, .ident video')
+  let box = null
+  const close = () => {
+    if (!box) return
+    const b = box
+    box = null
+    b.classList.remove('open')
+    document.body.style.overflow = ''
+    setTimeout(() => b.remove(), 200)
+  }
+  const open = (el) => {
+    close()
+    box = document.createElement('div')
+    box.className = 'lightbox'
+    box.setAttribute('role', 'dialog')
+    box.setAttribute('aria-modal', 'true')
+    const fig = document.createElement('figure')
+    let media
+    if (el.tagName === 'VIDEO') {
+      media = document.createElement('video')
+      Object.assign(media, { src: el.currentSrc || el.src, muted: true, loop: true, autoplay: true, playsInline: true })
+    } else {
+      media = document.createElement('img')
+      media.src = el.currentSrc || el.src
+      media.alt = el.alt
+    }
+    fig.appendChild(media)
+    const text = el.alt || el.closest('figure')?.querySelector('figcaption')?.textContent
+    if (text) {
+      const cap = document.createElement('figcaption')
+      cap.textContent = text
+      fig.appendChild(cap)
+    }
+    const x = document.createElement('button')
+    x.className = 'close'
+    x.setAttribute('aria-label', 'Close')
+    x.textContent = '×'
+    box.append(fig, x)
+    box.addEventListener('click', close)
+    document.body.appendChild(box)
+    document.body.style.overflow = 'hidden'
+    requestAnimationFrame(() => box?.classList.add('open'))
+    x.focus()
+  }
+  pictures.forEach((el) => {
+    el.classList.add('zoomable')
+    el.setAttribute('tabindex', '0')
+    el.addEventListener('click', () => open(el))
+    el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open(el)))
+  })
+  addEventListener('keydown', (e) => e.key === 'Escape' && close())
 }

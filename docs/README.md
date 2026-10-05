@@ -19,6 +19,7 @@ plugs into Plex, Jellyfin, Emby, or any IPTV player.
 
 ## Quick links
 
+- Questions and show-and-tell: [r/MosaicTV](https://www.reddit.com/r/MosaicTV/)
 - Web UI: `http://YOUR-SERVER:8688`
 - M3U playlist: `http://YOUR-SERVER:8688/iptv/channels.m3u`
 - XMLTV guide: `http://YOUR-SERVER:8688/iptv/xmltv.xml`

@@ -1,7 +1,7 @@
 name: Website
 
 # Publishes site/ (the project website) to GitHub Pages whenever it changes on
-# main. site/demo/ is the generator for its screenshots, not part of the site.
+# main. site/capture/ makes its pictures; it is not part of the site.
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir _site
           cp -r site/. _site/
-          rm -rf _site/demo
+          rm -rf _site/capture
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5
