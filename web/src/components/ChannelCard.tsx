@@ -142,10 +142,11 @@ export default function ChannelCard({
         <ProgramArt unit={draft ? null : unit} logoId={channel.logoId} name={channel.name} />
 
         <div className="absolute inset-x-0 top-0 p-3 flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 rounded-xl bg-black/50 backdrop-blur-md ring-1 ring-white/10 pl-1 pr-2.5 py-1">
-            <ChannelLogo logoId={channel.logoId} name={channel.name} size={28} plate={false} />
-            <span className="font-mono text-[13px] font-semibold text-white tabular-nums">{draft ? '—' : channel.number}</span>
-          </div>
+          {/* Just its number, as a set's channel display shows it (the logo
+              is the card's picture when nothing's on). */}
+          <span className="rounded-lg bg-black/55 backdrop-blur-md ring-1 ring-white/10 px-2.5 py-1 font-mono text-[14px] font-semibold leading-5 text-white tabular-nums">
+            {draft ? '—' : channel.number}
+          </span>
           <div className="flex items-center gap-1.5">
             {channel.viewers > 0 && (
               <span
