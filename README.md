@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://tronvondoom.github.io/mosaictv/"><b>Website</b></a> ·
   <a href="docs/install.md"><b>Install</b></a> ·
   <a href="docs/getting-started.md"><b>Getting started</b></a> ·
   <a href="docs/README.md"><b>Docs</b></a> ·
@@ -305,9 +304,6 @@ For local development:
 npm run install:all   # root + server + web dependencies
 npm run dev           # backend :8688, frontend :5173
 ```
-
-The website lives in [`site/`](site/), and [`site/capture/`](site/capture/)
-takes its pictures (and this page's) from a running MosaicTV.
 
 ## Community
 
