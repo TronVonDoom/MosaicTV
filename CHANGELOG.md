@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.1 — Channels by number (2026-10-04)
+
+A fix for a blank Breaks tab, and channel pages that go by the number you
+gave the channel.
+
+- **The Breaks tab opens when a block keeps its own clock.** A time block with
+  a broadcast clock of its own, on a channel with the clock off, left the
+  Breaks tab blank. It now opens, and says the block runs on its own clock
+  with a break after every program.
+- **Channel pages go by number.** Channel 64's page is `/channels/64` — it was
+  the channel's internal id. A draft, with no number yet, is
+  `/channels/id-7` until it gets one, and the address follows the number
+  when you change it. Old links and bookmarks still open the right channel.
+
 ## 0.15.0 — Mosaic on every break (2026-10-04)
 
 A new look for station breaks, made the default — and frosted glass that keeps
