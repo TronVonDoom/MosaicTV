@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 — Hour blocks, and pages that open at once (2026-10-05)
+
+A music channel's guide listed the way a cable guide lists one, pages that
+open on what they showed last time, and a server that sends a fraction of
+what it did.
 
 - **Songs read as hour blocks in the guide.** A song is three or four minutes
   long, a sliver too narrow for its name. Songs and music videos that air one
@@ -14,6 +18,32 @@
   **In the guide** to **Each song**, under **Music** on its General tab.
   Guide rows built before the upgrade are named after the channel's
   collection, or the channel, until the guide reaches past them.
+- **Pages open at once.** Every page used to start from a blank skeleton and
+  wait on the server — on a remote link, a second or more for a library's
+  grid. A page you've opened before now draws straight away from what it
+  showed last time and checks for changes behind it, and that's kept in the
+  browser, so a reload or tomorrow's visit is just as quick. What's on now
+  and the guide are never shown from a copy more than a few minutes old, and
+  nobody is shown as watching until the server says so. A new version starts
+  fresh.
+- **Less to download.** Nothing the server sent was compressed. The
+  pages' data and the app itself now go compressed, a fifth to a tenth the
+  size, and the app's own files are kept by the browser until the next
+  version rather than asked for on every visit. Streams and the tuner
+  discovery files are sent as they were.
+- **The Library page's cards show their posters plainly.** Six posters
+  across (seven square covers for music), nearly straight and crisp, every
+  other column half a tile lower, drifting apart under the pointer. They're
+  drawn from the whole library — a music library's used to be one artist's
+  albums over and over — with no repeats. A long library name wraps rather
+  than cutting off, and four libraries sit two by two.
+- **Channel cards show just their number.** The small logo beside the number
+  is gone, on the Channels page and the Dashboard alike. The logo is still the
+  card's picture when nothing's on.
+- **A two-parter on now is whole in the guide.** An airing whose first part
+  had already played (a 2 Stupid Dogs in its second half) was drawn from the
+  part on now. It's drawn whole again, and the guide's read sends a fraction
+  of what it did.
 
 ## 0.15.2 — Square covers (2026-10-04)
 
