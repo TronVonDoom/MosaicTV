@@ -398,6 +398,31 @@ channelsRouter.get('/:id/playout', async (req, res) => {
   const channelId = Number(req.params.id)
   const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
   const now = new Date()
+  // Just what the guide draws: never the scheduler's checkpoint (`state`, a
+  // few KB a row) or the stream's bookkeeping.
+  const select = {
+    id: true,
+    startTime: true,
+    stopTime: true,
+    kind: true,
+    title: true,
+    groupKey: true,
+    mediaItem: {
+      select: {
+        id: true,
+        title: true,
+        showTitle: true,
+        season: true,
+        episode: true,
+        type: true,
+        artist: true,
+        trackArtist: true,
+        durationSec: true,
+        posterPath: true,
+        tmdbPosterPath: true,
+      },
+    },
+  } as const
   const items = await prisma.playoutItem.findMany({
     where: {
       channelId,
@@ -405,23 +430,19 @@ channelsRouter.get('/:id/playout', async (req, res) => {
       startTime: { lt: new Date(now.getTime() + hours * 3600 * 1000) },
     },
     orderBy: { startTime: 'asc' },
-    include: {
-      mediaItem: {
-        select: {
-          id: true,
-          title: true,
-          showTitle: true,
-          season: true,
-          episode: true,
-          type: true,
-          artist: true,
-          trackArtist: true,
-          durationSec: true,
-          posterPath: true,
-          tmdbPosterPath: true,
-        },
-      },
-    },
+    select,
   })
+  // An airing on the air may have started segments ago (a 2-parter whose
+  // first half has ended): fetch those too, so the guide shows it whole from
+  // its start, as channelsNow does.
+  const first = items[0]
+  if (first?.groupKey && first.startTime <= now) {
+    const earlier = await prisma.playoutItem.findMany({
+      where: { channelId, groupKey: first.groupKey, startTime: { lt: first.startTime } },
+      orderBy: { startTime: 'asc' },
+      select,
+    })
+    items.unshift(...earlier)
+  }
   res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
 })

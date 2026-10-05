@@ -231,7 +231,7 @@ export default function GuideTab({
                       (new Date(it.stopTime).getTime() - new Date(it.startTime).getTime()) / 1000,
                   )}
                 </span>
-                {i === 0 && !isNow && <span className="text-[10px] text-ink-ghost shrink-0">next</span>}
+                {i === 0 && new Date(it.startTime) > new Date(playout.now) && <span className="text-[10px] text-ink-ghost shrink-0">next</span>}
               </button>
             )
           })}
