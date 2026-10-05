@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { compareTitles, isUnmatched, letterStarts, matchesOf, titleDoubt, titleLetter, type JumpLetter } from '@contract'
 import {
@@ -302,7 +302,7 @@ export default function LibraryView() {
       })
       .catch(() => {})
       .finally(() => mine === request.current && setLoading(false))
-  }, [library, local, id, params, match, view])
+  }, [library, mediaType, local, id, params, match, view])
 
   // Infinite scroll: the next page loads as the end of the grid comes into view.
   useEffect(() => {
@@ -363,14 +363,14 @@ export default function LibraryView() {
 
   /** What the review filter shows, as titles to fix one by one — but for
    *  those unmatched by hand everywhere, which were settled already. */
-  const reviewTargets = (): MatchTarget[] => {
+  const reviewTargets = useMemo((): MatchTarget[] => {
     const sources = library?.metadataSources ?? []
     const all = isTv
       ? visibleShows.flatMap((s) => (s.id != null ? [matchTarget('show', { ...s, id: s.id }, { title: s.showTitle, year: s.fileYear }, sources, s.episodeCount)] : []))
       : items.filter((m) => m.type === 'movie' && !m.extra).map((m) => matchTarget('movie', m, m, sources))
     return all.filter((t) => !matchesOf(t.fields, t.sources).every((m) => m.match === 'skip'))
-  }
-  const reviewable = useMemo(() => reviewTargets().length, [visibleShows, items, library, isTv])
+  }, [visibleShows, items, library, isTv])
+  const reviewable = reviewTargets.length
 
   // The jump bar, while the grid is in title order: a TV library's shows are
   // all here to count; a movie library's letters come with its first page.
@@ -396,13 +396,14 @@ export default function LibraryView() {
   // that starts partway along a row isn't read as the one before it.
   const jumped = useRef<{ letter: JumpLetter; y: number } | null>(null)
 
+  const hasLibrary = library != null
   useLayoutEffect(() => {
     const el = toolbar.current
     if (!el) return
     const ro = new ResizeObserver(() => setToolbarHeight(el.offsetHeight))
     ro.observe(el)
     return () => ro.disconnect()
-  }, [view, library == null])
+  }, [view, hasLibrary])
 
   /** Bring a card's row up under the toolbar. */
   function scrollToCard(i: number, letter: JumpLetter) {
@@ -691,7 +692,7 @@ export default function LibraryView() {
               <Icon name="info" size={14} className="shrink-0 text-ink-faint" />
               {FILTER_HINTS[match]}
               {(match === 'unmatched' || match === 'doubtful') && reviewable > 0 && (
-                <button onClick={() => setReviewing(reviewTargets())} className="font-medium text-cue hover:text-amber-200">
+                <button onClick={() => setReviewing(reviewTargets)} className="font-medium text-cue hover:text-amber-200">
                   Fix them one by one
                 </button>
               )}
@@ -854,19 +855,22 @@ export default function LibraryView() {
       {selectedId != null && (
         <MediaDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={() => movieChanged(selectedId)} />
       )}
-      {/* A movie's or show's page, over the grid (which keeps its place). */}
-      <Outlet
-        context={
-          {
-            movieChanged,
-            showsChanged: () => {
-              loadCounts()
-              void showsRead.reload()
-              if (hasHome) void homeRead.reload()
-            },
-          } satisfies LibraryLayerContext
-        }
-      />
+      {/* A movie's or show's page, over the grid (which keeps its place, here
+          too while the page's script arrives). */}
+      <Suspense fallback={null}>
+        <Outlet
+          context={
+            {
+              movieChanged,
+              showsChanged: () => {
+                loadCounts()
+                void showsRead.reload()
+                if (hasHome) void homeRead.reload()
+              },
+            } satisfies LibraryLayerContext
+          }
+        />
+      </Suspense>
     </div>
   )
 }

@@ -12,6 +12,12 @@ services:
     # See docs/hardware-acceleration.md.
     # runtime: nvidia
     #
+    # ── Intel / AMD GPU (optional) ────────────────────────────────────────
+    # For QuickSync or VAAPI, uncomment these two lines to pass the GPU in.
+    # The image has the drivers. See docs/hardware-acceleration.md.
+    # devices:
+    #   - /dev/dri:/dev/dri
+    #
     # Unraid Docker integration: WebUI button, icon, and console.
     # [IP]/[PORT:8688] are Unraid placeholders it substitutes automatically.
     labels:
@@ -27,6 +33,12 @@ services:
       - DATABASE_URL=file:/app/data/mosaictv.db
       # - NVIDIA_VISIBLE_DEVICES=all       # uncomment for NVIDIA GPU
       # - NVIDIA_DRIVER_CAPABILITIES=all   # uncomment for NVIDIA GPU
+      # - HLS_DIR=/transcode               # uncomment with tmpfs below: live segments in RAM
+    # ── Live segments in RAM (optional) ───────────────────────────────────
+    # Spares the drive the data folder is on. About 225 MB per 1080p channel
+    # playing at once — see docs/install.md.
+    # tmpfs:
+    #   - /transcode:size=1g
     volumes:
       # Persistent app data (SQLite database + config) — keep this.
       - ./data:/app/data

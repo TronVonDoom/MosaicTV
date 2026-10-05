@@ -60,7 +60,7 @@ export default function Watch() {
   const channelsRead = useCached(reads.channels)
   const nowRead = useCached(reads.channelsNow)
   // A list that won't load at all is an empty lineup, not a black screen forever.
-  const channels = channelsRead.data ?? (channelsRead.error ? [] : null)
+  const channels = useMemo(() => channelsRead.data ?? (channelsRead.error ? [] : null), [channelsRead.data, channelsRead.error])
   const rows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((x) => [x.channelId, x])), [nowRead.data])
   const [current, setCurrent] = useState<number | null>(null)
   const [previous, setPrevious] = useState<number | null>(null)

@@ -1,21 +1,51 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import Library from './pages/Library'
-import LibraryView from './pages/LibraryView'
-import ShowView from './pages/ShowView'
-import ArtistView from './pages/ArtistView'
-import MovieView from './pages/MovieView'
-import Settings from './pages/Settings'
-import Channels from './pages/Channels'
-import ChannelEditor from './pages/ChannelEditor'
-import Studio from './pages/Studio'
-import Logs from './pages/Logs'
 
-// TV mode carries the video player (hls.js), so it loads when first opened
-// rather than with every page.
+// Each page is a script of its own, so the first screen waits on its own code
+// rather than on every page's (the app was one 750 KB script). The others are
+// fetched in the background once it's up — kept by the browser for good, as
+// every built file is — so going to one doesn't wait on the network either.
+const pages = {
+  Dashboard: () => import('./pages/Dashboard'),
+  Library: () => import('./pages/Library'),
+  LibraryView: () => import('./pages/LibraryView'),
+  ShowView: () => import('./pages/ShowView'),
+  ArtistView: () => import('./pages/ArtistView'),
+  MovieView: () => import('./pages/MovieView'),
+  Settings: () => import('./pages/Settings'),
+  Channels: () => import('./pages/Channels'),
+  ChannelEditor: () => import('./pages/ChannelEditor'),
+  Studio: () => import('./pages/Studio'),
+  Logs: () => import('./pages/Logs'),
+}
+const Dashboard = lazy(pages.Dashboard)
+const Library = lazy(pages.Library)
+const LibraryView = lazy(pages.LibraryView)
+const ShowView = lazy(pages.ShowView)
+const ArtistView = lazy(pages.ArtistView)
+const MovieView = lazy(pages.MovieView)
+const Settings = lazy(pages.Settings)
+const Channels = lazy(pages.Channels)
+const ChannelEditor = lazy(pages.ChannelEditor)
+const Studio = lazy(pages.Studio)
+const Logs = lazy(pages.Logs)
+
+// TV mode carries the video player (hls.js), so it loads only when opened,
+// never in the background.
 const Watch = lazy(() => import('./pages/Watch'))
+
+function preloadPages(): () => void {
+  const start = () => {
+    for (const load of Object.values(pages)) load().catch(() => {}) // a miss loads again when opened
+  }
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(start, { timeout: 2000 })
+    return () => window.cancelIdleCallback(id)
+  }
+  const id = setTimeout(start, 1000)
+  return () => clearTimeout(id)
+}
 
 /**
  * Rewrite the leading segment of the current path and redirect there, keeping
@@ -28,6 +58,7 @@ function LegacyRedirect({ from, to }: { from: string; to: string }) {
 }
 
 export default function App() {
+  useEffect(preloadPages, [])
   return (
     <Routes>
       {/* TV mode is the whole screen: no sidebar, no top bar. */}

@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, backupUrl, type Health, type Stats } from '../../lib/api'
 import { forgetAll } from '../../lib/cache'
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
 import { toast } from '../../lib/toast'
 import Icon from '../Icon'
-import { Button, LinkButton, Switch } from '../ui'
+import { Banner, Button, LinkButton, Switch } from '../ui'
 import { SettingRow, SettingsGroup, SettingsSection } from './SettingsKit'
 
 const REPO = 'https://github.com/TronVonDoom/mosaictv'
@@ -41,16 +41,65 @@ export default function MaintenanceSettings() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [wipeAssets, setWipeAssets] = useState(true)
   const [resetBusy, setResetBusy] = useState(false)
+  // A restore: sending the backup, then waiting on the restart that puts it
+  // in place — `slow` once that's taken long enough to need a hand.
+  const [restore, setRestore] = useState<'idle' | 'sending' | 'restarting' | 'slow'>('idle')
+  const restoreInput = useRef<HTMLInputElement>(null)
   useEffect(() => {
     api.health().then(setHealth).catch(() => {})
     api.stats().then(setStats).catch(() => {})
   }, [])
 
+  // Back once a MosaicTV answers that started after the restore was sent.
+  useEffect(() => {
+    if (restore !== 'restarting') return
+    const sent = Date.now()
+    let stopped = false
+    const poll = async () => {
+      if (stopped) return
+      const h = await api.health().catch(() => null)
+      if (h && h.uptimeSeconds * 1000 < Date.now() - sent) return window.location.reload()
+      if (Date.now() - sent > 60_000) setRestore('slow')
+      setTimeout(poll, 2000)
+    }
+    const first = setTimeout(poll, 2000)
+    return () => {
+      stopped = true
+      clearTimeout(first)
+    }
+  }, [restore])
+
+  async function restoreFrom(file: File) {
+    if (
+      !(await confirmDialog({
+        title: `Restore ${file.name}?`,
+        message:
+          'Everything here now — libraries, channels, collections, settings and uploads — is replaced by what the backup has. MosaicTV restarts to do it, and keeps a copy of the database as it is now in the data folder’s backups.',
+        confirmLabel: 'Restore and restart',
+        danger: true,
+      }))
+    )
+      return
+    setRestore('sending')
+    try {
+      await api.restoreBackup(file)
+    } catch (err) {
+      toast.error(errorMessage(err, 'Restore failed'))
+      setRestore('idle')
+      return
+    }
+    // What the browser kept of this instance isn't what comes back.
+    forgetAll()
+    setRestore('restarting')
+  }
+
   async function resetInstance() {
     if (
       !(await confirmDialog({
         title: 'Reset MosaicTV to a clean slate?',
-        message: `This wipes every library, channel, collection, logo and setting${wipeAssets ? ', and deletes your uploaded logos, music and clips' : ''}. It can’t be undone — download a backup first.`,
+        message: wipeAssets
+          ? 'This wipes every library, channel, collection and setting, and deletes your uploaded logos, music and clips. It can’t be undone — download a backup first.'
+          : 'This wipes every library, channel, collection and setting. Your uploaded logos, music and clips stay. It can’t be undone — download a backup first.',
         confirmLabel: 'Wipe everything',
         danger: true,
       }))
@@ -74,6 +123,13 @@ export default function MaintenanceSettings() {
     ['Up for', health ? uptime(health.uptimeSeconds) : '—'],
     ['Node.js', health?.node ?? '—'],
     ['ffmpeg', health ? (health.ffmpeg ? 'Available' : 'Not found') : '—'],
+    // Where the streams' segments go: in memory spares the drive (HLS_DIR, see the install docs).
+    [
+      'Live segments',
+      health?.segments
+        ? `${health.segments.inMemory ? 'In memory' : health.segments.inMemory === false ? 'On disk' : ''}${health.segments.inMemory == null ? '' : ' · '}${health.segments.dir}`
+        : '—',
+    ],
     ['Libraries', stats ? String(stats.libraries) : '—'],
     ['Indexed files', stats ? stats.items.toLocaleString() : '—'],
   ]
@@ -138,21 +194,53 @@ export default function MaintenanceSettings() {
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="Backup">
+      <SettingsGroup
+        title="Backup"
+        footer={
+          restore === 'restarting' ? (
+            <Banner tone="info">Restarting to put the backup in place. This page reloads when MosaicTV is back.</Banner>
+          ) : restore === 'slow' ? (
+            <Banner tone="warn">
+              MosaicTV hasn’t come back yet. If its container doesn’t start again by itself — on Unraid it won’t,
+              unless it’s set to — start it from your Docker page, and the backup goes in as it starts. This page
+              reloads once it’s back.
+            </Banner>
+          ) : undefined
+        }
+      >
         <SettingRow label="Download a backup" description="The database, your logos, music and clips — everything that makes this instance yours — in one archive.">
           <LinkButton href={backupUrl} icon="download">
             Download (.tar.gz)
           </LinkButton>
         </SettingRow>
+        <SettingRow
+          label="Restore a backup"
+          description="Puts this instance back as a backup has it, from the .tar.gz above. Everything here now is replaced; MosaicTV restarts to do it."
+        >
+          <input
+            ref={restoreInput}
+            type="file"
+            accept=".gz,.tgz,application/gzip"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = '' // the same file can be picked again
+              if (file) void restoreFrom(file)
+            }}
+          />
+          <Button variant="secondary" icon="upload" loading={restore !== 'idle'} onClick={() => restoreInput.current?.click()}>
+            {restore === 'sending' ? 'Sending…' : restore === 'idle' ? 'Restore…' : 'Restarting…'}
+          </Button>
+        </SettingRow>
       </SettingsGroup>
 
       <SettingsGroup title="Reset" tone="danger">
-        <SettingRow label="Delete uploaded files too" description="Your logos, music and clips, as well as what’s in the database.">
+        <SettingRow label="Delete uploaded files too" description="Your logos, music and clips. Off, they stay in the Studio, ready for the new start.">
           <Switch label="Delete uploaded files too" checked={wipeAssets} onChange={setWipeAssets} />
         </SettingRow>
         <SettingRow
           label="Reset to a clean slate"
-          description="Wipes every library, channel, collection, logo and setting. It can’t be undone — download a backup first if there’s any chance you’ll want this instance back."
+          description="Wipes every library, channel, collection and setting, and starts again with the MosaicTV logo and starter music a new install has. It can’t be undone — download a backup first if there’s any chance you’ll want this instance back."
         >
           <Button variant="danger" onClick={resetInstance} loading={resetBusy}>
             Reset…

@@ -35,6 +35,8 @@ export type Health = {
   uptimeSeconds: number
   node: string
   ffmpeg: boolean
+  /** Where live segments are written, and whether that's a RAM disk (null: can't tell). */
+  segments: { dir: string; inMemory: boolean | null }
 }
 
 export type Stats = {

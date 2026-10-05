@@ -56,7 +56,6 @@ export default function BreaksTab({
     api.nextBreak(channelId).then((r) => setNext(r.next)).catch(() => setNext(null))
   }
   // Reload when the channel does (a block edited on Schedule changes what airs).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [channelId, ch])
   useEffect(() => {
     api.logos().then(setLogos).catch(() => {})

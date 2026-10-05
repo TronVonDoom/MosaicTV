@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
 import { prisma, initDb } from './db.js'
+import { hlsDir, inMemory } from './paths.js'
 import { log } from './logs.js'
 import { warmFiller } from './streaming/filler.js'
 import { warmCapabilities } from './streaming/capabilities.js'
@@ -11,6 +12,8 @@ import { startMetrics } from './metrics.js'
 import { startGuideKeeper } from './schedule/guideKeeper.js'
 import { startActBreakFinder } from './schedule/actBreakFinder.js'
 import { allSegmenterViewers, resetSegments } from './streaming/segmenter.js'
+import { serving, shutdown } from './lifecycle.js'
+import { applyPendingRestore } from './restore.js'
 import { eventStream, watch } from './events.js'
 import { migrateDatabase } from './dbMigrate.js'
 import { replanIfTimezoneChanged } from './schedule/scheduleChanges.js'
@@ -85,6 +88,7 @@ app.get('/api/health', (_req, res) => {
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     node: process.version,
     ffmpeg: ffmpegAvailable,
+    segments: { dir: hlsDir(), inMemory: inMemory(hlsDir()) },
   })
 })
 
@@ -174,9 +178,17 @@ process.on('unhandledRejection', (reason) => {
   log('error', 'system', 'Unhandled promise rejection', String((reason as Error)?.stack || reason))
 })
 
+// --- Shutdown ---------------------------------------------------------------
+// Docker's stop, and Ctrl+C in a terminal: see lifecycle.ts.
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
+process.on('SIGINT', () => void shutdown('SIGINT'))
+
 // --- Boot -------------------------------------------------------------------
 async function boot(): Promise<void> {
-  // Schema first: nothing may query a database its code doesn't match yet.
+  // A backup waiting to be restored goes in before anything opens the database
+  // (see restore.ts); then schema first: nothing may query a database its code
+  // doesn't match yet — a backup from an older version included.
+  await applyPendingRestore()
   await migrateDatabase()
   await initDb()
   await replanIfTimezoneChanged().catch((e) => log('error', 'playout', 'Timezone check failed', String(e?.stack || e)))
@@ -187,6 +199,8 @@ async function boot(): Promise<void> {
   // In the background: a library's scan can take a while.
   rescanAfterUpgrade().catch((e) => log('error', 'system', 'Scanning libraries after the upgrade failed', String(e?.stack || e)))
   resetSegments() // clear any stale segmenter output from a previous run
+  const ram = inMemory(hlsDir())
+  log('info', 'system', `Live segments are written to ${hlsDir()}${ram ? ', in memory' : ram === false ? ', on disk' : ''}`)
   // What open pages hear about without asking (only checked while one is open).
   watch(1000, activityItems, { type: 'activity' })
   watch(3000, allSegmenterViewers, { type: 'viewers' })
@@ -207,7 +221,7 @@ async function boot(): Promise<void> {
   startGuideKeeper() // keep every channel's guide built out, watched or not
   startActBreakFinder() // find act breaks for the channels that break inside programs
   await checkFfmpeg()
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`MosaicTV v${VERSION} listening on http://0.0.0.0:${PORT}`)
     console.log(`ffmpeg available: ${ffmpegAvailable}`)
     log('info', 'system', `MosaicTV v${VERSION} started — ffmpeg ${ffmpegAvailable ? 'available' : 'NOT available'}`)
@@ -219,6 +233,7 @@ async function boot(): Promise<void> {
       `Resource sampling via ${metricSource}${metricSource === 'process' ? ' — container totals unavailable, ffmpeg load NOT counted' : ''}`,
     )
   })
+  serving(server)
   // Build every channel's idents in the background so no break waits on a
   // render, and run the ffmpeg capability probes now so no
   // viewer ever pays for one mid-stream at a program boundary.

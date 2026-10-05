@@ -781,11 +781,12 @@ export function stopAllSegmenters(): void {
   }
 }
 
-/** Wipe stale segmenter output from a previous run (called at boot). */
+/** Wipe stale segmenter output from a previous run (called at boot). The
+ *  folder itself stays: it may be a mount (HLS_DIR). */
 export function resetSegments(): void {
   try {
-    fs.rmSync(hlsDir(), { recursive: true, force: true })
-    fs.mkdirSync(hlsDir(), { recursive: true })
+    const dir = hlsDir()
+    for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true })
   } catch {
     /* best-effort */
   }
@@ -872,6 +873,7 @@ export async function streamMpegtsViaSegmenter(n: number, res: Response, req?: R
     res.on('close', kill)
     const result = await pipeSegment(proc, res, `Ch ${n} segmenter→player`, tag)
     res.off('close', kill)
+    if (result.abandoned) reason = 'the player stopped reading'
     if (res.destroyed || res.writableEnded) break
     if (result.spawnError) {
       reason = 'failed to launch ffmpeg'

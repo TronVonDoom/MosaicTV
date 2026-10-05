@@ -35,7 +35,6 @@ export default function Studio() {
     api.logos().then((l) => setCount('images')(l.length)).catch(() => {})
     api.assets('audio').then((a) => setCount('audio')(a.length)).catch(() => {})
     api.assets('filler').then((a) => setCount('clips')(a.length)).catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const items: SideNavItem<Section>[] = STUDIO_SECTIONS.map((s) => ({ ...s, count: counts[s.id] }))

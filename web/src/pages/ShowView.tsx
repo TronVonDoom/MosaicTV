@@ -309,7 +309,6 @@ export default function ShowView() {
         a.segments.forEach((s, idx) => map.set(s.mediaItemId, { groupNo: gi + 1, index: idx + 1, size: a.segments.length })),
       )
     return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airings, current?.season])
 
   // This show's episodes that air inside other shows, keyed by episode id (an
@@ -352,7 +351,6 @@ export default function ShowView() {
         }
       })
     return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airings, current?.season, current?.episodes])
 
   // Its episodes coming up, by the file each airing opens with.

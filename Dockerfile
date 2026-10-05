@@ -32,8 +32,19 @@ FROM node:22-trixie-slim AS runtime
 # ffmpeg = streaming pipeline; openssl = required by Prisma;
 # fonts-dejavu-core = the fallback for any glyph the on-screen info cards'
 # bundled Inter faces (server/assets/fonts) don't have.
-RUN apt-get update \
+#
+# Then GPU encoding on Intel and AMD (NVIDIA's runtime mounts its own driver
+# in). ffmpeg lists h264_vaapi and h264_qsv either way, but without a driver
+# behind them the test encode fails and every channel falls back to the CPU —
+# and --no-install-recommends leaves every driver out. iHD (Broadwell and
+# newer) and i965 (older) are VA-API for Intel, their non-free builds carrying
+# the encoders older chips need; libmfx-gen is QuickSync on 11th-gen Core, Arc
+# and newer (older Intel encodes through VA-API); mesa-va-drivers is AMD. About
+# 60 MB, all amd64, as the image is.
+RUN sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
+  && apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg openssl ca-certificates fonts-dejavu-core \
+    intel-media-va-driver-non-free i965-va-driver-shaders libmfx-gen1.2 mesa-va-drivers \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:/app/data/mosaictv.db

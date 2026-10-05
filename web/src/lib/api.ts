@@ -654,6 +654,23 @@ export const api = {
   // --- admin / maintenance ---
   resetInstance: (assets: boolean) =>
     request<{ ok: boolean }>('/api/admin/reset', { method: 'POST', body: JSON.stringify({ confirm: 'RESET', assets }) }),
+  /** Send a backup to restore. Once it's accepted, MosaicTV restarts to put it in place. */
+  restoreBackup: async (file: File): Promise<void> => {
+    const res = await fetch('/api/admin/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/gzip' },
+      body: file,
+    })
+    if (res.ok) return
+    let message = `Restore failed (${res.status})`
+    try {
+      const b = await res.json()
+      if (b?.error) message = b.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message)
+  },
 }
 
 export const logsDownloadUrl = '/api/logs/download'

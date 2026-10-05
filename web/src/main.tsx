@@ -13,6 +13,7 @@ import '@fontsource/barlow-condensed/800.css'
 import '@fontsource/barlow-condensed/600-italic.css'
 import './index.css'
 import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
 import { kept } from './lib/cache'
 
 // The first screen draws from what the last visit kept (lib/cache.ts) when the
@@ -23,7 +24,10 @@ Promise.race([kept, new Promise((r) => setTimeout(r, 250))]).then(() =>
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <BrowserRouter>
-        <App />
+        {/* The last line of defence, for TV mode and the layout itself. */}
+        <ErrorBoundary fullScreen>
+          <App />
+        </ErrorBoundary>
       </BrowserRouter>
     </StrictMode>,
   ),

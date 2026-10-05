@@ -62,6 +62,9 @@ docker run -d \
   ghcr.io/tronvondoom/mosaictv:latest
 ```
 
+**With an Intel or AMD GPU**, pass it in with `--device /dev/dri:/dev/dri`
+in place of the three NVIDIA lines.
+
 ---
 
 ## Option 2 — Unraid (template)
@@ -86,7 +89,8 @@ newest build of `main`).
 **NVIDIA GPU on Unraid:** install the **Nvidia-Driver** plugin (Community
 Apps), then edit the container: add `--runtime=nvidia` to **Extra Parameters**
 and set **NVIDIA GPUs** to `all` (or one GPU's UUID from `nvidia-smi -L`).
-Details in [Hardware Acceleration](hardware-acceleration.md).
+**Intel or AMD GPU on Unraid:** add `--device=/dev/dri` to **Extra
+Parameters**. Details in [Hardware Acceleration](hardware-acceleration.md).
 
 ---
 
@@ -180,5 +184,28 @@ has shipped.
 | `TVDB_LANGUAGE` | `eng` | The language TheTVDB's names and summaries are read in (ISO 639-2) |
 | `NVIDIA_VISIBLE_DEVICES` | – | `all` or a GPU UUID, for NVIDIA transcoding |
 | `NVIDIA_DRIVER_CAPABILITIES` | – | `all`, for NVIDIA transcoding |
+| `HLS_DIR` | `/app/data/hls` | Where playing channels write their live segments — see below |
+| `VAAPI_DEVICE` | `/dev/dri/renderD128` | The GPU render node for VAAPI, on a host with more than one |
+
+## Live segments in RAM (optional)
+
+A channel that's playing writes a few-second segment of video every few
+seconds, all day, into the data folder — on Unraid usually the cache SSD.
+Point `HLS_DIR` at a RAM disk instead and the drive is spared; the segments
+are thrown away when the channel stops anyway.
+
+It takes about **225 MB per 1080p channel playing at once** (100 MB at 720p),
+so 1 GB covers four. If the RAM disk fills, streams fail — size it with room
+to spare.
+
+- **docker run:** add `--tmpfs /transcode:size=1g -e HLS_DIR=/transcode`.
+- **Docker Compose:** uncomment the `tmpfs:` and `HLS_DIR` lines in
+  `docker-compose.yml`.
+- **Unraid:** add `--tmpfs /transcode:size=1g` to **Extra Parameters** and set
+  **Live segments folder** (`HLS_DIR`, under *Show more settings*) to
+  `/transcode`.
+
+**Settings → Maintenance → Live segments** says where they're going and
+whether that's in memory.
 
 Next step: [Getting Started](getting-started.md) →

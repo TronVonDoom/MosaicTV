@@ -21,11 +21,43 @@ export function assetsDir(): string {
 }
 
 // Live HLS output (one shared segment set per channel, served to all viewers).
-// Ephemeral — cleaned when a channel's encoder stops.
+// Ephemeral — cleaned when a channel's encoder stops. A playing channel writes a
+// segment every few seconds, all day, so HLS_DIR can put it on a RAM disk (a
+// tmpfs mount) to spare the drive the data dir lives on — on Unraid, often the
+// cache SSD. See docs/install.md.
 export function hlsDir(): string {
-  const d = path.join(dataDir(), 'hls')
+  const d = process.env.HLS_DIR ? path.resolve(process.env.HLS_DIR) : path.join(dataDir(), 'hls')
   fs.mkdirSync(d, { recursive: true })
   return d
+}
+
+/**
+ * Whether a folder is on a RAM disk, from the deepest mount that holds it in
+ * /proc/self/mountinfo: tmpfs or ramfs, or rootfs — a root filesystem that
+ * lives in memory, as Unraid's does, so its /tmp mapped in reads as rootfs.
+ * Null where that can't be told (not Linux).
+ */
+export function inMemory(dir: string, mountinfo?: string): boolean | null {
+  let info = mountinfo
+  if (info == null) {
+    try {
+      info = fs.readFileSync('/proc/self/mountinfo', 'utf8')
+    } catch {
+      return null
+    }
+  }
+  let best: { at: string; type: string } | null = null
+  for (const line of info.split('\n')) {
+    // "36 35 98:0 /mnt1 /mnt/parent rw,noatime master:1 - ext3 /dev/root rw"
+    // (a space in a mount point is written \040)
+    const [left, right] = line.split(' - ')
+    const at = left?.split(' ')[4]?.replace(/\\040/g, ' ')
+    const type = right?.split(' ')[0]
+    if (!at || !type) continue
+    const holds = at === '/' || dir === at || dir.startsWith(at + '/')
+    if (holds && (!best || at.length > best.at.length)) best = { at, type }
+  }
+  return best ? ['tmpfs', 'ramfs', 'rootfs'].includes(best.type) : null
 }
 
 // Downloaded TMDB artwork, so guide clients fetch posters from us on the LAN
@@ -77,3 +109,8 @@ export function previewsDir(): string {
   fs.mkdirSync(d, { recursive: true })
   return d
 }
+
+/** A path as tar is handed it: forward slashes, which every tar reads. Git for
+ *  Windows' tar reads a backslash as an escape — the \n of C:\…\newer-1 came
+ *  through as a new line. A no-op where the separator is already "/". */
+export const forTar = (p: string): string => p.split(path.sep).join('/')

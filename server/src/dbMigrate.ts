@@ -84,16 +84,20 @@ async function appliedMigrations(): Promise<string[]> {
 }
 
 /**
- * A consistent copy of the database (VACUUM INTO reads it through SQLite, so
- * the WAL is included), kept beside it in backups/. Only the newest few
- * pre-migration copies are kept.
+ * A consistent copy of the database as one file: VACUUM INTO reads it through
+ * SQLite, so the WAL is included and a write landing meanwhile can't tear it.
  */
+export async function copyDatabase(file: string): Promise<void> {
+  await prisma.$executeRawUnsafe(`VACUUM INTO '${file.replace(/'/g, "''")}'`)
+}
+
+/** A copy of the database kept beside it in backups/; only the newest few pre-migration copies are kept. */
 async function backupDatabase(label: string): Promise<string> {
   const dir = path.join(path.dirname(databaseFile()), 'backups')
   fs.mkdirSync(dir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const file = path.join(dir, `pre-migration-${stamp}-${label}.db`)
-  await prisma.$executeRawUnsafe(`VACUUM INTO '${file.replace(/'/g, "''")}'`)
+  await copyDatabase(file)
   const old = fs
     .readdirSync(dir)
     .filter((f) => f.startsWith('pre-migration-') && f.endsWith('.db'))

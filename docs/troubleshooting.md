@@ -115,12 +115,32 @@ Everything MosaicTV owns lives in **one folder**: the `/app/data` volume
 touched.
 
 - **In-app:** **Settings → Maintenance → Download backup (.tar.gz)** — grabs
-  the database, logos, music and clips in one archive.
+  the database, logos, music and clips, and the covers copied out of your
+  music files, in one archive. It leaves out what MosaicTV makes again by
+  itself: the live streams' segments, built idents, now-playing screens,
+  thumbnails, downloaded artwork, the log, and the copies under `backups/`.
 - **Manual:** stop the container and copy the host folder mapped to
   `/app/data`.
 
-**Restore:** stop the container, extract/copy the backup into the data folder,
-start it again.
+**Restore:** **Settings → Maintenance → Restore a backup**, and pick the
+`.tar.gz`. MosaicTV checks it (a backup from a newer version is turned away —
+update first), then restarts and puts it in place as it starts, before
+anything opens the database; a backup from an older version is upgraded as it
+comes in. The database it replaces is kept as
+`backups/pre-restore-<date>.db` in the data folder. Idents rebuild and artwork
+downloads again in the background.
+
+The restart needs the container to start again on its own: with
+`--restart unless-stopped` (the compose file and the `docker run` example
+have it) it does. **On Unraid** it doesn't by default — the page says so if
+it's waiting, and the backup goes in when you press **Start** in the Docker
+tab. Adding `--restart unless-stopped` to the container's **Extra
+Parameters** makes it automatic.
+
+**By hand:** stop the container, empty the data folder (or at least delete
+`mosaictv.db-wal` and `mosaictv.db-shm` — left beside a restored database
+they'd be read as part of it), extract the backup into it, and start it
+again.
 
 **Upgrades take their own copy.** When a new version changes the database, it
 first saves a copy of it to `backups/` in the data folder

@@ -1,5 +1,73 @@
 # Changelog
 
+## Unreleased
+
+- **Restore a backup, from Settings.** **Settings → Maintenance → Restore a
+  backup** takes the `.tar.gz` that **Download a backup** saves and puts the
+  instance back as it was: libraries, channels, settings and uploads.
+  MosaicTV checks it first — a backup from a newer version is turned away —
+  then restarts and puts it in place as it starts, before anything opens the
+  database, upgrading one from an older version as it comes in. The database
+  it replaces is kept in the data folder's `backups/`. The page reloads when
+  MosaicTV is back. On Unraid, where a container doesn't start again by
+  itself unless it's set to, press **Start** and the backup goes in then.
+  Backups from earlier versions restore too.
+- **Live segments in RAM.** A playing channel writes a few seconds of video
+  every few seconds, all day, to the data folder — on Unraid usually the
+  cache SSD. Set `HLS_DIR` to a RAM disk (`--tmpfs /transcode:size=1g`) and
+  they're written there instead; about 225 MB per 1080p channel playing at
+  once. **Settings → Maintenance** shows where they're going, and whether
+  that's in memory. See Live segments in RAM in the install docs.
+- **Intel and AMD GPUs encode.** The image listed QuickSync and VAAPI but
+  carried no driver for either, so an Intel or AMD GPU failed its test encode
+  and every channel quietly fell back to the CPU. The drivers are in the image
+  now: pass the GPU in (`--device /dev/dri`, see Hardware Acceleration) and
+  **Auto** finds it — QuickSync on 11th-gen Core, Arc and newer, VAAPI on older
+  Intel and on AMD.
+- **A backup a fraction of the size.** **Download a backup** took the whole
+  data folder: the live streams' segments, which once made it fail part-way,
+  and caches MosaicTV makes again by itself — built idents, now-playing
+  screens, thumbnails, downloaded artwork — most of a big library's gigabyte.
+  It now takes the database, your uploads and the covers copied out of your
+  music, and the database as one consistent copy rather than the live file as
+  it's being written. Restoring is in Troubleshooting & Backup.
+- **Fewer false alarms in the log.** A player's MPEG-TS stream (Jellyfin,
+  Plex) arrives a segment at a time, and a gap of five or six seconds between
+  them was logged as *stream is frozen here* — hundreds of times a month, each
+  one "recovered after 0s". Only a quiet longer than the player's cushion is
+  logged now, and the recovery says how long the quiet really lasted.
+- **A player that stops reading lets the channel go.** A Jellyfin connection
+  that stopped reading without closing kept its channel encoding, for nobody,
+  for 30 hours. A player that hasn't taken anything in two minutes is now
+  dropped (one that's still there reconnects at the live edge), and the
+  channel stops as it does when the last viewer leaves.
+- **Stops and updates in a moment.** Stopping or updating the container sat
+  for ten seconds and then killed MosaicTV mid-write — it never heard Docker
+  ask it to stop. It now stops its encoders, lets go of its viewers and
+  closes the database straight away.
+- **Reset to a clean slate, properly.** It left idents, encoding profiles and
+  uploaded music and clips behind, deleted the MosaicTV logo until the next
+  restart, and with *Delete uploaded files too* off, kept your music but not
+  your logos. Now every library, channel, collection and setting goes, and
+  everything made for them; your uploads either all go or all stay, still in
+  the Studio; and it starts again with the MosaicTV logo and starter music a
+  new install has.
+- **Big uploads don't hold up the streams.** A clip or song uploaded to the
+  Studio was read whole into memory and written in one go, stalling every
+  live stream while it wrote. It's written as it arrives now, and one over
+  the 500 MB limit is turned away before it's sent.
+- **A page that breaks says so.** An error while drawing a page left a blank
+  window. Now the page says what went wrong, with **Reload** and **Copy
+  details** for a bug report, and the sidebar stays, so every other page is
+  still a click away. After an update, a page whose script has changed asks
+  for a reload.
+- **The app loads half as much to start.** Each page is its own script,
+  fetched in the background once the first is drawn, so the first screen
+  waits on its own code — 400 KB rather than 750.
+- **Checked before it ships, the app too.** CI now lints the web app for
+  React's rules of hooks and runs its tests, as it does the server's; and the
+  dependencies with known vulnerabilities are updated.
+
 ## 0.16.0 — Hour blocks, and pages that open at once (2026-10-05)
 
 A music channel's guide listed the way a cable guide lists one, pages that

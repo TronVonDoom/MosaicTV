@@ -8,10 +8,13 @@ on a **GPU** from any of the major vendors (much lower CPU load).
 | -------------- | ------- | -------- |
 | **CPU** (default) | libx264 | anywhere |
 | **NVIDIA** | h264_nvenc | Nvidia GPUs |
-| **Intel QuickSync** | h264_qsv | Intel iGPU/Arc |
-| **VAAPI** | h264_vaapi | Intel/AMD on Linux |
-| **AMD AMF** | h264_amf | AMD GPUs (Windows/Linux) |
-| **Apple** | h264_videotoolbox | macOS |
+| **Intel QuickSync** | h264_qsv | Intel 11th-gen Core, Arc and newer |
+| **VAAPI** | h264_vaapi | Intel (any with an iGPU) and AMD on Linux |
+| **AMD AMF** | h264_amf | AMD GPUs, with AMD's own driver stack — outside Docker |
+| **Apple** | h264_videotoolbox | macOS, outside Docker |
+
+The Docker image carries the Intel and AMD drivers VAAPI and QuickSync need;
+in it, an AMD card encodes through VAAPI.
 
 Choose one per encoding profile under **Settings → Encoding**, or leave it on
 **Auto**.
@@ -76,6 +79,25 @@ Uncomment the NVIDIA lines in `docker-compose.yml`:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
 ```
+
+---
+
+## Intel and AMD setup
+
+The image has the drivers; the container just needs the GPU passed in. On the
+host, the GPU shows up as `/dev/dri` (if that folder isn't there, its driver
+isn't loaded — on Unraid, the **Intel GPU TOP** plugin loads it for an Intel
+iGPU).
+
+- **Unraid:** edit the container and add `--device=/dev/dri` to **Extra
+  Parameters**.
+- **docker run:** add `--device /dev/dri:/dev/dri`.
+- **Docker Compose:** uncomment the `devices:` lines in `docker-compose.yml`.
+
+Leave the profile's **Hardware** on **Auto**: it tries QuickSync first (11th-gen
+Core, Arc and newer), then VAAPI (older Intel, and AMD). Check **Logs** —
+streams should mention `h264_qsv` or `h264_vaapi`. A host with more than one
+GPU may need `VAAPI_DEVICE` set to the right render node (see above).
 
 ---
 

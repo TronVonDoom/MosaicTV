@@ -1183,7 +1183,8 @@ function sweepScratch(): void {
     for (const f of fs.readdirSync(dataDir())) {
       if (/^caption-.*\.txt$|^card-.*\.png$|^filler-.*\.tmp\.mp4$/.test(f)) fs.rmSync(path.join(dataDir(), f), { force: true })
     }
-    for (const f of fs.readdirSync(assetsDir())) if (f.endsWith('.tmp.mp4')) fs.rmSync(path.join(assetsDir(), f), { force: true })
+    // A render's scratch, and an upload a restart cut off (routes/assets.ts).
+    for (const f of fs.readdirSync(assetsDir())) if (f.endsWith('.tmp.mp4') || f.endsWith('.part')) fs.rmSync(path.join(assetsDir(), f), { force: true })
     for (const f of fs.readdirSync(previewsDir())) fs.rmSync(path.join(previewsDir(), f), { force: true })
   } catch {
     /* best-effort */

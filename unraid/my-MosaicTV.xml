@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/TronVonDoom/mosaictv/issues</Support>
   <Project>https://github.com/TronVonDoom/mosaictv</Project>
-  <Overview>Turn your media library into scheduled 24/7 live TV channels: multi-segment cartoons aired as the half-hours they were broadcast as, station idents and commercial breaks, station logos, a frosted-glass up-next card, music channels with a now-playing screen, and a TV guide. M3U/XMLTV for Jellyfin, Emby or any IPTV player, and a built-in HDHomeRun tuner for Plex. Encodes on any CPU; optional NVIDIA GPU transcoding.</Overview>
+  <Overview>Turn your media library into scheduled 24/7 live TV channels: multi-segment cartoons aired as the half-hours they were broadcast as, station idents and commercial breaks, station logos, a frosted-glass up-next card, music channels with a now-playing screen, and a TV guide. M3U/XMLTV for Jellyfin, Emby or any IPTV player, and a built-in HDHomeRun tuner for Plex. Encodes on any CPU; optional NVIDIA, Intel or AMD GPU transcoding.</Overview>
   <Category>MediaServer:Video MediaApp:Video</Category>
   <WebUI>http://[IP]:[PORT:8688]/</WebUI>
   <TemplateURL/>
@@ -20,7 +20,7 @@
   <DateInstalled/>
   <DonateText>MosaicTV is free. If it's earned a spot on your server, you can chip in.</DonateText>
   <DonateLink>https://github.com/sponsors/TronVonDoom</DonateLink>
-  <Description>Turn your media library into scheduled 24/7 live TV channels. Encodes on the CPU by default. For NVIDIA hardware transcoding: install the Nvidia-Driver plugin, add --runtime=nvidia to Extra Parameters, and set the NVIDIA GPUs variable to 'all' (see the docs).</Description>
+  <Description>Turn your media library into scheduled 24/7 live TV channels. Encodes on the CPU by default. For NVIDIA hardware transcoding: install the Nvidia-Driver plugin, add --runtime=nvidia to Extra Parameters, and set the NVIDIA GPUs variable to 'all'. For Intel or AMD: add --device=/dev/dri to Extra Parameters (see the docs).</Description>
   <Networking>
     <Mode>bridge</Mode>
     <Publish>
@@ -57,5 +57,6 @@
   <Config Name="NVIDIA GPUs" Target="NVIDIA_VISIBLE_DEVICES" Default="" Mode="" Description="OPTIONAL — NVIDIA hardware transcoding. Set to 'all' (or a GPU UUID from `nvidia-smi -L`) AND add --runtime=nvidia to Extra Parameters. Requires the Nvidia-Driver plugin. Leave empty for CPU encoding." Type="Variable" Display="always" Required="false" Mask="false"/>
   <Config Name="NVIDIA Capabilities" Target="NVIDIA_DRIVER_CAPABILITIES" Default="" Mode="" Description="Set to 'all' when using an NVIDIA GPU; leave empty otherwise." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Internal Port" Target="PORT" Default="8688" Mode="" Description="Port the app listens on inside the container." Type="Variable" Display="advanced" Required="false" Mask="false">8688</Config>
+  <Config Name="Live segments folder" Target="HLS_DIR" Default="" Mode="" Description="OPTIONAL — put the live streams' segments in RAM to spare your cache drive: add --tmpfs /transcode:size=1g to Extra Parameters and set this to /transcode. About 225 MB per 1080p channel playing at once." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Database URL" Target="DATABASE_URL" Default="file:/app/data/mosaictv.db" Mode="" Description="Prisma SQLite database path." Type="Variable" Display="advanced" Required="false" Mask="false">file:/app/data/mosaictv.db</Config>
 </Container>

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, searchForWorkspaceRoot } from 'vite'
@@ -42,5 +43,10 @@ export default defineConfig({
       // use (the request schemas, and with them zod) is left out of the bundle.
       treeshake: { moduleSideEffects: (id) => !id.startsWith(contractId) },
     },
+  },
+  // npm test. Plain functions run in Node; a component's test asks for a
+  // browser-like page with `// @vitest-environment jsdom` at its top.
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

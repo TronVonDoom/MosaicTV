@@ -9,20 +9,33 @@ import { prisma } from '../db.js'
 import { topUpPlayout } from '../schedule/playout.js'
 import { log } from '../logs.js'
 
-type SegmentResult = { code: number | null; stderr: string; spawnError?: Error; bytes: number; firstByteMs: number }
+// `abandoned` = the watchdog dropped a player that had stopped reading.
+type SegmentResult = { code: number | null; stderr: string; spawnError?: Error; bytes: number; firstByteMs: number; abandoned: boolean }
 
-// A mid-segment freeze is invisible in the logs otherwise: nothing errors,
-// nothing exits, bytes just stop moving and the whole chain sits idle. So watch
-// each hop — but only the half of it that can actually be wrong.
+// A mid-stream freeze is invisible in the logs otherwise: nothing errors,
+// nothing exits, bytes just stop moving. So watch the hop — but only for a
+// quiet longer than the stream's own rhythm.
 //
-// The encoder runs flat out while the consumer meters at real time, so it fills
-// the pipe, blocks, waits for the meter to drain a few seconds, then bursts and
-// blocks again. Being blocked is this design working: a healthy stream sits in
-// backpressure roughly 5-6s at a time, indefinitely. Only a backpressure spell
-// far longer than that means the consumer really did stop. A quiet producer with
-// a *drainable* pipe, though, is always a fault.
-const STARVED_SEC = 5
+// The hop watched is a player's MPEG-TS copy of a channel's live playlist (see
+// segmenter.ts). It follows the live edge, so it writes in bursts, one 4s
+// segment at a time, and ffmpeg rereads the playlist only a segment's length
+// after its last read, then every half target duration: a segment that lands
+// just after a read waits for the next. Quiet spells of 5-7s are that rhythm,
+// not a freeze — warning at 5s filled a live box's log with hundreds of them,
+// each "recovered" a moment later. The copy starts its player three segments
+// back, about 12s of cushion, so only a quiet past that is one a viewer sees.
+const STARVED_SEC = 12
+// Backpressure — we couldn't write, so the player is pacing us — is the player
+// working through its buffer, and can last far longer. Only a spell past any
+// player's buffering means it stopped reading.
 const BACKPRESSURE_SEC = 30
+// A player that hasn't taken a byte in this long has stopped, whatever its
+// socket says: a slow one drains a little every few seconds. By now the live
+// window it was following (40 segments, ~160s) has nearly moved on without it,
+// and holding the connection keeps the channel encoding for nobody — a Jellyfin
+// connection that went quiet once held a channel on air for 30 hours. Drop it;
+// a player that's still there reconnects at the live edge.
+const GONE_SEC = 120
 // Past this many seconds of a silent producer with a drainable pipe, the hop is
 // wedged, not slow, and a hung ffmpeg never exits on its own. The watchdog
 // force-kills it and lets the caller restart it, turning a silent multi-minute
@@ -57,19 +70,28 @@ export function pipeSegment(proc: ChildProcess, res: Response, tag?: string, ses
     let blocked = false
     let stalled = false
     let killed = false
+    let abandoned = false
     const watchdog = tag
       ? setInterval(() => {
           const idleMs = Date.now() - lastByteAt
-          if (idleMs < (blocked ? BACKPRESSURE_SEC : STARVED_SEC) * 1000) {
-            if (stalled) {
-              stalled = false
-              log('info', 'stream', `${tag}: recovered after ${(idleMs / 1000).toFixed(0)}s of no data`, undefined, session)
-            }
-            return
-          }
+          if (idleMs < (blocked ? BACKPRESSURE_SEC : STARVED_SEC) * 1000) return
           // A silent producer that stays quiet past the hard deadline is wedged,
           // not slow, and will never exit on its own — kill it and let the caller
           // restart. Backpressure is exempt: a slow-but-live consumer is pacing us.
+          if (blocked && !killed && idleMs >= GONE_SEC * 1000) {
+            killed = true
+            abandoned = true
+            log(
+              'warn',
+              'stream',
+              `${tag}: the player hasn't read anything for ${(idleMs / 1000).toFixed(0)}s — dropping the connection`,
+              'blocked writing downstream past the hard deadline — the player has stopped reading, not slowed down',
+              session,
+            )
+            res.destroy()
+            proc.kill('SIGKILL')
+            return
+          }
           if (!blocked && !killed && idleMs >= STALL_KILL_SEC * 1000) {
             killed = true
             log(
@@ -97,9 +119,16 @@ export function pipeSegment(proc: ChildProcess, res: Response, tag?: string, ses
       : undefined
     watchdog?.unref()
     const onData = (chunk: Buffer) => {
-      if (firstByteMs < 0) firstByteMs = Date.now() - t0
+      const now = Date.now()
+      if (firstByteMs < 0) firstByteMs = now - t0
+      // Said here, as the data comes back, so it names how long the quiet
+      // really lasted (by the watchdog's next tick it's the time since this).
+      if (stalled) {
+        stalled = false
+        log('info', 'stream', `${tag}: recovered after ${((now - lastByteAt) / 1000).toFixed(0)}s of no data`, undefined, session)
+      }
       bytes += chunk.length
-      lastByteAt = Date.now()
+      lastByteAt = now
       if (!res.write(chunk)) {
         blocked = true
         proc.stdout?.pause()
@@ -117,7 +146,7 @@ export function pipeSegment(proc: ChildProcess, res: Response, tag?: string, ses
       settled = true
       if (watchdog) clearInterval(watchdog)
       res.off('drain', onDrain)
-      resolve({ code, stderr: stderr.trim(), spawnError, bytes, firstByteMs })
+      resolve({ code, stderr: stderr.trim(), spawnError, bytes, firstByteMs, abandoned })
     }
     proc.on('close', (code) => done(code))
     proc.on('error', (err) => {

@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
+import ErrorBoundary from './ErrorBoundary'
 import ToastContainer from './ToastContainer'
 import CommandPalette from './CommandPalette'
 import ConnectPlayers from './ConnectPlayers'
@@ -432,7 +433,6 @@ export default function Layout() {
 
   useEffect(() => {
     loadHealth()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // Who's watching, what's on, and a channel renamed or renumbered (here or elsewhere).
   useLiveRefresh(channels.reload, ['viewers', 'onAir', 'channel'], { fallbackMs: 10000 })
@@ -542,7 +542,12 @@ export default function Layout() {
             key={pageKey(location.pathname)}
             className="max-w-[1680px] 3xl:max-w-[2160px] 4xl:max-w-[2720px] mx-auto px-4 sm:px-6 lg:px-8 3xl:px-10 py-7 fade-in"
           >
-            <Outlet context={{ railSections: !collapsed } satisfies LayoutContext} />
+            <ErrorBoundary resetKey={location.pathname}>
+              {/* A page's script still on its way (see App.tsx): the layout stays. */}
+              <Suspense fallback={null}>
+                <Outlet context={{ railSections: !collapsed } satisfies LayoutContext} />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

@@ -255,8 +255,9 @@ HTTPS) or an Apple TV (Safari, AirPlay).
 - **Per-channel encoding profiles** — resolution, fps, bitrate, deinterlacing,
   subtitle burn-in and loudness normalization — and a preferred audio language
   per channel.
-- **GPU encoding** on NVIDIA, Intel QuickSync, VAAPI, AMD AMF or Apple
-  VideoToolbox, each verified by a real test encode on your host.
+- **GPU encoding** on NVIDIA, Intel (QuickSync or VAAPI) or AMD (VAAPI) —
+  and AMF or Apple VideoToolbox outside Docker — each verified by a real test
+  encode on your host.
 - **One-click backup** from Settings, a copy taken before any upgrade changes
   the database, and an in-app log viewer with a download for bug reports.
 
