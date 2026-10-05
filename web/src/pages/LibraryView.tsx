@@ -705,7 +705,7 @@ export default function LibraryView() {
                 <div className={GRID}>
                   {Array.from({ length: 16 }, (_, i) => (
                     <div key={i}>
-                      <Skeleton className="aspect-[2/3] rounded-xl" />
+                      <Skeleton className={cx(isMusic ? 'aspect-square' : 'aspect-[2/3]', 'rounded-xl')} />
                       <Skeleton className="h-3.5 w-3/4 mt-2.5" />
                     </div>
                   ))}

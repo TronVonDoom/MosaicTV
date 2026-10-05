@@ -29,6 +29,8 @@ export function ProgramArt({
   const id = unit?.mediaItemId ?? null
   const useBackdrop = id != null && unit?.hasBackdrop && !backdropFailed
   const usePoster = id != null && !useBackdrop && unit?.art && !posterFailed
+  // A song's (or music video's) poster is its album cover: square.
+  const cover = unit?.type === 'song' || unit?.type === 'music'
 
   return (
     <div className={cx('absolute inset-0 overflow-hidden', className)} style={{ background: posterGradient(unit?.title ?? name) }}>
@@ -54,7 +56,10 @@ export function ProgramArt({
             src={artworkUrl(id, unit!.art!, ART.poster)}
             alt=""
             loading="lazy"
-            className="absolute right-4 top-1/2 -translate-y-[58%] h-[78%] aspect-[2/3] object-cover rounded-lg shadow-[0_18px_40px_-8px_rgb(0_0_0/0.85)] ring-1 ring-white/15 transition-transform duration-500 group-hover:-translate-y-[60%]"
+            className={cx(
+              'absolute right-4 top-1/2 -translate-y-[58%] object-cover rounded-lg shadow-[0_18px_40px_-8px_rgb(0_0_0/0.85)] ring-1 ring-white/15 transition-transform duration-500 group-hover:-translate-y-[60%]',
+              cover ? 'h-[64%] aspect-square' : 'h-[78%] aspect-[2/3]',
+            )}
           />
         </>
       )}

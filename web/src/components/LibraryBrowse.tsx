@@ -26,19 +26,23 @@ const KIND_NOUN: Record<LibraryKind, [string, string]> = {
   other: ['clip', 'clips'],
 }
 
+/** Music videos and songs: their art is album covers, square. */
+const isMusic = (l: Pick<Library, 'kind'>) => l.kind === 'music' || l.kind === 'audio'
+
 /** A tilted wall of the library's own posters — the brand's mosaic, made of
  *  your media. Tiles fade in as they load; a missing one keeps its colour. */
-function PosterMosaic({ sample, name }: { sample: LibrarySample | undefined; name: string }) {
+function PosterMosaic({ sample, name, square }: { sample: LibrarySample | undefined; name: string; square?: boolean }) {
   const tiles = sample?.items ?? []
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: posterGradient(name) }}>
       <div className="absolute -inset-x-10 -top-16 -bottom-6 grid grid-cols-6 3xl:grid-cols-8 gap-2 -rotate-[8deg] opacity-90 transition-transform duration-700 ease-out group-hover:scale-[1.04] group-hover:-rotate-[6deg]">
-        {Array.from({ length: 24 }, (_, i) => {
+        {/* Square tiles (music's covers) are shorter: more of them fill the card. */}
+        {Array.from({ length: square ? 36 : 24 }, (_, i) => {
           const t = tiles.length ? tiles[i % tiles.length] : null
           return (
             <div
               key={i}
-              className="aspect-[2/3] rounded-md overflow-hidden bg-white/[0.04] ring-1 ring-white/10"
+              className={`${square ? 'aspect-square' : 'aspect-[2/3]'} rounded-md overflow-hidden bg-white/[0.04] ring-1 ring-white/10`}
               style={{ background: t ? posterGradient(t.title) : undefined }}
             >
               {t && (
@@ -140,7 +144,8 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
             title={m.title}
             subtitle={m.year ? String(m.year) : undefined}
             rating={m.rating}
-            icon={library.kind === 'movie' ? 'movie' : library.kind === 'music' || library.kind === 'audio' ? 'audio' : 'clip'}
+            icon={library.kind === 'movie' ? 'movie' : isMusic(library) ? 'audio' : 'clip'}
+            square={isMusic(library)}
             imageUrl={m.posterPath || m.tmdbPosterPath ? artworkUrl(m.id, 'poster', ART.poster) : undefined}
             onClick={() => onOpen(m.id)}
           />
@@ -220,7 +225,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
             className="group relative block overflow-hidden rounded-2xl border border-edge surface-card card-interactive rise-in"
           >
             <div className={`relative ${libraries.length <= 2 ? 'h-60' : 'h-52'}`}>
-              <PosterMosaic sample={samples[l.id]} name={l.name} />
+              <PosterMosaic sample={samples[l.id]} name={l.name} square={isMusic(l)} />
             </div>
             {homes[l.id] && homes[l.id].onNow.length > 0 && (
               <Tally tone="live" className="absolute top-4 left-5">

@@ -128,6 +128,9 @@ const KIND_ICON: Record<CollectionItem['kind'], 'show' | 'movie' | 'audio'> = {
   song: 'audio',
 }
 
+/** Music's members show album covers and artist pictures: square, as the library does. */
+const SQUARE_KINDS = new Set<CollectionItem['kind']>(['artist', 'album', 'music', 'song'])
+
 /** One member as a poster tile: drag to reorder and × to remove — on a touch
  *  screen, a long press for both — and switches for its specials and extras
  *  when it has any. */
@@ -199,7 +202,8 @@ function MemberTile({
     >
       <div
         className={cx(
-          'relative aspect-[2/3] rounded-xl overflow-hidden ring-1 ring-inset transition-[box-shadow,transform] duration-200 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.8)]',
+          'relative rounded-xl overflow-hidden ring-1 ring-inset transition-[box-shadow,transform] duration-200 shadow-[0_10px_24px_-12px_rgb(0_0_0/0.8)]',
+          SQUARE_KINDS.has(it.kind) ? 'aspect-square' : 'aspect-[2/3]',
           dropTarget ? 'ring-2 ring-indigo-400 -translate-y-0.5' : 'ring-white/10 group-hover:ring-white/25',
         )}
         style={{ background: posterGradient(title) }}
