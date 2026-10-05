@@ -2,7 +2,7 @@
 // promos, commercials — the way a station's breaks were built from tape. The
 // clips a break plays are chosen from its length and when it airs, so the same
 // break worked out again (a restart, a viewer tuning in mid-break) comes out
-// the same; whatever the clips don't fill is the channel's frosted-glass look.
+// the same; whatever the clips don't fill is the default look, Mosaic.
 
 import fs from 'node:fs'
 import { prisma } from '../db.js'

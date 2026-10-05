@@ -98,8 +98,9 @@ export function asMetadataSources(v: unknown): MetadataSource[] {
 }
 
 /** An ident's look: a generated style, or `custom` (an uploaded clip). The
- *  rest are retired styles older idents may still carry. */
-export const IDENT_STYLES = ['animated', 'frosted', 'spotlight', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const
+ *  rest are retired styles older idents may still carry. (Spotlight isn't
+ *  one: it was replaced by Mosaic, and its idents moved over.) */
+export const IDENT_STYLES = ['animated', 'frosted', 'mosaic', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const
 export type IdentStyle = (typeof IDENT_STYLES)[number]
 
 /** Where an ident plays: everywhere else on its channel, only during some of

@@ -135,11 +135,14 @@ test('members and broadcast episodes come out in the shape they are stored in', 
 
 test('an ident look is clamped, never refused', () => {
   const look = IdentLook.parse({ name: ' Nick ', style: 'glitter', assetId: 9, logoScale: 9, divider: 'true' })
-  assert.deepEqual(look, { name: 'Nick', style: 'frosted', assetId: null, audioAssetId: null, logoId: null, logoScale: 2, divider: true, reelFolder: null })
+  assert.deepEqual(look, { name: 'Nick', style: 'mosaic', assetId: null, audioAssetId: null, logoId: null, logoScale: 2, divider: true, reelFolder: null })
   assert.equal(IdentLook.parse({ style: 'custom', assetId: '9' }).assetId, 9)
   // A reel keeps its folder; any other look drops one.
   assert.equal(IdentLook.parse({ style: 'reel', reelFolder: ' /media/bumpers ' }).reelFolder, '/media/bumpers')
   assert.equal(IdentLook.parse({ style: 'frosted', reelFolder: '/media/bumpers' }).reelFolder, null)
+  // Spotlight was replaced by Mosaic.
+  assert.equal(IdentLook.parse({ style: 'spotlight' }).style, 'mosaic')
+  assert.equal(IdentLook.parse({ style: 'mosaic' }).style, 'mosaic')
   assert.deepEqual(IdentPlacement.parse({ plays: 'blocks', blockIds: ['4', 'x', 5] }), { plays: 'blocks', blockIds: [4, 5] })
   assert.equal(IdentPlacement.parse({}).plays, 'any')
 })

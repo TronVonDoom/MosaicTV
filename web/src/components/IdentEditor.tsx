@@ -75,7 +75,7 @@ export default function IdentEditor({
   ch,
   idents,
   editing,
-  startLook = 'frosted',
+  startLook = 'mosaic',
   onClose,
   onSaved,
   onDeleted,
@@ -379,7 +379,7 @@ export default function IdentEditor({
                       : `${reel.clips} clip${reel.clips === 1 ? '' : 's'}, ${formatLongDuration(reel.seconds)} in all. `
                     : 'Its clips are found when you save. '}
                   Each break plays clips from this folder and the folders inside it, a new mix every time; what they
-                  don't fill is your channel's frosted glass.
+                  don't fill is Mosaic, from your logo.
                 </p>
               </div>
             )}
@@ -624,7 +624,7 @@ export default function IdentEditor({
           {previewError && <p className="text-xs text-rose-400">{previewError}</p>}
           <p className="text-xs text-ink-faint leading-relaxed">
             {draft.style === 'reel'
-              ? 'A few seconds of its first clip. On air, each break is a fresh mix of its clips, then the frosted glass for whatever time is left.'
+              ? 'A few seconds of its first clip. On air, each break is a fresh mix of its clips, then Mosaic for whatever time is left.'
               : 'Rendered in a few seconds with the real logo and music. Saving builds the full loop in the background — breaks keep the current version until it’s ready.'}
           </p>
           <div

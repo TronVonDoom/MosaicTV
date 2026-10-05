@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **Mosaic, in place of Spotlight.** A new ident look: your logo on a wall of
+  glass tiles, with rings of light spreading out from behind it through the
+  tiles, the wall shading through violet, blue, cyan and magenta as it runs, a
+  few tiles sparkling. It loops every 30 seconds. Spotlight is gone — an ident
+  that had it airs as Mosaic from the upgrade on, with nothing to do.
+- **Mosaic is the default look.** A new channel starts with a Mosaic ident, a
+  new ident opens on Mosaic, and Mosaic is what fills the rest of a break a
+  reel's clips don't cover, and what stands in when a channel's idents can't
+  play. Idents you already have keep their look.
+- **Frosted glass, for logos drawn edge to edge.** A logo that fills its
+  picture right to the sides — a wordmark like Cartoon Network's, Toonami's or
+  adult swim's — ran into the next one in the rows behind the glass, so each
+  row read as one long banner. Every logo in the rows now has room either
+  side. Frosted idents rebuild in the new look on their own.
+- **The up-next card names a split episode once.** With breaks inside
+  programs on, the card listed an episode's title once for every act.
+
 ## 0.14.0 — Filed by artist, added from anywhere (2026-10-04)
 
 Music filed as a music app files it, a library that follows its scan, Add to a

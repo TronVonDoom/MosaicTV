@@ -200,8 +200,8 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
         log('info', 'stream', `Channel ${channelNumber}: filler “${name(f)}” isn't built for this logo yet — ${by} stands in while it builds`, undefined, tag)
       }
     } else if (logo) {
-      // No idents at all (a channel caught mid-edit): frosted glass from the
-      // logo on air, built in the background if it has to be.
+      // No idents at all (a channel caught mid-edit): Mosaic from the logo on
+      // air, built in the background if it has to be.
       clip = await ensureStationIdent(logo, profile.height, { wait: false })
     }
     // Last resort: the animated gradient (built at boot — the one clip worth a

@@ -1,5 +1,5 @@
 // Idents — what a channel airs during a break (a Filler row): the generated
-// styles (frosted glass, spotlight, and the retired animated / logo wall /
+// styles (frosted glass, mosaic, and the retired animated / logo wall /
 // pulse / retro / vintage looks), the on-disk cache that keeps a break from
 // ever waiting on generation, resolution of an ident to a playable clip, which
 // ident a break airs, and the editor's previews.
@@ -73,6 +73,14 @@ const STILL_AT = 1.5
 // height and reads as huge. Width leads; height is the ceiling for tall marks.
 function logoBox(maxW: number, maxH: number): string {
   return `scale='min(iw,${Math.round(maxW)})':'min(ih,${Math.round(maxH)})':force_original_aspect_ratio=decrease`
+}
+
+// A logo's soft shadow, from the logo itself: black at its shape, blurred, on
+// a margin wide enough for the blur (even all round, so it centres where the
+// logo does). Drawn a few pixels lower, it floats the logo off what's behind.
+function dropShadow(k: number): string {
+  const sh = Math.max(3, Math.round(7 * k))
+  return `colorchannelmixer=rr=0:gg=0:bb=0:aa=0.55,pad=iw+${sh * 6}:ih+${sh * 6}:${sh * 3}:${sh * 3}:color=black@0,gblur=sigma=${sh},format=yuva420p`
 }
 
 // ── Style builds ────────────────────────────────────────────────────────────
@@ -173,10 +181,13 @@ const frostedBackDims = (dims: Dims): Dims => ({ w: Math.round(dims.w / 4) * 2, 
 // The rows of logos behind the glass: their cell width and the whole number of
 // pixels they move a frame (so they glide evenly instead of in the uneven
 // 1-2-1-2 steps a fractional speed rounds to), both on the half-size scene.
+// A logo takes up to `logoW` of its cell, so there's always a gap before the
+// next one: a wide logo drawn edge to edge would otherwise run into its
+// neighbour and the row read as one long banner.
 function frostedRows(dims: Dims) {
   const { w, h } = frostedBackDims(dims)
   const kh = h / 720
-  return { w, h, kh, cellW: Math.round(260 * kh), step: Math.max(1, Math.round((55 * kh) / FPS)) }
+  return { w, h, kh, cellW: Math.round(300 * kh), logoW: Math.round(220 * kh), step: Math.max(1, Math.round((55 * kh) / FPS)) }
 }
 
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a)
@@ -242,16 +253,16 @@ function frostedGraph(dims: Dims, scale: number, divider: boolean, loopSec: numb
   // It's composited in 4:4:4. In 4:2:0 the overlay filter rounds every position
   // to an even pixel, so a row moving one pixel a frame stood still one frame
   // and jumped two the next: the scroll looked jagged.
-  const { w, h, kh, cellW, step } = frostedRows(dims)
+  const { w, h, kh, cellW, logoW, step } = frostedRows(dims)
   const rowH = Math.round(90 * kh)
-  const nTile = 8 // strip wide enough to cover the screen + one cell while scrolling
+  const nTile = Math.ceil(w / cellW) + 1 // strip wide enough to cover the screen + one cell while scrolling
   const nRows = 5
   const spacing = Math.floor(h / nRows)
   const y = (r: number) => r * spacing + Math.floor((spacing - rowH) / 2)
   const leftX = `x='-mod(n*${step},${cellW})'`
   const rightX = `x='mod(n*${step},${cellW})-${cellW}'`
   // The logo arrives as one frame; the tile needs one per cell.
-  const cellChain = `scale=${cellW}:${rowH}:force_original_aspect_ratio=decrease,pad=${cellW}:${rowH}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba,loop=loop=${nTile - 1}:size=1,tile=${nTile}x1`
+  const cellChain = `scale=${logoW}:${rowH}:force_original_aspect_ratio=decrease,pad=${cellW}:${rowH}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba,loop=loop=${nTile - 1}:size=1,tile=${nTile}x1`
 
   // Everything that doesn't move is drawn once and repeated. Layers are
   // converted to the format they're composited in before they repeat, so the
@@ -368,9 +379,7 @@ function frostedGraph(dims: Dims, scale: number, divider: boolean, loopSec: numb
   // half-panel so a short wide logo is held instead of swelling to the middle,
   // while a tall logo is bounded by the height. `scale` grows the channel
   // logo's box only — the MosaicTV mark stays put.
-  const sh = Math.max(3, Math.round(7 * k))
   const shOff = Math.round(6 * k)
-  const shadowOf = `colorchannelmixer=rr=0:gg=0:bb=0:aa=0.55,pad=iw+${sh * 6}:ih+${sh * 6}:${sh * 3}:${sh * 3}:color=black@0,gblur=sigma=${sh}`
 
   return [
     // The backdrop: the gradient's first frame, held still.
@@ -406,8 +415,8 @@ function frostedGraph(dims: Dims, scale: number, divider: boolean, loopSec: numb
     `[g2][glint]overlay=x='-${gw}+mod(t*${v},${f4(v * glintEvery)})':y=0[g3]`,
     `[chFg]${logoBox(W * 0.3 * scale, 180 * k * scale)},format=rgba,split=2[chl][chs0]`,
     `[mzFg]${logoBox(W * 0.28, 120 * k)},format=rgba,split=2[mzl][mzs0]`,
-    `[chs0]${shadowOf},format=yuva420p,${loop}[chs]`,
-    `[mzs0]${shadowOf},format=yuva420p,${loop}[mzs]`,
+    `[chs0]${dropShadow(k)},${loop}[chs]`,
+    `[mzs0]${dropShadow(k)},${loop}[mzs]`,
     `[chl]format=yuva420p,${loop}[chfg]`,
     `[mzl]format=yuva420p,${loop}[mzfg]`,
     `[g3][chs]overlay=x=(W/2-w)/2:y=(H-h)/2+${shOff}[o1]`,
@@ -417,56 +426,142 @@ function frostedGraph(dims: Dims, scale: number, divider: boolean, loopSec: numb
   ].join(';')
 }
 
-// Spotlight: a centered glass card lit by a soft gleam that sweeps across it.
-// The channel logo sits large in the upper card; the MosaicTV wordmark rests
-// below a faint divider. A calmer, more "on-air card" counterpart to frosted's
-// busy scrolling panes.
-function spotlightGraph(dims: Dims, loop: number, scale: number): string {
+// Mosaic: the channel logo on a wall of glass tiles, with rings of light
+// spreading out from behind it through the tiles, like a signal going out.
+// The wall shades through the MosaicTV colours as they drift across it, a few
+// tiles sparkle now and then, the lit ones glow, and the MosaicTV mark sits
+// small below the logo.
+//
+// The light is worked out at one pixel per tile — the ring, the sparkle and
+// the colour of every tile, a few hundred pixels a frame — then blown up to
+// tile size and laid on the tile faces, which are drawn once.
+//
+// Inputs: [0] the channel logo and [1] the MosaicTV mark, each a single frame.
+//
+// The rings, the sparkles and the drift of the colours all come back to where
+// they started at the end of `loopSec`.
+
+const MOSAIC_ROWS = 27
+// The wall's colours, which the hues travel round: violet, blue, cyan, magenta.
+const MOSAIC_STOPS = [
+  [139, 92, 246],
+  [59, 110, 246],
+  [34, 200, 238],
+  [236, 72, 153],
+]
+
+function mosaicGraph(dims: Dims, scale: number, loopSec: number): string {
   const { w: W, h: H } = dims
   const k = H / 720
-  const CW = Math.round(W * 0.64)
-  const CH = Math.round(H * 0.62)
-  const CX = Math.round((W - CW) / 2)
-  const CY = Math.round((H - CH) / 2)
-  const seamY = CY + Math.round(CH * 0.68) // divider between the two logos
-  const border = Math.max(1, Math.round(2 * k))
-  const sweepW = Math.round(W * 0.14)
-  const sweepSpeed = ((CW + sweepW) / fitPeriod(6, loop)).toFixed(4) // one pass every ~6s
-  const blur = Math.max(4, Math.round(24 * k))
-  const chW = W * 0.42 * scale
-  const chH = H * 0.3 * scale
-  const chCenter = Math.round((CY + seamY) / 2)
-  const mzCenter = Math.round((seamY + CY + CH) / 2)
-  const pad = Math.round(CW * 0.08)
+  const f = (n: number) => n.toFixed(3)
+  const f4 = (n: number) => n.toFixed(4) // for periods the loop has to land exactly
+  const loop = `loop=loop=-1:size=1,setpts=N/(${FPS}*TB)`
+  const still = (src: string) => `${src},trim=end_frame=1,${loop}`
+  const plane = (pw: number, ph: number) => `color=c=black:s=${pw}x${ph}:r=${FPS}:d=1`
+
+  // Every tile is the same whole number of pixels: the wall is a few pixels
+  // bigger than the frame, centred on it and trimmed to it.
+  const T = Math.round(H / MOSAIC_ROWS)
+  const cols = Math.ceil(W / T)
+  const rows = Math.ceil(H / T)
+  const ox = Math.floor((cols * T - W) / 2)
+  const oy = Math.floor((rows * T - H) / 2)
+  const logoY = Math.round(H * 0.46)
+
+  // ── The light on each tile, one pixel a tile. ──
+  // A ring leaves the logo every few seconds; a tile lights up as it passes
+  // and fades just after, and rings dim as they travel. A few tiles sparkle.
+  // Each tile has a shade of its own, and the hues drift across the wall once
+  // over the loop. A lit tile runs towards white.
+  const P = f4(fitPeriod(5, loopSec)) // a ring every ~5s
+  const Q = f4(fitPeriod(7.5, loopSec)) // each sparkling tile, every ~7.5s
+  const lam = 17 // tiles between one ring and the next
+  const cx = f((W / 2 + ox) / T - 0.5)
+  const cy = f((logoY + oy) / T - 0.5)
+  const rnd = (seed: number) => `mod(abs(sin(X*12.9898+Y*78.233+${seed})*43758.5453),1)` // fixed per tile
+  const light =
+    `st(0,hypot(X-${cx},(Y-${cy})*1.15));` +
+    `st(1,T/${P}-ld(0)/${lam});st(1,ld(1)-floor(ld(1)));` + // how long since the ring passed, as a fraction
+    `st(2,exp(-9*ld(1))*(0.3+0.7*exp(-ld(0)/26)));` +
+    `st(3,gt(${rnd(3.1)},0.86)*pow(max(0,sin(2*PI*(T/${Q}+${rnd(7.7)}))),24));` +
+    `st(4,0.07+0.11*${rnd(1.3)}+0.05*sin(2*PI*(T/${f4(loopSec)}+X/${cols}*0.8+Y/${rows}*0.5)));` +
+    `st(5,ld(4)+0.95*ld(2)+0.7*ld(3));` +
+    `st(6,X/${cols}*0.55+Y/${rows}*0.3+T/${f4(loopSec)}+0.1*${rnd(5.5)})`
+  // Each stop's share of a hue: a tent around it, round the cycle.
+  const share = (i: number) => `max(0,1-abs(mod(ld(6)*4-${i}+6,4)-2))`
+  const channel = (c: number) =>
+    `${light};st(7,${MOSAIC_STOPS.map((s, i) => `${f(s[c] / 255)}*${share(i)}`).join('+')});` +
+    `clip(255*(ld(5)*ld(7)*1.25+max(0,ld(5)-0.7)*1.1),0,255)`
+  const field =
+    `color=c=black:s=${cols}x${rows}:r=${FPS}:d=${f4(loopSec)},format=gbrp,` +
+    `geq=r='${channel(0)}':g='${channel(1)}':b='${channel(2)}',` +
+    `scale=${cols * T}:${rows * T}:flags=neighbor,crop=${W}:${H}:${ox}:${oy}`
+
+  // ── The tiles, drawn once. ──
+  // Each face is a rounded square in the grout, lit from the top left, with a
+  // darker rim on its lower right (the faces multiply the light), and a gloss
+  // across its top corner with a bright rim opposite (laid over it).
+  const g = Math.max(2, T * 0.09) // grout
+  const r = T * 0.16 // corner radius
+  const inner = (T - g) / 2 - r
+  const rim = Math.max(1, T * 0.035)
+  const tile =
+    `st(0,mod(X+${ox},${T})+0.5);st(1,mod(Y+${oy},${T})+0.5);` +
+    `st(2,abs(ld(0)-${T / 2})-${f(inner)});st(3,abs(ld(1)-${T / 2})-${f(inner)});` +
+    `st(4,hypot(max(ld(2),0),max(ld(3),0))+min(max(ld(2),ld(3)),0)-${f(r)});` + // distance outside the face
+    `st(5,clip(0.5-ld(4),0,1));` + // how much of the pixel is face
+    `st(6,(ld(0)+ld(1))/${2 * T});` + // across the tile, top left to bottom right
+    `st(7,ld(5)*clip(1+ld(4)/${f(rim)},0,1))` // the rim
+  const faces = still(
+    `${plane(W, H)},format=gray,geq=lum='${tile};255*(0.043+ld(5)*((1-0.38*ld(6))*(1-0.25*ld(7)*ld(6))-0.043))',format=gbrp`,
+  )
+  const gloss =
+    `st(8,(0.6*ld(0)+ld(1))/${f(1.6 * T)});` +
+    `255*ld(5)*(if(lt(ld(8),0.45),0.16-0.267*ld(8),if(lt(ld(8),0.5),0.8*(0.5-ld(8)),0))+0.22*ld(7)*(1-ld(6)))`
+  const shine = still(`${plane(W, H)},format=rgba,geq=r=255:g=255:b=255:a='${tile};${gloss}',format=gbrap`)
+
+  // A shadow round the logo so it stands off the wall, and darker corners.
+  // Smooth, so it's drawn at quarter size and scaled up.
+  const hw = Math.round(W / 8) * 2
+  const hh = Math.round(H / 8) * 2
+  const halo =
+    `st(0,0.8*exp(-pow(hypot((X/W-0.5)/0.36,(Y/H-${f(logoY / H)})/0.4)/0.62,2.2)));` +
+    `st(1,0.7*pow(clip((hypot(X/W-0.5,Y/H-0.5)/0.75-0.55)/0.45,0,1),1.5));` +
+    `255*(1-(1-ld(0))*(1-ld(1)))`
+  const shade = still(`${plane(hw, hh)},format=rgba,geq=r=5:g=4:b=10:a='${halo}',scale=${W}:${H}:flags=bicubic,format=gbrap`)
+
+  // The logo, which `scale` grows (within the frame), and the MosaicTV mark.
+  const chW = Math.min(W * 0.42 * scale, W * 0.8)
+  const chH = Math.min(H * 0.42 * scale, H * 0.62)
+
   return [
-    // Background: a gently breathing gradient behind a vignette.
-    `[0:v]eq=brightness='0.06*sin(2*PI*t/${fitPeriod(9, loop)})':eval=frame,vignette=PI/5,format=rgba[bg]`,
-    // The glass card: soft fill, a hairline border, and a faint divider rule.
-    `[bg]drawbox=x=${CX}:y=${CY}:w=${CW}:h=${CH}:color=white@0.05:t=fill,` +
-      `drawbox=x=${CX}:y=${CY}:w=${CW}:h=${CH}:color=white@0.16:t=${border},` +
-      `drawbox=x=${CX + pad}:y=${seamY}:w=${CW - 2 * pad}:h=${Math.max(1, Math.round(k))}:color=white@0.12:t=fill[card]`,
-    // A translucent, blurred vertical bar swept across the card. It's drawn on
-    // a clear card-sized layer, so it only ever lights the glass: at the wrap
-    // it's wholly off that layer, and never shows jumping from one side of the
-    // card to the other.
-    `color=c=white:s=${sweepW}x${CH}:r=${FPS}:d=${loop},format=rgba,colorchannelmixer=aa=0.12,boxblur=${blur}:1[bar]`,
-    `color=c=black@0:s=${CW}x${CH}:r=${FPS}:d=${loop},format=rgba[glass]`,
-    `[glass][bar]overlay=x='-${sweepW}+mod(t*${sweepSpeed},${CW + sweepW})':y=0:format=rgb[sweep]`,
-    `[card][sweep]overlay=x=${CX}:y=${CY}[lit]`,
-    // Channel logo centered above the divider; MosaicTV wordmark centered below.
-    `[1:v]${logoBox(chW, chH)},format=rgba[chfg]`,
-    `[2:v]${logoBox(W * 0.24, H * 0.1)},format=rgba[mzfg]`,
-    `[lit][chfg]overlay=x=(W-w)/2:y=${chCenter}-h/2[o1]`,
-    `[o1][mzfg]overlay=x=(W-w)/2:y=${mzCenter}-h/2,format=yuv420p[v]`,
+    `${field}[field]`,
+    `${faces}[faces]`,
+    `${shine}[shine]`,
+    `${shade}[shade]`,
+    `[field][faces]blend=all_mode=multiply,split=2[tiles][b0]`,
+    // The glow off the lit tiles.
+    `[b0]scale=${Math.round(W / 8) * 2}:${Math.round(H / 8) * 2},gblur=sigma=${f(5 * k)},scale=${W}:${H}[bloom]`,
+    `[tiles][bloom]blend=all_mode=screen:all_opacity=0.45[lit]`,
+    `[lit][shine]overlay=format=gbrp[s1]`,
+    `[s1][shade]overlay=format=gbrp,format=yuv420p[wall]`,
+    `[0:v]${logoBox(chW, chH)},format=rgba,split=2[chl][chs0]`,
+    `[1:v]${logoBox(W * 0.22, H * 0.085)},format=rgba[mzl]`,
+    `[chs0]${dropShadow(k)},${loop}[chs]`,
+    `[chl]format=yuva420p,${loop}[chfg]`,
+    `[mzl]format=yuva420p,${loop}[mzfg]`,
+    `[wall][chs]overlay=x=(W-w)/2:y=${logoY}-h/2+${Math.round(8 * k)}[o1]`,
+    `[o1][chfg]overlay=x=(W-w)/2:y=${logoY}-h/2[o2]`,
+    `[o2][mzfg]overlay=x=(W-w)/2:y=${Math.round(H * 0.86)}-h/2,format=yuv420p[v]`,
   ].join(';')
 }
 
 // Styles whose clip carries a logo (the channel's, or the filler's own).
-const BRANDED = new Set(['frosted', 'spotlight', 'logowall', 'pulse'])
+const BRANDED = new Set(['frosted', 'mosaic', 'logowall', 'pulse'])
 
 // Build the StyleBuild for a generated style, looping over `loop` seconds.
 // `logoFile` brands the logo styles; `mzLogo` is the bundled MosaicTV mark
-// (required by frosted/spotlight). `divider` draws the seam between frosted's
+// (required by frosted/mosaic). `divider` draws the seam between frosted's
 // two halves.
 function buildStyle(
   style: string,
@@ -490,8 +585,8 @@ function buildStyle(
     // The logos go in as single frames — the graph draws them once and repeats.
     return { inputs: [...gradientInput(frostedBackDims(dims), loop, 0.04, 'c0=0x0b1020:c1=0x2a1150:c2=0x10233f:c3=0x0e2f3a', FPS), '-i', logoFile, '-i', mzLogo], filter: frostedGraph(dims, scale, divider, loop), tone: 90, vol: 0.04 }
   }
-  if (style === 'spotlight' && logoFile && mzLogo) {
-    return { inputs: [...gradientInput(dims, loop, 0.035, 'c0=0x0a0e1c:c1=0x1b1436:c2=0x0c1a2e:c3=0x141026'), '-loop', '1', '-i', logoFile, '-loop', '1', '-i', mzLogo], filter: spotlightGraph(dims, loop, scale), tone: 92, vol: 0.04 }
+  if (style === 'mosaic' && logoFile && mzLogo) {
+    return { inputs: ['-i', logoFile, '-i', mzLogo], filter: mosaicGraph(dims, scale, loop), tone: 92, vol: 0.04 }
   }
   return null
 }
@@ -532,7 +627,7 @@ function assembleStill(build: StyleBuild, out: string): string[] {
 
 // ---- Bundled brand mark -----------------------------------------------------
 
-// MosaicTV brand mark used in frosted/spotlight. Only present when
+// MosaicTV brand mark used in frosted/mosaic. Only present when
 // process.cwd()/public exists (production, or local dev after copying the built
 // frontend there) — undefined in plain local dev, in which case callers skip
 // those styles instead of handing ffmpeg a missing file.
@@ -548,7 +643,7 @@ function mosaictvLogoFile(): string | undefined {
 
 // Bump a style's version when its generator changes, so clips already on disk
 // are rebuilt (and the old ones swept away, see sweepUnused).
-const STYLE_VERSION: Record<string, number> = { animated: 6, frosted: 9 }
+const STYLE_VERSION: Record<string, number> = { animated: 6, frosted: 10 }
 const THEME_VERSION = 3 // every other style
 
 // Resolve an Asset id to its on-disk file (or undefined).
@@ -575,7 +670,7 @@ const dimKey = (d: Dims) => `${d.w}x${d.h}`
 // Cache filename for a generated clip. The filler id is baked into the name so
 // every version a filler produces (one per branding logo, resolution…) can be
 // swept in one go when the filler is edited or deleted. A station ident with no
-// filler row behind it (a channel's frosted fallback) uses id 0.
+// filler row behind it (a channel's fallback, see ensureStationIdent) uses id 0.
 function cacheName(style: string, fillerId: number, keyParts: string): string {
   const hash = createHash('md5').update(keyParts).digest('hex')
   return path.join(dataDir(), `filler-${style}-f${fillerId}-${hash}.mp4`)
@@ -594,7 +689,7 @@ type ClipPlan = { out: string; key: string; loop: number; build: StyleBuild; lab
 
 /**
  * Plan the clip for a generated style, or null when the style can't be drawn
- * here (a logo style with no logo, or frosted/spotlight without the bundled
+ * here (a logo style with no logo, or frosted/mosaic without the bundled
  * MosaicTV mark). Everything that changes the picture is in the file name, so
  * a clip on disk is always the right one for its inputs.
  */
@@ -722,13 +817,13 @@ export function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undef
 }
 
 /**
- * Frosted glass from a logo, at the channel's size — the safety net a break
+ * Mosaic from a logo, at the channel's size — the safety net a break
  * falls back to when its idents can't be played (a channel always has some;
  * this is for a render that failed or a channel caught mid-edit). Undefined
  * without the bundled MosaicTV mark (plain local dev only).
  */
 export async function ensureStationIdent(logoFile: string, channelHeight?: number, opts: GetOpts = {}): Promise<string | undefined> {
-  const plan = planClip('frosted', 0, logoFile, dimsFor('auto', channelHeight))
+  const plan = planClip('mosaic', 0, logoFile, dimsFor('auto', channelHeight))
   if (plan) plan.title = `the fallback ident for the ${path.parse(logoFile).name} logo`
   return plan ? obtain(plan, opts) : undefined
 }
@@ -771,9 +866,10 @@ const identName = (f: FillerRow) => f.name?.trim() || `${f.style} ident`
 /**
  * The generated look an ident is drawn in. A break reel airs its clips, and the
  * part of a break they don't fill (and any stand-in or thumbnail it needs) is
- * the frosted glass.
+ * the default look, Mosaic. Spotlight was replaced by Mosaic (an upgrade moves
+ * its idents over; this covers one made since on an older version).
  */
-const lookOf = (style: string): string => (style === 'reel' ? 'frosted' : style)
+const lookOf = (style: string): string => (style === 'reel' || style === 'spotlight' ? 'mosaic' : style)
 
 /** A clip to show for a reel on its own: its first. */
 async function reelCover(f: FillerRow): Promise<string | undefined> {

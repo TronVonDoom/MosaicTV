@@ -115,12 +115,12 @@ channelsRouter.post('/', async (req, res) => {
   const body = readBody(ChannelCreate, req, res)
   if (!body) return
   try {
-    // Every channel starts with an ident that plays everywhere else — frosted
-    // glass from its logo — so a break always has something its Breaks tab
-    // lists, and there's something to edit rather than a hidden default.
+    // Every channel starts with an ident that plays everywhere else — Mosaic,
+    // from its logo — so a break always has something its Breaks tab lists,
+    // and there's something to edit rather than a hidden default.
     const c = await prisma.$transaction(async (tx) => {
       const c = await tx.channel.create({ data: body })
-      const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'frosted', order: 0 } })
+      const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'mosaic', order: 0 } })
       await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
       return c
     })

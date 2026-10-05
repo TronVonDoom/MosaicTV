@@ -330,11 +330,16 @@ export type MatchPick = z.output<typeof MatchPick>
 
 // ── Idents ──────────────────────────────────────────────────────────────────
 
-/** An ident's look, clamped. (Picture size always matches the channel.) */
+/** An ident's look, clamped: an unknown one is the default, Mosaic.
+ *  (Picture size always matches the channel.) Spotlight, which Mosaic
+ *  replaced, is taken as Mosaic too. */
 export const IdentLook = z
   .object({
     name: text,
-    style: loose.transform((v): IdentStyle => ((IDENT_STYLES as readonly string[]).includes(String(v)) ? (String(v) as IdentStyle) : 'frosted')),
+    style: loose.transform((v): IdentStyle => {
+      const s = String(v) === 'spotlight' ? 'mosaic' : String(v)
+      return (IDENT_STYLES as readonly string[]).includes(s) ? (s as IdentStyle) : 'mosaic'
+    }),
     assetId: loose,
     audioAssetId: loose.transform((v): number | null => (present(v) ? Number(v) : null)),
     logoId: loose.transform((v): number | null => (present(v) ? Number(v) : null)),

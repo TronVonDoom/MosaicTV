@@ -166,8 +166,8 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
 
 /** The looks a new ident can have (a custom one is an uploaded clip). */
 export const LOOKS: { id: IdentLook; label: string; desc: string }[] = [
+  { id: 'mosaic', label: 'Mosaic', desc: 'Your logo on a wall of glass tiles, rings of light spreading out from it.' },
   { id: 'frosted', label: 'Frosted glass', desc: 'Your logo in front of frosted glass, logos gliding behind.' },
-  { id: 'spotlight', label: 'Spotlight', desc: 'A lit glass card with a sweeping gleam.' },
   { id: 'custom', label: 'Your own clip', desc: 'A video you upload, looped for the break.' },
   { id: 'reel', label: 'Clips from a folder', desc: 'Bumpers, promos, old commercials — each break a new mix of them.' },
 ]
@@ -185,7 +185,7 @@ export const lookLabel = (s: string): string =>
   s === 'custom' ? 'Your clip' : (LOOKS.find((l) => l.id === s)?.label ?? RETIRED[s] ?? s)
 export const isRetiredLook = (s: string): boolean => s in RETIRED
 /** Looks drawn from a logo (a custom clip carries its own artwork). */
-export const isLogoLook = (s: string): boolean => ['frosted', 'spotlight', 'logowall', 'pulse'].includes(s)
+export const isLogoLook = (s: string): boolean => ['frosted', 'mosaic', 'logowall', 'pulse'].includes(s)
 
 /** A colour per ident, by its place in the list — the week map and the list's swatches. */
 export const IDENT_COLORS = ['#8b5cf6', '#38bdf8', '#f59e0b', '#34d399', '#fb7185', '#e879f9', '#a3e635', '#f97316']
