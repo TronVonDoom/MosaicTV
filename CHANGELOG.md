@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 — Mosaic on every break (2026-10-04)
+
+A new look for station breaks, made the default — and frosted glass that keeps
+a wide logo from turning into a banner.
 
 - **Mosaic, in place of Spotlight.** A new ident look: your logo on a wall of
   glass tiles, with rings of light spreading out from behind it through the
