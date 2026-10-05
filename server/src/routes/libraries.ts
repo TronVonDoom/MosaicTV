@@ -103,14 +103,21 @@ librariesRouter.get('/:id/sample', async (req, res) => {
     })
   }
 
+  // From the whole library, not its first few hundred files (one artist's
+  // discography, as scanned); and music by album, since an album's songs all
+  // wear its cover — one wall of the same picture otherwise. Extras keep out
+  // of it: a trailer's poster is its movie's.
+  const music = lib.kind === 'music' || lib.kind === 'audio'
   const items = await prisma.mediaItem.findMany({
     where: {
       libraryId: id,
       missing: false,
+      extra: null,
       OR: [{ posterPath: { not: null } }, { tmdbPosterPath: { not: null } }],
     },
+    ...(music ? { distinct: ['artist', 'album'] as const } : {}),
     select: { id: true, title: true },
-    take: 400,
+    take: 5000,
   })
   res.json({ items: shuffle(items).slice(0, limit).map((m) => ({ id: m.id, title: m.title, art: 'poster' })) })
 })
