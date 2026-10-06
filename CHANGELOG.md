@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.1 — Up next, as scheduled (2026-10-06)
+
+- **The up-next card follows a schedule change.** The card is drawn into a
+  program as it starts, so an edit made while a program was on — a
+  collection's shows, a block, the rotation — reached the card only at the
+  next program, and until then it named what had been next before. Now, when
+  an edit changes what's next, the program on air picks up again from where
+  it is with a card naming what actually airs, after a moment's blink for
+  anyone watching. A music channel's up-next corner follows too, and an edit
+  that leaves what's next alone doesn't touch what's on air. Thanks to
+  DarthKallos for the report (#2).
+
 ## 0.17.0 — Backups that come back, and GPUs that encode (2026-10-05)
 
 A backup you can restore from Settings, Intel and AMD GPUs that encode at
