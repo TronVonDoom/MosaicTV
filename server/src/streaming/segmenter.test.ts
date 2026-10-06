@@ -24,6 +24,8 @@ mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: T0 })
 
 const { ensureSegmenter, setSegmenterDeps, stopAllSegmenters, touchSegmenter, allSegmenterViewers, segmenterIdle, segmenterPlaylistFile } = await import('./segmenter.js')
 const { fakeSpawner } = await import('./fakeEncoder.js')
+const { upNextKeyFor } = await import('./itemBuild.js')
+const { replanChannel } = await import('../schedule/scheduleChanges.js')
 
 const SEC = 1000
 const SLOT = 180 // every episode is three minutes
@@ -45,8 +47,9 @@ const col = await prisma.collection.create({
 })
 await prisma.rotationItem.create({ data: { channelId: ch.id, order: 0, collectionId: col.id, playbackOrder: 'inherit' } })
 
-// Every encode the producer asks for, with where on the schedule it starts.
-type Build = { itemId: number; kind: string; label: string; offset: number; cursorMs: number; now: number; enc: string }
+// Every encode the producer asks for, with where on the schedule it starts
+// and the program its up-next card names.
+type Build = { itemId: number; kind: string; label: string; offset: number; cursorMs: number; now: number; enc: string; upNext?: string }
 const builds: Build[] = []
 const fake = fakeSpawner()
 setSegmenterDeps({
@@ -56,7 +59,7 @@ setSegmenterDeps({
   buildItemArgs: async (p) => {
     const m = p.item.mediaItem
     const label = m?.title ?? p.item.title ?? 'break'
-    builds.push({ itemId: p.item.id, kind: p.item.kind, label, offset: p.offset, cursorMs: p.item.startTime.getTime() + p.offset * SEC, now: Date.now(), enc: p.enc })
+    builds.push({ itemId: p.item.id, kind: p.item.kind, label, offset: p.offset, cursorMs: p.item.startTime.getTime() + p.offset * SEC, now: Date.now(), enc: p.enc, upNext: p.nextProgram?.mediaItem?.title })
     const out = p.output as Extract<FfmpegOutput, { kind: 'hls' }>
     return {
       kind: 'encode',
@@ -68,6 +71,8 @@ setSegmenterDeps({
       mediaHeight: 720,
       wmDesc: 'fake',
       durSec: p.segDur,
+      // A program's card is up the whole way through, so any edit can move it.
+      ...(p.item.kind === 'program' ? { upNext: { key: await upNextKeyFor(p.item, p.nextProgram), untilSec: p.segDur } } : {}),
     }
   },
 })
@@ -149,6 +154,39 @@ test('the live playlist is well formed: rising sequence, a discontinuity at each
   assert.ok(files.length >= 30, `only ${files.length} segments in the window`)
   assert.ok(text.includes('#EXT-X-DISCONTINUITY'), 'no discontinuity in the window')
   for (const n of files) assert.ok(fs.existsSync(segmenterPlaylistFile(90).replace('index.m3u8', `seg_${n}.ts`)), `seg_${n}.ts missing`)
+})
+
+test('a schedule edit puts the new next program on the up-next card of the one on air', async () => {
+  // Partway into a program, the channel's rotation moves to another show.
+  await watch(60 * SEC)
+  const alt = await prisma.show.create({ data: { libraryId: lib.id, title: 'Alt' } })
+  for (const i of [1, 2, 3]) {
+    await prisma.mediaItem.create({
+      data: { libraryId: lib.id, path: `/fake/ok/alt${i}.mkv`, type: 'episode', title: `Alt ${i}`, showId: alt.id, showTitle: 'Alt', season: 1, episode: i, durationSec: SLOT },
+    })
+  }
+  const altCol = await prisma.collection.create({
+    data: { name: 'Alt', channelId: ch.id, defaultOrder: 'chronological', items: { create: [{ kind: 'show', showId: alt.id, libraryId: lib.id }] } },
+  })
+  await prisma.rotationItem.updateMany({ where: { channelId: ch.id }, data: { collectionId: altCol.id } })
+
+  const onAir = builds.at(-1)!
+  assert.equal(onAir.kind, 'program')
+  assert.match(onAir.upNext ?? '', /^Seq /, 'the card named the old show before the edit')
+  const before = builds.length
+  await replanChannel(ch.id)
+  await watch(10 * SEC)
+
+  const again = builds.slice(before).find((b) => b.itemId === onAir.itemId)
+  assert.ok(again, 'the program on air was not re-encoded after the edit')
+  assert.ok(again.offset > onAir.offset + 30, 'it started over rather than carrying on from where it was')
+  assert.equal(again.upNext, 'Alt 1', 'its card still names what was next before the edit')
+
+  // A rebuild that leaves what's next alone leaves the encode alone too.
+  const settled = builds.length
+  await replanChannel(ch.id)
+  await watch(10 * SEC)
+  assert.equal(builds.slice(settled).filter((b) => b.itemId === onAir.itemId).length, 0, 're-encoded with nothing to change')
 })
 
 test('with nobody watching, the producer stops', async () => {

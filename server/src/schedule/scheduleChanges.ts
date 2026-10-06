@@ -10,6 +10,7 @@
 import { prisma } from '../db.js'
 import { publish } from '../events.js'
 import { log } from '../logs.js'
+import { timelineRebuilt } from '../streaming/segmenter.js'
 import { replanPlayout } from './playout.js'
 
 const SETTLE_MS = 750
@@ -44,11 +45,13 @@ async function replanNow(channelId: number): Promise<void> {
       const { count } = await prisma.playoutItem.deleteMany({ where: { channelId, startTime: { gt: new Date() } } })
       await prisma.channel.update({ where: { id: channelId }, data: { playoutCursor: new Date() } }).catch(() => {})
       if (count) publish({ type: 'guide', channelId, from: new Date().toISOString() })
+      if (count) await timelineRebuilt(channelId).catch(() => {})
       return
     }
     const { from, built } = await replanPlayout(channelId)
     log('info', 'playout', `Channel ${channelId}: guide rebuilt${from ? ` from ${from.toLocaleString()}` : ''} for a schedule change (${built} program(s))`)
     publish({ type: 'guide', channelId, from: from?.toISOString() ?? null })
+    await timelineRebuilt(channelId).catch(() => {})
   } catch (e) {
     log('error', 'playout', `Channel ${channelId}: couldn't rebuild the guide after a schedule change`, String((e as Error)?.stack || e))
   }
@@ -60,6 +63,7 @@ export async function replanChannel(channelId: number, restart = false): Promise
   pending.delete(channelId)
   const { from } = await replanPlayout(channelId, { restart })
   publish({ type: 'guide', channelId, from: from?.toISOString() ?? null })
+  await timelineRebuilt(channelId).catch(() => {})
   return { from: from?.toISOString() ?? null }
 }
 

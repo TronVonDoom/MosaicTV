@@ -62,6 +62,11 @@ export type BuiltItem =
       /** How long this encode is meant to run: the slot's remainder, or less
        *  for one clip of a break reel (the next encode carries on the break). */
       durSec: number
+      /** What this encode names as up next (its card, or a song screen's
+       *  corner), as upNextKey has it — null for nothing to name — and when
+       *  the last of that is off screen, in seconds into the encode. Absent
+       *  when it never names what's next. */
+      upNext?: { key: string | null; untilSec: number }
     }
   | { kind: 'black'; durSec: number; why: string; label: string }
 
@@ -119,6 +124,67 @@ async function albumPlace(mi: { libraryId: number; artist: string | null; album:
   const discs = new Set(songs.map((s) => s.disc ?? 1))
   const set = discs.size > 1
   return { track: mi.track, tracks: set ? songs.filter((s) => (s.disc ?? 1) === (mi.disc ?? 1)).length : songs.length, disc: set ? mi.disc ?? 1 : null }
+}
+
+/**
+ * An item's whole span on the schedule, and the program its up-next card
+ * names. A broadcast episode airs as several playout rows, but it's one
+ * program: the span is the whole episode, and what's next is what follows it
+ * rather than its own next segment.
+ */
+async function programAndNext(
+  item: PlayoutItemForBuild,
+  nextProgram: PlayoutItemForBuild | undefined,
+): Promise<{ start: number; stop: number; upNext: PlayoutItemForBuild | undefined }> {
+  let start = item.startTime.getTime()
+  let stop = item.stopTime.getTime()
+  let upNext = nextProgram
+  if (item.groupKey) {
+    const span = await prisma.playoutItem.aggregate({
+      where: { channelId: item.channelId, groupKey: item.groupKey },
+      _min: { startTime: true },
+      _max: { stopTime: true },
+    })
+    start = span._min.startTime?.getTime() ?? start
+    stop = span._max.stopTime?.getTime() ?? stop
+    if (!upNext || upNext.groupKey === item.groupKey) {
+      upNext =
+        (await prisma.playoutItem.findFirst({
+          where: { channelId: item.channelId, kind: 'program', mediaItemId: { not: null }, startTime: { gte: new Date(stop) } },
+          orderBy: { startTime: 'asc' },
+          include: { mediaItem: true },
+        })) ?? undefined
+    }
+  }
+  return { start, stop, upNext }
+}
+
+/**
+ * What an up-next card says about `row`, as a key that changes when the card
+ * would: when the program starts and which files it is (every segment of a
+ * broadcast episode). Null for nothing to name.
+ */
+async function upNextKey(row: PlayoutItemForBuild | undefined): Promise<string | null> {
+  if (!row?.mediaItemId) return null
+  const ids = row.groupKey
+    ? (
+        await prisma.playoutItem.findMany({
+          where: { channelId: row.channelId, groupKey: row.groupKey },
+          orderBy: { startTime: 'asc' },
+          select: { mediaItemId: true },
+        })
+      ).map((r) => r.mediaItemId)
+    : [row.mediaItemId]
+  return `${row.startTime.getTime()}:${ids.join(',')}`
+}
+
+/**
+ * What `item` names as up next, as its build reported it (BuiltItem.upNext):
+ * a song names the next program; anything else, the one past the rest of its
+ * broadcast episode.
+ */
+export async function upNextKeyFor(item: PlayoutItemForBuild, nextProgram: PlayoutItemForBuild | undefined): Promise<string | null> {
+  return upNextKey(item.mediaItem?.type === 'song' ? nextProgram : (await programAndNext(item, nextProgram)).upNext)
 }
 
 export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem> {
@@ -315,30 +381,11 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
       log('warn', 'stream', `Channel ${channelNumber}: could not build the ${what} card`, String((e as Error)?.stack || e), tag)
     }
   }
+  // What this encode names as up next, for a replan to check (BuiltItem.upNext).
+  let upNextSlot: { key: string | null; untilSec: number } | undefined
   if (!thisIsFiller && mi && mi.type !== 'song' && cu?.enabled) {
-    // A broadcast episode airs as several playout rows, but it's one program:
-    // time the card against the whole episode (so it shows once, near its
-    // end), and announce what follows it rather than its own next segment.
-    let start = item.startTime.getTime()
-    let stop = item.stopTime.getTime()
-    let upNext = nextProgram
-    if (item.groupKey) {
-      const span = await prisma.playoutItem.aggregate({
-        where: { channelId: item.channelId, groupKey: item.groupKey },
-        _min: { startTime: true },
-        _max: { stopTime: true },
-      })
-      start = span._min.startTime?.getTime() ?? start
-      stop = span._max.stopTime?.getTime() ?? stop
-      if (!upNext || upNext.groupKey === item.groupKey) {
-        upNext =
-          (await prisma.playoutItem.findFirst({
-            where: { channelId: item.channelId, kind: 'program', mediaItemId: { not: null }, startTime: { gte: new Date(stop) } },
-            orderBy: { startTime: 'asc' },
-            include: { mediaItem: true },
-          })) ?? undefined
-      }
-    }
+    // Timed against the whole broadcast episode, so it shows once, near its end.
+    const { start, stop, upNext } = await programAndNext(item, nextProgram)
     const encodeStart = item.startTime.getTime() + offset * 1000
     const windows = comingUpWindows(cu, {
       encodeSec: segDur,
@@ -346,8 +393,9 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
       programSec: (stop - start) / 1000,
       intoProgramSec: (encodeStart - start) / 1000,
     })
-    if (windows.length > 0 && upNext?.mediaItem) {
-      await stageCard('up-next', await upNextContent(upNext).catch(() => null), windows)
+    if (windows.length > 0) {
+      upNextSlot = { key: await upNextKey(upNext), untilSec: Math.max(...windows.map((w) => w.b)) }
+      if (upNext?.mediaItem) await stageCard('up-next', await upNextContent(upNext).catch(() => null), windows)
     }
   }
   if (!thisIsFiller && mi?.type === 'music' && mi.title) {
@@ -358,11 +406,15 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   // A song's screen leaves its bottom-right corner for what's next, over its
   // last 20 seconds — whatever the channel's card does over programs — unless
   // its corners name what's next the whole way through.
-  if (!thisIsFiller && mi?.type === 'song' && seg.screen && nextProgram?.mediaItem && !around.next) {
+  if (!thisIsFiller && mi?.type === 'song' && seg.screen) {
     const untilEnd = (item.stopTime.getTime() - item.startTime.getTime()) / 1000 - offset
     const a = Math.max(0, untilEnd - 20)
     const b = Math.min(segDur, untilEnd - 0.5)
-    if (b - a > 2) await stageCard('up-next', await upNextContent(nextProgram).catch(() => null), [{ a, b }], 'bottom-right')
+    if ('next' in around) upNextSlot = { key: await upNextKey(nextProgram), untilSec: segDur }
+    else if (b - a > 2) upNextSlot = { key: await upNextKey(nextProgram), untilSec: b }
+    if (nextProgram?.mediaItem && !around.next && b - a > 2) {
+      await stageCard('up-next', await upNextContent(nextProgram).catch(() => null), [{ a, b }], 'bottom-right')
+    }
   }
 
   const args = ffmpegArgs(seg, enc, wm, profile, cards, readrate, output)
@@ -380,5 +432,5 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   }
 
   const captionFiles = cardFiles
-  return { kind: 'encode', args, label, captionFiles, hwDecode: seg.hwDecode ?? false, mediaWidth: seg.mediaWidth, mediaHeight: seg.mediaHeight, wmDesc, durSec: seg.durationSec ?? segDur }
+  return { kind: 'encode', args, label, captionFiles, hwDecode: seg.hwDecode ?? false, mediaWidth: seg.mediaWidth, mediaHeight: seg.mediaHeight, wmDesc, durSec: seg.durationSec ?? segDur, upNext: upNextSlot }
 }

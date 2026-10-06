@@ -30,7 +30,7 @@ import { resolveProfile } from './profile.js'
 import { loadWatermark, parseWatermark, type WatermarkConfig } from './overlays.js'
 import { detectReadrateBurst, resolveEncoder } from './capabilities.js'
 import { blackArgs, type FfmpegOutput } from './filters.js'
-import { buildItemArgs, type BuildItemParams, type ChannelForBuild, type PlayoutItemForBuild } from './itemBuild.js'
+import { buildItemArgs, upNextKeyFor, type BuildItemParams, type ChannelForBuild, type PlayoutItemForBuild } from './itemBuild.js'
 
 // ready = playlist has segments; starting = warming up; unavailable = no channel/schedule.
 export type HlsStatus = 'ready' | 'starting' | 'unavailable'
@@ -125,6 +125,22 @@ type ItemContext = Omit<
   'item' | 'next' | 'nextProgram' | 'prevKind' | 'offset' | 'segDur' | 'output' | 'readrate' | 'tag'
 >
 
+/** What's on the schedule at `at` and the rows after it: enough look-ahead to
+ *  see past a station break to the program after it. */
+async function lookAhead(channelId: number, at: number): Promise<PlayoutItemForBuild[]> {
+  return (await prisma.playoutItem.findMany({
+    where: { channelId, stopTime: { gt: new Date(at) } },
+    orderBy: { startTime: 'asc' },
+    take: 4,
+    include: { mediaItem: true },
+  })) as PlayoutItemForBuild[]
+}
+
+/** The next real program after the first of `items`, past any filler between. */
+function programAfter(items: PlayoutItemForBuild[]): PlayoutItemForBuild | undefined {
+  return items.slice(1).find((it) => it.kind === 'program' && it.mediaItem)
+}
+
 /** A filler slot standing in for the station ident while a slot is held. */
 function identItem(channelId: number, startMs: number, stopMs: number): PlayoutItemForBuild {
   return {
@@ -182,7 +198,13 @@ class ChannelSegmenter {
   private discontSeq = 0 // count of discontinuities evicted from the front
   private emittedAny = false
   private runSeq = 0
-  private restyled = false // the running encoder was killed by restyle()
+  private restyled: string | null = null // why restyle() killed the running encoder
+  // The encode running now: which item, where on the schedule it began, its
+  // progress, and what it names as up next (see upNextMoved).
+  private encoding: { item: PlayoutItemForBuild; atMs: number; run: Run | null; upNext?: { key: string | null; untilSec: number } } | null = null
+  // Bumped whenever the timeline is rebuilt, so an item built from the old
+  // one in the meantime is built again rather than aired.
+  private timeline = 0
   // Where the next frame sits on the schedule (epoch ms): the end of everything
   // encoded so far. Runs ~LEAD_SEC ahead of the wall clock.
   private cursor = 0
@@ -251,11 +273,29 @@ class ChannelSegmenter {
    * discontinuity as at any item boundary. The new look reaches the screen once
    * the few seconds already buffered ahead have played.
    */
-  restyle(): boolean {
+  restyle(why = 'channel look changed'): boolean {
     if (!this.running || !this.proc) return false
-    this.restyled = true
+    this.restyled = why
     this.proc.kill('SIGKILL')
     return true
+  }
+
+  /**
+   * The timeline was rebuilt (a schedule edit). The up-next card is baked in
+   * when an item starts, so the one on air still names whatever was next
+   * before the edit: if that's no longer what's next, re-encode from here, as
+   * restyle does. One already off screen, or still right, is left alone — a
+   * re-encode costs viewers a blink.
+   */
+  async upNextMoved(): Promise<void> {
+    this.timeline++
+    const on = this.encoding
+    if (!on?.upNext || !this.proc) return
+    const encodedTo = on.run ? on.run.startMs + on.run.encodedSec * 1000 : on.atMs
+    if (on.atMs + on.upNext.untilSec * 1000 <= encodedTo) return
+    const items = await lookAhead(on.item.channelId, on.atMs)
+    const same = items[0]?.id === on.item.id && (await upNextKeyFor(on.item, programAfter(items))) === on.upNext.key
+    if (!same && this.encoding === on) this.restyle("what's up next changed")
   }
 
   playlistFile(): string {
@@ -337,13 +377,8 @@ class ChannelSegmenter {
       logoWm: new Map<number, WatermarkConfig>(logos.map((l) => [l.id, parseWatermark(l.watermark, defaultWm)])),
     }
 
-    // Enough look-ahead to see past a station break to the program after it.
-    const items = (await prisma.playoutItem.findMany({
-      where: { channelId: channel.id, stopTime: { gt: new Date(at) } },
-      orderBy: { startTime: 'asc' },
-      take: 4,
-      include: { mediaItem: true },
-    })) as PlayoutItemForBuild[]
+    const timeline = this.timeline
+    const items = await lookAhead(channel.id, at)
 
     if (items.length === 0) {
       // Playout exhausted (should be rare — we extend above). Keep the session
@@ -373,7 +408,7 @@ class ChannelSegmenter {
     }
 
     const next = items[1]
-    const nextProgram = items.slice(1).find((it) => it.kind === 'program' && it.mediaItem)
+    const nextProgram = programAfter(items)
     const prevRow = await prisma.playoutItem.findFirst({
       where: { channelId: channel.id, stopTime: { lte: new Date(at) } },
       orderBy: { stopTime: 'desc' },
@@ -399,6 +434,11 @@ class ChannelSegmenter {
       tag: this.tag,
     })
 
+    // The timeline was rebuilt while this was being built: build it again.
+    if (this.timeline !== timeline) {
+      if (built.kind === 'encode') for (const f of built.captionFiles) fs.rmSync(f, { force: true })
+      return
+    }
     if (built.kind === 'black') {
       this.attempts.set(item.id, { stopMs, cpu: attempt?.cpu ?? false, hold: built.why })
       void noteStreamed(item, `held: ${built.why}`)
@@ -416,7 +456,8 @@ class ChannelSegmenter {
 
     // Someone is watching it: it streamed, unless something below says otherwise.
     void noteStreamed(item, 'ok')
-    const res = await this.encodeToMaster(built.args, built.label, built.captionFiles, at)
+    this.encoding = { item, atMs: at, run: null, upNext: built.upNext }
+    const res = await this.encodeToMaster(built.args, built.label, built.captionFiles, at).finally(() => (this.encoding = null))
     if (!this.running || res.restyled) return
 
     // It failed outright, or the watchdog found it wedged. Relaunching the same
@@ -543,6 +584,7 @@ class ChannelSegmenter {
     // the last positional argument).
     const playlist = args[args.length - 1]
     const run: Run = { dir: this.workDir, playlist, ingested: 0, firstOfRun: true, startMs: atMs, encodedSec: 0 }
+    if (this.encoding?.atMs === atMs) this.encoding.run = run
 
     const proc = deps.spawn('ffmpeg', args)
     this.proc = proc
@@ -593,10 +635,10 @@ class ChannelSegmenter {
     this.ingest(run) // final drain: pick up the last finalized segment
     if (this.proc === proc) this.proc = null
     this.cursor = atMs + run.encodedSec * 1000
-    const restyled = this.restyled
-    if (restyled) {
-      this.restyled = false
-      log('info', 'stream', `Ch ${this.n}: channel look changed — re-encoding ${label} from here`, undefined, this.tag)
+    const restyled = this.restyled != null
+    if (this.restyled != null) {
+      log('info', 'stream', `Ch ${this.n}: ${this.restyled} — re-encoding ${label} from here`, undefined, this.tag)
+      this.restyled = null
     }
 
     // 255 / SIGKILL is our own reaper, the watchdog, or a restart; anything else
@@ -733,6 +775,13 @@ export async function ensureSegmenter(n: number, ip?: string, client?: string): 
 /** Re-encode a channel's on-air item with its current look, if it's streaming. */
 export function restyleSegmenter(n: number): boolean {
   return channels.get(n)?.restyle() ?? false
+}
+
+/** A channel's timeline was rebuilt: put the right program on its up-next card, if it's streaming. */
+export async function timelineRebuilt(channelId: number): Promise<void> {
+  if (channels.size === 0) return
+  const ch = await prisma.channel.findUnique({ where: { id: channelId }, select: { number: true } })
+  if (ch?.number != null) await channels.get(ch.number)?.upNextMoved()
 }
 
 /** Register a segment/playlist fetch so the reaper keeps the producer alive. */
