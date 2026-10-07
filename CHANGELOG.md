@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
+
+- **Picture in picture in TV mode.** A new button beside Full screen (or
+  the P key) pops the channel into a small window that stays on top of
+  other tabs and apps while the TV-mode tab stays open. Its skip buttons
+  flip channels, and so do media keys and the system's media controls,
+  which show what's on and the channel's logo. Firefox has its own
+  picture-in-picture toggle on the video, so the button isn't shown there.
+- **A volume slider in TV mode.** It sits beside the mute button, the
+  − and + keys turn it down and up, and it remembers its level. Turning it
+  up unmutes. Phones keep using their own volume buttons.
+
 ## 0.18.0 — A guide that looks back (2026-10-07)
 
 - **The guide shows what just aired.** The guide always left room for the
