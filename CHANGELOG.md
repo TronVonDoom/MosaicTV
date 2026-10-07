@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.2 — A guide that stays up (2026-10-07)
+
+- **The guide stays up on a page left open.** The Dashboard's guide went
+  blank about ten minutes after the page was opened, whenever no channel's
+  schedule changed in that time, and came back only with a reload. Now a
+  page keeps showing what it fetched for as long as it's open, and the
+  guides on the Dashboard, the Channels page and a channel's Guide tab
+  fetch again every few minutes as well as whenever a schedule changes. The
+  same fix keeps the live cards from turning "Off air" between programs, and
+  a movie's, show's or artist's On air section from going back to a loading
+  placeholder (#3).
+
 ## 0.17.1 — Up next, as scheduled (2026-10-06)
 
 - **The up-next card follows a schedule change.** The card is drawn into a
