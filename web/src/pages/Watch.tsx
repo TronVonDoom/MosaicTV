@@ -21,6 +21,7 @@ import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 
 const LAST_KEY = 'mosaictv.watch.last'
 const WARM_KEY = 'mosaictv.watch.warm'
+const VOLUME_KEY = 'mosaictv.watch.volume'
 const BANNER_MS = 5000
 const CONTROLS_MS = 3000
 const DIGIT_MS = 1600
@@ -224,12 +225,76 @@ export default function Watch() {
     return () => document.removeEventListener('fullscreenchange', on)
   }, [])
 
+  // Picture in picture: the channel keeps playing in a small window over other
+  // tabs and apps (this tab stays open behind it). Firefox has its own button
+  // on the video instead of this API.
+  const pipSupported = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
+  const [pip, setPip] = useState(false)
+  const togglePip = useCallback(() => {
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {})
+    else videoRef.current?.requestPictureInPicture?.().catch(() => {})
+  }, [])
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const on = () => setPip(true)
+    const off = () => setPip(false)
+    video.addEventListener('enterpictureinpicture', on)
+    video.addEventListener('leavepictureinpicture', off)
+    return () => {
+      video.removeEventListener('enterpictureinpicture', on)
+      video.removeEventListener('leavepictureinpicture', off)
+    }
+  }, [])
+
+  // The browser's media controls (the small window's skip buttons, media keys,
+  // the OS media flyout) flip channels.
+  useEffect(() => {
+    const ms = navigator.mediaSession
+    if (!ms) return
+    ms.setActionHandler('nexttrack', () => step(1))
+    ms.setActionHandler('previoustrack', () => step(-1))
+    return () => {
+      ms.setActionHandler('nexttrack', null)
+      ms.setActionHandler('previoustrack', null)
+    }
+  }, [step])
+  useEffect(() => {
+    if (!navigator.mediaSession || !channel || typeof MediaMetadata === 'undefined') return
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: airing ?? channel.name,
+      artist: `${channel.number} · ${channel.name}`,
+      artwork: castImage ? [{ src: castImage }] : [],
+    })
+  }, [channel, airing, castImage])
+  useEffect(() => () => void (navigator.mediaSession && (navigator.mediaSession.metadata = null)), [])
+
   const toggleMute = useCallback(() => {
     const v = videoRef.current
     if (!v) return
     v.muted = !v.muted
     setMuted(v.muted)
     if (!v.muted && v.paused) v.play().catch(() => {})
+  }, [])
+
+  // Volume, remembered between visits. Turning it up unmutes, like a TV.
+  const [volume, setVolumeState] = useState(() => {
+    const v = Number(readStore(VOLUME_KEY))
+    return readStore(VOLUME_KEY) != null && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
+  })
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = volume
+  }, [volume])
+  const setVolume = useCallback((to: number) => {
+    const v = Math.round(Math.min(1, Math.max(0, to)) * 100) / 100
+    setVolumeState(v)
+    writeStore(VOLUME_KEY, String(v))
+    const video = videoRef.current
+    if (video && v > 0 && video.muted) {
+      video.muted = false
+      setMuted(false)
+      if (video.paused) video.play().catch(() => {})
+    }
   }, [])
 
   const toggleWarm = () =>
@@ -276,6 +341,14 @@ export default function Watch() {
       } else if (k === 'g' || k === 'G' || k === 'Enter') openGuide()
       else if (k === 'i' || k === 'I') setBannerUntil(Date.now() + BANNER_MS)
       else if (k === 'f' || k === 'F') toggleFullscreen()
+      else if ((k === 'p' || k === 'P') && pipSupported) togglePip()
+      else if (k === '-' || k === '_') {
+        setVolume(volume - 0.1)
+        wake()
+      } else if (k === '=' || k === '+') {
+        setVolume(volume + 0.1)
+        wake()
+      }
       else if (k === 'm' || k === 'M') toggleMute()
       else if (k === '?' || k === 'h' || k === 'H') setHelpOpen(true)
       else if (k === 'Escape') {
@@ -287,7 +360,7 @@ export default function Watch() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideOpen, helpOpen, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, toggleMute, exit])
+  }, [guideOpen, helpOpen, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit])
 
   // Swipe up/down to change channel; a tap wakes the controls.
   const touch = useRef<{ y: number; t: number } | null>(null)
@@ -470,13 +543,35 @@ export default function Watch() {
               }}
             />
           )}
-          <OsdButton icon={muted ? 'muted' : 'volume'} label={muted ? 'Unmute (M)' : 'Mute (M)'} onClick={toggleMute} />
+          <div className="flex items-center rounded-full sm:bg-black/45 sm:backdrop-blur-md sm:ring-1 sm:ring-white/15">
+            <OsdButton icon={muted || volume === 0 ? 'muted' : 'volume'} label={muted ? 'Unmute (M)' : 'Mute (M)'} onClick={toggleMute} />
+            {/* Phones set the volume with their own buttons; the slider is for the rest. */}
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={muted ? 0 : volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              // Hand the keys back to the TV once the slider's let go, and keep
+              // its own arrow keys from flipping the channel meanwhile.
+              onPointerUp={(e) => e.currentTarget.blur()}
+              onKeyDown={(e) => e.key.startsWith('Arrow') && e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Volume (− +)"
+              title={`Volume ${Math.round((muted ? 0 : volume) * 100)}% (− +)`}
+              className="hidden sm:block w-24 mr-4 accent-indigo-300 cursor-pointer"
+            />
+          </div>
           <OsdButton
             icon="bolt"
             label={warm ? 'Instant flipping is on — the channels either side keep running' : 'Instant flipping: keep the channels either side running'}
             active={warm}
             onClick={toggleWarm}
           />
+          {pipSupported && (
+            <OsdButton icon="pip" label={pip ? 'Back from the small window (P)' : 'Picture in picture (P)'} active={pip} onClick={togglePip} />
+          )}
           <OsdButton icon={fullscreen ? 'exitFullscreen' : 'fullscreen'} label="Full screen (F)" onClick={toggleFullscreen} />
           <OsdButton icon="info" label="Keys (?)" onClick={() => setHelpOpen(true)} />
         </div>
@@ -573,7 +668,9 @@ export default function Watch() {
                   ['G', 'Channel guide'],
                   ['I', 'What’s on'],
                   ['M', 'Mute'],
+                  ['− +', 'Volume'],
                   ['F', 'Full screen'],
+                  ...(pipSupported ? ([['P', 'Picture in picture']] as const) : []),
                   ['Esc', 'Leave TV mode'],
                 ] as const
               ).map(([k, what]) => (

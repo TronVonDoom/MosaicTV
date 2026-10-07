@@ -54,6 +54,7 @@ import {
   PanelLeftOpen,
   Pause,
   Pencil,
+  PictureInPicture2,
   Play,
   Plus,
   RadioTower,
@@ -148,6 +149,7 @@ export type IconName =
   | 'chevronUp'
   | 'fullscreen'
   | 'exitFullscreen'
+  | 'pip'
   | 'volume'
   | 'muted'
   | 'heart'
@@ -220,6 +222,7 @@ const GLYPH: Record<IconName, LucideIcon> = {
   chevronUp: ChevronUp,
   fullscreen: Maximize,
   exitFullscreen: Minimize,
+  pip: PictureInPicture2,
   volume: Volume2,
   muted: VolumeX,
   heart: Heart,
