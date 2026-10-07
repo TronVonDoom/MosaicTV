@@ -261,6 +261,24 @@ HTTPS) or an Apple TV (Safari, AirPlay).
 - **One-click backup** from Settings, a copy taken before any upgrade changes
   the database, and an in-app log viewer with a download for bug reports.
 
+## Hardware requirements
+
+Only channels someone is watching are encoded, and viewers of the same channel
+share one encode — so size the server by how many **different channels are
+watched at once**.
+
+| | Light | Recommended | Heavy |
+| - | ----- | ----------- | ----- |
+| **Channels watched at once** | 1–2 | 3–5 | 6 or more |
+| **CPU** | 4 cores, from about 2015 on | 4–6 cores | 6–8 cores |
+| **GPU** | None (CPU, 720p) | Intel, AMD or NVIDIA; NVIDIA GTX 1050+ for HEVC files | NVIDIA RTX |
+| **RAM** | 4 GB | 8 GB | 16 GB |
+
+Any tier needs a 64-bit Intel or AMD (amd64) Docker host, an SSD with about
+10 GB free for app data, and a wired connection. See
+[Hardware requirements](docs/hardware-acceleration.md#hardware-requirements)
+for what drives the cost, measured numbers and bandwidth per viewer.
+
 ## Quick start
 
 ```bash
@@ -291,7 +309,7 @@ change.
 | 🗓 [Channels & Scheduling](docs/channels.md) | Collections, broadcast episodes, rotations, time blocks, playback orders, the guide |
 | 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, up-next cards |
 | 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps · casting |
-| ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | CPU vs NVIDIA, setup per platform, profiles |
+| ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | Hardware requirements, CPU vs GPU, setup per platform, profiles |
 | 🔒 [Security](docs/security.md) | LAN-only stance, VPN access, reverse proxies |
 | 🛠 [Troubleshooting & Backup](docs/troubleshooting.md) | Common fixes, logs, backup/restore |
 

@@ -35,12 +35,58 @@ bigger win).
 > set the `VAAPI_DEVICE` environment variable. Pass the device into the
 > container (`--device /dev/dri:/dev/dri`).
 
-## Do I need a GPU?
+## Hardware requirements
 
-A modern CPU handles a few 720p30 channels fine (`libx264 veryfast`). Consider
-a GPU when you want several channels streaming at once, 1080p output, or the
-server also does other heavy work. Streams are only encoded **while someone is
-watching** — idle channels cost nothing.
+A channel is encoded only **while someone is watching it**, and everyone
+watching the same channel shares one encode. So size the server by **how many
+different channels are watched at the same time** — not by how many channels
+you build, or how many people watch.
+
+| | Light | Recommended | Heavy |
+| - | ----- | ----------- | ----- |
+| **Channels watched at once** | 1–2 | 3–5 | 6 or more |
+| **CPU** | 4 cores, from about 2015 on | 4–6 cores | 6–8 cores |
+| **GPU** | None — CPU encoding at the default 720p | Any GPU from the table above; NVIDIA GTX 1050 or newer if your files are mostly HEVC (x265) | NVIDIA RTX |
+| **RAM** | 4 GB | 8 GB | 16 GB, to keep live segments in RAM |
+
+Every server also needs:
+
+- **A 64-bit Intel or AMD (amd64) Docker host.** There's no ARM image yet —
+  see [Installation](install.md).
+- **An SSD for `/app/data`, with about 10 GB free.** A large library uses 1–2
+  GB for the database, artwork and caches; backups and live segments need the
+  rest. Your media can live anywhere, network shares included. To spare the
+  SSD, put the segments [in RAM](install.md#live-segments-in-ram-optional).
+- **A wired network connection for the server.** Each viewer pulls about
+  2.5 / 5 / 8 Mbps at 720p (the **Low** / **Medium** / **High** quality
+  settings), and about 5.5 / 11 / 18 Mbps at 1080p, with peaks up to 1.6×
+  that. Viewers outside your home use your upload at the same rates.
+
+### What makes a channel expensive
+
+**Decoding the source file often costs more than encoding the channel.** HEVC
+(x265) and AV1 files are much heavier to decode than H.264, and 1080p or 4K
+far heavier than SD. MosaicTV decodes on the GPU on **NVIDIA only** — Intel and
+AMD encode on the GPU but decode on the CPU — so a library of HEVC files is
+where an NVIDIA card helps most.
+
+- Some older NVIDIA cards (the GTX 970, for one) can't decode HEVC; the GTX 10
+  series and newer all can. AV1 decoding needs an RTX 30 series or newer.
+- The **GT 1030** has no video encoder at all — it can't encode a channel.
+- GeForce cards cap how many encodes can run at once. That only matters if
+  you'll have many channels on air together.
+
+Measured on a 4-core i7-4790K with a GTX 970 encoding (NVENC), 1080p output:
+
+| Source | Decoded on | CPU | RAM |
+| ------ | ---------- | --- | --- |
+| SD H.264 (640×480) | GPU | 0.3 core | 310 MB |
+| A song over a still picture | – | 0.2 core | 250 MB |
+| 1080p HEVC, 10-bit | CPU (the GTX 970 can't decode HEVC) | 2.4 cores | 630 MB |
+
+The whole container used 1.3 GB of RAM with those three on air. With no GPU
+at all, budget roughly 1–1.5 cores per channel at the default 720p from H.264
+files, and 3–4 cores per channel at 1080p from HEVC files.
 
 ---
 
