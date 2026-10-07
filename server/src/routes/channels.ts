@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout } from '../schedule/playout.js'
-import { KEEP_DAYS, airedHistory } from '../schedule/aired.js'
+import { GUIDE_GRACE_MS, KEEP_DAYS, airedForGuide, airedHistory } from '../schedule/aired.js'
 import { actBreakProgress, kickActBreakFinder } from '../schedule/actBreakFinder.js'
 import { lintSchedule } from '../schedule/scheduleLint.js'
 import { MAX_LOOKAHEAD_DAYS, lookAhead } from '../schedule/lookAhead.js'
@@ -400,10 +400,29 @@ channelsRouter.get('/:id/aired', async (req, res) => {
 channelsRouter.get('/:id/playout', async (req, res) => {
   const channelId = Number(req.params.id)
   const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24))
+  // ?back= hours of what already aired, for a guide that keeps the last while
+  // in view; without it the read starts at what's on now.
+  const back = Math.min(24, Math.max(0, Number(req.query.back) || 0))
   const now = new Date()
+  const from = new Date(now.getTime() - back * 3600 * 1000)
   // Just what the guide draws: never the scheduler's checkpoint (`state`, a
   // few KB a row) or the stream's bookkeeping. The channel and collection are
   // read to work out blocks of songs, and left out of the answer.
+  const media = {
+    select: {
+      id: true,
+      title: true,
+      showTitle: true,
+      season: true,
+      episode: true,
+      type: true,
+      artist: true,
+      trackArtist: true,
+      durationSec: true,
+      posterPath: true,
+      tmdbPosterPath: true,
+    },
+  } as const
   const select = {
     id: true,
     startTime: true,
@@ -413,60 +432,61 @@ channelsRouter.get('/:id/playout', async (req, res) => {
     groupKey: true,
     channelId: true,
     collectionId: true,
-    mediaItem: {
-      select: {
-        id: true,
-        title: true,
-        showTitle: true,
-        season: true,
-        episode: true,
-        type: true,
-        artist: true,
-        trackArtist: true,
-        durationSec: true,
-        posterPath: true,
-        tmdbPosterPath: true,
-      },
-    },
+    mediaItem: media,
   } as const
-  const items = await prisma.playoutItem.findMany({
-    where: {
-      channelId,
-      stopTime: { gt: now },
-      startTime: { lt: new Date(now.getTime() + hours * 3600 * 1000) },
-    },
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { id: true, name: true, musicGuide: true } })
+  // A block of songs began songs before `from`: read back two hours more (no
+  // block started longer ago), so it's listed whole from its start.
+  const readFrom = channel?.musicGuide === 'hour' ? new Date(from.getTime() - 2 * 3600 * 1000) : from
+  // What ended over an hour ago has moved to the history (aired.ts). Both are
+  // read in one transaction, so nothing moves between them mid-read.
+  const fromHistory = readFrom.getTime() < now.getTime() - GUIDE_GRACE_MS
+  const airedSelect = { id: true, channelId: true, collectionId: true, groupKey: true, title: true, startTime: true, stopTime: true, mediaItem: media } as const
+  const keptRead = prisma.playoutItem.findMany({
+    where: { channelId, stopTime: { gt: readFrom }, startTime: { lt: new Date(now.getTime() + hours * 3600 * 1000) } },
     orderBy: { startTime: 'asc' },
     select,
   })
-  // An airing on the air may have started segments ago (a 2-parter whose
-  // first half has ended): fetch those too, so the guide shows it whole from
-  // its start, as channelsNow does.
-  const first = items[0]
-  if (first?.groupKey && first.startTime <= now) {
-    const earlier = await prisma.playoutItem.findMany({
-      where: { channelId, groupKey: first.groupKey, startTime: { lt: first.startTime } },
-      orderBy: { startTime: 'asc' },
-      select,
-    })
-    items.unshift(...earlier)
+  const [kept, archived] = fromHistory
+    ? await prisma.$transaction([
+        keptRead,
+        prisma.aired.findMany({
+          // No program runs a day, so its start bounds the search to the index.
+          where: { channelId, stopTime: { gt: readFrom }, startTime: { gt: new Date(readFrom.getTime() - 24 * 3600 * 1000), lt: now } },
+          orderBy: { startTime: 'asc' },
+          select: airedSelect,
+        }),
+      ])
+    : [await keptRead, []]
+  const handover = kept[0]?.startTime ?? null
+  let rows = [...airedForGuide(handover ? archived.filter((a) => a.startTime < handover) : archived, handover), ...kept]
+  // The first airing may have started segments before the read (a 2-parter
+  // in its second half): fetch those too, so the guide shows it whole from
+  // its start, as channelsNow does. An airing moves to the history whole, so
+  // its segments are all in one place.
+  const first = rows[0]
+  if (first?.groupKey) {
+    const earlier =
+      first.id > 0
+        ? await prisma.playoutItem.findMany({ where: { channelId, groupKey: first.groupKey, startTime: { lt: first.startTime } }, orderBy: { startTime: 'asc' }, select })
+        : airedForGuide(
+            await prisma.aired.findMany({
+              where: { channelId, groupKey: first.groupKey, startTime: { lt: first.startTime } },
+              orderBy: { startTime: 'asc' },
+              select: airedSelect,
+            }),
+            first.startTime,
+          )
+    rows = [...earlier, ...rows]
   }
-  const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { id: true, name: true, musicGuide: true } })
-  // Likewise a block of songs on the air began songs ago: read back two hours
-  // (no block started longer ago), so it's listed whole from its start.
-  let before: typeof items = []
-  if (items[0] && items[0].startTime <= now && channel?.musicGuide === 'hour') {
-    before = await prisma.playoutItem.findMany({
-      where: { channelId, stopTime: { gt: new Date(now.getTime() - 2 * 3600 * 1000) }, startTime: { lt: items[0].startTime } },
-      orderBy: { startTime: 'asc' },
-      select,
-    })
-  }
-  const blocks = await guideBlocks([...before, ...items], channel ? [channel] : [])
-  const on = blocks[before.length]
-  let keep = before.length
-  while (on && keep > 0 && blocks[keep - 1]?.key === on.key) keep--
-  const rows = [...before, ...items]
-    .slice(keep)
-    .map(({ channelId: _channel, collectionId: _collection, ...it }, i) => ({ ...it, block: blocks[keep + i] }))
-  res.json({ now: now.toISOString(), items: rows } satisfies Stored<Playout>)
+  const blocks = await guideBlocks(rows, channel ? [channel] : [])
+  // Start at the first row still on after `from`, with the rest of its airing
+  // or block of songs.
+  let keep = rows.findIndex((r) => r.stopTime > from)
+  if (keep < 0) keep = rows.length
+  const together = (a: number, b: number) =>
+    (!!blocks[b] && blocks[a]?.key === blocks[b]!.key) || (!!rows[b]?.groupKey && rows[a].groupKey === rows[b].groupKey)
+  while (keep > 0 && keep < rows.length && together(keep - 1, keep)) keep--
+  const items = rows.slice(keep).map(({ channelId: _channel, collectionId: _collection, ...it }, i) => ({ ...it, block: blocks[keep + i] }))
+  res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
 })

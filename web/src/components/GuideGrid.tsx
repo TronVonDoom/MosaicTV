@@ -54,7 +54,10 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
       continue
     }
     const m = it.mediaItem
-    if (!m) {
+    if (!m && it.kind === 'program' && it.title) {
+      // A program from the history whose file has since gone: the title it aired under.
+      out.push({ key: String(it.id), start, stop, title: it.title, sub: null, filler: false, entry: it, music: false })
+    } else if (!m) {
       out.push({ key: String(it.id), start, stop, title: 'Station break', sub: null, filler: true, entry: it, music: false })
     } else if (m.showTitle) {
       const code = episodeCode(m)
@@ -85,19 +88,28 @@ function toBlocks(items: PlayoutEntry[]): Block[] {
   return out
 }
 
+/** How far back a full guide reaches: what aired in the last few hours, as the Android guide shows it. */
+export const PAST_HOURS = 3
+/** How far back its read goes: the grid starts at a half hour, so up to half an hour more. */
+export const PAST_READ_HOURS = PAST_HOURS + 0.5
+
 /**
  * The TV guide: every channel on one time axis, the way a set-top box draws
  * it. One scroll area for all rows (the old per-channel strips each had their
  * own scrollbar and drifted apart), the channel column pinned on the left,
  * the time ruler pinned on top, and a red "now" line through every row.
  *
- * `jump` re-centres on now whenever it changes — the page's "Now" button.
+ * `back` is how many hours before the current half hour it starts (the read
+ * has to fetch that far back too: api.playout's `back`); `hours` how far
+ * ahead it runs. `jump` re-centres on now whenever it changes — the page's
+ * "Now" button.
  */
 export default function GuideGrid({
   channels,
   guides,
   nowMs,
   hours = 24,
+  back = 0.5,
   pxPerMin = 5,
   rowHeight = 68,
   maxHeight,
@@ -109,6 +121,7 @@ export default function GuideGrid({
   guides: Record<number, Playout>
   nowMs: number
   hours?: number
+  back?: number
   pxPerMin?: number
   rowHeight?: number
   maxHeight?: string
@@ -124,11 +137,12 @@ export default function GuideGrid({
   // The block of songs whose set list is open.
   const [setList, setSetList] = useState<Block | null>(null)
 
-  // Start half an hour before the current half-hour, so what just ended is
-  // still in view; recomputed only when that boundary moves.
-  const halfHour = Math.floor(nowMs / 1_800_000)
-  const windowStart = (halfHour - 1) * 1_800_000
-  const windowEnd = windowStart + hours * 3_600_000
+  // Start `back` hours before the current half-hour (by default the half hour
+  // before it, so what just ended is still in view); recomputed only when that
+  // boundary moves.
+  const halfHour = Math.floor(nowMs / 1_800_000) * 1_800_000
+  const windowStart = halfHour - back * 3_600_000
+  const windowEnd = halfHour - 1_800_000 + hours * 3_600_000
   const totalMin = (windowEnd - windowStart) / 60000
   const x = (t: number) => ((t - windowStart) / 60000) * pxPerMin
 

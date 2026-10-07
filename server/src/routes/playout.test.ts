@@ -1,7 +1,8 @@
 // A channel's guide (GET /api/channels/:id/playout): an airing on the air is
 // sent whole from its first segment, even once that segment has ended, and a
 // row carries only the fields the contract names — never the scheduler's
-// checkpoint (`state`) or the stream's bookkeeping.
+// checkpoint (`state`) or the stream's bookkeeping. With ?back= it starts that
+// many hours back, from the history once the playout has let a program go.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
@@ -82,4 +83,53 @@ test('rows carry only the contract fields, never the checkpoint', () => {
   assert.ok(!text.includes('xxxx'), 'no checkpoint content is sent')
   for (const item of playout.items)
     assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+})
+
+test('back= keeps what just aired in the guide', async () => {
+  const back = (await (await fetch(`${base}/api/channels/${ch.id}/playout?hours=2&back=1`)).json()) as Playout
+  assert.deepEqual(
+    back.items.map((i) => i.mediaItem?.title),
+    ['Monkey See, Doggie Do', 'Mommy Fearest', 'Uh Oh Dynamo', 'Paste Makes Waste'],
+  )
+})
+
+test('back= reaches into the history, with the breaks between filled in', async () => {
+  const nick = await prisma.channel.create({ data: { name: 'Nickelodeon', number: 31 } })
+  const show = await prisma.show.create({ data: { libraryId: tv.id, title: 'Rugrats' } })
+  const ep = (n: number, title: string) =>
+    prisma.mediaItem.create({
+      data: { libraryId: tv.id, path: `/tv/Rugrats/S01E0${n}.mkv`, type: 'episode', title, showId: show.id, showTitle: 'Rugrats', season: 1, episode: n, durationSec: 660 },
+    })
+  const [r1, r2, r3, r4] = [await ep(1, 'Tommy’s First Birthday'), await ep(2, 'Barbecue Story'), await ep(3, 'Waiter, There’s a Baby in My Soup'), await ep(4, 'Grandpa’s Teeth')]
+  const aired = (mediaItemId: number, title: string, from: number, to: number, groupKey: string | null) =>
+    prisma.aired.create({ data: { channelId: nick.id, mediaItemId, showId: show.id, groupKey, title: 'Rugrats', subtitle: title, startTime: at(from), stopTime: at(to) } })
+  // A 2-parter that began before the window, a break, an episode, a break the
+  // history doesn't keep, and then the playout's own rows.
+  const g = `${nick.id}:${at(-250).getTime()}`
+  const a1 = await aired(r1.id, 'Tommy’s First Birthday', -250, -215, g)
+  const a2 = await aired(r2.id, 'Barbecue Story', -215, -200, g)
+  const b = await aired(r3.id, 'Waiter, There’s a Baby in My Soup', -195, -130, null)
+  const on = await prisma.playoutItem.create({ data: { channelId: nick.id, mediaItemId: r4.id, startTime: at(-125), stopTime: at(20) } })
+
+  const guide = (await (await fetch(`${base}/api/channels/${nick.id}/playout?hours=2&back=3.5`)).json()) as Playout
+  assert.deepEqual(
+    guide.items.map((i) => [i.id, i.kind, i.mediaItem?.title ?? null]),
+    [
+      [-2 * a1.id, 'program', 'Tommy’s First Birthday'],
+      [-2 * a2.id, 'program', 'Barbecue Story'],
+      [-2 * a2.id - 1, 'filler', null],
+      [-2 * b.id, 'program', 'Waiter, There’s a Baby in My Soup'],
+      [-2 * b.id - 1, 'filler', null],
+      [on.id, 'program', 'Grandpa’s Teeth'],
+    ],
+  )
+  assert.equal(guide.items[0].groupKey, g, 'the 2-parter is whole, from its first part')
+  // Each row runs into the next: no holes.
+  for (let i = 1; i < guide.items.length; i++) assert.equal(guide.items[i].startTime, guide.items[i - 1].stopTime)
+  for (const item of guide.items)
+    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+
+  // Without back= the guide starts at what's on now.
+  const plain = (await (await fetch(`${base}/api/channels/${nick.id}/playout?hours=2`)).json()) as Playout
+  assert.deepEqual(plain.items.map((i) => i.id), [on.id])
 })

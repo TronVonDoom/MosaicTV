@@ -378,6 +378,9 @@ programs and inserting breaks to land on block boundaries, as far ahead as the
   start), and everything carries on from where it was up to. The tab
   says where the change took effect ("Updated from 8:30 PM").
 - **It extends itself** as time passes, whether anyone is watching or not.
+- **It looks back, too.** The timeline, and the full guide on the Channels
+  page, scroll back three hours to what already aired, dimmed; the Dashboard
+  shows the last half hour.
 - **Start over** starts every collection over from the top — each show at
   its first episode, each artist at their first song — from the next program:
   the only manual control, and rarely what you want.

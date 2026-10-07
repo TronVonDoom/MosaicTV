@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ChannelCard from '../components/ChannelCard'
-import GuideGrid from '../components/GuideGrid'
+import GuideGrid, { PAST_HOURS, PAST_READ_HOURS } from '../components/GuideGrid'
 import LogoPicker from '../components/LogoPicker'
 import MediaDetailModal from '../components/MediaDetailModal'
 import { api, type Channel, type Playout } from '../lib/api'
@@ -181,7 +181,7 @@ export default function Channels() {
 
   // The guide below the cards: fetched when the on-air set or the span
   // changes, again whenever a channel's guide does, and every few minutes.
-  const guidesRead = useCached(live.length > 0 ? reads.guides(live.map((c) => c.id), Number(span) + 1) : null)
+  const guidesRead = useCached(live.length > 0 ? reads.guides(live.map((c) => c.id), Number(span) + 1, PAST_READ_HOURS) : null)
   const guides = guidesRead.data ?? NO_GUIDES
   useGuideRefresh(guidesRead.reload)
 
@@ -327,6 +327,7 @@ export default function Channels() {
             guides={guides}
             nowMs={nowMs}
             hours={Number(span)}
+            back={PAST_HOURS}
             pxPerMin={PX[zoom]}
             rowHeight={zoom === 'compact' ? 52 : 76}
             // A handful of channels shows whole; a long lineup scrolls in place.

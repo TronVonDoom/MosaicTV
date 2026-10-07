@@ -13,8 +13,8 @@ const enc = encodeURIComponent
 const ON_AIR = 5 * MINUTE
 
 /** Each channel's guide, by channel id — one that fails to load is left out. */
-async function loadGuides(ids: number[], hours: number): Promise<Record<number, Playout>> {
-  const entries = await Promise.all(ids.map((id) => api.playout(id, hours).then((p) => [id, p] as const).catch(() => null)))
+async function loadGuides(ids: number[], hours: number, back: number): Promise<Record<number, Playout>> {
+  const entries = await Promise.all(ids.map((id) => api.playout(id, hours, back).then((p) => [id, p] as const).catch(() => null)))
   const map: Record<number, Playout> = {}
   for (const e of entries) if (e) map[e[0]] = e[1]
   return map
@@ -29,7 +29,9 @@ export const reads = {
   channelsNow: read('channels/now', () => api.channelsNow(), { maxAge: MINUTE }),
   channel: (id: number) => read(`channel/${id}`, () => api.channel(id)),
   collections: (channelId: number) => read(`channel/${channelId}/collections`, () => api.collections(channelId)),
-  guides: (ids: number[], hours: number) => read(`guides/${hours}/${ids.join(',')}`, () => loadGuides(ids, hours), { maxAge: 10 * MINUTE }),
+  /** `hours` ahead and `back` hours of what already aired. */
+  guides: (ids: number[], hours: number, back = 0) =>
+    read(`guides/${hours}/${back}/${ids.join(',')}`, () => loadGuides(ids, hours, back), { maxAge: 10 * MINUTE }),
 
   /** A library's shelf: a shuffle of its posters, different each time it's read. */
   sample: (id: number, limit: number) => read(`library/${id}/sample/${limit}`, () => api.librarySample(id, limit)),

@@ -601,8 +601,9 @@ export const api = {
   /** Rebuild the guide from the next program on (hard: every show from episode 1). */
   resetPlayout: (channelId: number, hard = false) =>
     request<{ ok: boolean; from: string | null }>(`/api/channels/${channelId}/reset${hard ? '?hard=1' : ''}`, { method: 'POST' }),
-  playout: (channelId: number, hours = 24) =>
-    request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}`),
+  /** A channel's guide `hours` ahead, and `back` hours of what already aired. */
+  playout: (channelId: number, hours = 24, back = 0) =>
+    request<Playout>(`/api/channels/${channelId}/playout?hours=${hours}${back ? `&back=${back}` : ''}`),
   /** What's worth knowing about the schedule before it airs. */
   scheduleWarnings: (channelId: number) => request<ScheduleWarning[]>(`/api/channels/${channelId}/lint`),
   /** The schedule laid out `days` ahead, without saving it. */

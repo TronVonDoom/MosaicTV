@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **The guide shows what just aired.** The guide always left room for the
+  half hour before now, but the read behind it only ever sent programs that
+  hadn't ended, so that room stayed empty on every channel but one in the
+  middle of a two-parter. Now the Dashboard shows the last half hour, and the
+  full guide on the Channels page and a channel's Guide tab scroll back three
+  hours — past the hour the schedule keeps a program for, into the channel's
+  history, with the breaks between programs filled in and a block of songs
+  listed whole. A program that already aired opens its details like any
+  other. The history now keeps the collection a program came from, so a
+  music channel's past hours are named as they were on air.
+
 ## 0.17.2 — A guide that stays up (2026-10-07)
 
 - **The guide stays up on a page left open.** The Dashboard's guide went

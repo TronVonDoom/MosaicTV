@@ -42,7 +42,8 @@ export default function Dashboard() {
 
   // Guides are heavier and change slowly: fetch when the set of on-air
   // channels changes or a guide does, and every few minutes rather than every poll.
-  const guidesRead = useCached(onAir.length > 0 ? reads.guides(onAir.map((c) => c.id), 14) : null)
+  // An hour back covers the half hour before now the grid opens on.
+  const guidesRead = useCached(onAir.length > 0 ? reads.guides(onAir.map((c) => c.id), 14, 1) : null)
   const guides = guidesRead.data ?? NO_GUIDES
   useGuideRefresh(guidesRead.reload)
 

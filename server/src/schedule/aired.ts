@@ -86,6 +86,7 @@ export async function archivePlayout(channelId: number, now = Date.now()): Promi
         mediaItemId: r.mediaItemId,
         showId: r.mediaItem?.showId ?? null,
         groupKey: r.groupKey,
+        collectionId: r.collectionId,
         ...airedTitle(r.mediaItem, r.title),
         startTime: r.startTime,
         stopTime: r.stopTime,
@@ -95,6 +96,48 @@ export async function archivePlayout(channelId: number, now = Date.now()): Promi
     prisma.playoutItem.deleteMany({ where: { id: { in: done.map((r) => r.id) } } }),
   ])
   return programs.length
+}
+
+type AiredForGuide<M> = {
+  id: number
+  channelId: number
+  collectionId: number | null
+  groupKey: string | null
+  title: string
+  startTime: Date
+  stopTime: Date
+  mediaItem: M | null
+}
+
+/**
+ * History as guide rows, for a guide that shows what already aired past the
+ * hour the playout keeps it: each program, and a break wherever nothing was
+ * kept between two (breaks aren't archived), up to `until` — where the
+ * playout's own rows take over. Not playout rows, so their ids are negative:
+ * a program's is -2·id, the break after it one less.
+ */
+export function airedForGuide<M>(rows: AiredForGuide<M>[], until: Date | null) {
+  const out: {
+    id: number
+    startTime: Date
+    stopTime: Date
+    kind: string
+    title: string | null
+    groupKey: string | null
+    channelId: number
+    collectionId: number | null
+    mediaItem: M | null
+  }[] = []
+  rows.forEach((a, i) => {
+    out.push({ id: -2 * a.id, startTime: a.startTime, stopTime: a.stopTime, kind: 'program', title: a.title, groupKey: a.groupKey, channelId: a.channelId, collectionId: a.collectionId, mediaItem: a.mediaItem })
+    const next = rows[i + 1]
+    const to = next?.startTime ?? until
+    if (!to || to.getTime() - a.stopTime.getTime() <= 1000) return
+    // A break between two segments of one airing is part of it.
+    const groupKey = next && next.groupKey === a.groupKey ? a.groupKey : null
+    out.push({ id: -2 * a.id - 1, startTime: a.stopTime, stopTime: to, kind: 'filler', title: null, groupKey, channelId: a.channelId, collectionId: null, mediaItem: null })
+  })
+  return out
 }
 
 /** Forget history older than KEEP_DAYS. */

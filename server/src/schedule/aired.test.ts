@@ -34,9 +34,11 @@ await row(52, 8, 'filler', null)
 await row(60, 11, 'program', e4.id)
 
 test('an airing moves to the history whole, once its last part is an hour gone', async () => {
+  // The collection E1 came from goes with it (the guide names a block of songs after it).
+  await prisma.playoutItem.updateMany({ where: { mediaItemId: e1.id }, data: { collectionId: 7 } })
   // 19:45: E1 and its break ended over an hour ago; E2 did, but E3 (same airing) didn't.
   assert.equal(await archivePlayout(ch.id, T0 + 105 * MIN), 1)
-  assert.deepEqual((await prisma.aired.findMany()).map((a) => a.mediaItemId), [e1.id])
+  assert.deepEqual((await prisma.aired.findMany()).map((a) => [a.mediaItemId, a.collectionId]), [[e1.id, 7]])
   const left = await prisma.playoutItem.findMany({ where: { channelId: ch.id }, orderBy: { startTime: 'asc' } })
   assert.deepEqual(left.map((r) => r.mediaItemId), [e2.id, e3.id, null, e4.id], 'the break after E1 goes with it')
 

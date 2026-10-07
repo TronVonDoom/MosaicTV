@@ -4,7 +4,7 @@ import { errorMessage } from '../../lib/errors'
 import { programLabel } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
 import { guideFor, useGuideRefresh, useServerEvent } from '../../lib/events'
-import GuideGrid from '../GuideGrid'
+import GuideGrid, { PAST_HOURS, PAST_READ_HOURS } from '../GuideGrid'
 import AiredList from './AiredList'
 import LookAheadView from './LookAheadView'
 import MediaDetailModal from '../MediaDetailModal'
@@ -57,7 +57,7 @@ export default function GuideTab({
   const loadPlayout = useCallback(
     () =>
       api
-        .playout(channelId, 24)
+        .playout(channelId, 24, PAST_READ_HOURS)
         .then(setPlayout)
         .catch(() => {})
         .finally(() => setLoading(false)),
@@ -191,14 +191,15 @@ export default function GuideTab({
           guides={{ [ch.id]: playout }}
           nowMs={nowMs}
           hours={24}
+          back={PAST_HOURS}
           pxPerMin={5.5}
           rowHeight={80}
           onSelect={(e) => e.mediaItem && setDetailId(e.mediaItem.id)}
         />
       ) : (
         <div className="rounded-xl border border-edge bg-sunken/40 divide-y divide-edge/60 overflow-hidden">
-          {/* From what's on now: the read also sends a block of songs on air
-              from its start, songs already over included, for the timeline. */}
+          {/* From what's on now: the read also sends what aired in the last
+              few hours, for the timeline. */}
           {playout.items.filter((it) => new Date(it.stopTime) > new Date(playout.now)).slice(0, 60).map((it, i) => {
             const isNow =
               new Date(it.startTime) <= new Date(playout.now) &&

@@ -484,20 +484,23 @@ model PlayoutItem {
 // read on air, so the history survives a file going missing; `streamed` is how
 // the stream went if anyone was watching (null = nobody was).
 model Aired {
-  id          Int        @id @default(autoincrement())
-  channel     Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  channelId   Int
-  mediaItem   MediaItem? @relation(fields: [mediaItemId], references: [id], onDelete: SetNull)
-  mediaItemId Int?
-  show        Show?      @relation(fields: [showId], references: [id], onDelete: SetNull)
-  showId      Int?
+  id           Int        @id @default(autoincrement())
+  channel      Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId    Int
+  mediaItem    MediaItem? @relation(fields: [mediaItemId], references: [id], onDelete: SetNull)
+  mediaItemId  Int?
+  show         Show?      @relation(fields: [showId], references: [id], onDelete: SetNull)
+  showId       Int?
   // One airing's segments share it, as on the playout row.
-  groupKey    String?
-  title       String
-  subtitle    String?
-  startTime   DateTime
-  stopTime    DateTime
-  streamed    String?
+  groupKey     String?
+  // The collection it came from, as on the playout row: the guide lists a run
+  // of songs that aired as one block an hour, named after it.
+  collectionId Int?
+  title        String
+  subtitle     String?
+  startTime    DateTime
+  stopTime     DateTime
+  streamed     String?
 
   @@index([channelId, startTime])
   @@index([mediaItemId])
