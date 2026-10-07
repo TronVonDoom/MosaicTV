@@ -107,6 +107,23 @@ export function useLiveRefresh(
   usePolling(load, fallbackMs, !up)
 }
 
+/** How often an open guide is fetched again, whatever the server says. */
+const GUIDE_REFRESH_MS = 5 * 60_000
+
+/**
+ * Keep a guide fetched: again whenever the server says one changed (filtered
+ * by `when`, if given), and every few minutes regardless. A guide is fetched
+ * some hours ahead of the moment it's read, and the server only speaks up when
+ * a schedule changes or a timeline is topped up (about once a day), so a page
+ * left open would otherwise run off the end of what it fetched.
+ */
+export function useGuideRefresh(load: () => void, when?: (e: Heard) => boolean): void {
+  useServerEvent(['guide'], (e) => {
+    if ('resync' in e || !when || when(e)) load()
+  })
+  usePolling(load, GUIDE_REFRESH_MS)
+}
+
 /** A guide event (or resync) that concerns channel `id`. */
 export const guideFor = (id: number) => (e: Heard) => 'resync' in e || (e.type === 'guide' && e.channelId === id)
 

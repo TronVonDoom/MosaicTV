@@ -10,7 +10,7 @@ import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { formatLongDuration } from '../lib/format'
 import { useNow } from '../lib/hooks'
-import { useLiveRefresh } from '../lib/events'
+import { useGuideRefresh, useLiveRefresh } from '../lib/events'
 import { EmptyState, SectionHeading, Skeleton, StatTile, buttonClass } from '../components/ui'
 import Icon from '../components/Icon'
 import { Kicker, Masthead } from '../components/onair/Masthead'
@@ -41,10 +41,10 @@ export default function Dashboard() {
   const onAir = (channels ?? []).filter((c) => c.number != null)
 
   // Guides are heavier and change slowly: fetch when the set of on-air
-  // channels changes, and refresh every few minutes rather than every poll.
+  // channels changes or a guide does, and every few minutes rather than every poll.
   const guidesRead = useCached(onAir.length > 0 ? reads.guides(onAir.map((c) => c.id), 14) : null)
   const guides = guidesRead.data ?? NO_GUIDES
-  useLiveRefresh(guidesRead.reload, ['guide'], { fallbackMs: 300000 })
+  useGuideRefresh(guidesRead.reload)
 
   // Rows that come out even — never one orphan under a row of three — and
   // every channel above the fold on a desktop, so the guide below stays in

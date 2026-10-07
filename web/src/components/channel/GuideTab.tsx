@@ -3,7 +3,7 @@ import { api, type Playout } from '../../lib/api'
 import { errorMessage } from '../../lib/errors'
 import { programLabel } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
-import { guideFor, useLiveRefresh, useServerEvent } from '../../lib/events'
+import { guideFor, useGuideRefresh, useServerEvent } from '../../lib/events'
 import GuideGrid from '../GuideGrid'
 import AiredList from './AiredList'
 import LookAheadView from './LookAheadView'
@@ -67,8 +67,9 @@ export default function GuideTab({
   useEffect(() => {
     loadPlayout()
   }, [loadPlayout])
-  // A schedule edit (here or in another tab) rebuilds the guide on the server.
-  useLiveRefresh(loadPlayout, ['guide'], { when: guideFor(channelId), fallbackMs: 60_000 })
+  // A schedule edit (here or in another tab) rebuilds the guide on the server,
+  // and the 24 hours fetched slide on with the clock.
+  useGuideRefresh(loadPlayout, guideFor(channelId))
   useServerEvent(['guide'], (e) => {
     if (e.type === 'guide' && !('resync' in e) && e.channelId === channelId && e.from) setUpdatedFrom(e.from)
   })

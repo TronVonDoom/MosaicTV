@@ -12,7 +12,7 @@ import { copyText } from '../lib/clipboard'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { useNow } from '../lib/hooks'
-import { useLiveRefresh } from '../lib/events'
+import { useGuideRefresh, useLiveRefresh } from '../lib/events'
 import { toast } from '../lib/toast'
 import {
   Banner,
@@ -180,10 +180,10 @@ export default function Channels() {
   const watching = live.reduce((n, c) => n + c.viewers, 0)
 
   // The guide below the cards: fetched when the on-air set or the span
-  // changes, and again whenever a channel's guide does.
+  // changes, again whenever a channel's guide does, and every few minutes.
   const guidesRead = useCached(live.length > 0 ? reads.guides(live.map((c) => c.id), Number(span) + 1) : null)
   const guides = guidesRead.data ?? NO_GUIDES
-  useLiveRefresh(guidesRead.reload, ['guide'], { fallbackMs: 300000 })
+  useGuideRefresh(guidesRead.reload)
 
   // "/channels#guide" (the dashboard's Full guide link, the old /guide route)
   // lands on the guide once there's a guide to land on.

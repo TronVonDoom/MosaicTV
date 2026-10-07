@@ -15,7 +15,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 export type Read<T> = {
   key: string
   load: () => Promise<T>
-  /** A kept copy older than this (ms) isn't shown — for what's drawn against the clock, like what's on now. */
+  /**
+   * A copy kept from before the page opened that's older than this (ms) isn't
+   * shown while the page fetches it again — for what's drawn against the clock,
+   * like what's on now. What the page fetched itself stays up however long
+   * it's open: keeping that current is the page's job (server events, polling).
+   */
   maxAge?: number
   /** What of it goes to disk, for fields that are only true the moment they're read (who's watching). */
   toDisk?: (value: T) => T
@@ -195,7 +200,11 @@ export function useCached<T>(r: Read<T> | null): Cached<T> {
     if (next !== undefined) keep(r, next)
   }, [])
 
-  const shown = e && !(r?.maxAge != null && Date.now() - e.at > r.maxAge) ? e : undefined
+  // Only a stand-in can be too old to show. Aging out what this page fetched
+  // emptied a page left open between fetches — the dashboard's guide, ten
+  // quiet minutes in.
+  const tooOld = e != null && r?.maxAge != null && e.at < since && Date.now() - e.at > r.maxAge
+  const shown = e && !tooOld ? e : undefined
   const stale = shown != null && (shown.stored || shown.at < since - SETTLED_MS)
   const error = failed && failed.key === key ? failed.error : null
   return { data: shown?.value as T | undefined, stale, stored: shown?.stored ?? false, error, reload, set }
