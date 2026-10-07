@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 — A guide that looks back (2026-10-07)
 
 - **The guide shows what just aired.** The guide always left room for the
   half hour before now, but the read behind it only ever sent programs that
