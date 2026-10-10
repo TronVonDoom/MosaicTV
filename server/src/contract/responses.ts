@@ -16,6 +16,8 @@ import type {
   MediaType,
   MemberKind,
   MusicGuide,
+  ChannelKind,
+  GuideLook,
   MusicScreen,
   OrderSetting,
   PlaybackOrder,
@@ -628,6 +630,8 @@ export type Channel = {
   group: string | null
   logoUrl: string | null
   logoId: number | null
+  /** Its picture: its programs, or the guide (a guide channel). */
+  kind: ChannelKind
   rotationCount: number
   blockCount: number
   playoutCount: number
@@ -669,6 +673,9 @@ export type ChannelDetail = {
   songsAround: boolean
   /** How the guide lists songs and music videos: a block an hour, or each one. */
   musicGuide: MusicGuide
+  /** Its picture: its programs, or the guide; and how a guide is drawn. */
+  kind: ChannelKind
+  guideLook: GuideLook
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }

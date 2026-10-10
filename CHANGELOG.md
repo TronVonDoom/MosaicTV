@@ -33,6 +33,15 @@
   premieres and prime time come first, each break picks among the best few,
   and each thing is promoted at its soonest airing. Short breaks and breaks
   playing a reel keep their ident (#8).
+- **A guide channel.** A channel's picture can be the guide, like the old
+  cable guide channel: every other channel's now and next, ninety minutes of
+  the grid scrolling up the screen, with a live clock, the date and a window
+  on something that's on — so a player that can only tune channels (an IPTV
+  app, Plex) can see what's on. Set it on a channel's General tab under
+  Picture, in the Classic blue look or the app's own (Mosaic), with a preview
+  of how it would air now. Songs in its schedule play underneath; with none,
+  it's silent. It's built from the same schedule as the XMLTV feed, and the
+  guides list it as one program a half hour (#9).
 
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 

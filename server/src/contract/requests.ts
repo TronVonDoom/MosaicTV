@@ -15,6 +15,8 @@ import {
   asGrid,
   asMusicScreen,
   asMusicGuide,
+  asChannelKind,
+  asGuideLook,
   asMetadataSources,
   asOrderSetting,
   asPlaybackOrder,
@@ -81,6 +83,8 @@ export const ChannelCreate = z.object({
   name: requiredText('name is required'),
   group: textOrNull,
   logoId: loose.transform((v): number | null => (v != null ? Number(v) : null)),
+  // A guide channel (see Channel.kind); a normal one when left out.
+  kind: loose.transform(asChannelKind),
 })
 export type ChannelCreate = z.output<typeof ChannelCreate>
 
@@ -111,6 +115,9 @@ export const ChannelUpdate = z.object({
   songsAround: flag.optional(),
   // How the guide lists songs: a block an hour, or each one (see Channel).
   musicGuide: loose.transform(asMusicGuide).optional(),
+  // Its picture: its programs, or the guide; and how a guide is drawn.
+  kind: loose.transform(asChannelKind).optional(),
+  guideLook: loose.transform(asGuideLook).optional(),
 })
 export type ChannelUpdate = z.output<typeof ChannelUpdate>
 

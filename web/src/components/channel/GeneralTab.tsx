@@ -10,6 +10,8 @@ import {
   type EncodingProfile,
   type MusicGuide,
   type MusicScreen,
+  type ChannelKind,
+  type GuideLook,
 } from '../../lib/api'
 import { useSyncedDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
@@ -39,6 +41,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
     lyricsFirst: ch.lyricsFirst,
     songsAround: ch.songsAround,
     musicGuide: ch.musicGuide as MusicGuide,
+    kind: ch.kind as ChannelKind,
+    guideLook: ch.guideLook as GuideLook,
   })
   const savedCu = parseComingUp(ch.comingUp) ?? offComingUp()
   const [cu, setCu, cuChanges] = useSyncedDraft<ComingUpConfig>(drafts, 'general.comingUp', savedCu)
@@ -66,6 +70,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
       lyricsFirst: form.lyricsFirst,
       songsAround: form.songsAround,
       musicGuide: form.musicGuide,
+      kind: form.kind,
+      guideLook: form.guideLook,
     }
     // Only what was edited here: the rest stays as the server has it, which
     // may be newer than what this page loaded.
@@ -185,6 +191,50 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
           <LogoPicker value={form.logoId} onChange={(id) => setForm({ ...form, logoId: id })} />
         </Field>
 
+        <Section title="Picture" className="mt-5">
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <p className="min-w-0 max-w-xl text-ink-muted text-sm">
+              {form.kind === 'guide'
+                ? 'A guide channel: every other channel’s now and next, ninety minutes of it, scrolling up the screen with a clock and a window on something that’s on — so a player that can only tune channels can still see what’s on. Songs on its Schedule tab play underneath; with none, it’s silent.'
+                : 'Its programs, as scheduled. Or make it a guide channel, like the old cable guide: every other channel’s now and next, on screen.'}
+            </p>
+            <Segmented<ChannelKind>
+              options={[
+                { value: 'normal', label: 'Its programs' },
+                { value: 'guide', label: 'The guide' },
+              ]}
+              value={form.kind}
+              onChange={(v) => setForm({ ...form, kind: v })}
+            />
+          </div>
+          {form.kind === 'guide' && (
+            <div className="mt-4 flex flex-wrap items-start gap-4">
+              <img
+                key={form.guideLook}
+                src={`/api/channels/${channelId}/guide/preview?look=${form.guideLook}`}
+                alt="The guide as it would air now"
+                className="aspect-video w-full max-w-lg rounded-lg border border-edge bg-black object-cover"
+              />
+              <div className="space-y-2">
+                <div className="text-[13px] font-medium text-ink">Look</div>
+                <Segmented<GuideLook>
+                  options={[
+                    { value: 'classic', label: 'Classic' },
+                    { value: 'mosaic', label: 'Mosaic' },
+                  ]}
+                  value={form.guideLook}
+                  onChange={(v) => setForm({ ...form, guideLook: v })}
+                />
+                <p className="text-xs text-ink-faint max-w-xs leading-snug">
+                  Classic is the blue cable guide; Mosaic is this app’s own dark look. The guide lists channels with a number,
+                  except test channels and other guides.
+                </p>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        {form.kind !== 'guide' && (
         <Section title="Coming up next" className="mt-5">
           <p className="text-ink-muted text-sm mb-3">
             A card naming the next program slides in over the current one — its poster, title,
@@ -197,6 +247,7 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
           </p>
           <ComingUpFields cfg={cu} onChange={setCu} channelId={channelId} />
         </Section>
+        )}
 
         <Section title="Music" className="mt-5">
           <p className="text-ink-muted text-sm mb-3">

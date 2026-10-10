@@ -55,6 +55,7 @@ export async function horizonHours(): Promise<number> {
  */
 export async function topUpPlayout(channel: {
   id: number
+  kind?: string
   playoutCursor: Date | null
   rotationItems: unknown[]
 }): Promise<{ scheduled: boolean; built: number }> {
@@ -64,7 +65,8 @@ export async function topUpPlayout(channel: {
     return { scheduled: true, built: 0 }
   }
   const blocks = await prisma.timeBlock.count({ where: { channelId: channel.id } })
-  if (channel.rotationItems.length === 0 && blocks === 0) return { scheduled: false, built: 0 }
+  // A guide channel always has something on: the guide, if nothing else.
+  if (channel.rotationItems.length === 0 && blocks === 0 && channel.kind !== 'guide') return { scheduled: false, built: 0 }
   await prunePlayout(channel.id).catch(() => {})
   const built = await buildPlayout(channel.id, new Date(now + horizonMs))
   if (built > 0) publish({ type: 'guide', channelId: channel.id, from: null })
@@ -682,6 +684,16 @@ export async function planTimeline(
         }
         advance(key, ri.collectionId, items, pos)
       }
+    } else if (channel.kind === 'guide') {
+      // A guide channel with no songs: the guide in silence, a half hour at a
+      // time (where its grid moves on), up to a block if one's coming.
+      const line = new Date(cursor)
+      line.setSeconds(0, 0)
+      line.setMinutes(line.getMinutes() < 30 ? 30 : 60)
+      const block = nextBlockBoundary(channel.timeBlocks, cursor, line)
+      const stop = block ? block.start : line
+      created.push({ mediaItemId: null, kind: 'program', title: 'Channel Guide', startTime: cursor, stopTime: stop, groupKey: null, state: JSON.stringify(state), inPoint: null, blockId: null, collectionId: null })
+      cursor = stop
     } else {
       // No rotation: this is a blocks-only channel. Jump to the next block
       // start (dead air in between), or stop if none is coming up.

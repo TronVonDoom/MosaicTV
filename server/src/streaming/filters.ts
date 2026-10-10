@@ -8,6 +8,7 @@ import { VAAPI_DEVICE, type StreamProfile } from './profile.js'
 import type { CardPosition, ComingUpConfig, WatermarkConfig } from './overlays.js'
 import type { RenderedCard } from './card.js'
 import type { SongScreen } from './songScreen.js'
+import type { GuideScreen } from './guideScreen.js'
 
 export type Segment = {
   filePath: string
@@ -44,6 +45,39 @@ export type Segment = {
   // A song: no picture of its own, so it airs over its now-playing screen
   // (songScreen.ts), drawn at the profile's size.
   screen?: SongScreen
+  // A guide channel: the guide (guideScreen.ts) is the picture, whatever the
+  // input is — a song for its sound, or generated silence.
+  guide?: GuideScreen
+  // How to open the main input, before its -i: ['-f', 'lavfi'] for generated
+  // sound (filePath is then the source, e.g. anullsrc).
+  inputFormat?: string[]
+}
+
+// The guide's clock for drawtext: the local time, "8:47 PM". The colon in
+// the time format is escaped for drawtext's function arguments and again for
+// the graph; the hour drops its leading zero where the C library can.
+const GUIDE_HOUR = process.platform === 'win32' ? '%I' : '%-I'
+export const guideClockText = (): string => `%{localtime\\:${GUIDE_HOUR}\\\\\\:%M %p}`
+
+/**
+ * A guide channel's picture (see guideScreen.ts): its still, converted once
+ * and repeated, with the channels' rows scrolling up through their window —
+ * by the wall clock, so every encode carries on where the last one was —
+ * and the time drawn live in its panel. Ends unlabelled, like screenGraph.
+ */
+export function guideGraph(g: GuideScreen, inputs: { still: number; list: number }, fps: number): string {
+  const p: string[] = []
+  p.push(`[${inputs.still}:v]format=yuv420p,loop=loop=-1:size=1:start=0,setpts=N/(${fps}*TB)[gd0]`)
+  const v = g.view
+  p.push(`[gd0]split=2[gda][gdb]`)
+  p.push(`[gdb]crop=${v.w}:${v.h}:${v.x}:${v.y}[gdv]`)
+  const y = g.scroll ? `'-mod(${g.offset}+t*${g.speed},${g.rowsH})'` : '0'
+  p.push(`[gdv][${inputs.list}:v]overlay=x=0:y=${y}[gds]`)
+  p.push(`[gda][gds]overlay=${v.x}:${v.y}[gd1]`)
+  const c = g.clock
+  p.push(`[gd1]drawtext=fontfile='${escapeFilterPath(c.font)}':text='${guideClockText()}':fontsize=${c.size}:fontcolor=${c.color}:x=${c.x}:y=${c.y}-ascent[gd2]`)
+  p.push(`[gd2]null`)
+  return p.join(';')
 }
 
 /** Where a song screen's images come in among the command's inputs, and the
@@ -519,6 +553,7 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
   // disk, no consumer backpressure) has nothing behind it: a 480p source outran
   // by ~20x, finished its slot early, and tripped the replay guard's hold.
   if (readrate) a.push(...readrate)
+  if (seg.inputFormat) a.push(...seg.inputFormat)
   a.push('-i', seg.filePath) // input 0 = main video
 
   let idx = 1
@@ -534,6 +569,14 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
     screenIn = { still: once(sc.png), fill: once(sc.bar.png), grad: sc.spectrum ? once(sc.spectrum.gradient) : -1, dim: -1, lit: -1, mask: -1, audio: sc.spectrum ? 'avis' : null, extras: [] }
     screenIn.extras = (sc.extras ?? []).map((e) => once(e.png))
     if (sc.lyrics) Object.assign(screenIn, { dim: once(sc.lyrics.dim), lit: once(sc.lyrics.lit), mask: once(sc.lyrics.mask) })
+  }
+  // A guide channel's still and rows, each read once.
+  let guideIn: { still: number; list: number } | null = null
+  if (seg.guide) {
+    a.push('-i', seg.guide.png)
+    const still = idx++
+    a.push('-i', seg.guide.list)
+    guideIn = { still, list: idx++ }
   }
   let logoIdx = -1
   if (useWatermark) {
@@ -584,7 +627,9 @@ export function ffmpegArgs(seg: Segment, enc: string, wm: WatermarkConfig, p: St
   // scaled to the frame it's applied to, so it goes after the fit-to-output.
   const subs = seg.hasSubtitles && !seg.isFiller ? `subtitles=filename='${escapeFilterPath(seg.filePath)}',` : ''
   const base =
-    seg.screen && screenIn
+    seg.guide && guideIn
+      ? guideGraph(seg.guide, guideIn, p.fps)
+      : seg.screen && screenIn
       ? screenGraph(seg.screen, screenIn, p.fps)
       : `[0:v]${deint}scale=iw*sar:ih,${fit},setsar=1,${subs}fps=${p.fps},format=yuv420p,setpts=PTS-STARTPTS`
   let vf: string

@@ -80,7 +80,8 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
   if (first.kind === 'filler' || !m) {
     return {
       ...base,
-      kind: 'filler',
+      // A program with no file is a guide channel's guide: a program all the same.
+      kind: first.kind === 'program' && first.title ? 'program' : 'filler',
       mediaItemId: null,
       type: null,
       title: first.title && first.title !== 'Filler' ? first.title : 'Station break',
