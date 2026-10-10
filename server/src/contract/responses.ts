@@ -654,6 +654,8 @@ export type ChannelDetail = {
   /** Whether its whole shows, movies and smart filters bring in season 0, and extras. */
   includeSpecials: boolean
   includeExtras: boolean
+  /** One break in this many ends on a promo for something later; 0 = none. */
+  promoEvery: number
   /** What a song airs over: its cover and progress, or a spectrum. */
   musicScreen: MusicScreen
   /** A song with timed lyrics shows them instead. */
@@ -794,6 +796,8 @@ export type NextBreak = {
   beforeBlock: string | null
   /** An act break: the program it falls inside (null for a break between programs). */
   within: string | null
+  /** The promo it ends on: "Tonight at 8 — The Matrix"; null for none. */
+  promo: string | null
 }
 
 /** One program in the look-ahead (an airing's parts folded into one). */

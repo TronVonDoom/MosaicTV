@@ -388,6 +388,9 @@ model Channel {
   // into one block an hour, named after their collection (the way a cable
   // guide lists a music channel); "song" lists each on its own.
   musicGuide        String             @default("hour")
+  // Promos in breaks: one break in this many ends on a promo for something
+  // coming up later (see streaming/promos.ts); 0 = none.
+  promoEvery        Int                @default(0)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]

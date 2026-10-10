@@ -89,6 +89,8 @@ Each channel's **Breaks** tab is the one place its breaks are set up:
   the ident its breaks would play, striped where its breaks are off, with a
   white mark at each break. Select a block to see what it does and plays, and
   jump to it on the Schedule tab.
+- **Promos** — how often a break ends on a promo for something coming up
+  later (below).
 - **Corner logo during breaks** — keep the watermark on during this channel's
   breaks.
 
@@ -174,6 +176,31 @@ are deleted automatically.
 
 A break is looped and trimmed to exactly fill each gap, so blocks always land
 on their boundaries. "Up next" cards never show over a break.
+
+### Promos
+
+A break can end on a **promo** for something later on the channel, the way a
+station filled its breaks with its own programs: twelve seconds of the
+program's backdrop and poster, when it's on — *Tonight at 8*, *Tomorrow at
+9 AM*, *Saturday night at 10* — and what it is, fading in and out over the
+break's music. Set how often on the Breaks tab: **every break**, **1 in 2**,
+**1 in 3** or **1 in 5** (off by default). The tab shows the promo a break
+would end on now, drawn the way it airs, and the next break says when it ends
+on one.
+
+A promo is picked from the guide as its break airs, so a schedule change
+changes it, the same as the up-next card. It looks at what starts between
+twenty minutes after the break (what's on next is the up-next card's) and a
+day ahead, and favours a **movie**, a **block starting** (promoted by the
+block's name: *Toonami, starting with Dragon Ball Z*), a **broadcast episode**
+named whole, a **season premiere** and **prime time**; each break picks among
+the best few, so they take turns, and each thing is promoted at its soonest
+airing. A song on its own isn't promoted; a block of them starting is.
+
+Breaks shorter than twenty seconds keep their ident, and so do breaks playing a
+reel (which brings its own promos). Promos are drawn ahead, at low priority,
+while their programs are on; one that isn't drawn yet when its break comes
+leaves the ident to play the break out.
 
 ### Upgrading from the filler library
 

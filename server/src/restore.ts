@@ -26,7 +26,7 @@ export class NotRestorable extends Error {}
 // copies (an older backup carried all three). The rest of the data folder the
 // app keeps for itself — a backup's are put in place, the current ones go.
 const NOT_RESTORED = new Set(['hls', 'logs', 'backups'])
-const REPLACED = ['logos', 'assets', 'covers', 'screens', 'thumbs', 'tmdb-cache', 'logo-cache', 'previews']
+const REPLACED = ['logos', 'assets', 'covers', 'screens', 'promos', 'thumbs', 'tmdb-cache', 'logo-cache', 'previews']
 const GENERATED = /^filler-.*\.mp4$|^caption-.*\.txt$|^card-.*\.png$/
 const KEEP_COPIES = 3
 
