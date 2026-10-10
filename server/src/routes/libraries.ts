@@ -7,6 +7,28 @@ import { isScanning } from '../scanner/scanner.js'
 import { matchCounts } from '../metadata/metadata.js'
 import { libraryHome } from '../schedule/onAir.js'
 import { readBody } from '../validate.js'
+import { parsePathMap, SERVER_KINDS, type ServerKind } from '../sources/mediaServer.js'
+import type { SyncResult } from '../sources/sync.js'
+
+// A library's media server as the web sees it: never its key.
+function sourceOf(l: { source: string; sourceUrl: string | null; sourceLibrary: string | null; sourceName: string | null; pathMap: string | null; syncedAt: Date | null; syncResult: string | null }) {
+  if (l.source === 'folders' || !SERVER_KINDS.includes(l.source as ServerKind)) return null
+  let result: SyncResult | null = null
+  try {
+    result = l.syncResult ? (JSON.parse(l.syncResult) as SyncResult) : null
+  } catch {
+    /* unreadable: no result */
+  }
+  return {
+    kind: l.source as ServerKind,
+    url: l.sourceUrl ?? '',
+    library: l.sourceLibrary ?? '',
+    libraryName: l.sourceName,
+    pathMap: parsePathMap(l.pathMap),
+    syncedAt: l.syncedAt,
+    result,
+  }
+}
 
 export const librariesRouter = Router()
 
@@ -36,6 +58,7 @@ librariesRouter.get('/', async (_req, res) => {
       metadataSources: asMetadataSources(l.metadataSources),
       specialCount: count(specials, l.id),
       extraCount: count(extras, l.id),
+      source: sourceOf(l),
     })),
   )
 })
@@ -124,7 +147,18 @@ librariesRouter.get('/:id/sample', async (req, res) => {
 
 librariesRouter.post('/', async (req, res) => {
   const { name, kind } = req.body ?? {}
-  const folders: unknown = req.body?.folders
+  // A library read from a media server: its folders are where the server's
+  // are here (the mapping's right-hand sides).
+  const src = req.body?.source as { kind?: string; url?: string; token?: string; library?: string; name?: string } | undefined
+  const pathMap = src ? parsePathMap(JSON.stringify(req.body?.pathMap ?? [])) : []
+  if (src) {
+    if (!SERVER_KINDS.includes(src.kind as ServerKind) || !src.url || !src.token || !src.library) {
+      return res.status(400).json({ error: 'A media server library needs the server, its key and which of its libraries.' })
+    }
+    if (kind !== 'tv' && kind !== 'movie') return res.status(400).json({ error: 'A TV or movie library can be read from a media server; music is read from its folders.' })
+    if (!pathMap.length) return res.status(400).json({ error: 'Say where the server’s folders are here.' })
+  }
+  const folders: unknown = src ? pathMap.map(([, to]) => to) : req.body?.folders
   const paths = Array.isArray(folders)
     ? folders
         .map((p) => String(p).trim())
@@ -153,14 +187,50 @@ librariesRouter.post('/', async (req, res) => {
         // A music video library reads its files' .nfo and tags (see
         // MUSIC_METADATA_SOURCES); songs go by their tags, read as they're scanned.
         ...(kind === 'music' ? { metadataSources: MUSIC_METADATA_SOURCES.join(',') } : kind === 'audio' ? { metadataSources: 'embedded' } : {}),
+        // The server names everything: nothing else is read unless asked.
+        ...(src
+          ? {
+              metadataSources: '',
+              source: src.kind,
+              sourceUrl: String(src.url).trim(),
+              sourceToken: String(src.token).trim(),
+              sourceLibrary: String(src.library),
+              sourceName: src.name ?? null,
+              pathMap: JSON.stringify(pathMap.map(([from, to]) => [from, path.resolve(to)])),
+            }
+          : {}),
         folders: { create: paths.map((p) => ({ path: p })) },
       },
       include: { folders: true },
     })
-    res.status(201).json(lib)
+    const { sourceToken: _key, ...shown } = lib
+    res.status(201).json(shown)
   } catch {
     res.status(409).json({ error: 'One of those folders is already used by a library.' })
   }
+})
+
+// PATCH /api/libraries/:id/source { url?, token?, pathMap? } -> a media server
+// library's connection, or where its folders are here. A folder newly mapped
+// is added to the library; one no longer mapped stays until it's removed.
+librariesRouter.patch('/:id/source', async (req, res) => {
+  const id = Number(req.params.id)
+  const lib = await prisma.library.findUnique({ where: { id }, include: { folders: true } })
+  if (!lib || lib.source === 'folders') return res.status(404).json({ error: 'No media server library by that id.' })
+  const data: Record<string, string> = {}
+  if (typeof req.body?.url === 'string' && req.body.url.trim()) data.sourceUrl = req.body.url.trim()
+  if (typeof req.body?.token === 'string' && req.body.token.trim()) data.sourceToken = req.body.token.trim()
+  const map = req.body?.pathMap !== undefined ? parsePathMap(JSON.stringify(req.body.pathMap)).map(([from, to]) => [from, path.resolve(to)] as [string, string]) : null
+  if (map) {
+    for (const [, to] of map) if (!fs.existsSync(to)) return res.status(400).json({ error: `Path not found inside the container: ${to}` })
+    data.pathMap = JSON.stringify(map)
+  }
+  await prisma.library.update({ where: { id }, data })
+  if (map) {
+    const have = new Set(lib.folders.map((f) => f.path))
+    for (const [, to] of map) if (!have.has(to)) await prisma.libraryFolder.create({ data: { libraryId: id, path: to } }).catch(() => {})
+  }
+  res.json({ ok: true })
 })
 
 // Add a folder to an existing library.

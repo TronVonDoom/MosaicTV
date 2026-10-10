@@ -11,6 +11,7 @@ import { libraryChanged } from '../events.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { matchNewTitles } from '../metadata/metadata.js'
 import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
+import { syncFromServer } from '../sources/sync.js'
 import type { ScanStatus } from '../contract/index.js'
 
 type DirCache = Map<string, string[] | null>
@@ -111,10 +112,20 @@ async function processFile(
   const named = kind === 'audio' && sameFile ? withTags(parsed, storedTags(existing!.embedded)) : parsed
   // Tags read by older rules (before the album artist was kept) are read again.
   const staleTags = kind === 'audio' && !!existing?.embedded && storedTags(existing.embedded)?.version !== TAGS_VERSION
+  // A file its media server has named (see sources/sync.ts) keeps the
+  // server's title, show, season and episode: its name doesn't get a say.
+  const told = existing?.serverKey ? existing : null
   // The show it files under: by the name its folder parses to, through the
   // show's names, so a renamed or merged show keeps its files.
-  const show = parsed.showTitle ? await showFor(libraryId, parsed.showTitle, pass.shows) : null
+  const show = told
+    ? told.showId != null && told.showTitle
+      ? { id: told.showId, title: told.showTitle, created: false }
+      : null
+    : parsed.showTitle
+      ? await showFor(libraryId, parsed.showTitle, pass.shows)
+      : null
   if (show?.created) pass.created.add(show.id)
+  if (told) Object.assign(parsed, { season: told.season, episode: told.episode })
   // Artwork detection is cheap (cached directory reads), so always run it — that
   // way posters populate on a re-scan even for otherwise-unchanged files.
   const art = await detectArtwork(filePath, libraryPath, kind, parsed.season, cache)
@@ -125,7 +136,7 @@ async function processFile(
   // A song's timed lyrics, beside it.
   const lyricsPath = kind === 'audio' ? await findLyrics(filePath, cache) : null
   // An episode whose name gives no title keeps the one its metadata gave it.
-  const title = parsed.untitled && existing?.metaTitle ? existing.metaTitle : named.title
+  const title = told ? told.title : parsed.untitled && existing?.metaTitle ? existing.metaTitle : named.title
 
   // Skip only if the file is unchanged, already probed, artwork matches, and
   // the name still parses to what's stored. That last check is what lets an
@@ -175,7 +186,7 @@ async function processFile(
     season: parsed.season,
     episode: parsed.episode,
     // Music's name and tags leave out what its .nfo or MusicBrainz filled in.
-    year: song ? song.year ?? existing?.year ?? null : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
+    year: told ? told.year : song ? song.year ?? existing?.year ?? null : parsed.year ?? (kind === 'music' ? existing?.year ?? null : null),
     artist: song ? song.artist : parsed.artist ?? (kind === 'music' ? existing?.artist ?? null : null),
     trackArtist: song?.trackArtist ?? null,
     album: song ? song.album ?? existing?.album ?? null : parsed.album ?? (kind === 'music' ? existing?.album ?? null : null),
@@ -385,13 +396,15 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     }
     await followRefiledShows(library.id, pass)
     if (kind === 'audio') await fileUntaggedAlbums(library.id)
+    // A library read from a media server takes its word for what each file is.
+    const told = library.source !== 'folders' ? await syncFromServer(library.id) : null
     // …and goes for good, as in Plex — unless it's under a folder this scan
     // couldn't read (see removeGone).
     const gone = await removeGone(library.id, unreadable, skipped)
     Object.assign(status, { removed: gone.files, held: gone.held, unreachable: gone.unreachable })
     const linked = await linkExtras(library.id)
     // New, changed or vanished files change what the channels can air.
-    if (status.added + status.updated + goneIds.length + gone.files + status.moved + linked > 0) await scheduleChangedEverywhere()
+    if (status.added + status.updated + goneIds.length + gone.files + status.moved + linked + (told?.changed ?? 0) > 0) await scheduleChangedEverywhere()
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {

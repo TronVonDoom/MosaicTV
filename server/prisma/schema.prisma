@@ -19,6 +19,21 @@ model Library {
   // (the files' own tags), "tmdb" and "tvdb" (TheTVDB). A detail the first
   // gives wins; the rest fill in what it doesn't have. One left out isn't read.
   metadataSources String          @default("nfo,tmdb,tvdb")
+  // Where it's read from: "folders" — its folders, read here, as ever — or a
+  // media server ("plex", "jellyfin", "emby") whose library names its titles,
+  // shows, seasons, episodes and artwork (see sources/). Its files are still
+  // played from disk, at its folders: the server's own folders, mapped to
+  // where they are here (pathMap, JSON [[serverPath, localPath], …]).
+  source          String          @default("folders")
+  sourceUrl       String?
+  sourceToken     String?
+  // The server's id for the library, and its name there.
+  sourceLibrary   String?
+  sourceName      String?
+  pathMap         String?
+  // The last read of it: when, and what it found (JSON SyncResult).
+  syncedAt        DateTime?
+  syncResult      String?
   folders         LibraryFolder[]
   items           MediaItem[]
   shows           Show[]
@@ -161,6 +176,8 @@ model Show {
   // read (null = never — the next fetch reads them).
   metaSources      String?
   metaAt           DateTime?
+  // Its id on the media server its library is read from (see Library.source).
+  serverKey        String?
   updatedAt        DateTime         @updatedAt
   seasons          Season[]
   names            ShowName[]
@@ -664,6 +681,9 @@ model MediaItem {
   parent           MediaItem?      @relation("Extras", fields: [parentId], references: [id], onDelete: SetNull)
   parentId         Int?
   extras           MediaItem[]     @relation("Extras")
+  // Its id on the media server its library is read from (see Library.source):
+  // set, the server's title, show, season and episode win over its file's name.
+  serverKey        String?
   missing          Boolean         @default(false)
   addedAt          DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

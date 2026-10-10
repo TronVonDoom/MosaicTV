@@ -95,6 +95,36 @@ album lists its songs straight away. **Add to a channel** is on both pages —
 for the artist, or for one album. An artist picked into a collection brings
 in their albums and any song that credits them.
 
+### From Plex, Jellyfin or Emby
+
+Already have a Plex, Jellyfin or Emby server that knows your shows? **Read
+from → Plex / Jellyfin / Emby** on the Add a library card reads a library from
+it instead: its show names, seasons and episode numbers, episode titles,
+descriptions, genres, ratings, dates and artwork. MosaicTV still plays the
+files itself, from disk — nothing is streamed through the server — so the
+files have to be mounted where MosaicTV can see them too.
+
+1. Give the server's **address** (`192.168.1.10:32400` for Plex,
+   `…:8096` for Jellyfin and Emby) and its key:
+   - **Plex** — your token: in Plex Web, open any movie or episode's ⋯ menu →
+     **Get Info** → **View XML**; the address that opens ends in
+     `X-Plex-Token=…`.
+   - **Jellyfin** — **Dashboard → API Keys → +**.
+   - **Emby** — **Settings → API Keys → New API key**.
+2. **Connect**, and pick one of its **TV or movie** libraries (music is read
+   from its folders).
+3. Say **where its folders are here**: the server sees its files at its own
+   paths (`/data/tv`, `D:\TV`); point each at the same folder inside MosaicTV.
+   Where it can tell, MosaicTV fills these in.
+
+Then **Scan** it. The scan indexes the files as for any library, then reads
+the server and matches each file to it by path. The library's card says how
+many of the files the server lists were found here, and names one that
+wasn't — the way to check the folders are right. A show MosaicTV had filed by
+its folder name joins the server's show (its collection picks and broadcast
+episodes with it), and every scan reads the server again. The key stays on
+the MosaicTV server: artwork is fetched through it.
+
 ## 2. Scan it
 
 Hit **Scan** on the library. A progress bar tracks files as they're probed

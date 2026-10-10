@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
 import { Link } from 'react-router-dom'
 import { metadataChoices } from '@contract'
-import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource } from '../lib/api'
+import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type ServerKind } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { confirmDialog } from '../lib/confirm'
@@ -10,7 +10,8 @@ import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import DirectoryPicker from './DirectoryPicker'
 import { LibraryActions, LibraryJobProgress, useLibraryJobs } from './LibraryActions'
-import { Badge, Banner, Button, Card, Field, IconButton, InfoHint, Input, Select, cx } from './ui'
+import { Badge, Banner, Button, Card, Field, IconButton, InfoHint, Input, Segmented, Select, cx } from './ui'
+import { AddFromServer, SERVER_NAMES, ServerSourcePanel } from './library/ServerLibrary'
 
 const KIND_LABELS: Record<LibraryKind, string> = {
   tv: 'TV Shows',
@@ -141,6 +142,8 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
     folders: [''],
   })
   const [submitting, setSubmitting] = useState(false)
+  // Where a new library is read from: its folders here, or a media server.
+  const [readFrom, setReadFrom] = useState<'folders' | ServerKind>('folders')
   const [picker, setPicker] = useState<PickerTarget | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
 
@@ -232,7 +235,8 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
         <Banner className="mb-5">{error}</Banner>
       )}
 
-      {keys && !keys.tmdb && !keys.tvdb && (
+      {/* Only for a library that would read them: one from a media server has its own. */}
+      {keys && !keys.tmdb && !keys.tvdb && libraries.some((l) => !l.source && (l.kind === 'tv' || l.kind === 'movie')) && (
         <Banner tone="accent" className="mb-5">
           Add a TMDB or TheTVDB key in{' '}
           <Link to="/settings#metadata" className="text-violet-300 hover:text-violet-200 font-medium">
@@ -252,6 +256,23 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
             A library is one shelf of your collection — a name, a type, and the folders it lives in.
           </p>
         </div>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm text-ink-muted">Read from</span>
+          <Segmented<'folders' | ServerKind>
+            size="sm"
+            value={readFrom}
+            onChange={setReadFrom}
+            options={[
+              { value: 'folders', label: 'Folders here' },
+              { value: 'plex', label: 'Plex' },
+              { value: 'jellyfin', label: 'Jellyfin' },
+              { value: 'emby', label: 'Emby' },
+            ]}
+          />
+        </div>
+        {readFrom !== 'folders' ? (
+          <AddFromServer key={readFrom} kind={readFrom} onAdded={refresh} />
+        ) : (
         <form onSubmit={handleAdd} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
             <Field label="Name" hint="Shown in the guide and on the Browse tab.">
@@ -336,6 +357,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
             </Button>
           </div>
         </form>
+        )}
       </Card>
 
       {/* Library list */}
@@ -352,6 +374,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{lib.name}</span>
                     <Badge>{KIND_LABELS[lib.kind]}</Badge>
+                    {lib.source && <Badge tone="info">{SERVER_NAMES[lib.source.kind]}</Badge>}
                     <span className="text-xs text-ink-faint">{lib.itemCount} items</span>
                   </div>
                 </div>
@@ -363,7 +386,9 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 />
               </div>
 
-              {(lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music' || lib.kind === 'audio') && (
+              {lib.source && <ServerSourcePanel lib={lib} disabled={busy} onSaved={refresh} />}
+
+              {!lib.source && (lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music' || lib.kind === 'audio') && (
                 <MetadataSources
                   lib={lib}
                   disabled={busy}

@@ -177,6 +177,30 @@ export type Library = {
    *  A library indexes all of them; each channel says whether they air. */
   specialCount: number
   extraCount: number
+  /** The media server it's read from (see Library.source); null for folders read here. */
+  source: LibrarySource | null
+}
+
+/** A library's media server, as the web sees it — never its key. */
+export type LibrarySource = {
+  kind: 'plex' | 'jellyfin' | 'emby'
+  url: string
+  /** The server's id for the library, and its name there. */
+  library: string
+  libraryName: string | null
+  /** Where the server's folders are here: [server path, path here]. */
+  pathMap: [string, string][]
+  syncedAt: Date | null
+  /** What the last read found. */
+  result: {
+    listed: number
+    matched: number
+    unmapped: number
+    notHere: number
+    examples: string[]
+    changed: number
+    error: string | null
+  } | null
 }
 
 export type MediaItem = {
