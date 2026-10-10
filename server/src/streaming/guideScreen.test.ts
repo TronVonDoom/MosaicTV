@@ -50,6 +50,12 @@ await buildPlayout(guide.id, new Date(now + 3 * 3600_000))
 const guideItems = await prisma.playoutItem.findMany({ where: { channelId: guide.id }, orderBy: { startTime: 'asc' } })
 const blocks = await guideBlocks(guideItems.map((r) => ({ ...r, mediaItem: null })), [{ id: guide.id, name: 'Prevue Guide', musicGuide: 'hour', kind: 'guide' }])
 
+// A second guide channel nothing has built yet: the hourly sweep builds it.
+const { sweepGuides } = await import('../schedule/guideKeeper.js')
+const unbuilt = await prisma.channel.create({ data: { name: 'Another Guide', number: 3, kind: 'guide' } })
+await sweepGuides()
+const swept = await prisma.playoutItem.count({ where: { channelId: unbuilt.id } })
+
 const out = path.join(dir, 'g')
 const screen = await guideScreen(guide, { w: 1280, h: 720 }, new Date(now), out)
 const pngSize = (f: string) => {
@@ -61,7 +67,7 @@ test('every channel a guide lists, in number order', () => {
   assert.deepEqual(
     rows.map((r) => r.number),
     [13, 64, 99],
-    'not the test channel, not the guide channel itself',
+    'not the test channel, not a guide channel',
   )
 })
 
@@ -95,6 +101,10 @@ test('a guide channel with no songs airs the guide a half hour at a time', () =>
   }
   for (let i = 1; i < guideItems.length; i++) assert.equal(guideItems[i].startTime.getTime(), guideItems[i - 1].stopTime.getTime(), 'back to back')
   assert.ok(guideItems.every((it) => it.state != null), 'a replan can cut anywhere')
+})
+
+test('the hourly sweep keeps a guide channel’s guide, songs or none', () => {
+  assert.ok(swept > 0)
 })
 
 test('the guide channel is listed as itself, a block a half hour', () => {

@@ -128,6 +128,8 @@ channelsRouter.post('/', async (req, res) => {
       await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
       return c
     })
+    // A guide channel has something on from the start: the guide.
+    if (c.kind === 'guide') scheduleChanged(c.id)
     warmFiller().catch(() => {}) // its starter ident, built ahead
     res.status(201).json(c)
   } catch {
@@ -173,7 +175,7 @@ channelsRouter.patch('/:id', async (req, res) => {
     if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks || before.musicScreen !== c.musicScreen || before.lyricsFirst !== c.lyricsFirst || before.songsAround !== c.songsAround)) restyleSegmenter(c.number)
     // A new broadcast clock, breaks inside programs turned on or off, or
     // specials or extras in or out lay the guide out anew from the next program.
-    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras].join('|')
+    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras, x.kind].join('|')
     if (before && airs(before) !== airs(c)) scheduleChanged(id)
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
     // Songs listed another way: the same guide, read anew.
