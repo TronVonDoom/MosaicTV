@@ -38,6 +38,17 @@ export function useLooks(): [Looks, (patch: Partial<Looks>) => void] {
 
 export type Rect = { x: number; y: number; w: number; h: number }
 
+/** How much of the screen's height a 4:3 picture takes inside the TV set: the rest is cabinet. */
+export const TV_SET_SCALE = 0.86
+
+/** `r` shrunk by `k` toward the middle of a `w`×`h` box. */
+export const shrink = (r: Rect, k: number, w: number, h: number): Rect => ({
+  x: w / 2 + (r.x - w / 2) * k,
+  y: h / 2 + (r.y - h / 2) * k,
+  w: r.w * k,
+  h: r.h * k,
+})
+
 /**
  * Where the picture is on screen: the video's frame fitted into its box (as
  * object-contain draws it), and — when it's a 4:3 program between black bars
@@ -266,7 +277,8 @@ export function Crt({ videoRef, rect, crop }: { videoRef: RefObject<HTMLVideoEle
 
   const style = { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
   if (failed) return <div className="crt-lines absolute pointer-events-none" style={style} />
-  return <canvas ref={canvasRef} className="absolute pointer-events-none" style={style} />
+  // A canvas of its own for each crop: the last one's context is let go.
+  return <canvas key={cropKey} ref={canvasRef} className="absolute pointer-events-none" style={style} />
 }
 
 // ── The TV set ──────────────────────────────────────────────────────────────
