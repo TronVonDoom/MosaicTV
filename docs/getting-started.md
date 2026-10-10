@@ -276,6 +276,18 @@ channel, **G** for the channel guide. Turn on **instant flipping** (the ⚡
 button) and the channels either side keep running, so a flip lands on a live
 picture — at the cost of an encoder each.
 
+**Looks** (the TV button, or **R**) dresses the picture up for the shows it's
+showing, in this browser only — the channels and every other player are
+untouched:
+
+- **CRT** (or **C**) — scanlines, a gentle curve and a glow, as on a tube TV.
+- **TV set** — a 4:3 program framed by an old set, its channel number in the
+  dial's little window, instead of black bars down the sides. It appears only
+  while the picture has the bars, and goes when a widescreen program comes on.
+- **Classic guide** — the channel guide in the blue, boxy look of a cable guide.
+
+Each is remembered here for next time.
+
 For your TV and apps, **Live TV setup** (at the bottom of the sidebar)
 has your two URLs, with copy buttons:
 

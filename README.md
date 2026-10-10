@@ -223,7 +223,9 @@ your breaks live here too.
 what's on and what's next as you tune in, and a channel guide over the picture.
 Flip with **↑ / ↓** or a swipe, type a number to jump straight to a channel,
 **⌫** for the last one. Cast to a Chromecast or Google TV (Chrome/Edge, over
-HTTPS) or an Apple TV (Safari, AirPlay).
+HTTPS) or an Apple TV (Safari, AirPlay). **Looks** put the shows back on the
+set they aired on: a CRT's scanlines and curve, an old TV set round a 4:3
+program, and the guide in the blue cable-guide look.
 
 <img src="docs/screenshots/tv-mode.webp" alt="TV mode on Cartoon Network with the channel guide open over the picture" width="100%" />
 

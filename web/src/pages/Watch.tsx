@@ -12,6 +12,7 @@ import { useLiveRefresh } from '../lib/events'
 import { formatClock } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
+import { Crt, LooksMenu, TvSet, useLooks, usePicture } from '../components/watch/RetroLooks'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
@@ -76,6 +77,9 @@ export default function Watch() {
   const [fullscreen, setFullscreen] = useState(false)
   const [warm, setWarm] = useState(() => readStore(WARM_KEY) === '1')
   const [helpOpen, setHelpOpen] = useState(false)
+  // The retro looks (CRT, a TV set round 4:3, the classic guide), and their menu.
+  const [looks, setLooks] = useLooks()
+  const [looksOpen, setLooksOpen] = useState(false)
   // The TV the channel is cast to (the picture here pauses while it plays
   // there), and the channel it was last sent.
   const [castingTo, setCastingTo] = useState<string | null>(null)
@@ -319,6 +323,11 @@ export default function Watch() {
         e.preventDefault()
         return
       }
+      if (looksOpen && (k === 'Escape' || k === 'r' || k === 'R')) {
+        setLooksOpen(false)
+        e.preventDefault()
+        return
+      }
       if (guideOpen) {
         if (k === 'ArrowDown') setGuideSel((i) => Math.min(lineup.length - 1, i + 1))
         else if (k === 'ArrowUp') setGuideSel((i) => Math.max(0, i - 1))
@@ -350,6 +359,8 @@ export default function Watch() {
         wake()
       }
       else if (k === 'm' || k === 'M') toggleMute()
+      else if (k === 'r' || k === 'R') setLooksOpen(true)
+      else if (k === 'c' || k === 'C') setLooks({ crt: !looks.crt })
       else if (k === '?' || k === 'h' || k === 'H') setHelpOpen(true)
       else if (k === 'Escape') {
         if (digits) setDigits('')
@@ -360,7 +371,7 @@ export default function Watch() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideOpen, helpOpen, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit])
+  }, [guideOpen, helpOpen, looksOpen, looks, setLooks, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit])
 
   // Swipe up/down to change channel; a tap wakes the controls.
   const touch = useRef<{ y: number; t: number } | null>(null)
@@ -377,6 +388,11 @@ export default function Watch() {
   const bannerShown = nowMs < bannerUntil || tuning
   const controlsShown = nowMs < controlsUntil
   const osdNumber = digits || notFound || (bannerShown && current != null ? String(current) : '')
+
+  // The retro looks go over the picture here — not while it's on a TV.
+  const { box, frame, fourThree } = usePicture(videoRef, looks.tvSet && !castingTo)
+  const tvScreen = looks.tvSet && !castingTo ? fourThree : null
+  const classic = looks.classicGuide
 
   if (channels != null && lineup.length === 0) {
     return (
@@ -402,6 +418,10 @@ export default function Watch() {
       onTouchEnd={onTouchEnd}
     >
       <video ref={videoRef} playsInline className="absolute inset-0 w-full h-full object-contain" onClick={wake} />
+      {looks.crt && frame && !castingTo && (
+        <Crt videoRef={videoRef} rect={tvScreen ?? frame} crop={tvScreen ? [0.125, 0, 0.875, 1] : [0, 0, 1, 1]} />
+      )}
+      {tvScreen && <TvSet w={box.w} h={box.h} screen={tvScreen} channel={current} />}
 
       {/* Tuning: the channel's ident over a soft static until the picture arrives. */}
       <div
@@ -569,6 +589,7 @@ export default function Watch() {
             active={warm}
             onClick={toggleWarm}
           />
+          <OsdButton icon="tv" label="Looks: CRT, TV set, classic guide (R)" active={looks.crt || looks.tvSet || looks.classicGuide} onClick={() => setLooksOpen(true)} />
           {pipSupported && (
             <OsdButton icon="pip" label={pip ? 'Back from the small window (P)' : 'Picture in picture (P)'} active={pip} onClick={togglePip} />
           )}
@@ -581,16 +602,26 @@ export default function Watch() {
       {guideOpen && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex" onClick={() => setGuideOpen(false)}>
           <div
-            className="h-full w-full sm:w-[min(560px,92vw)] bg-[#07080c]/90 ring-1 ring-white/10 flex flex-col drawer-in"
+            className={cx(
+              'h-full w-full sm:w-[min(560px,92vw)] ring-1 flex flex-col drawer-in',
+              classic ? 'bg-gradient-to-b from-[#0a1a78] to-[#06104a] ring-[#3d63ea]/70' : 'bg-[#07080c]/90 ring-white/10',
+            )}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <div className="flex items-center gap-2">
-                <Icon name="guide" size={18} className="text-indigo-300" />
-                <span className="text-lg font-semibold tracking-tight">Channels</span>
+            {classic ? (
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b-2 border-[#ffd84a]/70 mx-3 mb-2">
+                <span className="text-[17px] font-extrabold uppercase tracking-[0.16em] text-[#ffd84a]">Channel guide</span>
+                <span className="text-[17px] font-extrabold tabular-nums text-white">{formatClock(nowMs)}</span>
               </div>
-              <span className="text-[12px] text-white/45 tabular-nums">{formatClock(nowMs)}</span>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                <div className="flex items-center gap-2">
+                  <Icon name="guide" size={18} className="text-indigo-300" />
+                  <span className="text-lg font-semibold tracking-tight">Channels</span>
+                </div>
+                <span className="text-[12px] text-white/45 tabular-nums">{formatClock(nowMs)}</span>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto px-3 pb-4">
               {lineup.map((c, i) => {
                 const r = rows[c.id]
@@ -607,40 +638,59 @@ export default function Watch() {
                       setGuideOpen(false)
                     }}
                     className={cx(
-                      'w-full text-left flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
-                      sel ? 'bg-white/[0.09] ring-1 ring-indigo-400/40' : 'hover:bg-white/[0.04]',
+                      'w-full text-left flex items-center gap-3 px-3 py-2.5 transition-colors',
+                      classic
+                        ? cx('mb-1.5 rounded-[3px] border', sel ? 'bg-[#ffd84a] border-[#ffd84a] text-[#0a1a78]' : 'bg-[#13299e] border-[#3d63ea] hover:bg-[#1a35bd]')
+                        : cx('rounded-xl', sel ? 'bg-white/[0.09] ring-1 ring-indigo-400/40' : 'hover:bg-white/[0.04]'),
                     )}
                   >
-                    <span className="w-9 shrink-0 font-mono text-[14px] font-semibold text-indigo-300 tabular-nums text-right">{c.number}</span>
-                    <ChannelLogo logoId={c.logoId} name={c.name} size={40} />
+                    <span
+                      className={cx(
+                        'w-9 shrink-0 tabular-nums text-right',
+                        classic ? cx('text-[17px] font-extrabold', sel ? 'text-[#0a1a78]' : 'text-[#ffd84a]') : 'font-mono text-[14px] font-semibold text-indigo-300',
+                      )}
+                    >
+                      {c.number}
+                    </span>
+                    {!classic && <ChannelLogo logoId={c.logoId} name={c.name} size={40} />}
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
-                        <span className="text-[14px] font-medium truncate">{c.name}</span>
-                        {c.number === current && <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">Watching</span>}
+                        <span className={cx('truncate', classic ? 'text-[14.5px] font-extrabold uppercase tracking-wide' : 'text-[14px] font-medium')}>{c.name}</span>
+                        {c.number === current && (
+                          <span className={cx('text-[10px] font-semibold uppercase tracking-wider', classic ? (sel ? 'text-[#0a1a78]/70' : 'text-[#ffd84a]') : 'text-rose-300')}>
+                            Watching
+                          </span>
+                        )}
                       </span>
                       {r?.now ? (
                         <>
-                          <span className="block text-[12.5px] text-white/75 truncate">{unitLabel(r.now)}{r.now.subtitle ? ` · ${r.now.subtitle}` : ''}</span>
+                          <span className={cx('block text-[12.5px] truncate', classic ? (sel ? 'font-bold text-[#0a1a78]' : 'font-bold text-white') : 'text-white/75')}>
+                            {unitLabel(r.now)}
+                            {r.now.subtitle ? ` · ${r.now.subtitle}` : ''}
+                          </span>
                           <span className="mt-1 flex items-center gap-2">
-                            <span className="h-[3px] w-16 rounded-full bg-white/15 overflow-hidden">
-                              <span className="block h-full bg-indigo-400" style={{ width: `${progressOf(r.now, nowMs) * 100}%` }} />
+                            <span className={cx('h-[3px] w-16 rounded-full overflow-hidden', classic ? (sel ? 'bg-[#0a1a78]/25' : 'bg-white/20') : 'bg-white/15')}>
+                              <span
+                                className={cx('block h-full', classic ? (sel ? 'bg-[#0a1a78]' : 'bg-[#ffd84a]') : 'bg-indigo-400')}
+                                style={{ width: `${progressOf(r.now, nowMs) * 100}%` }}
+                              />
                             </span>
                             {r.next[0] && (
-                              <span className="text-[11.5px] text-white/45 truncate">
+                              <span className={cx('text-[11.5px] truncate', classic ? (sel ? 'text-[#0a1a78]/75' : 'text-white/70') : 'text-white/45')}>
                                 {formatClock(r.next[0].startTime)} {unitLabel(r.next[0])}
                               </span>
                             )}
                           </span>
                         </>
                       ) : (
-                        <span className="block text-[12.5px] text-white/45">Nothing scheduled</span>
+                        <span className={cx('block text-[12.5px]', classic && sel ? 'text-[#0a1a78]/70' : 'text-white/45')}>Nothing scheduled</span>
                       )}
                     </span>
                   </button>
                 )
               })}
             </div>
-            <div className="hidden sm:flex px-5 py-3 border-t border-white/10 text-[11.5px] text-white/45 gap-4">
+            <div className={cx('hidden sm:flex px-5 py-3 border-t text-[11.5px] gap-4', classic ? 'border-[#3d63ea]/60 text-white/70' : 'border-white/10 text-white/45')}>
               <span>
                 <Kbd>↑</Kbd> <Kbd>↓</Kbd> choose
               </span>
@@ -655,6 +705,8 @@ export default function Watch() {
         </div>
       )}
 
+      {looksOpen && <LooksMenu looks={looks} onChange={setLooks} onClose={() => setLooksOpen(false)} />}
+
       {helpOpen && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm grid place-items-center p-6" onClick={() => setHelpOpen(false)}>
           <div className="rounded-2xl bg-[#0b0d13]/95 ring-1 ring-white/10 p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
@@ -668,6 +720,8 @@ export default function Watch() {
                   ['G', 'Channel guide'],
                   ['I', 'What’s on'],
                   ['M', 'Mute'],
+                  ['R', 'Looks: CRT, TV set, classic guide'],
+                  ['C', 'CRT on or off'],
                   ['− +', 'Volume'],
                   ['F', 'Full screen'],
                   ...(pipSupported ? ([['P', 'Picture in picture']] as const) : []),
