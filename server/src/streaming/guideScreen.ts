@@ -255,13 +255,18 @@ export function rowsSvg(rows: GuideRow[], from: number, look: GuideLook, L: Retu
         const x1 = Math.min(w, px(c.stop)) - gap
         if (x1 - x0 < S(8)) return
         body += `<rect x="${x0}" y="${y}" width="${x1 - x0}" height="${h}" rx="${S(P.radius)}" fill="${k % 2 ? P.cellAlt : P.cell}"/>`
-        // A program that began before the window, or runs past it, says so.
+        // A program that began before the window, or runs past it, says so
+        // with a small arrow at that end (drawn: the font has none).
         const before = c.start < from
         const after = c.stop > to
-        const lead = before ? '◂ ' : ''
-        const room = x1 - x0 - S(28) - (after ? S(18) : 0)
-        if (room > S(30)) body += text(x0 + S(14), mid + cellSize * 0.36, fitText(lead + c.title, 700, cellSize, room), cellSize, 700, P.cellText)
-        if (after) body += text(x1 - S(26), mid + cellSize * 0.36, '▸', cellSize, 700, P.cellText, 'fill-opacity="0.8"')
+        const tri = S(9)
+        const arrow = (x: number, dir: 1 | -1) =>
+          `<polygon points="${x},${mid - tri} ${x},${mid + tri} ${x + dir * tri * 1.2},${mid}" fill="${P.cellText}" fill-opacity="0.75"/>`
+        if (before) body += arrow(x0 + S(10) + tri * 1.2, -1)
+        if (after) body += arrow(x1 - S(10) - tri * 1.2, 1)
+        const lead = before ? S(22) : 0
+        const room = x1 - x0 - S(28) - lead - (after ? S(20) : 0)
+        if (room > S(30)) body += text(x0 + S(14) + lead, mid + cellSize * 0.36, fitText(c.title, 700, cellSize, room), cellSize, 700, P.cellText)
       })
     })
   }
@@ -283,17 +288,23 @@ export function stillSvg(opts: { look: GuideLook; W: number; H: number; from: nu
     <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${P.ground}"/><stop offset="1" stop-color="${P.groundTo}"/></linearGradient>
     <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0.45" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.85"/></linearGradient>
     <clipPath id="win"><rect x="${win.x}" y="${win.y}" width="${win.w}" height="${win.h}" rx="${S(P.radius * 2)}"/></clipPath>
-    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="${S(18)}"/></filter>`
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="${S(18)}"/></filter>
+    <linearGradient id="plain" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${look === 'classic' ? '#1d3ac4' : '#3b2a6e'}"/><stop offset="1" stop-color="${look === 'classic' ? '#0a1a78' : '#0f3a4a'}"/></linearGradient>`
   let body = `<rect width="${W}" height="${H}" fill="url(#ground)"/>`
   if (look === 'mosaic') {
     body += `<g filter="url(#soft)" opacity="0.5"><circle cx="${L.X(300)}" cy="${S(160)}" r="${S(320)}" fill="#6d28d9" fill-opacity="0.35"/><circle cx="${L.X(1600)}" cy="${S(300)}" r="${S(280)}" fill="#0e7490" fill-opacity="0.35"/></g>`
   }
 
-  // The window: what's on somewhere now, with its picture.
+  // The window: what's on somewhere now, with its picture — or, with none,
+  // its channel's number, big, on the look's colours.
   body += `<rect x="${win.x}" y="${win.y}" width="${win.w}" height="${win.h}" rx="${S(P.radius * 2)}" fill="#000"/>`
   if (feature) {
     const pic = feature.art ?? feature.poster
     if (pic) body += `<image href="${pic}" x="${win.x}" y="${win.y}" width="${win.w}" height="${win.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#win)"/>`
+    else {
+      body += `<rect x="${win.x}" y="${win.y}" width="${win.w}" height="${win.h}" fill="url(#plain)" clip-path="url(#win)"/>`
+      body += text(win.x + win.w - S(40), win.y + S(250), String(feature.number), S(260), 800, '#ffffff', 'text-anchor="end" fill-opacity="0.16"')
+    }
     body += `<rect x="${win.x}" y="${win.y}" width="${win.w}" height="${win.h}" fill="url(#shade)" clip-path="url(#win)"/>`
     const tx = win.x + S(28)
     body += text(tx, win.y + win.h - S(96), `NOW ON ${feature.number}  ${feature.channel.toUpperCase()}`, S(22), 800, P.accent, `letter-spacing="${S(2.5)}"`)
