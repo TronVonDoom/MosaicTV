@@ -69,6 +69,7 @@ function SignIn({ status }: { status: AuthStatus }) {
             {status.hasPassword && (
               <form onSubmit={submit} className="space-y-3">
                 <Input
+                  className="w-full"
                   type="password"
                   autoComplete="current-password"
                   placeholder="Password"
@@ -128,13 +129,13 @@ function CodePanel({ pairing, onCancel, onExpired }: { pairing: { id: string; co
       clearInterval(t)
     }
   }, [pairing, onExpired])
-  const where = `${window.location.origin}/pair`
+  const where = `${window.location.host}/pair`
   return (
     <div className="rounded-2xl border border-edge surface-card p-6 text-center space-y-4">
       <div className="font-mono text-[40px] font-semibold tracking-[0.12em] text-ink tabular-nums">{pairing.code}</div>
       <p className="text-[13px] text-ink-muted leading-relaxed">
-        On a phone or computer that’s signed in, open <span className="text-ink-soft">Settings → Sign-in</span> and approve this code — or go to{' '}
-        <span className="text-ink-soft break-all">{where}</span>.
+        On a phone or computer that’s signed in, open <span className="text-ink-soft">Settings → Sign-in</span> and approve this code — or go to
+        <span className="mt-1 block font-mono text-[13px] text-ink-soft">{where}</span>
       </p>
       <p className="text-[12px] text-ink-faint">
         Waiting… {left > 0 ? `the code lasts ${Math.ceil(left / 60_000)} more minute${Math.ceil(left / 60_000) === 1 ? '' : 's'}` : 'getting a new code'}
