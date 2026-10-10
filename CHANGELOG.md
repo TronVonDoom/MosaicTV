@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Sign-in, for watching away from home.** Settings → Sign-in can make
+  MosaicTV ask who you are: a password, or a code a device shows and you
+  approve on one that's signed in already (Settings → Sign-in, or `/pair`).
+  Home stays as easy as ever — the home network and Tailscale can sign in by
+  themselves — while anything through a reverse proxy or a tunnel has to sign
+  in. Players get links of their own (M3U, XMLTV, tuner) with a key in the
+  path that reaches the channels and their guide and nothing else, casting
+  hands the TV a link of its own, and everything signed in is listed, with
+  when and where it was last seen, to sign out. Off by default; a content
+  reset leaves it as it was, and `MOSAICTV_RESET_SIGN_IN=1` turns it off if
+  the password's lost (#4).
+
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 
 - **Picture in picture in TV mode.** A new button beside Full screen (or

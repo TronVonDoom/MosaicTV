@@ -2,6 +2,7 @@
 // loads from gstatic, so it's fetched the first time TV mode opens — and only
 // where it can work: Chrome/Edge, on a secure page (HTTPS or localhost). Chrome
 // refuses to cast from a plain-http site.
+import { auth } from './auth'
 
 // The slice of the SDK used here (it ships no types).
 type CastContextLike = {
@@ -98,7 +99,11 @@ export async function castChannel(o: { url: string; title: string; subtitle?: st
   const session = ctx.getCurrentSession()
   if (!session) throw new Error('No Cast device was chosen')
 
-  const info = new c.media.MediaInfo(o.url, 'application/x-mpegurl')
+  // The TV fetches the stream itself: with sign-in on, it's handed a link of
+  // its own (the server's cast link), which plays wherever the TV is.
+  const n = /\/iptv\/channel\/(\d+)\/index\.m3u8$/.exec(o.url)
+  const url = n ? await auth.castLink(Number(n[1])).then((r) => r.url).catch(() => o.url) : o.url
+  const info = new c.media.MediaInfo(url, 'application/x-mpegurl')
   info.streamType = c.media.StreamType.LIVE
   // The segmenter writes MPEG-TS segments.
   info.hlsSegmentFormat = c.media.HlsSegmentFormat.TS

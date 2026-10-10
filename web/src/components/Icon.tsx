@@ -43,6 +43,7 @@ import {
   Layers,
   LibraryBig,
   Link2,
+  LockKeyhole,
   List,
   Maximize,
   Minimize,
@@ -139,6 +140,7 @@ export type IconName =
   | 'database'
   | 'activity'
   | 'link'
+  | 'lock'
   | 'grid'
   | 'list'
   | 'layers'
@@ -212,6 +214,7 @@ const GLYPH: Record<IconName, LucideIcon> = {
   database: Database,
   activity: Activity,
   link: Link2,
+  lock: LockKeyhole,
   grid: LayoutGrid,
   list: List,
   layers: Layers,

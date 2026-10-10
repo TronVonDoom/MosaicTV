@@ -41,6 +41,8 @@ import { adminRouter } from './routes/admin.js'
 import { assetsRouter } from './routes/assets.js'
 import { profilesRouter } from './routes/profiles.js'
 import { fillersRouter } from './routes/fillers.js'
+import { authRouter } from './routes/auth.js'
+import { authGate, linkPrefix, resetSignInIfAsked } from './auth.js'
 import { apiErrorHandler, catchAsyncErrors } from './asyncRoutes.js'
 import { VERSION } from './version.js'
 
@@ -49,6 +51,11 @@ const PORT = Number(process.env.PORT ?? 8688)
 const startedAt = Date.now()
 
 app.use(express.json({ limit: '10mb' })) // logo uploads arrive as base64 data URLs
+
+// Sign-in (see auth.ts): a player's link first — it rewrites the address —
+// then the gate every request passes, open as ever while sign-in is off.
+app.use(linkPrefix)
+app.use(authGate)
 
 // Gzip what the web app reads — a big library's lists and a show's page are
 // hundreds of KB of JSON that shrink about tenfold — and the app's own files.
@@ -121,6 +128,7 @@ app.get('/api/stats', async (_req, res) => {
 // Live updates for the web app (see events.ts).
 app.get('/api/events', eventStream)
 
+app.use('/api/auth', authRouter)
 app.use('/api/libraries', librariesRouter)
 app.use('/api/media', mediaRouter)
 app.use('/api/scan', scanRouter)
@@ -191,6 +199,7 @@ async function boot(): Promise<void> {
   await applyPendingRestore()
   await migrateDatabase()
   await initDb()
+  await resetSignInIfAsked().catch((e) => log('error', 'system', 'Turning sign-in off failed', String(e?.stack || e)))
   await replanIfTimezoneChanged().catch((e) => log('error', 'playout', 'Timezone check failed', String(e?.stack || e)))
   await seedDefaultAudio().catch((e) => log('error', 'system', 'Default audio seed failed', String(e?.stack || e)))
   await seedDefaultLogo().catch((e) => log('error', 'system', 'Adding the MosaicTV logo failed', String(e?.stack || e)))

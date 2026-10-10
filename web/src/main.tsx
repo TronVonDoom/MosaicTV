@@ -14,7 +14,13 @@ import '@fontsource/barlow-condensed/600-italic.css'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+import SignInGate from './components/SignInGate'
 import { kept } from './lib/cache'
+import { installFetchGuard } from './lib/auth'
+
+// Every API request says it's the app asking, and a "sign in first" brings up
+// the sign-in screen (see lib/auth.ts).
+installFetchGuard()
 
 // The first screen draws from what the last visit kept (lib/cache.ts) when the
 // disk has it ready in time — it nearly always does — rather than flashing
@@ -26,7 +32,9 @@ Promise.race([kept, new Promise((r) => setTimeout(r, 250))]).then(() =>
       <BrowserRouter>
         {/* The last line of defence, for TV mode and the layout itself. */}
         <ErrorBoundary fullScreen>
-          <App />
+          <SignInGate>
+            <App />
+          </SignInGate>
         </ErrorBoundary>
       </BrowserRouter>
     </StrictMode>,

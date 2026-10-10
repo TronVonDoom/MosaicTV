@@ -8,6 +8,7 @@ import ChannelSettings, { HORIZONS } from '../components/settings/ChannelSetting
 import StreamingSettings from '../components/settings/StreamingSettings'
 import EncodingSettings from '../components/settings/EncodingSettings'
 import MaintenanceSettings from '../components/settings/MaintenanceSettings'
+import SignInSettings from '../components/settings/SignInSettings'
 import SideNav from '../components/SideNav'
 import type { LayoutContext } from '../components/Layout'
 import { SETTINGS_SECTIONS } from '../lib/sections'
@@ -71,6 +72,7 @@ export default function Settings() {
           {tab === 'streaming' && <StreamingSettings info={info} onChange={patch} />}
           {tab === 'encoding' && <EncodingSettings />}
           {tab === 'maintenance' && <MaintenanceSettings />}
+          {tab === 'sign-in' && <SignInSettings />}
         </div>
       </div>
     </div>

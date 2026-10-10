@@ -906,3 +906,33 @@ export type LibraryHome = {
   /** The shows no channel airs, by id (a TV library's Off air view). */
   offAirShowIds: number[]
 }
+
+// ── Sign-in ───────────────────────────────────────────────────────────────────
+
+/** Whether sign-in is on, and where the asking device stands. */
+export type AuthStatus = {
+  enabled: boolean
+  /** The home network (and Tailscale) signs in by itself. */
+  trustHome: boolean
+  hasPassword: boolean
+  /** This request came straight from home. */
+  home: boolean
+  /** The device this request is signed in as, if any. */
+  device: { id: number; name: string; kind: 'browser' | 'app' | 'player' } | null
+  /** Whether this device can use MosaicTV as things stand. */
+  allowed: boolean
+}
+
+/** Something signed in: a browser, an app, or a player with its links. */
+export type SignedInDevice = {
+  id: number
+  name: string
+  kind: 'browser' | 'app' | 'player'
+  createdAt: string
+  lastSeenAt: string | null
+  lastIp: string | null
+  /** The device asking. */
+  current?: boolean
+  /** A player's links (its token in the path). */
+  links?: { m3u: string; xmltv: string; tuner: string } | null
+}

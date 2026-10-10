@@ -151,7 +151,12 @@ adminRouter.post('/reset', async (req, res) => {
       ...(wipeAssets ? [prisma.logo.deleteMany(), prisma.asset.deleteMany()] : []),
       // Kept uploads keep the marks that say the starter logo and tracks were
       // added, or they'd be added a second time beside the ones still here.
-      prisma.setting.deleteMany({ where: wipeAssets ? {} : { NOT: { key: { startsWith: 'seeded_' } } } }),
+      // Sign-in stays as it was (its settings and what's signed in): a reset
+      // is the library and channels, and must never leave a server that was
+      // locked open to whoever can reach it.
+      prisma.setting.deleteMany({
+        where: wipeAssets ? { NOT: { key: { startsWith: 'auth' } } } : { NOT: [{ key: { startsWith: 'seeded_' } }, { key: { startsWith: 'auth' } }] },
+      }),
     ])
 
     const empty = (dir: string) => {

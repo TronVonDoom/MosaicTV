@@ -14,7 +14,7 @@ plugs into Plex, Jellyfin, Emby, or any IPTV player.
 | [Branding: Logos, Watermarks & Breaks](branding.md) | On-screen logos, watermark behavior, station breaks and idents, "up next" cards |
 | [Connecting Players](clients.md) | Jellyfin, Emby, Plex, VLC, and friends — plus shared HLS vs MPEG-TS, and casting |
 | [Hardware Acceleration](hardware-acceleration.md) | CPU vs GPU encoding (NVIDIA/QuickSync/VAAPI/AMF/VideoToolbox), setup per platform, encoding profiles |
-| [Security](security.md) | Why MosaicTV is LAN-only and how to access it remotely the safe way |
+| [Security](security.md) | Sign-in, player links, and watching away from home the safe way |
 | [Troubleshooting & Backup](troubleshooting.md) | Common issues, logs, backing up and restoring |
 
 ## Quick links
