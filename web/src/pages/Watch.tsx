@@ -12,7 +12,7 @@ import { useLiveRefresh } from '../lib/events'
 import { formatClock } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
-import { Crt, LooksMenu, TvSet, useLooks, usePicture } from '../components/watch/RetroLooks'
+import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
@@ -391,7 +391,8 @@ export default function Watch() {
 
   // The retro looks go over the picture here — not while it's on a TV.
   const { box, frame, fourThree } = usePicture(videoRef, looks.tvSet && !castingTo)
-  const tvScreen = looks.tvSet && !castingTo ? fourThree : null
+  // Inside the set, the picture shrinks a little so the cabinet shows round it.
+  const tvScreen = looks.tvSet && !castingTo && fourThree ? shrink(fourThree, TV_SET_SCALE, box.w, box.h) : null
   const classic = looks.classicGuide
 
   if (channels != null && lineup.length === 0) {
@@ -417,7 +418,13 @@ export default function Watch() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <video ref={videoRef} playsInline className="absolute inset-0 w-full h-full object-contain" onClick={wake} />
+      <video
+        ref={videoRef}
+        playsInline
+        className="absolute inset-0 w-full h-full object-contain transition-transform duration-500"
+        style={tvScreen ? { transform: `scale(${TV_SET_SCALE})` } : undefined}
+        onClick={wake}
+      />
       {looks.crt && frame && !castingTo && (
         <Crt videoRef={videoRef} rect={tvScreen ?? frame} crop={tvScreen ? [0.125, 0, 0.875, 1] : [0, 0, 1, 1]} />
       )}
