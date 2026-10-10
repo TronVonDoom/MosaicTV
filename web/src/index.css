@@ -279,6 +279,12 @@
   /* TV mode's tuning veil: a faint analogue static behind the channel's
      ident while the picture comes in. SVG turbulence, nudged a few pixels
      every frame of a stepped animation so it shimmers instead of sliding. */
+  /* TV mode's CRT where WebGL won't run: just the scanlines and the dark edges. */
+  .crt-lines {
+    background:
+      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.3) 0px, rgb(0 0 0 / 0.3) 1px, transparent 1px, transparent 3px),
+      radial-gradient(ellipse at center, transparent 62%, rgb(0 0 0 / 0.6) 100%);
+  }
   .tv-static {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     animation: tv-static 0.5s steps(5) infinite;

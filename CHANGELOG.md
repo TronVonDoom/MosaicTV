@@ -42,6 +42,13 @@
   of how it would air now. Songs in its schedule play underneath; with none,
   it's silent. It's built from the same schedule as the XMLTV feed, and the
   guides list it as one program a half hour (#9).
+- **Retro looks in TV mode.** A Looks button (or R) dresses the picture up
+  for the shows it's showing, in the browser only: **CRT** (or C) — scanlines,
+  a gentle curve and a glow, drawn on the graphics card — **TV set**, an old
+  set around a 4:3 program instead of black bars down its sides (it appears
+  only while the picture has them, with the channel in the dial's window), and
+  a **classic guide** in the blue, boxy cable-guide look. Each is remembered
+  in the browser; the channels and every other player are untouched (#11).
 
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 
