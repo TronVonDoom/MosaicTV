@@ -25,7 +25,9 @@ Every install needs the same two mounts and one port:
 | **Media** | `/media` | Your media library — mount **read-only** |
 | **Port** | `8688` | Web UI + IPTV endpoints |
 
-> ⚠️ MosaicTV has **no login**. Keep it on your LAN — see [Security](security.md).
+> 🔒 Out of the box MosaicTV has **no login** — keep it on your LAN, or turn on
+> sign-in (Settings → Sign-in) before anything outside can reach it. See
+> [Security](security.md).
 
 ---
 

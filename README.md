@@ -299,8 +299,10 @@ Open `http://YOUR-SERVER:8688`, add a library, scan, build a channel — the
 in about ten minutes. `:latest` is the newest release; `:edge` follows every
 change.
 
-> ⚠️ MosaicTV has no login — keep it on your LAN (or behind a VPN like
-> Tailscale). See [Security](docs/security.md).
+> 🔒 Out of the box MosaicTV has no login, which is right for a home network.
+> To watch away from home, use a VPN like Tailscale, or turn on **sign-in**
+> (Settings → Sign-in): a password or a code you approve, and links of their
+> own for players. See [Security](docs/security.md).
 
 ## Documentation
 
@@ -312,7 +314,7 @@ change.
 | 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, up-next cards |
 | 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps · casting |
 | ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | Hardware requirements, CPU vs GPU, setup per platform, profiles |
-| 🔒 [Security](docs/security.md) | LAN-only stance, VPN access, reverse proxies |
+| 🔒 [Security](docs/security.md) | Sign-in, player links, VPN access, reverse proxies |
 | 🛠 [Troubleshooting & Backup](docs/troubleshooting.md) | Common fixes, logs, backup/restore |
 
 ## Tech stack

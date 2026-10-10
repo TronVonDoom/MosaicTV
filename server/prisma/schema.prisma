@@ -32,6 +32,23 @@ model Setting {
   value String
 }
 
+// Something signed in to MosaicTV (see auth.ts), when sign-in is on: a
+// browser (signed in with the password, or a code), an app (paired with a
+// code), or a player (an IPTV app or Plex, given its own link). Each holds a
+// token; only its hash is kept — and, for a player, the token itself, since
+// its links are shown again on the Settings page.
+model Device {
+  id         Int       @id @default(autoincrement())
+  name       String
+  kind       String // "browser" | "app" | "player"
+  tokenHash  String    @unique
+  // A player's token, to show its links again; null for the rest.
+  token      String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+  lastIp     String?
+}
+
 // A reusable ffmpeg output profile assignable per channel (null on a channel =
 // the built-in default). Human-facing knobs; the stream derives ffmpeg args.
 model EncodingProfile {

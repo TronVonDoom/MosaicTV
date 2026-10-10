@@ -18,6 +18,7 @@ const pages = {
   ChannelEditor: () => import('./pages/ChannelEditor'),
   Studio: () => import('./pages/Studio'),
   Logs: () => import('./pages/Logs'),
+  Pair: () => import('./pages/Pair'),
 }
 const Dashboard = lazy(pages.Dashboard)
 const Library = lazy(pages.Library)
@@ -30,6 +31,7 @@ const Channels = lazy(pages.Channels)
 const ChannelEditor = lazy(pages.ChannelEditor)
 const Studio = lazy(pages.Studio)
 const Logs = lazy(pages.Logs)
+const Pair = lazy(pages.Pair)
 
 // TV mode carries the video player (hls.js), so it loads only when opened,
 // never in the background.
@@ -89,6 +91,7 @@ export default function App() {
         <Route path="studio" element={<Studio />} />
         <Route path="logs" element={<Logs />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="pair" element={<Pair />} />
 
         {/* Old routes, kept working. Browse and Libraries merged into Library;
             Media became Studio and absorbed the standalone Logos page;
