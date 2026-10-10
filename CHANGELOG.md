@@ -23,6 +23,16 @@
   of Horror"); out of season its turn is skipped. Movies air as usual. The
   schedule notes count a channel's holiday episodes and turn the switch on in
   one click.
+- **Promos in breaks.** A break can end on a twelve-second promo for
+  something later on the channel — "Tonight at 8", "Saturday at 9 AM" — with
+  the program's backdrop and poster, drawn in the up-next card's look and
+  faded in and out over the break's music. Set how often on the Breaks tab
+  (every break, or one in 2, 3 or 5; off by default), which shows the promo a
+  break would end on now. Promos are picked from the guide as their break
+  airs: movies, blocks starting (by the block's name), broadcast episodes,
+  premieres and prime time come first, each break picks among the best few,
+  and each thing is promoted at its soonest airing. Short breaks and breaks
+  playing a reel keep their ident (#8).
 
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 

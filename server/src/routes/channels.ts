@@ -8,6 +8,7 @@ import { MAX_LOOKAHEAD_DAYS, lookAhead } from '../schedule/lookAhead.js'
 import { replanChannel, scheduleChanged } from '../schedule/scheduleChanges.js'
 import { sanitizeComingUp, type ComingUpConfig } from '../streaming/overlays.js'
 import { comingUpPreview } from '../streaming/cardPreview.js'
+import { breakHasPromo, pickPromo, promoDims, promoStill, warmPromos } from '../streaming/promos.js'
 import path from 'node:path'
 import { identBuilt, peekTurn, poolFor, warmFiller } from '../streaming/filler.js'
 import { restyleSegmenter, segmenterViewers } from '../streaming/segmenter.js'
@@ -194,6 +195,13 @@ channelsRouter.patch('/:id', async (req, res) => {
     // or extras in or out, or holiday episodes held to their season lay the
     // guide out anew from the next program.
     const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras, x.holidaysInSeason].join('|')
+    // Promos turned on: draw the next couple of hours' now; after that each
+    // program draws its breaks' as it starts.
+    if (c.promoEvery && c.promoEvery !== before?.promoEvery) {
+      const blocks = await prisma.timeBlock.findMany({ where: { channelId: id }, include: { collection: true } })
+      const profile = await prisma.encodingProfile.findUnique({ where: { id: c.profileId ?? -1 } })
+      warmPromos({ ...c, timeBlocks: blocks }, resolveProfile(profile).height, new Date(), new Date(Date.now() + 2 * 3600_000)).catch(() => {})
+    }
     if (before && airs(before) !== airs(c)) scheduleChanged(id)
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
     // Songs listed another way: the same guide, read anew.
@@ -240,6 +248,7 @@ channelsRouter.get('/:id/breaks', async (req, res) => {
     include: { mediaItem: true },
   })
   const afterBlock = activeBlockAt(ch.timeBlocks, slot.stopTime)
+  const promo = ident?.style !== 'reel' && breakHasPromo(id, ch.promoEvery, slot.startTime, slot.stopTime) ? await pickPromo(ch, slot.startTime, slot.stopTime).catch(() => null) : null
   const next: Stored<NextBreak> = {
       start: slot.startTime,
       stop: slot.stopTime,
@@ -252,8 +261,31 @@ channelsRouter.get('/:id/breaks', async (req, res) => {
       before: after?.mediaItem ? programLabel(after.mediaItem) : null,
       beforeBlock: afterBlock && afterBlock.id !== block?.id ? afterBlock.collection.name : null,
       within: slot.groupKey && after?.groupKey === slot.groupKey && after.mediaItem ? programLabel(after.mediaItem) : null,
+      promo: promo ? `${promo.when} — ${promo.title}` : null,
     }
   res.json({ next })
+})
+
+// GET /api/channels/:id/promo/preview -> PNG of a promo this channel would
+// air now, for the Breaks tab: the one its next break with a promo ends on,
+// else the one a break now would get. 404 when nothing ahead is worth one.
+channelsRouter.get('/:id/promo/preview', async (req, res) => {
+  const id = Number(req.params.id)
+  const ch = await prisma.channel.findUnique({ where: { id }, include: { profile: true, timeBlocks: { include: { collection: true } } } })
+  if (!ch) return res.status(404).json({ error: 'Not found' })
+  const now = new Date()
+  const breaks = await prisma.playoutItem.findMany({ where: { channelId: id, kind: 'filler', startTime: { gt: now } }, orderBy: { startTime: 'asc' }, take: 60 })
+  const slot = breaks.find((b) => breakHasPromo(id, ch.promoEvery || 1, b.startTime, b.stopTime))
+  const pick = slot ? await pickPromo(ch, slot.startTime, slot.stopTime) : await pickPromo(ch, now, now)
+  if (!pick) return res.status(404).json({ error: 'Nothing coming up in the next day is worth a promo yet.' })
+  try {
+    const png = await promoStill(pick, promoDims(Math.min(720, resolveProfile(ch.profile).height)))
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('X-Promo', encodeURIComponent(`${pick.when} — ${pick.title}`))
+    res.type('image/png').send(png)
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Preview failed' })
+  }
 })
 
 // POST /api/channels/:id/coming-up/preview { comingUp } -> PNG of the up-next

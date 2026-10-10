@@ -29,6 +29,7 @@ import { neighbourOf, nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
 import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
 import { reelClips, reelPlan, reelSeed, type ReelClipRow } from './reel.js'
+import { PROMO_SEC, breakHasPromo, pickPromo, promoClip, warmPromos, type PromoPick } from './promos.js'
 import { songScreen, type Around, type Box, type ScreenLayout, type SongFacts } from './songScreen.js'
 import { songLyrics } from '../lyrics.js'
 
@@ -212,6 +213,13 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   // intermittent watermark so it fires on schedule for every viewer.
   const wmEpochSec = item.startTime.getTime() / 1000 + offset
 
+  // A program on air: draw ahead the promos its breaks (and the one after it)
+  // will end on, so they're ready when they air — from wherever a viewer
+  // tuned in. Each is drawn once; asking again costs a look at the guide.
+  if (item.kind === 'program' && channel.promoEvery) {
+    warmPromos(channel, profile.height, item.startTime, new Date(item.stopTime.getTime() + 30 * 60_000)).catch(() => {})
+  }
+
   let seg: Segment | null = null
   let label: string
   // A song screen's corners: the programs either side of it (see songScreen.ts).
@@ -231,10 +239,25 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     // the next one picks up from there.
     let fillDur = segDur
     let reel: { row: ReelClipRow; into: number; name: string } | null = null
+    // A break ending on a promo (promos.ts): the ident plays up to its last
+    // PROMO_SEC seconds, and the promo those.
+    let promo: { pick: PromoPick; into: number; dur: number } | null = null
     if (pool.length > 0) {
       const turn = await fillerTurn(poolKey, item.startTime.getTime(), pool.length)
       const f = pool[turn]
       const name = (x: Filler) => x.name || x.style
+      // A reel brings its own promos; a hold (id < 0) has no break of its own.
+      if (f.style !== 'reel' && item.id > 0 && breakHasPromo(channel.id, channel.promoEvery, item.startTime, item.stopTime)) {
+        const pick = await pickPromo(channel, item.startTime, item.stopTime).catch(() => null)
+        if (pick) {
+          const breakSec = (item.stopTime.getTime() - item.startTime.getTime()) / 1000
+          const at = breakSec - PROMO_SEC
+          if (offset < at - 0.05) {
+            fillDur = Math.min(segDur, at - offset)
+            void promoClip(pick, profile.height, { wait: false }) // the last chance to have it drawn in time
+          } else promo = { pick, into: Math.max(0, offset - at), dur: Math.min(segDur, breakSec - offset) }
+        }
+      }
       if (f.style === 'reel') {
         const clips = await reelClips(f.id)
         const plan = reelPlan(clips, (item.stopTime.getTime() - item.startTime.getTime()) / 1000, reelSeed(f.id, item.startTime.getTime()))
@@ -281,9 +304,15 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     // back, rather than cutting it mid-note. A hold airs its ident in 30s
     // chunks, so it's left alone: fading each chunk would dip every 30s.
     const hold = item.id < 0
+    // The promo, if it's drawn; if not, the ident plays the rest of the break.
+    const promoFile = promo ? await promoClip(promo.pick, profile.height, { wait: false }) : null
+    if (promo && !promoFile) fillDur = promo.dur
     const audioFadeInSec = !hold && offset < 0.25 ? Math.min(0.5, fillDur / 4) : 0
     const audioFadeOutSec = hold ? 0 : Math.min(1.5, fillDur / 3)
-    if (reel && fillDur > 0.3) {
+    if (promo && promoFile) {
+      // Over the break's music, faded in as it starts and out before the show.
+      seg = { filePath: promoFile, offsetSec: promo.into, loop: false, durationSec: promo.dur, hasAudio: false, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec: promo.into < 0.25 ? 0.6 : 0, audioFadeOutSec: Math.min(1.5, promo.dur / 3) }
+    } else if (reel && fillDur > 0.3) {
       // A clip from the reel, from where the break is in it: its own picture
       // and sound, cut hard to the next one the way a tape break was.
       const r = reel.row
@@ -291,7 +320,9 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     } else if (clip && fillDur > 0.3) {
       seg = { filePath: clip, offsetSec: 0, loop: true, durationSec: fillDur, hasAudio: true, logo, wmEpochSec, mediaWidth: FILLER_W, mediaHeight: FILLER_H, musicPath: music, isFiller: true, logoOnBreaks: channel.logoOnBreaks, fadeInSec: 0, fadeOutSec: 0, audioFadeInSec, audioFadeOutSec, hwDecode: fillerHw }
     }
-    label = reel
+    label = promo && promoFile
+      ? `promo: ${promo.pick.when} — ${promo.pick.title} (${Math.round(promo.dur)}s, ${promo.pick.why})${src}`
+      : reel
       ? `break reel “${reel.name}”: ${path.basename(reel.row.path)} (${Math.round(fillDur)}s)${src}`
       : `filler (${Math.round(fillDur)}s)${music ? ' +music' : ''}${src}${standIn}`
     if (!clip) log('error', 'stream', `Channel ${channelNumber}: no filler clip — a ${Math.round(segDur)}s gap will play black`, undefined, tag)

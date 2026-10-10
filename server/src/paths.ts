@@ -84,6 +84,14 @@ export function screensDir(): string {
   return d
 }
 
+// Promos drawn for breaks (see promos.ts), a few seconds each, kept a couple
+// of days for the breaks that ask again. Rebuildable at any time.
+export function promosDir(): string {
+  const d = path.join(dataDir(), 'promos')
+  fs.mkdirSync(d, { recursive: true })
+  return d
+}
+
 // Shrunk copies of local artwork (a poster.jpg on the media share is often a
 // multi-megabyte original) for the web UI's grids. Rebuildable at any time.
 export function thumbsDir(): string {

@@ -10,6 +10,7 @@ import IdentEditor from '../IdentEditor'
 import { Badge, Button, Card, CardHeader, Menu, Skeleton, cx } from '../ui'
 import BreaksMap from './BreaksMap'
 import CopyIdentDialog from './CopyIdentDialog'
+import PromosCard from './PromosCard'
 import type { ChannelTabProps } from './types'
 
 // Below Tailwind's `sm`: a phone held upright.
@@ -152,6 +153,7 @@ export default function BreaksTab({
                   <span className="text-[12.5px] text-ink-soft">{nextIdent.name}</span>
                   {next.turns > 1 && <span className="text-xs text-ink-faint">its turn of {next.turns}</span>}
                 </div>
+                {next.promo && <p className="text-[12.5px] text-ink-muted">Ends on a promo: {next.promo}</p>}
               </div>
             </>
           ) : (
@@ -349,6 +351,9 @@ export default function BreaksTab({
           />
         </Card>
       )}
+
+      {/* ── Promos ──────────────────────────────────────────────────────── */}
+      <PromosCard channelId={channelId} ch={ch} guard={guard} />
 
       {/* ── The corner logo ─────────────────────────────────────────────── */}
       <Card className="flex items-center gap-4 p-5">

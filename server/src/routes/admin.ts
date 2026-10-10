@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { copyDatabase, databaseFile } from '../dbMigrate.js'
-import { assetsDir, coversDir, dataDir, forTar, logoCacheDir, logosDir, previewsDir, screensDir, thumbsDir, tmdbCacheDir } from '../paths.js'
+import { assetsDir, coversDir, dataDir, forTar, logoCacheDir, logosDir, previewsDir, promosDir, screensDir, thumbsDir, tmdbCacheDir } from '../paths.js'
 import { log } from '../logs.js'
 import { seedDefaultAudio, seedDefaultLogo } from '../seedDefaults.js'
 import { stopAllSegmenters } from '../streaming/segmenter.js'
@@ -19,14 +19,14 @@ export const adminRouter = Router()
 // makes again by itself as it's needed.
 //   hls/                 the live streams' segments, rewritten every few
 //                        seconds (tar once gave up on them mid-read)
-//   screens/ thumbs/ tmdb-cache/ logo-cache/ previews/
+//   screens/ promos/ thumbs/ tmdb-cache/ logo-cache/ previews/
 //                        drawn or downloaded again on demand
 //   filler-*.mp4 …       ident clips, rendered again at start-up, and scratch
 //   logs/ backups/       the log, and the automatic pre-migration copies
 // On a big library that's most of the folder. Covers copied out of music files
 // (covers/) stay in: only a library scan makes those again. The database goes
 // in as one consistent copy, not the live file and its WAL.
-const LEFT_OUT = new Set(['hls', 'screens', 'thumbs', 'tmdb-cache', 'logo-cache', 'previews', 'logs', 'backups'])
+const LEFT_OUT = new Set(['hls', 'screens', 'promos', 'thumbs', 'tmdb-cache', 'logo-cache', 'previews', 'logs', 'backups'])
 const GENERATED = /^filler-.*\.mp4$|^caption-.*\.txt$|^card-.*\.png$/
 
 /**
@@ -158,7 +158,7 @@ adminRouter.post('/reset', async (req, res) => {
       for (const f of fs.readdirSync(dir)) fs.rmSync(path.join(dir, f), { recursive: true, force: true })
     }
     if (wipeAssets) for (const dir of [logosDir(), assetsDir()]) empty(dir)
-    for (const dir of [coversDir(), screensDir(), thumbsDir(), tmdbCacheDir(), logoCacheDir(), previewsDir()]) empty(dir)
+    for (const dir of [coversDir(), screensDir(), promosDir(), thumbsDir(), tmdbCacheDir(), logoCacheDir(), previewsDir()]) empty(dir)
     for (const f of fs.readdirSync(dataDir())) {
       if (GENERATED.test(f)) fs.rmSync(path.join(dataDir(), f), { force: true })
     }

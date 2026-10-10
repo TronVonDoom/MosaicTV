@@ -392,6 +392,9 @@ model Channel {
   // holiday (contract/holidays.ts) airs in that holiday's weeks, and its turn
   // is skipped the rest of the year.
   holidaysInSeason  Boolean            @default(false)
+  // Promos in breaks: one break in this many ends on a promo for something
+  // coming up later (see streaming/promos.ts); 0 = none.
+  promoEvery        Int                @default(0)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]

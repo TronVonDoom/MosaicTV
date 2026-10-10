@@ -27,6 +27,12 @@ import { asMatchSource } from './matching.js'
 import { sanitizeComingUp, sanitizeWatermark, type ComingUpConfig } from './overlays.js'
 
 // ── Field readers ───────────────────────────────────────────────────────────
+
+/** A promo share: every break (1), one in 2, 3 or 5, or none (0). */
+const asPromoEvery = (v: unknown): number => {
+  const n = Math.round(Number(v))
+  return [1, 2, 3, 5].includes(n) ? n : 0
+}
 //
 // Built on `loose`: any value, and a missing key reads as undefined (zod 4
 // otherwise refuses a missing key in front of a transform). A reader turns
@@ -97,6 +103,8 @@ export const ChannelUpdate = z.object({
   includeExtras: flag.optional(),
   // Holiday episodes only in their holiday's weeks (see Channel).
   holidaysInSeason: flag.optional(),
+  // One break in this many ends on a promo; 0 = none (see Channel).
+  promoEvery: loose.transform((v) => asPromoEvery(v)).optional(),
   // What a song airs over, and whether a song's lyrics come first (see Channel).
   musicScreen: loose.transform(asMusicScreen).optional(),
   lyricsFirst: flag.optional(),
