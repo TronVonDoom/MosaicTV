@@ -328,6 +328,15 @@ export const api = {
   libraryHome: (id: number) => request<LibraryHome>(`/api/libraries/${id}/home`),
   addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
+  /** A library read from Plex, Jellyfin or Emby: its folders are where the server's are here. */
+  addServerLibrary: (data: { name: string; kind: LibraryKind; source: { kind: ServerKind; url: string; token: string; library: string; name: string }; pathMap: [string, string][] }) =>
+    request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
+  /** A media server's name and libraries, each with where its folders most likely are here. */
+  checkServer: (data: { kind: ServerKind; url: string; token: string }) =>
+    request<ServerCheck>('/api/sources/check', { method: 'POST', body: JSON.stringify(data) }),
+  /** A media server library's connection, or where its folders are here. */
+  updateLibrarySource: (id: number, data: { url?: string; token?: string; pathMap?: [string, string][] }) =>
+    request<{ ok: true }>(`/api/libraries/${id}/source`, { method: 'PATCH', body: JSON.stringify(data) }),
   // Where its metadata comes from, first to last.
   updateLibrary: (id: number, data: { metadataSources: MetadataSource[] }) =>
     request<{ id: number; metadataSources: MetadataSource[] }>(`/api/libraries/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -677,6 +686,15 @@ export const api = {
 export const logsDownloadUrl = '/api/logs/download'
 export const backupUrl = '/api/admin/backup'
 
+export type ServerKind = 'plex' | 'jellyfin' | 'emby'
+/** What /api/sources/check answers: the server, and its libraries with a guess at each folder here. */
+export type ServerCheck = {
+  name: string
+  version: string | null
+  mediaRoot: string
+  libraries: { id: string; name: string; kind: 'tv' | 'movie' | 'music' | 'other'; locations: string[]; mapping: [string, string | null][] }[]
+}
+
 /** Which online sources have a key saved (see SettingsInfo). */
 export type SourceKeys = Record<MatchSource, boolean>
 export const NO_KEYS: SourceKeys = { tmdb: false, tvdb: false }
@@ -688,9 +706,15 @@ export const readsOnline = (lib: { metadataSources: MetadataSource[] }, keys: So
 /** Whether stored art is an image's address (TheTVDB's) rather than a TMDB path. */
 export const isArtAddress = (art: string) => /^https?:\/\//i.test(art)
 
+/** Whether stored art is a media server's (Plex, Jellyfin, Emby), fetched through MosaicTV. */
+export const isServerArt = (art: string) => art.startsWith('server:')
+const serverArtUrl = (art: string, w: number) => `/api/artwork/ref?art=${encodeURIComponent(art)}&w=${w}`
+
 // A TMDB CDN image URL from a stored path like "/abc.jpg" — or, for TheTVDB's
-// art, which is stored as its address, that address.
+// art, which is stored as its address, that address; a media server's,
+// through MosaicTV (which holds its key).
 export function tmdbImage(path: string, size: 'w200' | 'w342' | 'w500' | 'original' = 'w342'): string {
+  if (isServerArt(path)) return serverArtUrl(path, size === 'original' ? 780 : Number(size.slice(1)))
   return isArtAddress(path) ? path : `https://image.tmdb.org/t/p/${size}${path}`
 }
 
@@ -715,6 +739,7 @@ export function artworkUrl(
 /** A TMDB poster by its path, through the server's cache (Fix match's
  *  results) — or a TheTVDB image by its address, as it is. */
 export function tmdbThumb(path: string, size: 'w92' | 'w154' | 'w185' | 'w342' = 'w154'): string {
+  if (isServerArt(path)) return serverArtUrl(path, Number(size.slice(1)))
   return isArtAddress(path) ? path : `/api/artwork/tmdb/${size}/${path.replace(/^\//, '')}`
 }
 

@@ -38,6 +38,18 @@ function sendArtwork(res: Response, filePath: string, maxAgeSec = 86400) {
   })
 }
 
+// GET /api/artwork/ref?art=server:<libraryId>:<path>&w= -> a media server's
+// image (see sources/sync.ts), fetched here with the library's key and kept —
+// the reference names no key, so it's safe for the web to hold.
+artworkRouter.get('/ref', async (req, res) => {
+  const art = String(req.query.art ?? '')
+  if (!/^server:\d+:\/[^\s]*$/.test(art)) return res.status(400).end()
+  const w = thumbWidth(req.query.w)
+  const file = await remoteArtFile(art, w ? `w${Math.max(w, 154)}` : 'w500', w)
+  if (!file) return res.status(404).end()
+  sendArtwork(res, file, 604800)
+})
+
 // GET /api/artwork/random/backdrop -> { id } of something with a backdrop —
 // the backdrop behind the Studio and Settings watermark previews.
 artworkRouter.get('/random/backdrop', async (_req, res) => {

@@ -20,6 +20,7 @@ import { replanIfTimezoneChanged } from './schedule/scheduleChanges.js'
 import { seedDefaultAudio, seedDefaultLogo } from './seedDefaults.js'
 import { reparseAfterUpgrade, rescanAfterUpgrade, tagExtras } from './scanner/scanner.js'
 import { librariesRouter } from './routes/libraries.js'
+import { sourcesRouter } from './routes/sources.js'
 import { mediaRouter } from './routes/media.js'
 import { scanRouter } from './routes/scan.js'
 import { showsRouter } from './routes/shows.js'
@@ -122,6 +123,7 @@ app.get('/api/stats', async (_req, res) => {
 app.get('/api/events', eventStream)
 
 app.use('/api/libraries', librariesRouter)
+app.use('/api/sources', sourcesRouter)
 app.use('/api/media', mediaRouter)
 app.use('/api/scan', scanRouter)
 app.use('/api/shows', showsRouter)

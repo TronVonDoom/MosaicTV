@@ -12,9 +12,45 @@ import { log } from '../logs.js'
 import { thumbsDir, tmdbCacheDir } from '../paths.js'
 import { runFfmpeg } from '../streaming/run.js'
 import { TMDB_IMAGE_BASE } from './tmdb.js'
+import { mediaServer, type MediaServer, type ServerKind } from '../sources/mediaServer.js'
 
 /** Whether stored art is an image's address (TheTVDB's), not a TMDB path. */
 export const isAddress = (art: string) => /^https?:\/\//i.test(art)
+
+/** Whether stored art is a media server's ("server:<libraryId>:<path>", see sources/sync.ts). */
+export const isServerArt = (art: string) => art.startsWith('server:')
+
+// A library's server, by id, for its art: looked up once a minute at most.
+const servers = new Map<number, { at: number; server: MediaServer | null }>()
+async function serverFor(libraryId: number): Promise<MediaServer | null> {
+  const known = servers.get(libraryId)
+  if (known && Date.now() - known.at < 60_000) return known.server
+  const lib = await prisma.library.findUnique({ where: { id: libraryId }, select: { source: true, sourceUrl: true, sourceToken: true } })
+  const server = lib && lib.source !== 'folders' && lib.sourceUrl && lib.sourceToken ? mediaServer(lib.source as ServerKind, lib.sourceUrl, lib.sourceToken) : null
+  servers.set(libraryId, { at: Date.now(), server })
+  return server
+}
+
+// A media server's image, fetched with its library's key and kept like the
+// rest — about `size` wide ("w342"), as the server resizes it.
+async function serverImage(art: string, size: string, timeoutMs?: number): Promise<string | null> {
+  const m = /^server:(\d+):(\/.*)$/.exec(art)
+  if (!m) return null
+  const w = /^w(\d+)$/.exec(size)?.[1]
+  const file = path.join(tmdbCacheDir(), `server_${createHash('sha1').update(`${art}|${w ?? ''}`).digest('hex').slice(0, 24)}.jpg`)
+  if (fs.existsSync(file)) return file
+  const server = await serverFor(Number(m[1]))
+  if (!server) return null
+  const got = await Promise.race([
+    server.image(m[2], w ? Number(w) : undefined),
+    new Promise<null>((r) => (timeoutMs ? setTimeout(() => r(null), timeoutMs) : undefined)),
+  ])
+  if (!got) return null
+  const tmp = `${file}.${process.pid}.part`
+  await fsp.writeFile(tmp, got.body)
+  await fsp.rename(tmp, file)
+  return file
+}
 
 // Fetch a TMDB or TheTVDB image once, then serve it from disk. Guide clients
 // (Jellyfin, Plex) pull artwork from us over the LAN and can't be assumed to
@@ -22,6 +58,7 @@ export const isAddress = (art: string) => /^https?:\/\//i.test(art)
 // behalf. `art` is a TMDB path ("/abc123.jpg", fetched at `size`) or a
 // TheTVDB image's address (one size only).
 export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: number): Promise<string | null> {
+  if (isServerArt(art)) return serverImage(art, size, timeoutMs)
   // Both come from our own DB. A TMDB path is basenamed so it can't climb out
   // of the cache dir; an address is named by its hash.
   const address = isAddress(art)
@@ -55,7 +92,7 @@ export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: 
  *  asked for, TheTVDB's (one size only) is shrunk like a local poster. */
 export async function remoteArtFile(art: string, size: string, w: number | null): Promise<string | null> {
   const cached = await cachedRemoteImage(art, size)
-  if (!cached || !w || !isAddress(art)) return cached
+  if (!cached || !w || !(isAddress(art) || isServerArt(art))) return cached
   return (await localThumb(cached, w)) ?? cached
 }
 

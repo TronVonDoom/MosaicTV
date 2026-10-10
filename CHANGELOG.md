@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Libraries from Plex, Jellyfin or Emby.** Library → Sources → Add a library
+  can read a TV or movie library from a media server: connect with its
+  address and token (or API key), pick one of its libraries, and say where its
+  folders are here — filled in where MosaicTV can tell. The server names the
+  shows, seasons, episodes and movies and brings their descriptions, genres,
+  ratings, dates and artwork; MosaicTV indexes and plays the files from disk as
+  ever, so nothing streams through the server. Each scan reads it again and
+  matches every file by its path; the library's card says how many it found,
+  and names one it didn't to check the folders by. A show filed by its folder
+  name joins the server's, its collection picks and broadcast episodes with
+  it. The server's key never leaves MosaicTV — its artwork is fetched through
+  it. Folder libraries work as they always have (#7).
+
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 
 - **Picture in picture in TV mode.** A new button beside Full screen (or
