@@ -151,6 +151,8 @@ channelsRouter.post('/', async (req, res) => {
       await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
       return c
     })
+    // A guide channel has something on from the start: the guide.
+    if (c.kind === 'guide') scheduleChanged(c.id)
     warmFiller().catch(() => {}) // its starter ident, built ahead
     res.status(201).json(c)
   } catch {
@@ -195,9 +197,9 @@ channelsRouter.patch('/:id', async (req, res) => {
     const c = await prisma.channel.update({ where: { id }, data })
     if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks || before.musicScreen !== c.musicScreen || before.lyricsFirst !== c.lyricsFirst || before.songsAround !== c.songsAround)) restyleSegmenter(c.number)
     // A new broadcast clock, breaks inside programs turned on or off, specials
-    // or extras in or out, or holiday episodes held to their season lay the
-    // guide out anew from the next program.
-    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras, x.holidaysInSeason].join('|')
+    // or extras in or out, holiday episodes held to their season, or a channel
+    // made a guide (or not) lay the guide out anew from the next program.
+    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras, x.holidaysInSeason, x.kind].join('|')
     // Promos turned on: draw the next couple of hours' now; after that each
     // program draws its breaks' as it starts.
     if (c.promoEvery && c.promoEvery !== before?.promoEvery) {

@@ -31,7 +31,8 @@ export async function sweepGuides(): Promise<{ channels: number; built: number }
   sweeping = true
   try {
     const channels = await prisma.channel.findMany({
-      select: { id: true, name: true, playoutCursor: true, rotationItems: { select: { id: true } } },
+      // `kind`: a guide channel with no songs still has a guide to keep.
+      select: { id: true, name: true, kind: true, playoutCursor: true, rotationItems: { select: { id: true } } },
     })
     let touched = 0
     let built = 0
