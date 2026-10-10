@@ -152,7 +152,7 @@ export function programmesXml<R extends XmltvRow>(
       xml += `    <title>${escapeXml(block.title)}</title>\n`
       if (artists) xml += `    <sub-title>${escapeXml(artists)}</sub-title>\n`
       if (lines.length) xml += `    <desc>${escapeXml(lines.join('\n'))}</desc>\n`
-      xml += `    <category>Music</category>\n`
+      if (songs.length) xml += `    <category>Music</category>\n`
       const icon = songs.map((s) => programmeIcon(s.mediaItem)).find((x) => !!x)
       if (icon) xml += `    <icon src="${escapeXml(icon)}" />\n`
       xml += '  </programme>\n'

@@ -70,6 +70,18 @@ export const MUSIC_GUIDES = ['hour', 'song'] as const
 export type MusicGuide = (typeof MUSIC_GUIDES)[number]
 export const asMusicGuide = (v: unknown): MusicGuide => (v === 'song' ? 'song' : 'hour')
 
+/** What a channel's picture is (Channel.kind): its programs, or the guide
+ *  — every other channel's now and next — over its songs, if it has any. */
+export const CHANNEL_KINDS = ['normal', 'guide'] as const
+export type ChannelKind = (typeof CHANNEL_KINDS)[number]
+export const asChannelKind = (v: unknown): ChannelKind => (v === 'guide' ? 'guide' : 'normal')
+
+/** How a guide channel draws the guide (Channel.guideLook): the blue cable
+ *  guide, or the app's own dark look. */
+export const GUIDE_LOOKS = ['classic', 'mosaic'] as const
+export type GuideLook = (typeof GUIDE_LOOKS)[number]
+export const asGuideLook = (v: unknown): GuideLook => (v === 'mosaic' ? 'mosaic' : 'classic')
+
 /** The kinds of extra a movie or show can carry — featurettes, trailers,
  *  deleted scenes… — as Plex names them. */
 export const EXTRA_KINDS = ['behindthescenes', 'deleted', 'featurette', 'interview', 'scene', 'short', 'trailer', 'sample', 'other'] as const

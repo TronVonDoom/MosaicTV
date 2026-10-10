@@ -388,6 +388,12 @@ model Channel {
   // into one block an hour, named after their collection (the way a cable
   // guide lists a music channel); "song" lists each on its own.
   musicGuide        String             @default("hour")
+  // What its picture is: "normal" — its programs — or "guide": every other
+  // channel's now and next, scrolling, with a clock (streaming/guideScreen.ts),
+  // over its songs when it has any, else in silence. `guideLook` is how the
+  // guide is drawn: "classic" (the blue cable guide) or "mosaic" (the app's).
+  kind              String             @default("normal")
+  guideLook         String             @default("classic")
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]

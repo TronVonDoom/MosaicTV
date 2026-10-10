@@ -123,6 +123,29 @@ videos, shows and movies however its collections and schedule have them.
   in the XMLTV guide your players read, where a block's songs are its
   description.
 
+## The guide channel
+
+A channel can be a **guide channel**, the way cable systems had one: its
+picture is every other channel's now and next — ninety minutes of the grid,
+scrolling up the bottom of the screen a row every few seconds — with a clock,
+the date, and a window up top on something that's on. Any player that can
+tune a channel can see what's on: an IPTV app, Plex's Live TV, a TV with no
+guide of its own.
+
+Make one on a channel's **General** tab under **Picture**: **The guide**. Pick
+its **Look** — **Classic**, the blue cable guide with yellow numbers, or
+**Mosaic**, the app's own dark look — and the tab shows the guide as it would
+air now. Songs in its rotation or blocks play underneath, the way a music
+channel picks them; with none, it's silent. Up-next cards don't show over it.
+
+The guide lists every channel with a number, in number order, except test
+channels and other guides. It's built from the same schedule as the XMLTV
+feed and the web guide: an airing's segments and acts are one entry, a short
+break is part of the program before it, and a run of songs is its hour block.
+The grid moves on each half hour. In the guide itself — the web guide, the
+apps and XMLTV — a guide channel is listed as one program a half hour, named
+after the channel.
+
 ## Broadcast episodes (multi-segment shows)
 
 A lot of classic cartoons were made as shorts and aired several to a

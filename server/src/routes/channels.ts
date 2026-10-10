@@ -12,6 +12,8 @@ import path from 'node:path'
 import { identBuilt, peekTurn, poolFor, warmFiller } from '../streaming/filler.js'
 import { restyleSegmenter, segmenterViewers } from '../streaming/segmenter.js'
 import { activeBlockAt, localLogo, logoFor } from '../streaming/logo.js'
+import { asChannelKind, asGuideLook } from '../contract/index.js'
+import { guidePreview } from '../streaming/guideScreen.js'
 import { resolveProfile } from '../streaming/profile.js'
 import { logosDir } from '../paths.js'
 import {
@@ -100,6 +102,7 @@ channelsRouter.get('/', async (_req, res) => {
         group: c.group,
         logoUrl: c.logoUrl,
         logoId: c.logoId,
+        kind: asChannelKind(c.kind),
         rotationCount: c._count.rotationItems,
         blockCount: c._count.timeBlocks,
         playoutCount: c._count.playout,
@@ -240,6 +243,22 @@ channelsRouter.post('/:id/coming-up/preview', async (req, res) => {
   try {
     const cfg = sanitizeComingUp({ ...(req.body?.comingUp ?? {}), enabled: true })
     const png = await comingUpPreview(Number(req.params.id), cfg)
+    res.setHeader('Cache-Control', 'no-store')
+    res.type('image/png').send(png)
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'Preview failed' })
+  }
+})
+
+// GET /api/channels/:id/guide/preview?look= -> PNG of the guide this channel
+// would air now, as a guide channel, in its look (or the one asked for), for
+// the General tab.
+channelsRouter.get('/:id/guide/preview', async (req, res) => {
+  const ch = await prisma.channel.findUnique({ where: { id: Number(req.params.id) } })
+  if (!ch) return res.status(404).json({ error: 'Not found' })
+  try {
+    const look = req.query.look ? asGuideLook(req.query.look) : ch.guideLook
+    const png = await guidePreview({ ...ch, guideLook: look }, { w: 1280, h: 720 })
     res.setHeader('Cache-Control', 'no-store')
     res.type('image/png').send(png)
   } catch (e) {

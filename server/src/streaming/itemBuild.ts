@@ -31,6 +31,7 @@ import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTur
 import { reelClips, reelPlan, reelSeed, type ReelClipRow } from './reel.js'
 import { songScreen, type Around, type Box, type ScreenLayout, type SongFacts } from './songScreen.js'
 import { songLyrics } from '../lyrics.js'
+import { guideScreen, halfHourOf } from './guideScreen.js'
 
 // The channel shape the builder needs — timeBlocks with their collection and
 // the idents that play only during them, the channel's "everywhere else"
@@ -217,7 +218,28 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   // A song screen's corners: the programs either side of it (see songScreen.ts).
   let around: Around = {}
 
-  if (item.kind === 'filler' || !mi) {
+  // A guide channel's picture is the guide, whatever's scheduled: a song is
+  // heard under it, anything else is silence. Each encode runs to the next
+  // half hour at most, where the grid moves on.
+  const guideFiles: string[] = []
+  if (channel.kind === 'guide') {
+    const at = new Date(item.startTime.getTime() + offset * 1000)
+    const base = path.join(dataDir(), `guide-${channelNumber}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+    const g = await guideScreen(channel, { w: profile.width, h: profile.height }, at, base).catch((e) => {
+      log('warn', 'stream', `Channel ${channelNumber}: couldn't draw the guide`, String((e as Error)?.stack || e), tag)
+      return null
+    })
+    if (g) {
+      guideFiles.push(g.png, g.list)
+      const dur = Math.max(1, Math.min(segDur, (halfHourOf(at.getTime()) + 30 * 60_000 - at.getTime()) / 1000))
+      const song = mi && (mi.type === 'song' || mi.type === 'music') && !!mi.audioCodec && fs.existsSync(mi.path)
+      const common = { logo, wmEpochSec, mediaWidth: profile.width, mediaHeight: profile.height, isFiller: false, fadeInSec: 0, fadeOutSec: 0, durationSec: dur, loop: false, guide: g }
+      seg = song
+        ? { ...common, filePath: mi.path, offsetSec: seek, hasAudio: true }
+        : { ...common, filePath: 'anullsrc=r=48000:cl=stereo', inputFormat: ['-f', 'lavfi'], offsetSec: 0, hasAudio: true }
+      label = `the guide (${g.channels} channel${g.channels === 1 ? '' : 's'})${song ? ` over ${programLabel(mi)}` : ''}`
+    } else label = 'the guide'
+  } else if (item.kind === 'filler' || !mi) {
     // The idents this break picks from: the active block's own, else the
     // channel's "everywhere else" ones (a channel always has some; the
     // frosted/animated safety nets below are for when they can't play).
@@ -383,7 +405,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   }
   // What this encode names as up next, for a replan to check (BuiltItem.upNext).
   let upNextSlot: { key: string | null; untilSec: number } | undefined
-  if (!thisIsFiller && mi && mi.type !== 'song' && cu?.enabled) {
+  if (!thisIsFiller && mi && mi.type !== 'song' && cu?.enabled && !seg.guide) {
     // Timed against the whole broadcast episode, so it shows once, near its end.
     const { start, stop, upNext } = await programAndNext(item, nextProgram)
     const encodeStart = item.startTime.getTime() + offset * 1000
@@ -398,7 +420,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
       if (upNext?.mediaItem) await stageCard('up-next', await upNextContent(upNext).catch(() => null), windows)
     }
   }
-  if (!thisIsFiller && mi?.type === 'music' && mi.title) {
+  if (!thisIsFiller && mi?.type === 'music' && mi.title && !seg.guide) {
     const a = Math.max(0, 1 - offset)
     const b = 13 - offset
     if (b - a > 1) await stageCard('now-playing', await nowPlayingContent(mi).catch(() => null), [{ a, b }])
@@ -431,6 +453,6 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     wmDesc = `watermark ${wm.mode}/${wm.position}${wm.constrainToMedia ? '/media-fit' : ''}`
   }
 
-  const captionFiles = cardFiles
+  const captionFiles = [...cardFiles, ...guideFiles]
   return { kind: 'encode', args, label, captionFiles, hwDecode: seg.hwDecode ?? false, mediaWidth: seg.mediaWidth, mediaHeight: seg.mediaHeight, wmDesc, durSec: seg.durationSec ?? segDur, upNext: upNextSlot }
 }

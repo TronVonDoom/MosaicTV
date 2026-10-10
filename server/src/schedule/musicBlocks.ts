@@ -112,8 +112,27 @@ export function musicBlocks<R extends Row>(
  */
 export async function guideBlocks<R extends Row>(
   rows: R[],
-  channels: { id: number; name: string; musicGuide: string }[],
+  channels: { id: number; name: string; musicGuide: string; kind?: string }[],
 ): Promise<(GuideBlock | null)[]> {
+  // A guide channel is listed as itself, a half hour at a time, whatever
+  // plays under it.
+  const guides = new Map(channels.filter((c) => c.kind === 'guide').map((c) => [c.id, c.name]))
+  const blocks = await musicBlocksFor(
+    rows,
+    channels.filter((c) => !guides.has(c.id)),
+  )
+  if (!guides.size) return blocks
+  return rows.map((r, i) => {
+    const name = guides.get(r.channelId)
+    if (name == null) return blocks[i]
+    const d = new Date(r.startTime)
+    d.setSeconds(0, 0)
+    d.setMinutes(d.getMinutes() < 30 ? 0 : 30)
+    return { key: `${r.channelId}:g${d.getTime()}`, title: name }
+  })
+}
+
+async function musicBlocksFor<R extends Row>(rows: R[], channels: { id: number; name: string; musicGuide: string }[]): Promise<(GuideBlock | null)[]> {
   const fold = new Set(channels.filter((c) => asMusicGuide(c.musicGuide) === 'hour').map((c) => c.id))
   if (!fold.size || !rows.some((r) => fold.has(r.channelId) && isMusic(r))) return rows.map(() => null)
   const ids = [...new Set(rows.flatMap((r) => (r.collectionId != null && fold.has(r.channelId) && isMusic(r) ? [r.collectionId] : [])))]
