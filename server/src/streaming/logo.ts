@@ -7,26 +7,14 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { prisma } from '../db.js'
 import { logoCacheDir, logosDir } from '../paths.js'
+import { activeBlockAt } from '../contract/index.js'
 
 /**
- * The block active at a given local time (first match wins). Generic so callers
- * keep whatever relations they included (collection, fillers, …).
+ * The block active at a given local time — its day, hours and season; where
+ * two are on, the one that wins (contract/seasons.ts). Generic so callers keep
+ * whatever relations they included (collection, fillers, …).
  */
-export function activeBlockAt<T extends { days: string; startMinute: number; endMinute: number }>(blocks: T[], date: Date): T | null {
-  const day = date.getDay()
-  const prev = (day + 6) % 7
-  const tod = date.getHours() * 60 + date.getMinutes()
-  for (const b of blocks) {
-    const days = b.days.split(',').map((s) => Number(s.trim()))
-    if (b.endMinute > b.startMinute) {
-      if (days.includes(day) && tod >= b.startMinute && tod < b.endMinute) return b
-    } else {
-      if (days.includes(day) && tod >= b.startMinute) return b
-      if (days.includes(prev) && tod < b.endMinute) return b
-    }
-  }
-  return null
-}
+export { activeBlockAt }
 
 /**
  * The logo active at a given time: block override → the block's collection logo

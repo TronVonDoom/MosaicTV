@@ -14,7 +14,7 @@ import {
 } from '../lib/breaks'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
-import { formatDays, minutesToTime } from '../lib/format'
+import { formatDays, formatSeason, minutesToTime } from '../lib/format'
 import Icon from './Icon'
 import LogoPicker from './LogoPicker'
 import DirectoryPicker from './DirectoryPicker'
@@ -520,6 +520,7 @@ export default function IdentEditor({
                           {!breaksOn(b, ch) && <Badge>Breaks off</Badge>}
                           <span className="text-xs text-ink-faint tabular-nums whitespace-nowrap">
                             {formatDays(b.days)} · {minutesToTime(b.startMinute)}–{minutesToTime(b.endMinute)}
+                            {formatSeason(b) && ` · ${formatSeason(b)}`}
                           </span>
                         </label>
                       ))}

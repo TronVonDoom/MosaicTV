@@ -43,6 +43,8 @@ test('bodies are read as loosely as the routes always read them', () => {
     comingUp: null,
     grid: null, // the channel's clock
     actBreaks: null, // the channel's setting
+    seasonFrom: null, // all year
+    seasonTo: null,
   })
   // Midnight is a real start time.
   assert.equal(BlockCreate.parse({ collectionId: 3, days: '0', startMinute: 0, endMinute: 60 }).startMinute, 0)

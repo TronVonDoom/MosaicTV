@@ -614,6 +614,9 @@ export type TimeBlock = {
   grid: number | null
   /** Breaks inside programs here; null = the channel's setting. */
   actBreaks: boolean | null
+  /** Its season ("MM-DD" every year, "YYYY-MM-DD" once); null = all year. */
+  seasonFrom: string | null
+  seasonTo: string | null
   collection: { id: number; name: string; defaultOrder: PlaybackOrder; logoId?: number | null }
 }
 
@@ -654,6 +657,8 @@ export type ChannelDetail = {
   /** Whether its whole shows, movies and smart filters bring in season 0, and extras. */
   includeSpecials: boolean
   includeExtras: boolean
+  /** Holiday episodes air only in their holiday's weeks (contract/holidays.ts). */
+  holidaysInSeason: boolean
   /** What a song airs over: its cover and progress, or a spectrum. */
   musicScreen: MusicScreen
   /** A song with timed lyrics shows them instead. */
@@ -811,6 +816,10 @@ export type LookAheadBlock = {
   name: string
   days: string
   startMinute: number
+  /** "Oct 1–31 every year"; null = all year. */
+  season: string | null
+  /** Where its season stands: "in season until Oct 31", "starts its season Oct 1"… */
+  seasonNote: string | null
   hard: boolean
   airings: number
   avgLateSec: number
@@ -837,6 +846,8 @@ export type ScheduleWarning = {
   collectionId?: number
   /** The show picks whose season 0 can be left out to fix it. */
   leaveOutSpecials?: number[]
+  /** Holiday episodes air whenever their turn comes: one switch holds them to their season. */
+  holdHolidays?: boolean
 }
 
 // ── On air: where a title, or a library's titles, air ─────────────────────────

@@ -1,4 +1,6 @@
+import { formatSeason, hasSeason } from '@contract'
 import type { ChannelDetail } from '../lib/api'
+import { cx } from './ui'
 
 type Block = ChannelDetail['timeBlocks'][number]
 
@@ -25,6 +27,23 @@ export function expand(blocks: Block[]): Seg[] {
     }
   }
   return segs
+}
+
+// Where a day's seasonal spans sit: a lane each where they overlap, side by
+// side over the right of the column, so the all-year block under them still
+// shows down its left edge.
+function lanes(segs: Seg[]): Map<Seg, { lane: number; of: number }> {
+  const out = new Map<Seg, { lane: number; of: number }>()
+  const sorted = [...segs].sort((a, b) => a.top - b.top || b.bottom - a.bottom)
+  const ends: number[] = [] // each lane's bottom so far
+  for (const s of sorted) {
+    let lane = ends.findIndex((e) => e <= s.top)
+    if (lane < 0) lane = ends.push(0) - 1
+    ends[lane] = s.bottom
+    out.set(s, { lane, of: 0 })
+  }
+  for (const v of out.values()) v.of = ends.length
+  return out
 }
 
 function color(id: number): { bg: string; border: string } {
@@ -89,13 +108,21 @@ export default function WeeklyBlockGrid({
               {Array.from({ length: 24 }, (_, h) => (
                 <div key={h} className="absolute left-0 right-0 border-t border-edge/50" style={{ top: h * PX_H }} />
               ))}
-              {/* block spans for this day */}
-              {segs
-                .filter((s) => s.day === day)
-                .map((s, i) => {
+              {/* block spans for this day: all-year ones, then seasons over them */}
+              {(() => {
+                const today = segs.filter((s) => s.day === day)
+                const seasonal = today.filter((s) => hasSeason(s.block))
+                const placed = lanes(seasonal)
+                return [...today.filter((s) => !hasSeason(s.block)), ...seasonal].map((s, i) => {
                   const c = color(s.block.collectionId)
                   const top = (s.top / 60) * PX_H
                   const height = Math.max(12, ((s.bottom - s.top) / 60) * PX_H)
+                  const season = formatSeason(s.block)
+                  const lane = placed.get(s)
+                  // A season's lanes share the right 70% of the column.
+                  const pos = lane
+                    ? { left: `calc(30% + ${(lane.lane * 70) / lane.of}%)`, width: `calc(${70 / lane.of}% - 2px)` }
+                    : { left: 2, right: 2 }
                   return (
                     <button
                       key={s.block.id + '-' + i}
@@ -104,20 +131,36 @@ export default function WeeklyBlockGrid({
                         e.stopPropagation()
                         onEditBlock(s.block)
                       }}
-                      title={`${s.block.collection.name} · ${fmt(s.block.startMinute)}–${fmt(s.block.endMinute)}`}
-                      className="absolute left-0.5 right-0.5 rounded border px-1 py-0.5 text-left overflow-hidden hover:brightness-125"
-                      style={{ top, height, background: c.bg, borderColor: c.border }}
+                      title={`${s.block.collection.name} · ${fmt(s.block.startMinute)}–${fmt(s.block.endMinute)}${season ? ` · ${season}` : ''}`}
+                      className={cx('absolute rounded border px-1 py-0.5 text-left overflow-hidden hover:brightness-125', season && 'border-dashed shadow-[0_0_0_1px_rgba(0,0,0,0.35)]')}
+                      style={{
+                        top,
+                        height,
+                        ...pos,
+                        borderColor: c.border,
+                        background: season
+                          ? `repeating-linear-gradient(135deg, ${c.bg} 0 6px, hsl(0 0% 100% / 0.06) 6px 9px), hsl(230 25% 12% / 0.85)`
+                          : c.bg,
+                      }}
                     >
                       <div data-block="1" className="text-[10px] font-medium text-ink truncate leading-tight">{s.block.collection.name}</div>
-                      {height > 26 && <div data-block="1" className="text-[9px] text-ink-soft/80 truncate">{fmt(s.block.startMinute)}</div>}
+                      {height > 26 && (
+                        <div data-block="1" className={cx('text-[9px] truncate', season ? 'text-amber-200/90' : 'text-ink-soft/80')}>
+                          {season ?? fmt(s.block.startMinute)}
+                        </div>
+                      )}
                     </button>
                   )
-                })}
+                })
+              })()}
             </div>
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-ink-faint mt-2">Click a block to edit it, or click an empty slot to add one there.</p>
+      <p className="text-[11px] text-ink-faint mt-2">
+        Click a block to edit it, or click an empty slot to add one there.
+        {blocks.some(hasSeason) && ' Striped blocks have a season: on their dates they take the hours from the block under them.'}
+      </p>
     </div>
   )
 }

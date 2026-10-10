@@ -7,10 +7,12 @@
 // Everything here runs in both places, so nothing here may touch Node, the
 // database or the DOM.
 export * from './domain.js'
+export * from './holidays.js'
 export * from './format.js'
 export * from './matching.js'
 export * from './overlays.js'
 export * from './requests.js'
+export * from './seasons.js'
 export * from './titles.js'
 export type * from './responses.js'
 export type * from './wire.js'

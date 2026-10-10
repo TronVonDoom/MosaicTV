@@ -4,7 +4,7 @@
 // so what these screens say airs is what does.
 
 import type { ChannelDetail, Ident, IdentLook } from './api'
-import { formatDays, minutesToTime } from './format'
+import { formatDays, formatSeason, minutesToTime } from './format'
 
 export type Block = ChannelDetail['timeBlocks'][number]
 
@@ -75,7 +75,10 @@ function sharedStart(names: string[]): string {
  */
 export function nameBlocks(bs: Block[]): string {
   if (bs.length === 0) return 'no blocks'
-  if (bs.length === 1) return `${bs[0].collection.name} (${formatDays(bs[0].days)} ${minutesToTime(bs[0].startMinute)})`
+  if (bs.length === 1) {
+    const season = formatSeason(bs[0])
+    return `${bs[0].collection.name} (${formatDays(bs[0].days)} ${minutesToTime(bs[0].startMinute)}${season ? `, ${season}` : ''})`
+  }
   const names = [...new Set(bs.map((b) => b.collection.name))]
   const shared = names.length === 1 ? names[0] : sharedStart(names)
   const sameDays = bs.every((b) => b.days === bs[0].days)

@@ -95,6 +95,8 @@ export const ChannelUpdate = z.object({
   // What its whole shows, movies and smart filters bring in (see Channel).
   includeSpecials: flag.optional(),
   includeExtras: flag.optional(),
+  // Holiday episodes only in their holiday's weeks (see Channel).
+  holidaysInSeason: flag.optional(),
   // What a song airs over, and whether a song's lyrics come first (see Channel).
   musicScreen: loose.transform(asMusicScreen).optional(),
   lyricsFirst: flag.optional(),
@@ -126,6 +128,11 @@ const blockLook = {
   grid: loose.transform((v): number | null => (v == null || v === '' ? null : asGrid(v))),
   // null (or missing) = the channel's setting.
   actBreaks: loose.transform((v): boolean | null => (v == null || v === '' ? null : v === true || v === 'true' || v === 1 || v === '1')),
+  // Its season's first and last day, "MM-DD" every year or "YYYY-MM-DD" once;
+  // null (or missing) = all year. Checked as a pair (seasonProblem) by the
+  // route, which knows the half an update leaves as it is.
+  seasonFrom: textOrNull,
+  seasonTo: textOrNull,
 }
 const sameStartEnd = (b: { startMinute?: number; endMinute?: number }) =>
   b.startMinute == null || b.endMinute == null || b.startMinute !== b.endMinute
@@ -161,6 +168,8 @@ export const BlockUpdate = z
     comingUp: blockLook.comingUp.optional(),
     grid: blockLook.grid.optional(),
     actBreaks: blockLook.actBreaks.optional(),
+    seasonFrom: blockLook.seasonFrom.optional(),
+    seasonTo: blockLook.seasonTo.optional(),
   })
   .refine(sameStartEnd, SAME_START_END)
 export type BlockUpdate = z.output<typeof BlockUpdate>

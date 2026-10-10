@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- **Seasonal blocks.** A time block can air only between two dates — Oct 1
+  to Oct 31 every year, or Dec 20 to Dec 26 2026 once — picked in a new
+  Season section of the block editor, with October, Christmas, the holidays
+  and Summer one click away. In its season a block takes its hours from any
+  all-year block under it, which plays up to it, ends on time and picks up
+  again after; a shorter season can sit inside a longer one (Halloween night
+  inside an October of movies) and wins its days. Out of season it isn't
+  there and the schedule plays as it always does. Blocks with a season are
+  striped on the weekly grid, side by side where two share a slot. The
+  weeks-ahead view says where each one's season stands, and the schedule
+  notes say when one is about to start, has just ended, or (a one-off) is
+  over for good, and whether its collection runs out before its season does
+  (#5).
+- **Holiday episodes in their season.** A new switch on the Schedule tab
+  keeps Christmas episodes to late November through New Year, Halloween ones
+  to October, Thanksgiving ones to November — and Valentine's, St.
+  Patrick's, Easter, New Year's and the Fourth of July to theirs. An episode
+  counts when its title names the holiday ("A Rugrats Christmas", "Treehouse
+  of Horror"); out of season its turn is skipped. Movies air as usual. The
+  schedule notes count a channel's holiday episodes and turn the switch on in
+  one click.
+
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 
 - **Picture in picture in TV mode.** A new button beside Full screen (or

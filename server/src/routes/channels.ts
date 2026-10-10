@@ -30,6 +30,9 @@ import {
   type AiredHistory,
   type Playout,
   type Stored,
+  blocksClash,
+  seasonProblem,
+  type Seasonal,
 } from '../contract/index.js'
 import { readBody } from '../validate.js'
 import { programLabel } from '../labels.js'
@@ -65,6 +68,25 @@ function toIntervals(days: number[], start: number, end: number): [number, numbe
 function intervalsOverlap(a: [number, number][], b: [number, number][]): boolean {
   for (const [s1, e1] of a) for (const [s2, e2] of b) if (s1 < e2 && s2 < e1) return true
   return false
+}
+
+type BlockTimes = Seasonal & { days: string; startMinute: number; endMinute: number }
+/**
+ * Why a block can't go on the channel next to `others`, or null: two blocks
+ * sharing hours fight over them unless one has a season that wins (see
+ * contract/seasons.ts) — a season over an all-year block, or a shorter season
+ * inside a longer one.
+ */
+function clashWith(block: BlockTimes, others: BlockTimes[]): string | null {
+  const iv = toIntervals(block.days.split(',').map(Number), block.startMinute, block.endMinute)
+  for (const s of others) {
+    if (!intervalsOverlap(iv, toIntervals(s.days.split(',').map(Number), s.startMinute, s.endMinute))) continue
+    if (!blocksClash(block, s)) continue
+    return block.seasonFrom || s.seasonFrom
+      ? 'That block shares hours with another whose season crosses its own. Give one a season that sits inside the other’s, or move its hours.'
+      : 'That block overlaps an existing time block on this channel. To take its hours for part of the year, give the new block a season.'
+  }
+  return null
 }
 
 // The on-screen look an edit can change mid-program: caption and logo. The
@@ -168,9 +190,10 @@ channelsRouter.patch('/:id', async (req, res) => {
     const before = await prisma.channel.findUnique({ where: { id } })
     const c = await prisma.channel.update({ where: { id }, data })
     if (before && c.number != null && (lookChanged(before, c) || before.logoOnBreaks !== c.logoOnBreaks || before.musicScreen !== c.musicScreen || before.lyricsFirst !== c.lyricsFirst || before.songsAround !== c.songsAround)) restyleSegmenter(c.number)
-    // A new broadcast clock, breaks inside programs turned on or off, or
-    // specials or extras in or out lay the guide out anew from the next program.
-    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras].join('|')
+    // A new broadcast clock, breaks inside programs turned on or off, specials
+    // or extras in or out, or holiday episodes held to their season lay the
+    // guide out anew from the next program.
+    const airs = (x: typeof c) => [x.grid, x.actBreaks, x.includeSpecials, x.includeExtras, x.holidaysInSeason].join('|')
     if (before && airs(before) !== airs(c)) scheduleChanged(id)
     if (c.actBreaks && !before?.actBreaks) kickActBreakFinder()
     // Songs listed another way: the same guide, read anew.
@@ -275,13 +298,11 @@ channelsRouter.post('/:id/blocks', async (req, res) => {
   const channelId = Number(req.params.id)
   const body = readBody(BlockCreate, req, res)
   if (!body) return
-  const newIv = toIntervals(body.days.split(',').map(Number), body.startMinute, body.endMinute)
+  const season = seasonProblem(body.seasonFrom, body.seasonTo)
+  if (season) return res.status(400).json({ error: season })
   const siblings = await prisma.timeBlock.findMany({ where: { channelId } })
-  for (const s of siblings) {
-    if (intervalsOverlap(newIv, toIntervals(s.days.split(',').map(Number), s.startMinute, s.endMinute))) {
-      return res.status(409).json({ error: 'That block overlaps an existing time block on this channel.' })
-    }
-  }
+  const clash = clashWith(body, siblings)
+  if (clash) return res.status(409).json({ error: clash })
   const b = await prisma.timeBlock.create({ data: { ...forStorage(body), channelId } })
   if (b.actBreaks) kickActBreakFinder()
   warmFiller().catch(() => {}) // fillers for its logo, built ahead
@@ -297,22 +318,25 @@ channelsRouter.patch('/:id/blocks/:blockId', async (req, res) => {
   const { collectionId, logoId, logoUrl } = body
   const current = await prisma.timeBlock.findUnique({ where: { id: blockId } })
   if (!current) return res.status(404).json({ error: 'Block not found.' })
-  const eDays = (data.days ?? current.days).split(',').map(Number)
-  const eStart = data.startMinute ?? current.startMinute
-  const eEnd = data.endMinute ?? current.endMinute
-  const newIv = toIntervals(eDays, eStart, eEnd)
+  const after: BlockTimes = {
+    days: data.days ?? current.days,
+    startMinute: data.startMinute ?? current.startMinute,
+    endMinute: data.endMinute ?? current.endMinute,
+    seasonFrom: data.seasonFrom !== undefined ? data.seasonFrom : current.seasonFrom,
+    seasonTo: data.seasonTo !== undefined ? data.seasonTo : current.seasonTo,
+  }
+  const season = seasonProblem(after.seasonFrom, after.seasonTo)
+  if (season) return res.status(400).json({ error: season })
   const others = await prisma.timeBlock.findMany({
     where: { channelId: current.channelId, id: { not: blockId } },
   })
-  for (const s of others) {
-    if (intervalsOverlap(newIv, toIntervals(s.days.split(',').map(Number), s.startMinute, s.endMinute))) {
-      return res.status(409).json({ error: 'That change would overlap another time block on this channel.' })
-    }
-  }
+  const clash = clashWith(after, others)
+  if (clash) return res.status(409).json({ error: clash })
   const b = await prisma.timeBlock.update({ where: { id: blockId }, data }).catch(() => null)
   if (!b) return res.status(404).json({ error: 'Block not found.' })
   // When and what it airs, as opposed to how it looks (handled below).
-  const airs = (t: typeof b) => [t.collectionId, t.days, t.startMinute, t.endMinute, t.playbackOrder, t.fillerMode, t.startMode, t.grid, t.actBreaks].join('|')
+  const airs = (t: typeof b) =>
+    [t.collectionId, t.days, t.startMinute, t.endMinute, t.playbackOrder, t.fillerMode, t.startMode, t.grid, t.actBreaks, t.seasonFrom, t.seasonTo].join('|')
   if (airs(current) !== airs(b)) scheduleChanged(b.channelId)
   if (b.actBreaks && !current.actBreaks) kickActBreakFinder()
   // Only a block governing the program on air has a look to refresh. That's

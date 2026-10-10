@@ -17,12 +17,14 @@ import {
 } from '../../lib/api'
 import { poolFor } from '../../lib/breaks'
 import { formatDays, minutesToTime } from '../../lib/format'
+import { seasonLine } from '@contract'
 import { INHERIT, PLAYBACK_ORDERS, orderLabel } from '../../lib/playback'
 import { useDraft } from '../../lib/hooks'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import WeeklyBlockGrid from '../WeeklyBlockGrid'
-import { Badge, Banner, Button, Card, EmptyState, InfoHint, Input, Section, Segmented, Select, cx } from '../ui'
+import SeasonFields, { ALL_YEAR, seasonFormProblem, seasonFromBlock, seasonPayload, type SeasonForm } from './SeasonFields'
+import { Badge, Banner, Button, Card, EmptyState, InfoHint, Input, Section, Segmented, Select, Switch, cx } from '../ui'
 import type { ChannelTabProps } from './types'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -60,6 +62,8 @@ type BlockForm = {
   grid: number | null
   /** Breaks inside programs here; null = the channel's setting. */
   actBreaks: boolean | null
+  /** When in the year it airs. (A draft saved before seasons has none: all year.) */
+  season?: SeasonForm
 }
 
 const emptyBlock = (): BlockForm => ({
@@ -75,6 +79,7 @@ const emptyBlock = (): BlockForm => ({
   comingUp: null,
   grid: null,
   actBreaks: null,
+  season: ALL_YEAR,
 })
 
 // The broadcast clock, and how it reads in a block's summary line.
@@ -215,6 +220,7 @@ export default function ScheduleTab({
       comingUp: parseComingUp(b.comingUp),
       grid: b.grid ?? null,
       actBreaks: b.actBreaks ?? null,
+      season: seasonFromBlock(b),
     })
   }
 
@@ -244,6 +250,11 @@ export default function ScheduleTab({
       onError('Pick a collection and at least one day.')
       return
     }
+    const seasonProblem = seasonFormProblem(blk.season)
+    if (seasonProblem) {
+      onError(seasonProblem)
+      return
+    }
     const payload = {
       collectionId: Number(blk.collectionId),
       days: [...blk.days].sort().join(','),
@@ -257,6 +268,7 @@ export default function ScheduleTab({
       comingUp: blk.comingUp,
       grid: blk.grid,
       actBreaks: blk.actBreaks,
+      ...seasonPayload(blk.season),
     }
     await guard(
       () =>
@@ -350,6 +362,15 @@ export default function ScheduleTab({
                     Leave {w.leaveOutSpecials.length === 1 ? 'its' : 'their'} specials out
                   </button>
                 )}
+                {w.holdHolidays && (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    onClick={() => guard(() => api.updateChannel(channelId, { holidaysInSeason: true }), 'Holiday episodes wait for their season — the guide follows from the next program')}
+                  >
+                    Keep them to their season
+                  </button>
+                )}
               </span>
             </Banner>
           ))}
@@ -404,6 +425,29 @@ export default function ScheduleTab({
             </span>
           </span>
         </label>
+      </Card>
+
+      {/* ---- Holiday episodes ---- */}
+      <Card>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 max-w-xl">
+            <h2 className="font-semibold">Holiday episodes in their season</h2>
+            <p className="text-ink-muted text-sm mt-1">
+              {ch.holidaysInSeason
+                ? 'Christmas episodes air from late November to New Year, Halloween ones in October, Thanksgiving in November, and so on; the rest of the year their turn is skipped.'
+                : 'Off: holiday episodes air whenever their turn comes round. Turn it on to keep Christmas episodes to the holidays, Halloween ones to October, and so on.'}{' '}
+              <InfoHint>
+                An episode counts as a holiday one when its title names the holiday — “A Rugrats Christmas”, “Treehouse of Horror”,
+                “Thanksgiving”, Valentine’s, Easter, New Year’s, St. Patrick’s, the Fourth of July. Movies always air as usual.
+              </InfoHint>
+            </p>
+          </div>
+          <Switch
+            checked={ch.holidaysInSeason}
+            label="Holiday episodes in their season"
+            onChange={(v) => guard(() => api.updateChannel(channelId, { holidaysInSeason: v }), 'Saved — the guide follows from the next program')}
+          />
+        </div>
       </Card>
 
       {/* ---- Rotation ---- */}
@@ -520,6 +564,7 @@ export default function ScheduleTab({
               <div className="flex-1 min-w-0">
                 <div className="truncate">{b.collection.name}</div>
                 <div className="text-xs text-ink-faint">
+                  {seasonLine(b) && <span className="text-amber-200/80">{seasonLine(b)} · </span>}
                   {formatDays(b.days)} · {minutesToTime(b.startMinute)}–{minutesToTime(b.endMinute)} ·{' '}
                   {effectiveLabel(b.playbackOrder, b.collection)}
                   {b.startMode === 'hard' && ' · hard start'}
@@ -583,6 +628,10 @@ export default function ScheduleTab({
               )
             })}
           </div>
+
+          <Section title="Season">
+            <SeasonFields value={blk.season} onChange={(season) => setBlk({ ...blk, season })} />
+          </Section>
 
           <LogoPicker
             value={blk.logoId}

@@ -90,6 +90,11 @@ export default function LookAheadView({ channelId, onSelect }: { channelId: numb
                         · {formatDays(b.days)} {minutesToTime(b.startMinute)}
                         {b.hard && ' · exact time'}
                       </span>
+                      {b.season && (
+                        <span className="block text-[12px] text-amber-200/80 truncate">
+                          {b.season} · {b.seasonNote}
+                        </span>
+                      )}
                     </span>
                     <span className="text-right tabular-nums text-ink-soft">{b.airings ? late(b.avgLateSec) : '—'}</span>
                     <span className={cx('text-right tabular-nums', bad ? 'text-amber-300' : 'text-ink-soft')}>{b.airings ? late(b.maxLateSec) : '—'}</span>

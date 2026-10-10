@@ -260,11 +260,45 @@ Blocks override the rotation during specific day/time windows (*Sat–Sun
 Per block:
 
 - **Days + start/end time** (channel timezone = the container's `TZ`).
+- **Season** — all year, or only between two dates (below).
 - **Collection + playback order** — same options as rotation.
 - **Logo override** — a different on-screen watermark while the block airs.
 - **"Coming up next" override** — per-block card settings, including
   turning it off for just this block.
 - **Breaks** — whether the block keeps to its times (below).
+
+### Seasons: blocks for part of the year
+
+A block's **Season** makes it air only between two dates: **Every year**
+(*Oct 1 – Oct 31*, *Dec 15 – Jan 5*) or **Once** (*Dec 20 – Dec 26, 2026*).
+Out of season the block isn't there and the schedule plays as it does the
+rest of the year.
+
+In its season a block **takes its hours from any all-year block under it**:
+an October block of horror movies from 7 to 9 PM, over an all-year 6–10 PM
+block of sitcoms, gets 7 to 9 — the sitcoms play up to 7 (ending on time with
+a break if their End says so), and pick up again at 9 from the episode they'd
+reached. A **shorter season inside a longer one** wins its days, so a
+Halloween-night block can sit inside the October one, and a one-off beats an
+every-year block on the same dates ("this year's Christmas Eve is
+different"). Two blocks whose seasons cross, with neither inside the other,
+can't share hours.
+
+On the weekly grid, blocks with a season are striped and drawn over the right
+of the day, side by side where two share a slot. The guide's **Weeks ahead**
+view says where each one's season stands, and the schedule notes say when one
+is about to start, has just ended, or (a one-off) is over for good.
+
+### Holiday episodes in their season
+
+The Schedule tab's **Holiday episodes in their season** switch keeps a
+channel's holiday episodes to their holiday: Christmas from late November to
+New Year, Halloween in October, Thanksgiving in November, and Valentine's,
+St. Patrick's, Easter, New Year's and the Fourth of July in theirs. An episode
+counts when its title names the holiday (*A Rugrats Christmas*, *Treehouse of
+Horror V*); the rest of the year its turn is skipped, as if it had aired.
+Movies air as usual. The schedule notes count the holiday episodes a channel
+has and turn the switch on in one click.
 
 ### Breaks: starting and ending on time
 

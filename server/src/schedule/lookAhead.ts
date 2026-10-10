@@ -7,7 +7,7 @@
 import { prisma } from '../db.js'
 import { episodeCode } from '../labels.js'
 import { loadForPlan, planTimeline, type PlannedRow, type State } from './playout.js'
-import type { LookAhead, LookAheadBlock, LookAheadProgram } from '../contract/index.js'
+import { activeBlockAt, seasonLine, seasonStatus, type LookAhead, type LookAheadBlock, type LookAheadProgram } from '../contract/index.js'
 
 export const MAX_LOOKAHEAD_DAYS = 56
 
@@ -22,6 +22,17 @@ function units(rows: Row[]): Row[][] {
     else out.push([r])
   }
   return out
+}
+
+const shortDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+/** Where a block's season stands across the look-ahead, in a few words; null for all year. */
+function seasonNote(b: { seasonFrom: string | null; seasonTo: string | null }, now: Date, until: Date): string | null {
+  const st = seasonStatus(b, now)
+  if (!st) return null
+  if (st.state === 'on') return `in season until ${shortDate(st.until)}`
+  if (st.state === 'over') return 'its season is over'
+  return st.from < until ? `starts its season ${shortDate(st.from)}` : `out of season until ${shortDate(st.from)}`
 }
 
 export async function lookAhead(channelId: number, days: number, now = new Date()): Promise<LookAhead> {
@@ -83,8 +94,9 @@ export async function lookAhead(channelId: number, days: number, now = new Date(
   }
   if (until.getTime() > edge) offAirMs += until.getTime() - edge
 
-  // Each block, every time it comes round: how long after its start time its
-  // first program actually starts.
+  // Each block, every time it comes round (in its season, and not under a
+  // block that wins over it): how long after its start time its first program
+  // actually starts.
   const blocks: LookAheadBlock[] = channel.timeBlocks.map((b) => {
     const dayset = new Set(b.days.split(',').map(Number))
     const lates: number[] = []
@@ -93,6 +105,7 @@ export async function lookAhead(channelId: number, days: number, now = new Date(
       const t = new Date(d)
       t.setHours(Math.floor(b.startMinute / 60), b.startMinute % 60, 0, 0)
       if (t < now || t >= until) continue
+      if (activeBlockAt(channel.timeBlocks, t) !== b) continue
       const end = new Date(t)
       end.setHours(Math.floor(b.endMinute / 60), b.endMinute % 60, 0, 0)
       if (end <= t) end.setDate(end.getDate() + 1)
@@ -104,6 +117,8 @@ export async function lookAhead(channelId: number, days: number, now = new Date(
       name: b.collection.name,
       days: b.days,
       startMinute: b.startMinute,
+      season: seasonLine(b),
+      seasonNote: seasonNote(b, now, until),
       hard: b.startMode === 'hard',
       airings: lates.length,
       avgLateSec: lates.length ? Math.round(lates.reduce((a, x) => a + x, 0) / lates.length) : 0,

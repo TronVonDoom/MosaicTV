@@ -11,6 +11,7 @@ import {
 import { log } from '../logs.js'
 import { publish } from '../events.js'
 import { archivePlayout } from './aired.js'
+import { activeBlockAt, hasSeason, holidayInSeason, holidayOf, type Holiday } from '../contract/index.js'
 
 const MAX_ITERATIONS = 50000
 
@@ -97,24 +98,12 @@ function truncateToMinute(d: Date): Date {
   return new Date(Math.floor(d.getTime() / 60000) * 60000)
 }
 
-/** The time block (if any) active at the given local date/time. First match wins. */
+/**
+ * The time block (if any) on at the given local date/time: its days, hours
+ * and season; where two are on, the one that wins (see contract/seasons.ts).
+ */
 function activeBlock(blocks: BlockWithCollection[], date: Date): BlockWithCollection | null {
-  const day = date.getDay()
-  const prevDay = (day + 6) % 7
-  const tod = date.getHours() * 60 + date.getMinutes()
-  for (const b of blocks) {
-    const days = b.days.split(',').map((s) => Number(s.trim()))
-    if (b.endMinute > b.startMinute) {
-      // Same-day block.
-      if (days.includes(day) && tod >= b.startMinute && tod < b.endMinute) return b
-    } else {
-      // Wraps past midnight: evening part today, or the morning tail of a block
-      // that started the previous day.
-      if (days.includes(day) && tod >= b.startMinute) return b
-      if (days.includes(prevDay) && tod < b.endMinute) return b
-    }
-  }
-  return null
+  return activeBlockAt(blocks, date)
 }
 
 /** Jump the cursor to the end of the block window active at `cursor` (same day). */
@@ -125,25 +114,51 @@ function skipToBlockEnd(cursor: Date, block: TimeBlock): Date {
   return end
 }
 
-/** The soonest block start strictly after `cursor` and before `until` (and which block), or null. */
+/**
+ * Where the block on at `cursor` gives up the air: its own end, or sooner, a
+ * block that wins over it starting inside it (a season over the all-year block
+ * under it). Once that one ends, this one carries on to its own end.
+ */
+function blockWindowEnd(blocks: BlockWithCollection[], cursor: Date, block: BlockWithCollection): Date {
+  const end = skipToBlockEnd(cursor, block)
+  const next = nextBlockBoundary(blocks, cursor, end)
+  return next && next.block !== block ? next.start : end
+}
+
+/**
+ * The soonest block start strictly after `cursor` and before `until` (and which
+ * block), or null. Only a start that takes the air counts: one out of season,
+ * or under a block that wins over it, isn't one.
+ */
 function nextBlockBoundary(
   blocks: BlockWithCollection[],
   cursor: Date,
   until: Date,
 ): { start: Date; block: BlockWithCollection } | null {
-  let best: { start: Date; block: BlockWithCollection } | null = null
-  for (let offset = 0; offset <= 7; offset++) {
+  if (blocks.length === 0) return null
+  // Day by day, so the first day with a start is the answer; a season can put
+  // the next one weeks off, so the search runs to `until` (a week past it at
+  // most for the weekly ones — every day has come round by then).
+  const seasonal = blocks.some(hasSeason)
+  const lastDay = seasonal ? Math.min(until.getTime(), cursor.getTime() + 400 * 86_400_000) : cursor.getTime() + 7 * 86_400_000
+  for (let offset = 0; ; offset++) {
     const day = new Date(cursor)
     day.setDate(day.getDate() + offset)
+    day.setHours(0, 0, 0, 0)
+    if (offset > 7 && day.getTime() > lastDay) return null
+    if (day.getTime() >= until.getTime()) return null
     const wd = day.getDay()
+    let best: { start: Date; block: BlockWithCollection } | null = null
     for (const b of blocks) {
       if (!b.days.split(',').map((s) => Number(s.trim())).includes(wd)) continue
       const start = new Date(day)
       start.setHours(Math.floor(b.startMinute / 60), b.startMinute % 60, 0, 0)
-      if (start > cursor && start < until && (best === null || start < best.start)) best = { start, block: b }
+      if (start <= cursor || start >= until || (best !== null && start >= best.start)) continue
+      if (activeBlockAt(blocks, start) !== b) continue
+      best = { start, block: b }
     }
+    if (best) return best
   }
-  return best
 }
 
 /**
@@ -334,6 +349,28 @@ export async function planTimeline(
   const pushFiller = (start: Date, stop: Date, groupKey: string | null = null) =>
     created.push({ mediaItemId: null, kind: 'filler', title: 'Filler', startTime: start, stopTime: stop, groupKey, state: null, inPoint: null, blockId: placing, collectionId: airing })
 
+  // ── Holiday episodes in their season (Channel.holidaysInSeason) ────────────
+  // A unit naming a holiday airs only in its weeks: out of them its turn is
+  // skipped, as if it had aired. A list that's all held back plays anyway.
+  const holidays = new Map<number, Holiday | null>()
+  const holidayOfUnit = (u: ProgramUnit): Holiday | null => {
+    for (const m of u) {
+      if (!holidays.has(m.id)) holidays.set(m.id, holidayOf(m))
+      const h = holidays.get(m.id)
+      if (h) return h
+    }
+    return null
+  }
+  const free = (list: ResolvedList, pos: number, atMs: number): number => {
+    if (!channel.holidaysInSeason) return pos
+    const day = new Date(atMs)
+    for (let k = 0; k < list.length; k++) {
+      const h = holidayOfUnit(list.at(pos + k))
+      if (!h || holidayInSeason(h, day)) return pos + k
+    }
+    return pos
+  }
+
   // Total on-air seconds of a program unit (a multi-part airing sums its
   // segments). Used everywhere a single item's duration used to be.
   const unitDuration = (u: ProgramUnit) => u.reduce((a, m) => a + (m.durationSec ?? 0), 0)
@@ -473,7 +510,7 @@ export async function planTimeline(
       const key = 'c' + block.collectionId
       const legacy = 'b' + block.id
       const items = await listFor(block.collection, block.playbackOrder, key, legacy)
-      const blockEnd = skipToBlockEnd(cursor, block)
+      const blockEnd = blockWindowEnd(channel.timeBlocks, cursor, block)
       const fillerMode = block.fillerMode || 'none'
 
       if (items.length === 0) {
@@ -482,7 +519,7 @@ export async function planTimeline(
         cursor = blockEnd
       } else if (fillerMode === 'none') {
         // Soft boundary: one program (unit) per iteration; may overrun the end.
-        const pos = posOf(key, legacy)
+        const pos = free(items, posOf(key, legacy), cursor.getTime())
         const u = items.at(pos)
         const cp = checkpoint(key, items, pos)
         advance(key, block.collectionId, items, pos + 1)
@@ -500,6 +537,7 @@ export async function planTimeline(
         let c = cursor.getTime()
         let placed = 0
         for (let g = 0; g < 20000; g++) {
+          pos = free(items, pos, c)
           const u = items.at(pos)
           const dur = unitDuration(u)
           if (dur <= 0) {
@@ -534,6 +572,7 @@ export async function planTimeline(
         const fit: { u: ProgramUnit; cp: string }[] = []
         let used = 0
         for (let g = 0; g < 20000; g++) {
+          pos = free(items, pos, cursor.getTime() + used * 1000)
           const u = items.at(pos)
           const dur = unitDuration(u)
           if (dur <= 0) {
@@ -611,6 +650,7 @@ export async function planTimeline(
       if (items.length > 0) {
         let pos = posOf(key, legacy)
         for (let k = 0; k < take; k++) {
+          pos = free(items, pos, cursor.getTime())
           const u = items.at(pos)
           const dur = unitDuration(u)
           if (dur <= 0) {

@@ -1,6 +1,7 @@
 import type { ChannelDetail, Ident, Logo } from '../../lib/api'
 import { blockLogo, breaksOn, clockOf, poolFor, type Block } from '../../lib/breaks'
 import { formatDays, minutesToTime } from '../../lib/format'
+import { formatSeason, hasSeason } from '@contract'
 import { expand } from '../WeeklyBlockGrid'
 import { Button, cx } from '../ui'
 
@@ -80,6 +81,9 @@ export default function BreaksMap({
               <div className="relative h-8 flex-1 rounded-md border border-edge bg-sunken">
                 {segs
                   .filter((s) => s.day === day && s.bottom > s.top)
+                  // A block with a season over the one it covers, along the
+                  // lower half of the day, so both show.
+                  .sort((a, b) => Number(hasSeason(a.block)) - Number(hasSeason(b.block)))
                   .map((s, i) => {
                     const b = s.block
                     const c = colorFor(b)
@@ -91,7 +95,8 @@ export default function BreaksMap({
                     const overnight = b.endMinute <= b.startMinute
                     const first = s.top === b.startMinute
                     const last = !overnight || (b.endMinute === 0 ? s.bottom === 1440 : s.top === 0)
-                    const title = `${b.collection.name}, ${formatDays(b.days)} ${minutesToTime(b.startMinute)}–${minutesToTime(b.endMinute)}`
+                    const season = formatSeason(b)
+                    const title = `${b.collection.name}, ${formatDays(b.days)} ${minutesToTime(b.startMinute)}–${minutesToTime(b.endMinute)}${season ? `, ${season}` : ''}`
                     return (
                       <button
                         key={`${b.id}-${i}`}
@@ -100,7 +105,7 @@ export default function BreaksMap({
                         aria-label={title}
                         aria-pressed={isSel}
                         onClick={() => onSelect(b.id)}
-                        className="absolute top-[3px] bottom-[3px] flex items-center overflow-hidden rounded-[4px] hover:brightness-125"
+                        className={cx('absolute bottom-[3px] flex items-center overflow-hidden rounded-[4px] hover:brightness-125', season ? 'top-1/2 outline-dashed outline-1 outline-white/50' : 'top-[3px]')}
                         style={{
                           left: `calc(${(s.top / 1440) * 100}% + 1px)`,
                           width: `calc(${((s.bottom - s.top) / 1440) * 100}% - 2px)`,
