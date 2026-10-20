@@ -13,11 +13,12 @@ export type ServerEvent =
   | { type: 'onAir' }
   | { type: 'viewers' }
   | { type: 'library'; libraryId: number }
+  | { type: 'source'; libraryId: number }
 export type ServerEventType = ServerEvent['type']
 /** What a listener gets: the event, or a resync after a reconnect (events may have been missed). */
 export type Heard = ServerEvent | { type: ServerEventType; resync: true }
 
-const TYPES: ServerEventType[] = ['guide', 'channel', 'activity', 'onAir', 'viewers', 'library']
+const TYPES: ServerEventType[] = ['guide', 'channel', 'activity', 'onAir', 'viewers', 'library', 'source']
 
 let source: EventSource | null = null
 let connected = false

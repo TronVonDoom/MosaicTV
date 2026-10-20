@@ -34,6 +34,17 @@ Install ffmpeg and make sure it's on the PATH.
 - Filenames need to be Plex-style parseable — see
   [Getting Started](getting-started.md#1-add-a-library).
 
+### A library from Plex, Jellyfin or Emby says "Can't reach …"
+
+Its card shows the address MosaicTV reads the server at and why the last try
+failed. **Nothing answered at that address** means the server is down or on
+another address or port; **turned the key down** means its sign-in ended —
+sign in again under **Add a library → Read from**, and the libraries move to
+the new one. MosaicTV runs in its own container network, so an address that
+works in your browser (`localhost`, a name only your PC knows) may not work
+from it: use the server's address on your home network. Until it's back,
+the library keeps what it had, and a scan once it is catches up.
+
 ### Shows/movies have no posters
 - Add a **TMDB** or **TheTVDB** key (Settings) and run **Match unmatched**
   from the library's **⋯** menu.

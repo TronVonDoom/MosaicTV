@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { metadataChoices } from '@contract'
 import { api, keysOf, NO_KEYS, type Library, type LibraryKind, type MetadataSource, type ServerKind } from '../lib/api'
 import { useCached } from '../lib/cache'
+import { useLiveRefresh } from '../lib/events'
 import { reads } from '../lib/reads'
 import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
@@ -156,6 +157,8 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
   }, [focusAddForm])
 
   const refresh = () => void librariesRead.reload()
+  // A media server library's card says how its live updates are doing.
+  useLiveRefresh(refresh, ['source'], { fallbackMs: 60_000 })
 
   const jobs = useLibraryJobs(refresh)
 
@@ -388,7 +391,8 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
 
               {lib.source && <ServerSourcePanel lib={lib} disabled={busy} onSaved={refresh} />}
 
-              {!lib.source && (lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music' || lib.kind === 'audio') && (
+              {/* A server names its shows and movies; songs still go by their tags, and these fill in. */}
+              {(lib.source ? lib.kind === 'audio' : lib.kind === 'tv' || lib.kind === 'movie' || lib.kind === 'music' || lib.kind === 'audio') && (
                 <MetadataSources
                   lib={lib}
                   disabled={busy}

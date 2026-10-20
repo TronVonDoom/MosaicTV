@@ -2,18 +2,35 @@
 
 ## Unreleased
 
-- **Libraries from Plex, Jellyfin or Emby.** Library → Sources → Add a library
-  can read a TV or movie library from a media server: connect with its
-  address and token (or API key), pick one of its libraries, and say where its
-  folders are here — filled in where MosaicTV can tell. The server names the
-  shows, seasons, episodes and movies and brings their descriptions, genres,
-  ratings, dates and artwork; MosaicTV indexes and plays the files from disk as
-  ever, so nothing streams through the server. Each scan reads it again and
-  matches every file by its path; the library's card says how many it found,
-  and names one it didn't to check the folders by. A show filed by its folder
-  name joins the server's, its collection picks and broadcast episodes with
-  it. The server's key never leaves MosaicTV — its artwork is fetched through
-  it. Folder libraries work as they always have (#7).
+- **Libraries from Plex, Jellyfin or Emby.** Library → Sources → Add a
+  library can read your TV, movie and music libraries from a media server.
+  Sign in instead of digging out a token: **Sign in with Plex** opens Plex's
+  own sign-in in a new tab, and MosaicTV lists your servers, tries each one's
+  addresses itself and keeps the first that answers (or shows every address
+  it tried and why it failed). Jellyfin is found on your network or the
+  Docker host, then signed in to with Quick Connect — a code to enter in
+  Jellyfin — or a user name and password; Emby takes a user name and
+  password. The sign-in is kept for the next library and Sign out is beside
+  it. Tick the libraries you want, check where their folders are here —
+  filled in where MosaicTV can tell — and each becomes a library, read
+  straight away. The server names the shows, seasons, episodes and movies and
+  brings their descriptions, genres, ratings, dates and artwork; songs keep
+  going by their tags. MosaicTV still plays the files from disk, so nothing
+  streams through the server. The library's card says how many of the
+  server's files were found here, and names one it didn't to check the
+  folders by.
+- **It follows the server's changes as they happen.** MosaicTV keeps a
+  connection open to each server, and when one says something was added,
+  changed or removed — a new episode, a title fixed, a movie deleted — it
+  rescans just the folders that changed about fifteen seconds later and
+  reads the server again. The card says **Listening for changes**, or **Can't reach …
+  — trying again** with the reason; once the server is back, the whole
+  library is scanned for what changed meanwhile, and a Plex server that moved
+  to a new address at home is found again through the sign-in. Scan still
+  reads everything by hand, and adding a server by its address and key is
+  still there for one the sign-in can't reach. The keys never leave MosaicTV
+  — artwork is fetched through it. Folder libraries work as they always have
+  (#7).
 
 ## 0.19.0 — A smaller screen, and a volume knob (2026-10-07)
 

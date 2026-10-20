@@ -43,6 +43,27 @@ const ignored = (full: string, ignores: Ignore[]) =>
     return ig.patterns.some((re) => re.test(rel))
   })
 
+/**
+ * The .plexignore patterns that reach `dir` from the library folder `root`
+ * down — each folder's on the way, not `dir`'s own (walk reads that) — and
+ * whether one of them leaves `dir` out altogether. For walking one folder
+ * inside a library as a walk of the whole library would.
+ */
+export async function ignoresAbove(root: string, dir: string): Promise<{ ignores: Ignore[]; ignored: boolean }> {
+  const rel = path.relative(root, dir)
+  let ignores: Ignore[] = []
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return { ignores, ignored: false }
+  let at = root
+  for (const step of rel.split(path.sep)) {
+    const text = await fs.readFile(path.join(at, '.plexignore'), 'utf8').catch(() => '')
+    const patterns = ignorePatterns(text)
+    if (patterns.length > 0) ignores = [...ignores, { base: at, patterns }]
+    at = path.join(at, step)
+    if (ignores.length > 0 && ignored(at, ignores)) return { ignores, ignored: true }
+  }
+  return { ignores, ignored: false }
+}
+
 /** Recursively collect the media files (videos, unless `exts` says otherwise)
  *  under a directory, leaving out what a .plexignore along the way names —
  *  each file or folder it leaves out added to `skipped` when given. A

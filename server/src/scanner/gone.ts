@@ -46,11 +46,14 @@ export type Gone = {
  * under a library folder that came up empty, stays. So does a file that's on
  * disk after all (back since the scan looked): the next scan brings it back —
  * unless it's in `skipped`, what a .plexignore leaves out, which goes whether
- * it's on disk or not.
+ * it's on disk or not. A scan of only some folders (`within`) lets go of only
+ * what's in them: it can't tell what it didn't look at.
  */
-export async function removeGone(libraryId: number, unreadable: string[] = [], skipped: string[] = []): Promise<Gone> {
+export async function removeGone(libraryId: number, unreadable: string[] = [], skipped: string[] = [], within?: string[]): Promise<Gone> {
   const library = await prisma.library.findUniqueOrThrow({ where: { id: libraryId }, include: { folders: true } })
-  const missing = await prisma.mediaItem.findMany({ where: { libraryId, missing: true }, select: { id: true, path: true, showId: true } })
+  const missing = (await prisma.mediaItem.findMany({ where: { libraryId, missing: true }, select: { id: true, path: true, showId: true } })).filter(
+    (m) => !within || within.some((dir) => isUnder(m.path, dir)),
+  )
   const result: Gone = { files: 0, shows: 0, picks: 0, airings: 0, held: 0, unreachable: null }
   if (missing.length === 0) return result
 

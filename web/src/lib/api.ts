@@ -328,12 +328,31 @@ export const api = {
   libraryHome: (id: number) => request<LibraryHome>(`/api/libraries/${id}/home`),
   addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
-  /** A library read from Plex, Jellyfin or Emby: its folders are where the server's are here. */
-  addServerLibrary: (data: { name: string; kind: LibraryKind; source: { kind: ServerKind; url: string; token: string; library: string; name: string }; pathMap: [string, string][] }) =>
+  /** A library read from Plex, Jellyfin or Emby — through its sign-in (`server`) or an address and key — its folders where the server's are here; `scan` reads it straight away. */
+  addServerLibrary: (data: { name: string; kind: LibraryKind; source: ServerSource & { library: string; name: string }; pathMap: [string, string][]; scan?: boolean }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
-  /** A media server's name and libraries, each with where its folders most likely are here. */
+  /** A media server given by hand: its name and libraries, each with where its folders most likely are here. */
   checkServer: (data: { kind: ServerKind; url: string; token: string }) =>
     request<ServerCheck>('/api/sources/check', { method: 'POST', body: JSON.stringify(data) }),
+  /** Who MosaicTV is signed in to Plex as, and its Jellyfin and Emby sign-ins. */
+  sourceAccounts: () => request<SourceAccounts>('/api/sources/accounts'),
+  /** Start signing in to Plex: Plex's own page to open, and a PIN to ask after. */
+  plexPin: () => request<{ id: number; authUrl: string }>('/api/sources/plex/pin', { method: 'POST' }),
+  plexPinState: (id: number) => request<{ state: 'waiting' | 'done' | 'expired'; user?: string }>(`/api/sources/plex/pin/${id}`),
+  plexSignOut: () => request<void>('/api/sources/plex', { method: 'DELETE' }),
+  /** The Plex account's servers, each with where MosaicTV reached it — or every address it tried. */
+  plexServers: (fresh = false) => request<PlexServerFound[]>(`/api/sources/plex/servers${fresh ? '?fresh=1' : ''}`),
+  /** A signed-in server's libraries. */
+  serverLibraries: (kind: ServerKind, server: string) => request<ServerCheck>(`/api/sources/${kind}/servers/${encodeURIComponent(server)}/libraries`),
+  /** Jellyfin or Emby servers MosaicTV can reach (at `address`, if one's typed). */
+  findServers: (kind: 'jellyfin' | 'emby', address = '') =>
+    request<FoundServer[]>('/api/sources/find', { method: 'POST', body: JSON.stringify({ kind, address }) }),
+  /** Start a Jellyfin Quick Connect sign-in: the code to enter there. */
+  quickConnect: (url: string) => request<{ handle: string; code: string }>('/api/sources/quick-connect', { method: 'POST', body: JSON.stringify({ url }) }),
+  quickConnectState: (handle: string) => request<{ state: 'waiting' | 'done' | 'expired'; login?: ServerLogin }>(`/api/sources/quick-connect/${encodeURIComponent(handle)}`),
+  serverSignIn: (data: { kind: 'jellyfin' | 'emby'; url: string; username: string; password: string }) =>
+    request<ServerLogin>('/api/sources/sign-in', { method: 'POST', body: JSON.stringify(data) }),
+  serverSignOut: (kind: 'jellyfin' | 'emby', server: string) => request<void>(`/api/sources/${kind}/servers/${encodeURIComponent(server)}`, { method: 'DELETE' }),
   /** A media server library's connection, or where its folders are here. */
   updateLibrarySource: (id: number, data: { url?: string; token?: string; pathMap?: [string, string][] }) =>
     request<{ ok: true }>(`/api/libraries/${id}/source`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -687,13 +706,31 @@ export const logsDownloadUrl = '/api/logs/download'
 export const backupUrl = '/api/admin/backup'
 
 export type ServerKind = 'plex' | 'jellyfin' | 'emby'
-/** What /api/sources/check answers: the server, and its libraries with a guess at each folder here. */
+/** How a library reaches its server: through a sign-in (the server's id), or an address and key given by hand. */
+export type ServerSource = { kind: ServerKind; server?: string | null; url?: string; token?: string }
+/** A server's libraries, each with a guess at each folder here — and the library here that already reads it, if one does. */
 export type ServerCheck = {
+  id: string | null
   name: string
   version: string | null
   mediaRoot: string
-  libraries: { id: string; name: string; kind: 'tv' | 'movie' | 'music' | 'other'; locations: string[]; mapping: [string, string | null][] }[]
+  libraries: {
+    id: string
+    name: string
+    kind: 'tv' | 'movie' | 'audio' | 'other'
+    locations: string[]
+    mapping: [string, string | null][]
+    added: { id: number; name: string } | null
+  }[]
 }
+/** A Jellyfin or Emby sign-in, as kept (never its token). */
+export type ServerLogin = { kind: 'jellyfin' | 'emby'; serverId: string; name: string; url: string; user: string }
+export type SourceAccounts = { plex: { user: string; thumb: string | null } | null; logins: ServerLogin[] }
+/** One address MosaicTV tried for a Plex server, and how that went. */
+export type ServerTried = { url: string; local: boolean; relay: boolean; error: string | null }
+export type PlexServerFound = { id: string; name: string; owned: boolean; version: string | null; url: string | null; tried: ServerTried[] }
+/** A Jellyfin or Emby server MosaicTV found. */
+export type FoundServer = { url: string; id: string; name: string; version: string | null }
 
 /** Which online sources have a key saved (see SettingsInfo). */
 export type SourceKeys = Record<MatchSource, boolean>

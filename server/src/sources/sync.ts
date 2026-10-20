@@ -5,6 +5,9 @@
 // and dates, and its artwork. The file itself, its length and its picture
 // come from the scan, as for any library.
 //
+// A library of songs is the exception: a song goes by its own tags, as in any
+// library of songs, and the server only says which of its tracks it is.
+//
 // A show the scan filed by its folder's name whose files all turn out to be
 // one of the server's shows is merged into it (its collection picks and
 // broadcast episodes with it), and the folder's name stays with the show, so
@@ -166,6 +169,18 @@ export async function syncFromServer(libraryId: number): Promise<SyncResult> {
               serverKey: m.key,
               metaSources: lib.source,
           })
+        }
+      }
+    } else if (lib.kind === 'audio') {
+      // Songs go by their own tags; the server only says which of its tracks
+      // each file is (for its live updates), and whether the folders map.
+      for (const t of await server.tracks(lib.sourceLibrary)) {
+        for (const file of t.files) {
+          result.listed++
+          const row = find(file)
+          if (!row) continue
+          result.matched++
+          if (row.serverKey !== t.key) await prisma.mediaItem.update({ where: { id: row.id }, data: { serverKey: t.key } })
         }
       }
     }
