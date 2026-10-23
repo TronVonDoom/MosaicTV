@@ -218,20 +218,43 @@ channel's Breaks tab.
 
 ## "Up next" cards
 
-Near the end of a program, a card slides in naming what's on next: the next
-program's poster, its title, the episode (`S1 · E4`) and episode title, and
-its year, genres and rating, under an **UP NEXT** label with the time it
-starts. A movie shows its runtime instead of an episode.
+Near the end of a program, a card slides in naming what's on next: the time
+it starts under an **UP NEXT** label, the next program's logo (its name when
+it has none), the episode (`S1 · E4`) and its
+title, or for a movie its year, genres, runtime and rating.
 
-<img src="screenshots/up-next-card.webp" alt="An up-next card for Are You Afraid of the Dark? kept inside the 4:3 picture of The Ren & Stimpy Show" width="100%" />
+<img src="screenshots/up-next-card.webp" alt="The art banner over Cow and Chicken, naming Dexter's Laboratory at 4:15 PM and its three parts" width="100%" />
 
-There are two styles:
+There are five looks:
 
-- **Glass** — a frosted panel: the picture behind it is blurred, so it reads on
-  a bright cartoon as well as a dark film.
-- **Broadcast** — a cable-network bar: the poster stands up out of a dark bar,
-  an angled **UP NEXT** tab and the time sit on its top edge, and the bar fades
-  out toward the middle of the picture. On the right-hand side it's mirrored.
+- **Art banner** — the next program's backdrop fills a bar, darkened toward
+  the screen's edge where a violet block gives the time; the title's logo sits
+  on it, the episode and its parts under that.
+- **Logo bar** — a slim frosted bar, rounded at its far end, with the title's
+  logo standing up out of it and UP NEXT, the time and the episode beside it.
+- **Snipe** — a frosted ribbon that slides out from behind your channel's
+  logo, wherever its watermark sits, with a violet capsule giving the time.
+  It always rides on the logo; its position setting is used only when the
+  channel shows no logo.
+- **Preview** — a little 16:9 screen of the next program: its backdrop (its
+  poster when it has none), a violet UP NEXT tag with the time, its logo and
+  the episode.
+- **Coming up** — a frosted panel listing the next program in full, with the
+  time each part of a broadcast episode starts, and then, on a timeline, the
+  programs after it. **Programs to list** sets how many: 1 (just the next
+  one) to 5.
+
+<img src="screenshots/up-next-styles.webp" alt="The logo bar naming Venom, the snipe sliding out of the Cartoon Network logo, the preview, and Coming up listing five movies" width="100%" />
+
+A card that would cover your channel's logo steps clear of it — up above it
+at the bottom of the screen, down below it at the top. The art banner and logo
+bar start at the screen's safe edge, so on a 4:3 show their outer end sits in
+the black side bar rather than over the picture; the others sit on the
+picture.
+
+Upgrading from 0.22: a channel on **Glass** (or with no style saved) becomes
+**Coming up** listing one program, and one on **Broadcast** becomes the **Art
+banner**.
 
 - **Channel-wide**: General tab → Coming up next.
 - **Per block**: Schedule tab → edit a block → override (including turning it

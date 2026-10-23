@@ -46,3 +46,24 @@ test('a broadcast episode names every segment, in order', async () => {
   const card = await upNextContent({ channelId: ch.id, startTime: new Date(T0 + 30 * MIN), groupKey: pair, mediaItem: pilot })
   assert.equal(card?.subtitle, 'Pilot / Bake Sale')
 })
+
+test('each part of a broadcast episode has its own start time; one file has none', async () => {
+  const pairCard = await upNextContent({ channelId: ch.id, startTime: new Date(T0 + 30 * MIN), groupKey: pair, mediaItem: pilot })
+  assert.deepEqual(pairCard?.parts?.map((p) => p.title), ['Pilot', 'Bake Sale'])
+  assert.ok(pairCard?.parts?.every((p) => p.at), 'both parts are timed')
+  assert.notEqual(pairCard?.parts?.[0].at, pairCard?.parts?.[1].at)
+  const actsCard = await upNextContent({ channelId: ch.id, startTime: new Date(T0), groupKey: acts, mediaItem: neighbors })
+  assert.deepEqual(actsCard?.parts, [{ at: null, title: 'The New Neighbors' }])
+})
+
+test('Coming up lists whole programs after the next one', async () => {
+  const card = await upNextContent({ channelId: ch.id, startTime: new Date(T0), groupKey: acts, mediaItem: neighbors }, { later: 4, channel: 'Hometown' })
+  // Only one program follows: the broadcast episode, once, with its episodes' range.
+  assert.equal(card?.later?.length, 1)
+  assert.equal(card?.later?.[0].title, 'Maple Street')
+  assert.equal(card?.later?.[0].code, 'S1 · E1–3')
+  assert.equal(card?.channel, 'Hometown')
+  // Without asking, none.
+  const plain = await upNextContent({ channelId: ch.id, startTime: new Date(T0), groupKey: acts, mediaItem: neighbors })
+  assert.deepEqual(plain?.later, [])
+})

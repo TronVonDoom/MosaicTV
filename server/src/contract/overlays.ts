@@ -80,11 +80,23 @@ export type ComingUpConfig = {
   style: CardStyle
   position: CardPosition
   size: CardSize
+  /** Coming up: how many programs it lists, the next one first (1–5). */
+  count: number
 }
 
-/** Glass: a frosted panel. Broadcast: a cable-network bar with a tab. */
-export type CardStyle = 'glass' | 'broadcast'
-export const CARD_STYLES: CardStyle[] = ['glass', 'broadcast']
+/**
+ * The card's look:
+ * - banner: a bar filled with the next program's art, a violet time block at
+ *   its end and the title's logo on it
+ * - logobar: a slim dark bar with the title's logo standing up out of it
+ * - snipe: a ribbon that slides out from behind the channel's own logo
+ * - preview: a little 16:9 screen of the next program's art and logo
+ * - comingup: the next program and up to four after it, on a timeline
+ */
+export type CardStyle = 'banner' | 'logobar' | 'snipe' | 'preview' | 'comingup'
+export const CARD_STYLES: CardStyle[] = ['banner', 'logobar', 'snipe', 'preview', 'comingup']
+/** How many programs Coming up can list. */
+export const MAX_COMING_UP = 5
 
 /** Any edge or corner of the picture — clear of wherever the logo sits. */
 export type CardPosition =
@@ -117,9 +129,10 @@ export const DEFAULT_COMINGUP: ComingUpConfig = {
   leadSeconds: 300,
   holdSeconds: 12,
   fadeSeconds: 0.6,
-  style: 'glass',
+  style: 'comingup',
   position: 'bottom-left',
   size: 'medium',
+  count: 1,
 }
 
 /** A position from a config, including the two the first card version had. */
@@ -143,9 +156,22 @@ export function parseComingUp(json: string | null | undefined): ComingUpConfig {
   }
 }
 
+/**
+ * A style from a config, and the count it implies. The first two looks were
+ * retired in 0.23: Glass (a frosted card naming the next program) became
+ * Coming up listing just that one; Broadcast (the cable-network bar) became
+ * the Art banner.
+ */
+function asStyle(v: unknown): { style: CardStyle; count?: number } {
+  if (v === 'broadcast') return { style: 'banner' }
+  if (CARD_STYLES.includes(v as CardStyle)) return { style: v as CardStyle }
+  return { style: 'comingup', count: 1 } // glass, missing, or unknown
+}
+
 /** Clamp an incoming (untrusted) coming-up config to valid ranges/enums. */
 export function sanitizeComingUp(input: unknown): ComingUpConfig {
   const c = { ...DEFAULT_COMINGUP, ...((input as Partial<ComingUpConfig>) ?? {}) }
+  const look = asStyle((input as { style?: unknown } | null)?.style)
   const timings: ComingUpConfig['timing'][] = ['middle', 'beforeEnd', 'both']
   // Zero is a real value here ("0 = pop" for the fade), so only a missing or
   // unreadable number takes the default — `Number(v) || def` turned 0 into it.
@@ -159,8 +185,9 @@ export function sanitizeComingUp(input: unknown): ComingUpConfig {
     leadSeconds: Math.round(num(c.leadSeconds, 300, 5, 3600)),
     holdSeconds: Math.round(num(c.holdSeconds, 12, 2, 120)),
     fadeSeconds: num(c.fadeSeconds, 0.6, 0, 3),
-    style: CARD_STYLES.includes(c.style) ? c.style : 'glass',
+    style: look.style,
     position: asPosition(c.position),
     size: typeof c.size === 'string' && Object.hasOwn(CARD_SCALE, c.size) ? c.size : 'medium',
+    count: look.count ?? Math.round(num(c.count, 3, 1, MAX_COMING_UP)),
   }
 }

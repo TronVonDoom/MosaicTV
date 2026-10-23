@@ -167,19 +167,26 @@ out across them, the way it aired with commercials.
 
 ## "Up next" cards
 
-Near the end of a program, a frosted-glass card slides in naming what's on
-next: the poster, the title, the episode and its title, the year, genres and
-rating, and the time it starts. A broadcast episode gets one card listing every
-segment. On a 4:3 show like *Ren & Stimpy*, the card stays on the picture
-instead of out in the black bars.
+Near the end of a program, a card slides in naming what's on next: the time
+it starts, the show's or movie's logo (its name when it has none), the
+episode, and every part of a broadcast episode. Five looks:
 
-<img src="docs/screenshots/up-next-card.webp" alt="An up-next card for Are You Afraid of the Dark? over The Ren &amp; Stimpy Show, inside the 4:3 picture" width="100%" />
+- **Art banner** — a bar filled with the next program's artwork, a violet
+  time block at its end and the title's logo on it.
+- **Logo bar** — a slim frosted bar with the title's logo standing up out of it.
+- **Snipe** — a ribbon that slides out from behind your channel's own logo.
+- **Preview** — a little screen of what's next.
+- **Coming up** — the next program and up to four after it, with the time
+  each part of a broadcast episode starts.
 
-Pick **Glass** or a cable-style **Broadcast** bar, in any corner or along any
-edge (clear of your logo), in three sizes. A live preview in the channel's
-settings shows its actual next program.
+<img src="docs/screenshots/up-next-card.webp" alt="The art banner over Cow and Chicken, naming Dexter's Laboratory at 4:15 PM and its three parts" width="100%" />
 
-<img src="docs/screenshots/up-next-broadcast.webp" alt="The broadcast-style bar over King of the Hill, naming The IT Crowd at 7:04 PM" width="100%" />
+Any corner or edge, three sizes, and a card never covers your logo: it steps
+clear of it. The bars start at the screen's edge, so on a 4:3 show their end
+sits out in the black side bar. A live preview in the channel's settings shows
+its actual next program.
+
+<img src="docs/screenshots/up-next-styles.webp" alt="The logo bar naming Venom, the snipe sliding out of the Cartoon Network logo, the preview, and Coming up listing five movies" width="100%" />
 
 ## Music channels
 

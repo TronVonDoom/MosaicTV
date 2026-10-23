@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { audioFades, cardAnchor, cardEntry, comingUpWindows, ffmpegArgs, mediaRect, placeCard, watermarkBox, type Segment } from './filters.js'
+import { audioFades, cardAnchor, cardEntry, clearOfLogo, comingUpWindows, ffmpegArgs, mediaRect, placeCard, watermarkBox, type Segment } from './filters.js'
 import { DEFAULT_COMINGUP, DEFAULT_WATERMARK, parseComingUp, sanitizeComingUp } from './overlays.js'
 import { DEFAULT_PROFILE } from './profile.js'
 import { fitText, textWidth } from './card.js'
@@ -61,9 +61,10 @@ test("a text caption's saved config comes back as a card config", () => {
     leadSeconds: 120,
     holdSeconds: 10,
     fadeSeconds: 0.5,
-    style: 'glass',
+    style: 'comingup',
     position: 'top-left',
     size: 'medium',
+    count: 1,
   })
   // Only real sizes: not inherited names, not junk.
   assert.equal(sanitizeComingUp({ size: 'constructor' }).size, 'medium')
@@ -72,8 +73,31 @@ test("a text caption's saved config comes back as a card config", () => {
   assert.equal(sanitizeComingUp({ position: 'bottom' }).position, 'bottom-left')
   assert.equal(sanitizeComingUp({ position: 'middle-right' }).position, 'middle-right')
   assert.equal(sanitizeComingUp({ position: 'middle-center' }).position, 'bottom-left')
-  assert.equal(sanitizeComingUp({ style: 'broadcast' }).style, 'broadcast')
-  assert.equal(sanitizeComingUp({ style: 'neon' }).style, 'glass')
+  // The retired looks come back as their successors: Broadcast as the art
+  // banner, Glass (and anything unknown) as Coming up naming just the next one.
+  assert.equal(sanitizeComingUp({ style: 'broadcast' }).style, 'banner')
+  assert.deepEqual(pick(sanitizeComingUp({ style: 'glass', count: 4 })), { style: 'comingup', count: 1 })
+  assert.deepEqual(pick(sanitizeComingUp({ style: 'neon' })), { style: 'comingup', count: 1 })
+  assert.deepEqual(pick(sanitizeComingUp({ style: 'snipe' })), { style: 'snipe', count: 1 })
+  // Coming up lists one to five.
+  assert.equal(sanitizeComingUp({ style: 'comingup', count: 9 }).count, 5)
+  assert.equal(sanitizeComingUp({ style: 'comingup', count: 0 }).count, 1)
+  assert.equal(sanitizeComingUp({ style: 'comingup', count: '4' }).count, 4)
+})
+
+const pick = (c: { style: string; count: number }) => ({ style: c.style, count: c.count })
+
+test('a card over the channel logo steps clear of it', () => {
+  const frame = { width: 1280, height: 720 }
+  const logo = { x: 1100, y: 580, w: 130, h: 100 }
+  const box = { w: 340, h: 160 }
+  // Bottom right, on the logo: up above it.
+  assert.deepEqual(clearOfLogo({ x: 888, y: 516 }, box, logo, 'bottom-right', frame, 12), { x: 888, y: 408 })
+  // Top right, on a logo up there: down below it.
+  assert.deepEqual(clearOfLogo({ x: 888, y: 44 }, box, { x: 1100, y: 40, w: 130, h: 60 }, 'top-right', frame, 12), { x: 888, y: 112 })
+  // Clear already, or no logo: where it was.
+  assert.deepEqual(clearOfLogo({ x: 52, y: 516 }, box, logo, 'bottom-left', frame, 12), { x: 52, y: 516 })
+  assert.deepEqual(clearOfLogo({ x: 888, y: 516 }, box, null, 'bottom-right', frame, 12), { x: 888, y: 516 })
 })
 
 test('a long title is cut at a word, with an ellipsis, inside the width', () => {

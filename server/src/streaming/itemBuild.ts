@@ -23,8 +23,8 @@ import { effectiveAudioLanguage, globalAudioLanguage } from '../audio.js'
 import { nvdecIfReady } from './capabilities.js'
 import type { StreamProfile } from './profile.js'
 import { CARD_SCALE, DEFAULT_COMINGUP, parseComingUp, type ComingUpConfig, type WatermarkConfig } from './overlays.js'
-import { cardAnchor, cardEntry, cardRect, comingUpWindows, ffmpegArgs, placeCard, watermarkBox, type CardOverlay, type FfmpegOutput, type Segment } from './filters.js'
-import { renderCard, type CardContent } from './card.js'
+import { cardAnchor, cardEntry, cardRect, clearOfLogo, comingUpWindows, ffmpegArgs, placeCard, watermarkBox, type CardOverlay, type FfmpegOutput, type Segment } from './filters.js'
+import { placedOnScreen, renderCard, renderLogoCap, type CardContent, type ChannelLogo } from './card.js'
 import { neighbourOf, nowPlayingContent, upNextContent } from './cardContent.js'
 import { activeBlockAt, activeLogo, localLogo } from './logo.js'
 import { FILLER_H, FILLER_W, ensureAnimatedFiller, ensureStationIdent, fillerTurn, poolFor, resolveFillerClip } from './filler.js'
@@ -419,21 +419,79 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
   const cuJson = cuBlock?.comingUp ?? channel.comingUp
   const cu = cuJson ? parseComingUp(cuJson) : null
   const channelLook: ComingUpConfig = cu ?? DEFAULT_COMINGUP
-  const stageCard = async (what: string, content: CardContent | null, windows: { a: number; b: number }[], position = channelLook.position) => {
+  // The channel's logo where its watermark draws it, on this frame — a snipe
+  // slides out from behind it. Null with no logo shown.
+  const watermarkLogo = async (): Promise<ChannelLogo | null> => {
+    if (!logo || wm.mode === 'none' || !seg) return null
+    const size = await imageSize(logo)
+    if (!size?.w || !size.h) return null
+    const constrain = wm.constrainToMedia && profile.scalingMode === 'pad'
+    const rect = constrain ? cardRect(seg, profile) : { x0: 0, y0: 0, mw: profile.width, mh: profile.height }
+    const b = watermarkBox(wm, rect, { w: profile.width, h: profile.height })
+    const h = 2 * Math.round((b.LW * size.h) / size.w / 2) // as the watermark scales it (scale=LW:-2)
+    const right = wm.position.endsWith('right')
+    const bottom = wm.position.startsWith('bottom')
+    return { file: logo, x: right ? b.right - b.LW : b.left, y: bottom ? b.bottom - h : b.top, w: b.LW, h, opacity: Math.max(0, Math.min(1, wm.opacityPercent / 100)) }
+  }
+  const stageCard = async (
+    what: string,
+    content: CardContent | null,
+    windows: { a: number; b: number }[],
+    override: Partial<Pick<ComingUpConfig, 'position' | 'style' | 'count'>> = {},
+  ) => {
     if (!content || !seg || windows.length === 0) return
-    const look = { ...channelLook, position }
+    const look = { ...channelLook, ...override }
     try {
       const scale = baseScale * CARD_SCALE[look.size]
       const base = path.join(dataDir(), `card-${channelNumber}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-      const card = await renderCard(content, scale, base, look.style, cardAnchor(look.position))
+      const shownLogo = await watermarkLogo()
+      const chLogo = look.style === 'snipe' ? shownLogo : null
+      const logoLeft = !!chLogo && chLogo.x + chLogo.w / 2 < profile.width / 2
+      const anchor = chLogo ? (logoLeft ? 'left' : 'right') : cardAnchor(look.position)
+      const card = await renderCard(content, scale, base, look.style, { anchor, count: look.count, logo: chLogo })
       cardFiles.push(card.png, ...(card.mask ? [card.mask] : []))
-      const at = placeCard(cardRect(seg, profile), profile, card.box, look.position, scale)
-      cards.push({ card, x: at.x, y: at.y, windows, fadeSec: look.fadeSeconds, scale, from: cardEntry(look.position) })
-      log('debug', 'stream', `Ch ${channelNumber} ${what} card: ${content.title}${content.subtitle ? ' — ' + content.subtitle : ''}`, `${look.style}, ${look.position}, ${windows.length} window(s)`, tag)
+      let at: { x: number; y: number }
+      let from: [number, number]
+      if (chLogo && card.logoAt) {
+        // On the logo: placed so its logo end lands on the watermark, sliding
+        // out from behind it.
+        at = { x: Math.round(chLogo.x - card.logoAt.x + card.box.x), y: Math.round(chLogo.y - card.logoAt.y + card.box.y) }
+        from = logoLeft ? [-1, 0] : [1, 0]
+      } else {
+        // The bars start at the screen's safe edge; the rest sit on the picture.
+        const rect = placedOnScreen(look.style) ? { x0: 0, y0: 0, mw: profile.width, mh: profile.height } : cardRect(seg, profile)
+        at = placeCard(rect, profile, card.box, look.position, scale)
+        // Never over the channel's logo (a song screen keeps its own corner).
+        if (!override.position) at = clearOfLogo(at, card.box, shownLogo, look.position, profile, Math.round(12 * scale))
+        from = cardEntry(look.position)
+      }
+      // A frost that would reach past the frame can't be cut from it: that
+      // card goes without (its own tint still reads).
+      if (card.frost) {
+        const fx = at.x - card.box.x + card.frost.x
+        const fy = at.y - card.box.y + card.frost.y
+        if (fx < 0 || fy < 0 || fx + card.frost.w > profile.width || fy + card.frost.h > profile.height) {
+          card.frost = null
+          card.mask = null
+        }
+      }
+      cards.push({ card, x: at.x, y: at.y, windows, fadeSec: look.fadeSeconds, scale, from })
+      if (chLogo && card.logoAt) {
+        // The stream draws cards over the watermark, so the logo goes back on
+        // top of the ribbon while it's up.
+        const cap = await renderLogoCap(chLogo, base)
+        if (cap) {
+          cardFiles.push(cap.png)
+          cards.push({ card: cap, x: Math.round(chLogo.x), y: Math.round(chLogo.y), windows, fadeSec: 0, scale, from: [0, 0] })
+        }
+      }
+      log('debug', 'stream', `Ch ${channelNumber} ${what} card: ${content.title}${content.subtitle ? ' — ' + content.subtitle : ''}`, `${look.style}, ${chLogo ? 'on the logo' : look.position}, ${windows.length} window(s)`, tag)
     } catch (e) {
       log('warn', 'stream', `Channel ${channelNumber}: could not build the ${what} card`, String((e as Error)?.stack || e), tag)
     }
   }
+  // Coming up lists the programs after the next one too.
+  const upNextOpts = (look: Pick<ComingUpConfig, 'style' | 'count'>) => ({ later: look.style === 'comingup' ? look.count - 1 : 0, channel: channel.name })
   // What this encode names as up next, for a replan to check (BuiltItem.upNext).
   let upNextSlot: { key: string | null; untilSec: number } | undefined
   if (!thisIsFiller && mi && mi.type !== 'song' && cu?.enabled && !seg.guide) {
@@ -448,7 +506,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     })
     if (windows.length > 0) {
       upNextSlot = { key: await upNextKey(upNext), untilSec: Math.max(...windows.map((w) => w.b)) }
-      if (upNext?.mediaItem) await stageCard('up-next', await upNextContent(upNext).catch(() => null), windows)
+      if (upNext?.mediaItem) await stageCard('up-next', await upNextContent(upNext, upNextOpts(channelLook)).catch(() => null), windows)
     }
   }
   if (!thisIsFiller && mi?.type === 'music' && mi.title && !seg.guide) {
@@ -457,8 +515,9 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     if (b - a > 1) await stageCard('now-playing', await nowPlayingContent(mi).catch(() => null), [{ a, b }])
   }
   // A song's screen leaves its bottom-right corner for what's next, over its
-  // last 20 seconds — whatever the channel's card does over programs — unless
-  // its corners name what's next the whole way through.
+  // last 20 seconds — whatever the channel's card does over programs, always
+  // as a one-program Coming up card, the size that corner is kept for —
+  // unless its corners name what's next the whole way through.
   if (!thisIsFiller && mi?.type === 'song' && seg.screen) {
     const untilEnd = (item.stopTime.getTime() - item.startTime.getTime()) / 1000 - offset
     const a = Math.max(0, untilEnd - 20)
@@ -466,7 +525,7 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
     if ('next' in around) upNextSlot = { key: await upNextKey(nextProgram), untilSec: segDur }
     else if (b - a > 2) upNextSlot = { key: await upNextKey(nextProgram), untilSec: b }
     if (nextProgram?.mediaItem && !around.next && b - a > 2) {
-      await stageCard('up-next', await upNextContent(nextProgram).catch(() => null), [{ a, b }], 'bottom-right')
+      await stageCard('up-next', await upNextContent(nextProgram).catch(() => null), [{ a, b }], { position: 'bottom-right', style: 'comingup', count: 1 })
     }
   }
 

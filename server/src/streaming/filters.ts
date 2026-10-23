@@ -403,6 +403,29 @@ export function placeCard(
   return { x: even(x, frame.width - box.w), y: even(y, frame.height - box.h) }
 }
 
+/**
+ * A card placed at `at` that would cover the channel's logo steps clear of it:
+ * up above it for a card at the bottom, down below it at the top, and sideways
+ * for one in the middle — staying on the frame.
+ */
+export function clearOfLogo(
+  at: { x: number; y: number },
+  box: { w: number; h: number },
+  logo: { x: number; y: number; w: number; h: number } | null,
+  position: CardPosition,
+  frame: { width: number; height: number },
+  gap: number,
+): { x: number; y: number } {
+  if (!logo) return at
+  const overlaps = at.x < logo.x + logo.w && logo.x < at.x + box.w && at.y < logo.y + logo.h && logo.y < at.y + box.h
+  if (!overlaps) return at
+  const even = (n: number, max: number) => Math.max(0, Math.min(max, 2 * Math.floor(n / 2)))
+  if (position.startsWith('bottom')) return { x: at.x, y: even(logo.y - gap - box.h, frame.height - box.h) }
+  if (position.startsWith('top')) return { x: at.x, y: even(logo.y + logo.h + gap, frame.height - box.h) }
+  const left = logo.x - gap - box.w
+  return { x: even(left >= 0 ? left : logo.x + logo.w + gap, frame.width - box.w), y: at.y }
+}
+
 /** The picture's rectangle on the output canvas for a card (the whole canvas unless padded). */
 export function cardRect(seg: Pick<Segment, 'mediaWidth' | 'mediaHeight'>, p: StreamProfile): Rect {
   return mediaRect(seg.mediaWidth, seg.mediaHeight, p.scalingMode === 'pad', p.width, p.height)

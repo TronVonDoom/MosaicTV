@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, type CardPosition, type ComingUpConfig } from '../lib/api'
+import { api, type CardPosition, type CardStyle, type ComingUpConfig } from '../lib/api'
 import { Field, Input, Section, Segmented, Skeleton, cx } from './ui'
 
 const TIMINGS: { value: ComingUpConfig['timing']; label: string; hint: string }[] = [
@@ -8,10 +8,39 @@ const TIMINGS: { value: ComingUpConfig['timing']; label: string; hint: string }[
   { value: 'both', label: 'Both', hint: 'Appears at the midpoint and again near the end.' },
 ]
 
-const STYLES = [
-  { value: 'glass', label: 'Glass', title: 'A frosted-glass card over the picture' },
-  { value: 'broadcast', label: 'Broadcast', title: 'A cable-network bar with the poster standing out of it' },
-] as const
+const STYLES: { value: CardStyle; label: string; hint: string }[] = [
+  { value: 'banner', label: 'Art banner', hint: 'A bar filled with the next program’s art, its logo on it' },
+  { value: 'logobar', label: 'Logo bar', hint: 'A slim bar with the title’s logo standing up out of it' },
+  { value: 'snipe', label: 'Snipe', hint: 'Slides out from behind the channel’s logo' },
+  { value: 'preview', label: 'Preview', hint: 'A little screen of the next program' },
+  { value: 'comingup', label: 'Coming up', hint: 'The next program, and up to four after it' },
+]
+
+/** The five looks, as a row of choices with a line on each. */
+function StylePicker({ value, onChange }: { value: CardStyle; onChange: (s: CardStyle) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Card style" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+      {STYLES.map((st) => (
+        <button
+          key={st.value}
+          type="button"
+          role="radio"
+          aria-checked={value === st.value}
+          onClick={() => onChange(st.value)}
+          className={cx(
+            'rounded-xl border px-3 py-2.5 text-left transition-colors',
+            value === st.value ? 'border-indigo-400 bg-indigo-400/10 shadow-[0_0_0_1px_rgb(167_139_250/0.5)]' : 'border-edge bg-white/[0.03] hover:bg-white/[0.07]',
+          )}
+        >
+          <span className="block text-[13px] font-semibold text-ink">{st.label}</span>
+          <span className="mt-0.5 block text-xs leading-snug text-ink-faint">{st.hint}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+const COUNTS = [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: String(n) }))
 
 const POSITION_LABEL: Record<CardPosition, string> = {
   'top-left': 'Top left',
@@ -77,7 +106,7 @@ function CardPreview({ channelId, cfg }: { channelId: number; cfg: ComingUpConfi
   const [failed, setFailed] = useState(false)
   const urlRef = useRef<string | null>(null)
   // Only what changes the picture — timing edits don't need a new render.
-  const key = `${cfg.style}|${cfg.position}|${cfg.size}`
+  const key = `${cfg.style}|${cfg.position}|${cfg.size}|${cfg.count}`
 
   useEffect(() => {
     const ac = new AbortController()
@@ -116,8 +145,8 @@ function CardPreview({ channelId, cfg }: { channelId: number; cfg: ComingUpConfi
         )}
       </div>
       <figcaption className="mt-1.5 text-xs text-ink-faint">
-        This channel's next program, as it will air, with the channel's logo where its watermark sits — keep
-        the card clear of it. The card slides in from the nearest edge.
+        This channel's next program, as it will air, with the channel's logo where its watermark sits. A card
+        that would cover the logo steps clear of it; the card slides in from the nearest edge.
       </figcaption>
     </figure>
   )
@@ -179,11 +208,16 @@ export default function ComingUpFields({
           </Section>
 
           <Section title="Appearance">
-            <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-              <Field label="Style">
-                <Segmented options={STYLES} value={cfg.style} onChange={(v) => set('style', v)} />
-              </Field>
-              <Field label="Position">
+            <Field label="Style">
+              <StylePicker value={cfg.style} onChange={(v) => set('style', v)} />
+            </Field>
+            <div className="mt-4 flex flex-wrap items-start gap-x-8 gap-y-4">
+              {cfg.style === 'comingup' && (
+                <Field label="Programs to list" hint="The next one, and the ones after it.">
+                  <Segmented options={COUNTS} value={String(cfg.count)} onChange={(v) => set('count', Number(v))} />
+                </Field>
+              )}
+              <Field label="Position" hint={cfg.style === 'snipe' ? 'Used only when the channel shows no logo — a snipe sits at the logo.' : undefined}>
                 <PositionPicker value={cfg.position} onChange={(v) => set('position', v)} />
               </Field>
               <Field label="Size">

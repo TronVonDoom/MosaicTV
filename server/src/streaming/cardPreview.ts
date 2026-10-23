@@ -7,9 +7,9 @@ import path from 'node:path'
 import { prisma } from '../db.js'
 import { logosDir } from '../paths.js'
 import { backdropFileFor } from '../metadata/artworkFiles.js'
-import { renderCardPreview, type CardContent, type PreviewLogo } from './card.js'
+import { imageDims, renderCardPreview, type CardContent, type ChannelLogo, type PreviewLogo } from './card.js'
 import { clockLabel, upNextContent } from './cardContent.js'
-import { cardAnchor, placeCard } from './filters.js'
+import { cardAnchor, clearOfLogo, placeCard } from './filters.js'
 import { activeLogo, localLogo } from './logo.js'
 import { CARD_SCALE, loadWatermark, parseWatermark, type ComingUpConfig } from './overlays.js'
 
@@ -57,9 +57,11 @@ export async function comingUpPreview(channelId: number, cfg: ComingUpConfig): P
     include: { mediaItem: true },
   })
   const current = upcoming[0]
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { name: true } })
+  const opts = { later: cfg.style === 'comingup' ? cfg.count - 1 : 0, channel: channel?.name ?? null }
   // The program after what's on — past the rest of a broadcast episode on air.
   const next = upcoming.find((p, i) => i > 0 && (!current?.groupKey || p.groupKey !== current.groupKey))
-  let content: CardContent | null = next ? await upNextContent(next).catch(() => null) : null
+  let content: CardContent | null = next ? await upNextContent(next, opts).catch(() => null) : null
 
   // Nothing scheduled yet: any episode from the library, so the card still has
   // something real to show.
@@ -70,7 +72,7 @@ export async function comingUpPreview(channelId: number, cfg: ComingUpConfig): P
       ? await prisma.mediaItem.findFirst({ where: { type: 'episode', missing: false }, skip: Math.floor(Math.random() * n) })
       : null
     if (sample) {
-      content = await upNextContent({ channelId, startTime: new Date(now.getTime() + 30 * 60_000), groupKey: null, mediaItem: sample }).catch(() => null)
+      content = await upNextContent({ channelId, startTime: new Date(now.getTime() + 30 * 60_000), groupKey: null, mediaItem: sample }, { channel: opts.channel }).catch(() => null)
       still ??= sample
     }
   }
@@ -79,12 +81,24 @@ export async function comingUpPreview(channelId: number, cfg: ComingUpConfig): P
   const backdrop = still ? await backdropFileFor(still).catch(() => null) : null
   const logo = await watermarkLogo(channelId, now).catch(() => null)
   const scale = CARD_SCALE[cfg.size]
+  // The logo's real shape, where the watermark puts it: a snipe rides on it,
+  // and every other card steps clear of it.
+  let shown: ChannelLogo | null = null
+  if (logo) {
+    const dims = imageDims(logo.file)
+    if (dims?.w && dims.h) {
+      const h = Math.round((logo.w * dims.h) / dims.w)
+      shown = { file: logo.file, x: logo.x, y: logo.corner.startsWith('bottom') ? logo.y + logo.w - h : logo.y, w: logo.w, h, opacity: logo.opacity }
+    }
+  }
+  const chLogo = cfg.style === 'snipe' ? shown : null
+  const anchor = chLogo ? (chLogo.x + chLogo.w / 2 < W / 2 ? 'left' : 'right') : cardAnchor(cfg.position)
   return renderCardPreview(
     content,
     scale,
     { width: W, height: H, backdrop, outWidth: 960, logo },
     cfg.style,
-    cardAnchor(cfg.position),
-    (box) => placeCard({ x0: 0, y0: 0, mw: W, mh: H }, { width: W, height: H }, box, cfg.position, scale),
+    { anchor, count: cfg.count, logo: chLogo },
+    (box) => clearOfLogo(placeCard({ x0: 0, y0: 0, mw: W, mh: H }, { width: W, height: H }, box, cfg.position, scale), box, shown, cfg.position, { width: W, height: H }, Math.round(12 * scale)),
   )
 }

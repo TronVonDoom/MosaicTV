@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- **New up-next cards.** Five looks, redrawn in the app's typeface and colours:
+  the **Art banner** (a bar filled with the next program's artwork, a violet
+  time block and the title's logo), the **Logo bar** (a slim frosted bar with
+  the title's logo standing up out of it), the **Snipe** (a ribbon that slides
+  out from behind the channel's own logo), the **Preview** (a little screen
+  of what's next) and **Coming up** (the next program and up to four after
+  it, on a timeline). Pick the look under General → Coming up next; Coming up
+  has a new **Programs to list** setting (1–5).
+- **Logos on the cards.** A show's or movie's logo stands in for its name
+  wherever one was found (0.22.0); a title with none keeps its name.
+- **Every part, with its time.** A broadcast episode's card names every part;
+  Coming up gives the time each one starts.
+- **Clear of the logo.** A card set where the channel's logo is steps above
+  it (or below it, at the top) instead of covering it.
+- **The side bars.** The art banner and logo bar start at the screen's edge,
+  so on a 4:3 show their outer end sits in the black bar, not on the picture.
+- **Upgrading.** Glass becomes Coming up listing one program; Broadcast
+  becomes the Art banner. Song screens keep their compact card in the corner.
+
 ## 0.22.0 — Show and movie logos (2026-10-23)
 
 - **Logos.** A show's or movie's logo — its name as artwork, like the All in

@@ -5,7 +5,7 @@
 
 import type { MediaItem } from '@prisma/client'
 import { prisma } from '../db.js'
-import { posterFileFor } from '../metadata/artworkFiles.js'
+import { backdropFileFor, logoFileFor, posterFileFor } from '../metadata/artworkFiles.js'
 import { creditOf } from '../contract/index.js'
 import type { CardContent } from './card.js'
 import type { Neighbour } from './songScreen.js'
@@ -59,55 +59,116 @@ async function artFor(mi: MediaItem): Promise<CardContent['art']> {
   return file ? { file, shape: mi.type === 'music' || mi.type === 'song' ? 'square' : 'poster' } : null
 }
 
+// A title's logo and wide still for the cards that show them — each capped so
+// a slow lookup online never holds up an encode.
+const logoFor = (mi: MediaItem) => logoFileFor(mi, 'w500', 3000).catch(() => null)
+const backdropFor = (mi: MediaItem) => backdropFileFor(mi).catch(() => null)
+
+type Row = { channelId: number; startTime: Date; stopTime?: Date; groupKey: string | null; mediaItem: MediaItem | null }
+
+/** A broadcast episode's playout rows (just `row` when it isn't one). */
+async function groupRows(row: Row): Promise<Row[]> {
+  if (!row.groupKey) return [row]
+  return prisma.playoutItem.findMany({
+    where: { channelId: row.channelId, groupKey: row.groupKey },
+    orderBy: { startTime: 'asc' },
+    include: { mediaItem: true },
+  })
+}
+
+/**
+ * Each file of a program once, with when it first starts — a program split at
+ * its act breaks is the same file several times over, named once, as the
+ * guide names it (describeUnit).
+ */
+function filesOf(rows: Row[]): { mi: MediaItem; start: Date }[] {
+  const out: { mi: MediaItem; start: Date }[] = []
+  for (const r of rows) if (r.mediaItem && !out.some((o) => o.mi.id === r.mediaItem!.id)) out.push({ mi: r.mediaItem, start: r.startTime })
+  return out
+}
+
+/** How the guide would name a program in a line: its show or title, and its episode(s) or year. */
+async function programLine(rows: Row[]): Promise<{ title: string; code: string | null } | null> {
+  const files = filesOf(rows)
+  const mi = files[0]?.mi
+  if (!mi) return null
+  if (mi.type === 'episode' && mi.showTitle) {
+    const host = files.map((f) => f.mi).filter((m) => m.showTitle === mi.showTitle)
+    return { title: mi.showTitle, code: episodeCodeLabel(host) }
+  }
+  if (mi.type === 'song' || mi.type === 'music') return { title: mi.title, code: creditOf(mi) }
+  return { title: mi.title, code: mi.year ? String(mi.year) : null }
+}
+
+/**
+ * The programs after the one ending at `after`, up to `n` of them, each a
+ * whole broadcast episode — for Coming up's list.
+ */
+async function programsAfter(channelId: number, after: Date, n: number): Promise<CardContent['later']> {
+  if (n <= 0) return []
+  const rows = await prisma.playoutItem.findMany({
+    where: { channelId, kind: 'program', mediaItemId: { not: null }, startTime: { gte: after } },
+    orderBy: { startTime: 'asc' },
+    take: n * 12,
+    include: { mediaItem: true },
+  })
+  const units: Row[][] = []
+  for (const r of rows) {
+    const last = units[units.length - 1]
+    if (last && r.groupKey && last[0].groupKey === r.groupKey) last.push(r)
+    else if (units.length < n) units.push([r])
+    else break
+  }
+  const out: NonNullable<CardContent['later']> = []
+  for (const u of units) {
+    const line = await programLine(u)
+    if (line) out.push({ time: clockLabel(u[0].startTime), ...line })
+  }
+  return out
+}
+
 /**
  * "Up next" for the program starting at `next`. A multi-part broadcast
  * episode (playout rows sharing a groupKey) is named as one: the host show,
- * the range of its episode codes and every segment's title.
+ * the range of its episode codes and every segment's title, each with the
+ * time it starts. With `later`, the programs after it too (Coming up).
  */
-export async function upNextContent(next: {
-  channelId: number
-  startTime: Date
-  groupKey: string | null
-  mediaItem: MediaItem | null
-}): Promise<CardContent | null> {
+export async function upNextContent(
+  next: Row,
+  opts: { later?: number; channel?: string | null } = {},
+): Promise<CardContent | null> {
   const mi = next.mediaItem
   if (!mi) return null
   const time = clockLabel(next.startTime)
+  const rows = await groupRows(next)
+  const end = rows.reduce<Date | null>((a, r) => (r.stopTime && (!a || r.stopTime > a) ? r.stopTime : a), null) ?? next.stopTime ?? next.startTime
+  const later = opts.later ? await programsAfter(next.channelId, end, opts.later) : []
+  const common = { eyebrow: 'Up next', time, later, channel: opts.channel ?? null }
 
   if (mi.type === 'episode' && mi.showTitle) {
-    // A program split at its act breaks is the same file several times over,
-    // so each file is named once, as the guide names it (describeUnit).
-    const segs = next.groupKey
-      ? (
-          await prisma.playoutItem.findMany({
-            where: { channelId: next.channelId, groupKey: next.groupKey },
-            orderBy: { startTime: 'asc' },
-            include: { mediaItem: true },
-          })
-        )
-          .map((r) => r.mediaItem)
-          .filter((m): m is MediaItem => !!m)
-          .filter((m, i, all) => all.findIndex((o) => o.id === m.id) === i)
-      : [mi]
-    const host = segs.filter((s) => s.showTitle === mi.showTitle)
+    const files = filesOf(rows)
+    const host = files.map((f) => f.mi).filter((s) => s.showTitle === mi.showTitle)
     const show = await prisma.show.findFirst({ where: { libraryId: mi.libraryId, title: mi.showTitle } })
     const year = show?.year ?? mi.year
+    const parts = files.map((f) => ({ at: files.length > 1 ? clockLabel(f.start).replace(/\s*[AP]M$/i, '') : null, title: cleanEpisodeTitle(f.mi.title) })).filter((p) => p.title)
+    const [art, logo, backdrop] = await Promise.all([artFor(mi), logoFor(mi), backdropFor(mi)])
     return {
-      eyebrow: 'Up next',
-      time,
+      ...common,
       title: mi.showTitle,
       code: episodeCodeLabel(host.length ? host : [mi]),
-      subtitle: segs.map((s) => cleanEpisodeTitle(s.title)).filter(Boolean).join(' / ') || null,
+      subtitle: parts.map((p) => p.title).join(' / ') || null,
+      parts,
       meta: [...(year ? [String(year)] : []), ...genreList(show?.genres ?? mi.genres)],
       rating: show?.rating ?? mi.rating,
-      art: await artFor(mi),
+      art,
+      logo,
+      backdrop,
     }
   }
 
   if (mi.type === 'music' || mi.type === 'song') {
     return {
-      eyebrow: 'Up next',
-      time,
+      ...common,
       title: mi.title,
       subtitle: [creditOf(mi), mi.album].filter(Boolean).join(' — ') || null,
       meta: mi.year ? [String(mi.year)] : [],
@@ -116,13 +177,15 @@ export async function upNextContent(next: {
   }
 
   const runtime = runtimeLabel(mi.durationSec)
+  const [art, logo, backdrop] = await Promise.all([artFor(mi), logoFor(mi), backdropFor(mi)])
   return {
-    eyebrow: 'Up next',
-    time,
+    ...common,
     title: mi.title,
     meta: [...(mi.year ? [String(mi.year)] : []), ...genreList(mi.genres), ...(runtime ? [runtime] : [])],
     rating: mi.rating,
-    art: await artFor(mi),
+    art,
+    logo,
+    backdrop,
   }
 }
 
