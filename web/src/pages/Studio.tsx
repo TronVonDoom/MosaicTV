@@ -7,8 +7,7 @@ import ClipsStudio from '../components/studio/ClipsStudio'
 import { api } from '../lib/api'
 import { useHashTab } from '../lib/hooks'
 import { InfoHint, cx } from '../components/ui'
-import { Kicker, Masthead } from '../components/onair/Masthead'
-import { StatFigure } from '../components/onair/OnAir'
+import { Masthead } from '../components/onair/Masthead'
 import type { LayoutContext } from '../components/Layout'
 import { STUDIO_SECTIONS } from '../lib/sections'
 
@@ -45,17 +44,16 @@ export default function Studio() {
   return (
     <div>
       <Masthead
-        kicker={<Kicker items={[{ label: 'Content' }, { label: current.label }]} />}
         title="Studio"
         lead={
           <>
             Your station's branding kit: the logos, music and clips its idents are made from.{' '}
             <InfoHint>The idents themselves are on each channel's Breaks tab.</InfoHint>
+            <span className="mt-1 block text-ink-muted tabular-nums">
+              {STUDIO_SECTIONS.map((s) => `${counts[s.id] ?? '–'} ${s.label.toLowerCase()}`).join(' · ')}
+            </span>
           </>
         }
-        aside={STUDIO_SECTIONS.map((s) => (
-          <StatFigure key={s.id} value={counts[s.id] ?? '–'} label={s.label} />
-        ))}
       />
       <div className={cx('grid gap-6 grid-cols-[minmax(0,1fr)]', !railSections && 'lg:grid-cols-[232px_minmax(0,1fr)]')}>
         <SideNav
@@ -67,7 +65,7 @@ export default function Studio() {
         />
         <div className="min-w-0">
           <div className="mb-5">
-            <h2 className="text-lg font-semibold tracking-tight">{current.label}</h2>
+            <h2 className="text-[22px] font-bold tracking-[-0.015em] text-ink">{current.label}</h2>
             <p className="text-[13.5px] text-ink-muted mt-0.5">{current.description}</p>
           </div>
           {section === 'images' && <LogosStudio onCount={setCount('images')} />}

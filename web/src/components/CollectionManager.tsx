@@ -572,7 +572,7 @@ export default function CollectionManager({
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)] items-start">
       {/* ── The list ───────────────────────────────────────────────────── */}
-      <Card className="p-3 lg:sticky lg:top-20">
+      <Card className="p-3 lg:sticky lg:top-6">
         <div className="flex items-center justify-between px-2 pt-1 pb-3">
           <div>
             <h2 className="font-semibold text-[15px] tracking-tight">Collections</h2>

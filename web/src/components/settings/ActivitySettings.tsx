@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, logsDownloadUrl, type Health, type LogCategory, type LogEntry, type LogLevel } from '../lib/api'
-import { copyText } from '../lib/clipboard'
-import { usePolling } from '../lib/hooks'
-import { Button, InfoHint, LinkButton, Select } from '../components/ui'
-import { Kicker, Masthead } from '../components/onair/Masthead'
-import { OnAirLabel, StatFigure, Tally } from '../components/onair/OnAir'
-import { confirmDialog } from '../lib/confirm'
+import { api, logsDownloadUrl, type Health, type LogCategory, type LogEntry, type LogLevel } from '../../lib/api'
+import { copyText } from '../../lib/clipboard'
+import { usePolling } from '../../lib/hooks'
+import { Button, InfoHint, LinkButton, Select } from '../ui'
+import { Tally } from '../onair/OnAir'
+import { confirmDialog } from '../../lib/confirm'
+import ResourceChart from '../ResourceChart'
+import { SettingsSection } from './SettingsKit'
 
 const LEVELS: { value: LogLevel | 'all'; label: string }[] = [
   { value: 'all', label: 'All levels' },
@@ -68,7 +69,12 @@ function useServerStatus() {
   return { health: reachable ? health : null, status }
 }
 
-export default function Logs() {
+/**
+ * Settings › Activity: how the server is doing — running, for how long, on
+ * what — its CPU and memory, and its log, which is what a bug report wants.
+ * (This was the Logs page; /logs lands here.)
+ */
+export default function ActivitySettings() {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [level, setLevel] = useState<LogLevel | 'all'>('all')
   const [category, setCategory] = useState<LogCategory | 'all'>('all')
@@ -174,52 +180,49 @@ export default function Logs() {
   }
 
   return (
-    <div>
-      {/* The server's status as a tally and what it runs on, beside the
-          title — where a problem report starts. */}
-      <Masthead
-        kicker={<Kicker items={[{ label: 'System' }, { label: 'Server log' }]} />}
-        title="Logs"
-        lead={
-          <>
-            <p>
-              Stream, ffmpeg, playout and system events — what to send with a bug report.{' '}
-              <InfoHint>
-                Lines raised while serving a viewer are tagged with that stream (e.g. V3 Plex) — click a tag to
-                follow just that one. Copy and Download always take the whole log, debug lines included,
-                whatever the filters show.
-              </InfoHint>
-            </p>
-            {status.note && <p className="mt-1.5 text-ink-soft">{status.note}</p>}
-          </>
-        }
-        aside={
-          <>
-            <div className="flex flex-col items-start sm:items-end gap-1.5">
-              <Tally tone={status.tone}>{status.label}</Tally>
-              <OnAirLabel className="text-[11.5px]">Server</OnAirLabel>
-            </div>
-            {health && (
-              <>
-                {/^\d/.test(health.version) && <StatFigure value={`v${health.version}`} label="Version" />}
-                <StatFigure value={uptime(health.uptimeSeconds)} label="Up" />
-                <StatFigure value={health.node.replace(/^v/, '')} label="Node" />
-              </>
-            )}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button variant="secondary" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
-                {copied ? 'Copied' : 'Copy all'}
-              </Button>
-              <LinkButton icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
-                Download
-              </LinkButton>
-              <Button variant="danger" icon="trash" onClick={clearAll}>
-                Clear
-              </Button>
-            </div>
-          </>
-        }
-      />
+    <SettingsSection
+      wide
+      title="Activity"
+      description={
+        <>
+          How the server is doing, and its log of stream, ffmpeg, playout and system events — what to send with a bug report.{' '}
+          <InfoHint>
+            Lines raised while serving a viewer are tagged with that stream (e.g. V3 Plex) — click a tag to follow just
+            that one. Copy and Download always take the whole log, debug lines included, whatever the filters show.
+          </InfoHint>
+        </>
+      }
+    >
+      {/* The server's status in a line: where a problem report starts. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-white/[0.08] bg-white/[0.045] px-5 py-4">
+        <Tally tone={status.tone}>{status.label}</Tally>
+        {health && (
+          <span className="text-[13.5px] text-ink-soft tabular-nums">
+            {[/^\d/.test(health.version) ? `Version ${health.version}` : null, `up ${uptime(health.uptimeSeconds)}`, `Node ${health.node.replace(/^v/, '')}`]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        )}
+        {status.note && <span className="text-[13.5px] text-amber-300">{status.note}</span>}
+      </div>
+
+      <ResourceChart />
+
+      <div>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3 px-1">
+        <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-ink-faint">Server log</h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="secondary" size="sm" icon={copied ? 'check' : 'copy'} onClick={copyAll} title="Copies the entire log, including debug lines — filters don't apply">
+            {copied ? 'Copied' : 'Copy all'}
+          </Button>
+          <LinkButton size="sm" icon="download" href={logsDownloadUrl} title="Downloads the entire log, including debug lines — filters don't apply">
+            Download
+          </LinkButton>
+          <Button variant="danger" size="sm" icon="trash" onClick={clearAll}>
+            Clear
+          </Button>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select
@@ -283,7 +286,7 @@ export default function Logs() {
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="rounded-xl border border-edge bg-canvas/80 font-mono text-xs leading-relaxed h-[62vh] overflow-auto p-3 space-y-1"
+        className="rounded-2xl border border-white/[0.08] bg-[rgb(8_7_13/0.8)] font-mono text-xs leading-relaxed h-[62vh] overflow-auto p-3 space-y-1"
       >
         {shown.length === 0 ? (
           <div className="text-ink-faint p-4 text-center">
@@ -307,7 +310,7 @@ export default function Logs() {
                 <button
                   onClick={() => setSession(session === e.session ? 'all' : (e.session as string))}
                   title={session === e.session ? 'Show all streams' : `Show only ${e.session}`}
-                  className="shrink-0 rounded border border-violet-500/40 bg-violet-500/10 px-1.5 text-[10px] text-violet-300 hover:bg-violet-500/20"
+                  className="shrink-0 rounded border border-indigo-400/40 bg-indigo-400/10 px-1.5 text-[10px] text-indigo-300 hover:bg-indigo-400/20"
                 >
                   {e.session}
                 </button>
@@ -320,6 +323,7 @@ export default function Logs() {
           ))
         )}
       </div>
-    </div>
+      </div>
+    </SettingsSection>
   )
 }

@@ -29,7 +29,7 @@ export default function SideNav<T extends string>({
   className?: string
 }) {
   return (
-    <nav aria-label={label} className={cx('lg:sticky lg:top-20 self-start', className)}>
+    <nav aria-label={label} className={cx('lg:sticky lg:top-6 self-start', className)}>
       <div className="flex lg:flex-col gap-1 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1 lg:pb-0">
         {items.map((it) => {
           const on = it.id === active

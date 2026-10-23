@@ -9,6 +9,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'encoding', label: 'Encoding', icon: 'cpu', description: 'ffmpeg profiles' },
   { id: 'sign-in', label: 'Sign-in', icon: 'lock', description: 'Away from home, devices, player links' },
   { id: 'maintenance', label: 'Maintenance', icon: 'database', description: 'About, backup, reset' },
+  { id: 'activity', label: 'Activity', icon: 'activity', description: 'Server log, CPU and memory' },
 ] as const
 
 export const STUDIO_SECTIONS = [

@@ -18,7 +18,6 @@ const pages = {
   ChannelEditor: () => import('./pages/ChannelEditor'),
   NewChannel: () => import('./pages/NewChannel'),
   Studio: () => import('./pages/Studio'),
-  Logs: () => import('./pages/Logs'),
   Pair: () => import('./pages/Pair'),
 }
 const Guide = lazy(pages.Guide)
@@ -32,7 +31,6 @@ const Channels = lazy(pages.Channels)
 const ChannelEditor = lazy(pages.ChannelEditor)
 const NewChannel = lazy(pages.NewChannel)
 const Studio = lazy(pages.Studio)
-const Logs = lazy(pages.Logs)
 const Pair = lazy(pages.Pair)
 
 // TV mode carries the video player (hls.js), so it loads only when opened,
@@ -92,7 +90,7 @@ export default function App() {
         </Route>
 
         <Route path="studio" element={<Studio />} />
-        <Route path="logs" element={<Logs />} />
+        <Route path="logs" element={<Navigate to="/settings#activity" replace />} />
         <Route path="settings" element={<Settings />} />
         <Route path="pair" element={<Pair />} />
 

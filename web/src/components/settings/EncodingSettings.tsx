@@ -316,7 +316,7 @@ export default function EncodingSettings() {
           </SettingsGroup>
 
           {/* Save and Cancel stay in reach down the whole editor. */}
-          <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-edge-strong bg-overlay/95 backdrop-blur px-4 py-3 shadow-2xl shadow-black/60">
+          <div className="sticky bottom-[calc(var(--tabbar-h,0px)+1rem)] z-10 flex items-center gap-3 rounded-2xl border border-edge-strong bg-overlay/95 backdrop-blur px-4 py-3 shadow-2xl shadow-black/60">
             <span className="min-w-0 truncate text-[13px] text-ink-soft">
               {error ? <span className="text-rose-300">{error}</span> : editing === 'new' ? 'New profile' : `Editing “${editingName ?? 'profile'}”`}
             </span>

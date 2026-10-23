@@ -9,13 +9,13 @@ import StreamingSettings from '../components/settings/StreamingSettings'
 import EncodingSettings from '../components/settings/EncodingSettings'
 import MaintenanceSettings from '../components/settings/MaintenanceSettings'
 import SignInSettings from '../components/settings/SignInSettings'
+import ActivitySettings from '../components/settings/ActivitySettings'
 import SideNav from '../components/SideNav'
 import type { LayoutContext } from '../components/Layout'
 import { SETTINGS_SECTIONS } from '../lib/sections'
 import { useHashTab } from '../lib/hooks'
 import { cx } from '../components/ui'
-import { Kicker, Masthead } from '../components/onair/Masthead'
-import { StatFigure } from '../components/onair/OnAir'
+import { Masthead } from '../components/onair/Masthead'
 
 type SettingsTab = (typeof SETTINGS_SECTIONS)[number]['id']
 const TAB_IDS = SETTINGS_SECTIONS.map((t) => t.id)
@@ -26,8 +26,8 @@ const TAB_IDS = SETTINGS_SECTIONS.map((t) => t.id)
  * page holds what /api/settings says, so the masthead follows every change.
  */
 export default function Settings() {
-  // The watermark joined the Channels section.
-  const [tab, setTab] = useHashTab<SettingsTab>(TAB_IDS, 'metadata', { watermark: 'channels' })
+  // The watermark joined the Channels section; the Logs page is Activity.
+  const [tab, setTab] = useHashTab<SettingsTab>(TAB_IDS, 'metadata', { watermark: 'channels', logs: 'activity' })
   const settings = useCached(reads.settings)
   const info = settings.data ?? null
   const { set } = settings
@@ -41,7 +41,6 @@ export default function Settings() {
     if (hash !== `#${tab}`) navigate(`#${tab}`, { replace: true })
   }, [hash, tab, navigate])
 
-  const current = SETTINGS_SECTIONS.find((t) => t.id === tab)!
   // The sidebar lists the sections itself when it's open on a desktop.
   const { railSections } = useOutletContext<LayoutContext>()
 
@@ -49,17 +48,20 @@ export default function Settings() {
     <div>
       {/* How the station is set to transmit, at a glance beside the title. */}
       <Masthead
-        kicker={<Kicker items={[{ label: 'System' }, { label: current.label }]} />}
         title="Settings"
-        lead="Where artwork comes from, what every channel does by default, how players reach them, and keeping it all backed up."
-        aside={
-          info && (
-            <>
-              <StatFigure value={info.streamMode === 'hls' ? 'HLS' : 'MPEG-TS'} label="Streams" />
-              <StatFigure value={HORIZONS.find((h) => h.hours === info.playoutHorizonHours)?.label ?? `${info.playoutHorizonHours} h`} label="Built ahead" />
-              <StatFigure value={info.tunerCount} label={info.tunerCount === 1 ? 'Tuner' : 'Tuners'} />
-            </>
-          )
+        lead={
+          <>
+            Where artwork comes from, what every channel does by default, how players reach them, keeping it all backed up, and what the server is doing.
+            {info && (
+              <span className="mt-1 block text-ink-muted">
+                {[
+                  `Streams as ${info.streamMode === 'hls' ? 'HLS' : 'MPEG-TS'}`,
+                  `guide built ${HORIZONS.find((h) => h.hours === info.playoutHorizonHours)?.label ?? `${info.playoutHorizonHours} h`} ahead`,
+                  `${info.tunerCount} ${info.tunerCount === 1 ? 'tuner' : 'tuners'}`,
+                ].join(' · ')}
+              </span>
+            )}
+          </>
         }
       />
 
@@ -73,6 +75,7 @@ export default function Settings() {
           {tab === 'encoding' && <EncodingSettings />}
           {tab === 'maintenance' && <MaintenanceSettings />}
           {tab === 'sign-in' && <SignInSettings />}
+          {tab === 'activity' && <ActivitySettings />}
         </div>
       </div>
     </div>

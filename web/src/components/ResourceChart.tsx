@@ -23,9 +23,9 @@ const KIND_LABEL: Record<MetricMarker['kind'], string> = {
   filler: 'Break',
   song: 'Music video',
 }
-const LINE = '#3987e5'
+const LINE = '#a78bfa'
 const GRID = 'rgba(148, 163, 184, 0.14)' // matches `ink-muted`, recessive
-const AXIS_TEXT = '#94a3b8' // `ink-muted` — canvas needs a literal
+const AXIS_TEXT = '#8e89a3' // `ink-faint` — SVG text needs a literal
 
 const RANGES = [
   { value: 5, label: 'Last 5 min' },
@@ -225,10 +225,10 @@ export default function ResourceChart() {
               <g>
                 <line x1={x(hs.ts)} x2={x(hs.ts)} y1={CPU_TOP} y2={AXIS_Y} stroke={AXIS_TEXT} strokeWidth={1} opacity={0.5} />
                 {hs.cpuPct >= 0 && (
-                  <circle cx={x(hs.ts)} cy={cpuY(hs.cpuPct)} r={4} fill={LINE} stroke="#10131b" strokeWidth={2} />
+                  <circle cx={x(hs.ts)} cy={cpuY(hs.cpuPct)} r={4} fill={LINE} stroke="#13111e" strokeWidth={2} />
                 )}
                 {hs.memBytes >= 0 && (
-                  <circle cx={x(hs.ts)} cy={memY(hs.memBytes)} r={4} fill={LINE} stroke="#10131b" strokeWidth={2} />
+                  <circle cx={x(hs.ts)} cy={memY(hs.memBytes)} r={4} fill={LINE} stroke="#13111e" strokeWidth={2} />
                 )}
               </g>
             )}

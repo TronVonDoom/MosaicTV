@@ -7,9 +7,9 @@ import { InfoHint, Input, cx } from '../ui'
 // left and its control on the right (under it, on a phone).
 
 /** A section of Settings: its title, what it covers, and its groups. */
-export function SettingsSection({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
+export function SettingsSection({ title, description, wide, children }: { title: string; description: ReactNode; wide?: boolean; children: ReactNode }) {
   return (
-    <section className="max-w-4xl">
+    <section className={wide ? undefined : 'max-w-4xl'}>
       <header className="mb-6">
         <h2 className="font-display font-bold text-[24px] leading-tight tracking-[-0.015em] text-ink">{title}</h2>
         <p className="mt-1.5 text-[13.5px] text-ink-faint leading-relaxed">{description}</p>

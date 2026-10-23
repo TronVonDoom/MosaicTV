@@ -46,7 +46,7 @@ export default function Workspace({
         {children}
       </div>
       {wide ? (
-        <aside className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl border border-edge surface-card">
+        <aside className="sticky top-20 lg:top-6 max-h-[calc(100vh-6rem)] lg:max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-edge surface-card">
           {inspector ? (
             <div key={String(inspectorTitle)} className="fade-in">
               {head}

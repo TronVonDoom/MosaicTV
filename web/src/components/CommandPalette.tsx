@@ -114,7 +114,7 @@ export default function CommandPalette({
       { id: 'logos', label: 'Studio', context: 'Logos', icon: 'image', group: 'Go to', run: go('/studio#images'), keywords: 'watermark images' },
       { id: 'audio', label: 'Studio', context: 'Music', icon: 'audio', group: 'Go to', run: go('/studio#audio'), keywords: 'audio intermission ambient breaks' },
       { id: 'clips', label: 'Studio', context: 'Clips', icon: 'clip', group: 'Go to', run: go('/studio#clips'), keywords: 'bumper station id video filler' },
-      { id: 'logs', label: 'Logs', icon: 'logs', group: 'Go to', run: go('/logs'), keywords: 'errors ffmpeg diagnostics debug' },
+      { id: 'logs', label: 'Activity & logs', icon: 'logs', group: 'Go to', run: go('/settings#activity'), keywords: 'logs errors ffmpeg diagnostics debug cpu memory server uptime version' },
       { id: 'set-metadata', label: 'Settings', context: 'Metadata', icon: 'settings', group: 'Settings', run: go('/settings#metadata'), keywords: 'tmdb thetvdb tvdb api key pin posters' },
       { id: 'set-channels', label: 'Settings', context: 'Channels', icon: 'settings', group: 'Settings', run: go('/settings#channels'), keywords: 'horizon build ahead guide depth audio language watermark logo overlay opacity' },
       { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts stream format playlist m3u tuner hdhomerun plex emby' },
