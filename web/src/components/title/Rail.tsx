@@ -53,9 +53,9 @@ export default function Rail({
       {(title || aside) && (
         <div className="flex items-baseline gap-2 mb-4">
           {title && (
-            <h2 className="font-display font-extrabold text-[19px] sm:text-[21px] leading-none tracking-[0.18em] uppercase text-ink">
+            <h2 className="font-bold text-[19px] sm:text-[21px] leading-none tracking-[-0.01em] text-ink">
               {title}
-              {count != null && <span className="ml-3 font-mono text-[12px] font-normal tracking-normal text-ink-faint tabular-nums">{count}</span>}
+              {count != null && <span className="ml-3 text-[12px] font-normal text-ink-faint tabular-nums">{count}</span>}
             </h2>
           )}
           {aside && <div className="ml-auto flex items-center gap-2">{aside}</div>}
@@ -78,7 +78,7 @@ export default function Rail({
               aria-label={side === 'left' ? 'Scroll back' : 'Scroll on'}
               className={cx(
                 'absolute top-1/2 -translate-y-1/2 z-10 hidden sm:grid place-items-center w-9 h-9 rounded-full',
-                'bg-surface/90 backdrop-blur-md border border-edge-strong text-ink-soft shadow-[0_8px_24px_-8px_rgb(0_0_0/0.9)]',
+                'bg-[rgb(19_17_30/0.9)] backdrop-blur-md border border-white/[0.14] text-ink-soft shadow-[0_8px_24px_-8px_rgb(0_0_0/0.9)]',
                 'opacity-0 group-hover/rail:opacity-100 focus-visible:opacity-100 hover:text-ink hover:border-ink-ghost transition-opacity',
                 side === 'left' ? '-left-3' : '-right-3',
               )}

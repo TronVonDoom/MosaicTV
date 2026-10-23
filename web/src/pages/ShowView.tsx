@@ -65,8 +65,8 @@ function SeasonTuner({ seasons, open, onSelect }: { seasons: SeasonGroup[]; open
                 : 'bg-sunken border border-edge text-ink-soft hover:border-edge-strong hover:text-ink',
             )}
           >
-            <span className="font-display font-extrabold text-[34px] leading-none">{s.season == null ? '?' : s.season === 0 ? 'SP' : s.season}</span>
-            <span className={cx('font-mono text-[10.5px] leading-none tabular-nums', on ? 'text-canvas/70' : 'text-ink-faint')}>{present} EP</span>
+            <span className="font-bold text-[30px] leading-none tracking-[-0.02em]">{s.season == null ? '?' : s.season === 0 ? 'SP' : s.season}</span>
+            <span className={cx('text-[10.5px] leading-none tabular-nums', on ? 'text-canvas/70' : 'text-ink-faint')}>{present} ep</span>
           </button>
         )
       })}
@@ -78,10 +78,10 @@ function SeasonTuner({ seasons, open, onSelect }: { seasons: SeasonGroup[]; open
 function SegmentTitle({ title }: { title: string }) {
   const parts = title.split(/\s+\+\s+/)
   return (
-    <span className="font-display font-bold text-[19px] sm:text-[21px] leading-[1.1] uppercase text-ink">
+    <span className="font-bold text-[18px] sm:text-[19px] leading-[1.2] text-ink">
       {parts.map((p, i) => (
         <span key={i}>
-          {i > 0 && <span className="mx-2 inline-block align-[3px] rounded-[3px] border border-edge-strong px-1 font-mono text-[11px] font-normal text-ink-faint">+</span>}
+          {i > 0 && <span className="mx-2 inline-block align-[3px] rounded-[3px] border border-edge-strong px-1 text-[11px] font-normal text-ink-faint">+</span>}
           {p}
         </span>
       ))}
@@ -131,29 +131,29 @@ function EpisodeRow({
       onClick={onOpen}
       {...hold}
       className={cx(
-        'relative w-full flex gap-4 sm:gap-5 py-3.5 pl-1 sm:pl-2 pr-10 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue',
+        'relative w-full flex gap-4 sm:gap-5 py-3.5 pl-1 sm:pl-2 pr-10 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-now',
         ep.missing && 'opacity-55',
         hold.className,
       )}
     >
       <div
-        className="relative w-32 sm:w-44 aspect-video shrink-0 rounded-md overflow-hidden ring-1 ring-inset ring-white/10"
+        className="relative w-32 sm:w-44 aspect-video shrink-0 rounded-xl overflow-hidden ring-1 ring-inset ring-white/10"
         style={{ background: posterGradient(`${showTitle} ${ep.season}`) }}
       >
         {still ? (
           <img key={still} src={still} alt="" loading="lazy" onError={() => setFailed((n) => n + 1)} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
         ) : (
-          <span className="absolute inset-0 grid place-items-center font-display text-[30px] font-extrabold text-white/70 tabular-nums">{pad(ep.episode)}</span>
+          <span className="absolute inset-0 grid place-items-center text-[28px] font-bold text-white/70 tabular-nums">{pad(ep.episode)}</span>
         )}
       </div>
       <div className="hidden sm:flex w-[76px] shrink-0 flex-col gap-1.5 pt-0.5">
-        <span className="font-mono text-[13px] text-cue">E{pad(ep.episode)}</span>
-        <span className="font-mono text-[11px] text-ink-faint uppercase">{minutes(ep.durationSec)}</span>
+        <span className="text-[13px] text-now">E{pad(ep.episode)}</span>
+        <span className="text-[11px] text-ink-faint">{minutes(ep.durationSec)}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap sm:hidden mb-1 font-mono text-[11.5px]">
-          <span className="text-cue">E{pad(ep.episode)}</span>
-          <span className="text-ink-faint uppercase">{minutes(ep.durationSec)}</span>
+        <div className="flex items-center gap-2 flex-wrap sm:hidden mb-1 text-[11.5px]">
+          <span className="text-now">E{pad(ep.episode)}</span>
+          <span className="text-ink-faint">{minutes(ep.durationSec)}</span>
         </div>
         <SegmentTitle title={ep.title} />
         <div className="mt-1.5 flex items-center gap-2 flex-wrap">
@@ -179,11 +179,11 @@ function EpisodeRow({
           )}
         </div>
         {ep.overview && <p className="mt-1.5 text-[14px] leading-snug text-ink-muted line-clamp-2 max-w-[80ch]">{ep.overview}</p>}
-        {aired && <div className="mt-1.5 font-mono text-[11px] uppercase text-ink-faint">{formatAired(aired)}</div>}
+        {aired && <div className="mt-1.5 text-[11px] text-ink-faint">{formatAired(aired)}</div>}
       </div>
       <div className="hidden md:flex w-[118px] shrink-0 flex-col items-end gap-1.5 pt-0.5 text-right">
-        {first && <span className="font-mono text-[12px] text-ink-soft uppercase">{first}</span>}
-        {first && <span className="font-display font-bold text-[11.5px] tracking-[0.16em] uppercase text-ink-faint">First aired</span>}
+        {first && <span className="text-[12px] text-ink-soft">{first}</span>}
+        {first && <span className="font-semibold text-[11.5px] tracking-[0.12em] uppercase text-ink-faint">First aired</span>}
       </div>
     </button>
     <div className="absolute top-3 right-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100 transition-opacity">
@@ -442,7 +442,7 @@ export default function ShowView() {
                   {matchStatus.text}
                   {matchStatus.detail && <span className="text-ink-faint"> · {matchStatus.detail}</span>}
                 </span>
-                <button onClick={match.openFix} className="ml-1 font-medium text-cue hover:text-amber-200">
+                <button onClick={match.openFix} className="ml-1 font-medium text-now hover:text-white">
                   {showMatch && isMatched(showMatch) ? 'Fix match' : 'Match'}
                 </button>
               </div>
@@ -455,7 +455,7 @@ export default function ShowView() {
               {onAir?.now && onAir.now.channel.number != null && (
                 <Link
                   to={`/watch/${onAir.now.channel.number}`}
-                  className="inline-flex items-center gap-2 h-11 px-5 rounded-md bg-live text-white font-display font-bold text-[17px] tracking-[0.06em] uppercase hover:brightness-110"
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-indigo-400 text-now-ink font-semibold text-[15px] hover:bg-indigo-300 transition-colors"
                 >
                   <Icon name="play" size={16} className="fill-current" /> Tune in
                 </Link>
@@ -499,7 +499,7 @@ export default function ShowView() {
               {
                 label: 'Episode order',
                 value: detail.episodeOrderName && (
-                  <button onClick={() => setOrdering(true)} className="hover:text-cue transition-colors">
+                  <button onClick={() => setOrdering(true)} className="hover:text-now transition-colors">
                     {detail.episodeOrderName}
                   </button>
                 ),
@@ -533,7 +533,7 @@ export default function ShowView() {
             <section className="space-y-5">
               {detail.seasons.length > 1 && (
                 <div className="space-y-4">
-                  <OnAirHeading aside={<span className="font-mono text-[12px] text-ink-faint uppercase">{detail.seasons.length} in the library</span>}>Seasons</OnAirHeading>
+                  <OnAirHeading aside={<span className="text-[12px] text-ink-faint">{detail.seasons.length} in the library</span>}>Seasons</OnAirHeading>
                   <SeasonTuner seasons={detail.seasons} open={openSeason} onSelect={(s) => void selectSeason(s)} />
                 </div>
               )}
@@ -542,7 +542,7 @@ export default function ShowView() {
                 <div>
                   <div className="flex items-end justify-between gap-3 flex-wrap mb-3">
                     <div className="space-y-2">
-                      <h2 className="font-display font-extrabold text-[30px] sm:text-[36px] leading-none uppercase text-ink">{seasonLabel(current.season)}</h2>
+                      <h2 className="font-bold text-[26px] sm:text-[30px] leading-none tracking-[-0.02em] text-ink">{seasonLabel(current.season)}</h2>
                       <MonoFacts
                         className="!text-[12.5px] text-ink-muted"
                         items={[
@@ -550,7 +550,7 @@ export default function ShowView() {
                           formatDuration(runtime(present)),
                           firstAired && `First aired ${firstAired.slice(0, 4)}`,
                           missingCount > 0 && (
-                            <button onClick={() => setShowMissing((v) => !v)} className="text-amber-300/90 hover:text-amber-200 uppercase">
+                            <button onClick={() => setShowMissing((v) => !v)} className="text-amber-300/90 hover:text-amber-200">
                               {showMissing ? 'Hide' : 'Show'} {missingCount} missing file{missingCount === 1 ? '' : 's'}
                             </button>
                           ),

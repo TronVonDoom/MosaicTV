@@ -41,7 +41,7 @@ export function OnAirCue({ onAir }: { onAir: TitleOnAir | null }) {
   if (!onAir) return null
   const on = onAir.now
   const next = onAir.next[0]
-  const mono = 'font-mono text-[12.5px] sm:text-[13px] tracking-[0.08em] uppercase text-ink'
+  const mono = 'text-[12.5px] sm:text-[13px] text-ink'
   if (on) {
     return (
       <>
@@ -58,7 +58,7 @@ export function OnAirCue({ onAir }: { onAir: TitleOnAir | null }) {
       <>
         <Tally tone="next">Next</Tally>
         <span className={mono}>
-          {day} {time} · CH {next.channel.number ?? '—'} {next.channel.name}
+          {day} {time} · Ch {next.channel.number ?? '—'} {next.channel.name}
         </span>
       </>
     )
@@ -186,7 +186,7 @@ export default function MovieView() {
               {item.parent && (
                 <>
                   {' of '}
-                  <Link to={`${toGrid}/movie/${item.parent.id}`} className="text-cue hover:text-amber-200">
+                  <Link to={`${toGrid}/movie/${item.parent.id}`} className="text-now hover:text-white">
                     {item.parent.title}
                   </Link>
                 </>
@@ -213,7 +213,7 @@ export default function MovieView() {
                 {status.text}
                 {status.detail && <span className="text-ink-faint"> · {status.detail}</span>}
               </span>
-              <button onClick={match.openFix} className="ml-1 font-medium text-cue hover:text-amber-200">
+              <button onClick={match.openFix} className="ml-1 font-medium text-now hover:text-white">
                 {isMatched(target!) ? 'Fix match' : 'Match'}
               </button>
             </div>
@@ -224,7 +224,7 @@ export default function MovieView() {
             {onAir?.now && onAir.now.channel.number != null && (
               <Link
                 to={`/watch/${onAir.now.channel.number}`}
-                className="inline-flex items-center gap-2 h-11 px-5 rounded-md bg-live text-white font-display font-bold text-[17px] tracking-[0.06em] uppercase hover:brightness-110"
+                className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-indigo-400 text-now-ink font-semibold text-[15px] hover:bg-indigo-300 transition-colors"
               >
                 <Icon name="play" size={16} className="fill-current" /> Tune in
               </Link>

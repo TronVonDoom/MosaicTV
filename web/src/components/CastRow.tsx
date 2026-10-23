@@ -15,7 +15,7 @@ function Face({ name, photo }: { name: string; photo: string | null }) {
     .slice(0, 2)
     .join('')
   return (
-    <div className="aspect-[4/5] rounded-t-md overflow-hidden grid place-items-center font-display font-bold text-[30px] text-white/80" style={{ background: posterGradient(name) }}>
+    <div className="aspect-[4/5] rounded-t-xl overflow-hidden grid place-items-center font-bold text-[28px] text-white/80" style={{ background: posterGradient(name) }}>
       {src ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="w-full h-full object-cover object-[50%_20%] saturate-[0.85]" /> : initials}
     </div>
   )
@@ -42,8 +42,8 @@ export default function CastRow({
       {people.map((p, i) => (
         <div key={`${p.name}-${i}`} className="w-[128px] sm:w-[140px] shrink-0 snap-start">
           <Face name={p.name} photo={p.photo} />
-          <div className="rounded-b-md border-t-[3px] border-cue bg-raised px-2.5 pt-2 pb-2.5">
-            <div className="font-display font-bold text-[15.5px] leading-[1.1] uppercase text-ink line-clamp-2">{p.name}</div>
+          <div className="rounded-b-xl border-t-[3px] border-indigo-400 bg-raised px-2.5 pt-2 pb-2.5">
+            <div className="font-semibold text-[14.5px] leading-[1.2] text-ink line-clamp-2">{p.name}</div>
             {p.role && <div className="mt-1 text-[12.5px] leading-tight text-ink-muted line-clamp-2">{p.role}</div>}
           </div>
         </div>

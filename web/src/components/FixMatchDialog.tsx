@@ -99,7 +99,7 @@ export function MatchLinks({ target }: { target: MatchTarget }) {
           href={sourcePage(m.source, target.kind, m.id!)}
           target="_blank"
           rel="noreferrer"
-          className="ml-1.5 inline-flex items-center gap-0.5 text-[11.5px] text-ink-faint hover:text-cue align-[-1px]"
+          className="ml-1.5 inline-flex items-center gap-0.5 text-[11.5px] text-ink-faint hover:text-now align-[-1px]"
           title={`Open on ${MATCH_SOURCE_NAMES[m.source]}`}
         >
           {MATCH_SOURCE_NAMES[m.source]}
@@ -451,7 +451,7 @@ export default function FixMatchDialog({
                         type="button"
                         disabled={saving != null}
                         onClick={() => notThere(source)}
-                        className="ml-1.5 font-medium text-cue hover:text-amber-200"
+                        className="ml-1.5 font-medium text-now hover:text-white"
                       >
                         It’s not on {name}
                       </button>

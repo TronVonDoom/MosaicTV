@@ -398,7 +398,7 @@ function Row({
       ) : (
         <span className="w-[13px]" />
       )}
-      <span className="w-14 font-mono text-xs text-ink-faint shrink-0">{code}</span>
+      <span className="w-14 text-xs text-ink-faint shrink-0">{code}</span>
       <span className="flex-1 truncate text-sm text-ink flex items-center gap-2">
         <span className="truncate">{seg.title}</span>
         {foreign && (
@@ -507,7 +507,7 @@ function SegmentPicker({
                 <span className="flex-1 min-w-0">
                   <span className="block truncate text-sm text-ink">
                     {seg.showTitle ?? '—'}
-                    {code ? <span className="text-ink-faint font-mono"> {code}</span> : null}
+                    {code ? <span className="text-ink-faint"> {code}</span> : null}
                   </span>
                   <span className="block truncate text-xs text-ink-faint">
                     {seg.title}

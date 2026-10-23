@@ -97,7 +97,7 @@ function PosterMosaic({ sample, library }: { sample: LibrarySample | undefined; 
 function Facts({ items }: { items: ReactNode[] }) {
   return (
     <div className="overflow-hidden">
-      <div className="-ml-5 flex flex-wrap gap-y-1 font-mono text-[12px] uppercase text-ink-muted tabular-nums">
+      <div className="-ml-5 flex flex-wrap gap-y-1 text-[13px] text-ink-muted tabular-nums">
         {items.map((f, i) => (
           <span
             key={i}
@@ -141,7 +141,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
       <PosterRail
         title={`Top rated in ${library.name}`}
         actions={
-          <Link to={`/library/${library.id}?view=all`} className="font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200 mr-1">
+          <Link to={`/library/${library.id}?view=all`} className="text-[13.5px] font-semibold text-now hover:text-white mr-1">
             See all
           </Link>
         }
@@ -174,7 +174,7 @@ function LibraryRail({ library, onOpen }: { library: Library; onOpen: (id: numbe
     <PosterRail
       title={`Recently added to ${library.name}`}
       actions={
-        <Link to={`/library/${library.id}?view=all`} className="font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200 mr-1">
+        <Link to={`/library/${library.id}?view=all`} className="text-[13.5px] font-semibold text-now hover:text-white mr-1">
           See all
         </Link>
       }
@@ -271,7 +271,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
   return (
     <div className="space-y-10">
     {/* Rows that come out even: four libraries pair up rather than leave one alone under three. */}
-    <div className={cx('grid grid-cols-1 gap-5 sm:grid-cols-2', libraries.length === 3 ? 'xl:grid-cols-3' : libraries.length > 4 && 'xl:grid-cols-3')}>
+    <div className={cx('grid grid-cols-1 gap-1.5 sm:grid-cols-2', libraries.length === 3 ? 'xl:grid-cols-3' : libraries.length > 4 && 'xl:grid-cols-3')}>
       {libraries.map((l, i) => {
         const [one, many] = KIND_NOUN[l.kind]
         const home = homes[l.id]
@@ -280,7 +280,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
             key={l.id}
             to={`/library/${l.id}`}
             style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
-            className="group relative flex flex-col overflow-hidden rounded-2xl border border-edge surface-card card-interactive rise-in"
+            className="group relative flex flex-col overflow-hidden rounded-[22px] border border-white/[0.08] bg-white/[0.045] card-interactive rise-in"
           >
             <div className={cx('relative', libraries.length <= 2 || libraries.length === 4 ? 'h-56' : 'h-48')}>
               <PosterMosaic sample={samples[l.id]} library={l} />
@@ -292,11 +292,11 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
             </div>
             <div className="relative -mt-16 flex items-end gap-4 px-5 pb-5">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 font-display font-bold text-[13px] uppercase tracking-[0.2em] text-ink-soft">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-ink-soft">
                   <Icon name={KIND_ICON[l.kind]} size={14} />
                   {KIND_LABEL[l.kind]}
                 </div>
-                <div className="mt-1.5 font-display font-extrabold text-[40px] sm:text-[46px] leading-[0.9] uppercase break-words line-clamp-2 [text-shadow:0_2px_18px_rgb(0_0_0/0.45)]">
+                <div className="mt-1 font-bold text-[30px] sm:text-[34px] leading-[1.05] tracking-[-0.02em] break-words line-clamp-2 [text-shadow:0_2px_18px_rgb(0_0_0/0.45)]">
                   {l.name}
                 </div>
                 <div className="mt-3">
@@ -306,7 +306,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
                         ? [
                             `${home.titles.toLocaleString()} ${l.kind === 'tv' ? 'shows' : isMusic(l) ? 'artists' : many}`,
                             `${home.onChannel.toLocaleString()} on a channel`,
-                            <span className="text-cue">{home.offAir.toLocaleString()} off air</span>,
+                            <span className="text-now">{home.offAir.toLocaleString()} off air</span>,
                           ]
                         : [
                             `${l.itemCount.toLocaleString()} ${l.itemCount === 1 ? one : many}`,
@@ -316,7 +316,7 @@ export default function LibraryBrowse({ onAddLibrary }: { onAddLibrary: () => vo
                   />
                 </div>
               </div>
-              <span className="shrink-0 mb-0.5 grid place-items-center w-9 h-9 rounded-full bg-white/[0.06] ring-1 ring-white/10 text-ink-muted group-hover:bg-cue group-hover:text-cue-ink group-hover:ring-transparent transition-colors">
+              <span className="shrink-0 mb-0.5 grid place-items-center w-9 h-9 rounded-full bg-white/[0.06] ring-1 ring-white/10 text-ink-muted group-hover:bg-indigo-400 group-hover:text-now-ink group-hover:ring-transparent transition-colors">
                 <Icon name="chevronRight" size={16} />
               </span>
             </div>

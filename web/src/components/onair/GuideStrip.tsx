@@ -60,21 +60,21 @@ export default function GuideStrip({
   }, [from, to, rows.length])
 
   return (
-    <div className={cx('flex rounded-xl border border-edge bg-sunken overflow-hidden', className)}>
-      <div className="w-[88px] sm:w-[112px] shrink-0 border-r border-edge bg-surface/70">
+    <div className={cx('flex rounded-[22px] border border-white/[0.08] bg-white/[0.03] overflow-hidden', className)}>
+      <div className="w-[88px] sm:w-[112px] shrink-0 border-r border-white/[0.06] bg-white/[0.025]">
         <div className="h-6" />
         {rows.map((r) => (
-          <div key={r.channel.id} className="flex flex-col items-center justify-center gap-1 border-t border-edge/60" style={{ height: ROW_H }}>
+          <div key={r.channel.id} className="flex flex-col items-center justify-center gap-1 border-t border-white/[0.06]" style={{ height: ROW_H }}>
             <ChannelLogo logoId={r.channel.logoId} name={r.channel.name} size={44} plate={false} />
-            <span className="font-mono text-[12px] text-ink-muted tabular-nums">{r.channel.number ?? '—'}</span>
+            <span className="text-[12px] text-ink-muted tabular-nums">{r.channel.number ?? '—'}</span>
           </div>
         ))}
       </div>
       <div ref={scroller} className="relative flex-1 overflow-x-auto no-scrollbar">
         <div className="relative" style={{ minWidth: minWidth || undefined, height: 24 + rows.length * ROW_H }}>
           {hours.map((h) => (
-            <div key={h} className="absolute top-0 bottom-0 w-px bg-edge/70" style={{ left: `${at(h)}%` }}>
-              <span className="absolute left-1.5 top-1 font-mono text-[10.5px] text-ink-faint whitespace-nowrap">
+            <div key={h} className="absolute top-0 bottom-0 w-px bg-white/[0.06]" style={{ left: `${at(h)}%` }}>
+              <span className="absolute left-1.5 top-1 text-[10.5px] text-ink-faint whitespace-nowrap">
                 {formatClock(h).replace(':00', '')}
               </span>
             </div>
@@ -92,22 +92,22 @@ export default function GuideStrip({
                 const common = {
                   title: [p.title, p.subtitle, `${formatClock(s)} – ${formatClock(e)}`].filter(Boolean).join('\n'),
                   className: cx(
-                    'absolute rounded-md px-2.5 py-2 flex flex-col justify-center gap-1 overflow-hidden text-left transition-[filter,box-shadow]',
+                    'absolute rounded-xl px-2.5 py-2 flex flex-col justify-center gap-1 overflow-hidden text-left transition-[filter,box-shadow]',
                     p.mine && mark === 'light'
-                      ? 'bg-cue text-cue-ink shadow-[0_8px_24px_-10px_rgb(255_176_32/0.7)]'
+                      ? 'bg-indigo-400 text-now-ink shadow-[0_8px_24px_-10px_rgb(167_139_250/0.7)]'
                       : live
-                        ? 'bg-raised text-ink shadow-[inset_3px_0_0_var(--color-live)]'
-                        : 'bg-[#161a26] text-ink-soft',
+                        ? 'bg-white/[0.1] text-ink ring-1 ring-inset ring-now/40'
+                        : 'bg-white/[0.05] text-ink-soft',
                     !p.mine && mark === 'dim' && 'opacity-40',
-                    clickable && 'hover:brightness-110 focus-visible:outline-2 focus-visible:outline-cue',
+                    clickable && 'hover:brightness-110 focus-visible:outline-2 focus-visible:outline-now',
                   ),
                   style: { left: `calc(${left}% + 2px)`, width: `calc(${width}% - 4px)`, top: 24 + ri * ROW_H + 8, height: ROW_H - 16 },
                 }
                 const body = (
                   <>
                     <span className={cx('truncate text-[13.5px] leading-tight', p.mine && mark === 'light' ? 'font-bold' : 'font-semibold')}>{p.title}</span>
-                    <span className={cx('truncate font-mono text-[10.5px] leading-none', p.mine && mark === 'light' ? 'text-cue-ink/80' : 'text-ink-faint')}>
-                      {live && !(p.mine && mark === 'light') ? 'ON NOW' : formatClock(s)}
+                    <span className={cx('truncate text-[10.5px] leading-none', p.mine && mark === 'light' ? 'text-now-ink/75' : 'text-ink-faint')}>
+                      {live && !(p.mine && mark === 'light') ? 'On now' : formatClock(s)}
                       {p.subtitle && !/^\d{4}$/.test(p.subtitle) ? ` · ${p.subtitle}` : ''}
                     </span>
                   </>
@@ -125,8 +125,8 @@ export default function GuideStrip({
               }),
           )}
           {now > start && now < end && (
-            <div className="absolute top-0 bottom-0 w-0.5 bg-live pointer-events-none" style={{ left: `${at(now)}%` }}>
-              <span className="absolute left-1.5 bottom-1 font-mono text-[10px] font-semibold text-live whitespace-nowrap">NOW</span>
+            <div className="absolute top-0 bottom-0 w-0.5 bg-now pointer-events-none" style={{ left: `${at(now)}%` }}>
+              <span className="absolute left-1.5 bottom-1 text-[10.5px] font-semibold text-now whitespace-nowrap">Now</span>
             </div>
           )}
         </div>

@@ -84,9 +84,9 @@ export default function AddToChannel({
                 <div className="flex items-center gap-3 mb-2">
                   <ChannelLogo logoId={ch.logoId} name={ch.name} size={36} />
                   <div className="min-w-0">
-                    <div className="font-display font-bold text-[17px] uppercase tracking-[0.04em] leading-none truncate">{ch.name}</div>
-                    <div className="font-mono text-[11.5px] text-ink-faint mt-1">
-                      CH {ch.number ?? '—'}
+                    <div className="font-semibold text-[16px] leading-tight truncate">{ch.name}</div>
+                    <div className="text-[11.5px] text-ink-faint mt-1">
+                      Ch {ch.number ?? '—'}
                       {airsIn.length > 0 && <span className="normal-case font-sans text-ink-muted"> · airs here in {airsIn.map((c) => c.name).join(', ')}</span>}
                     </div>
                   </div>
@@ -106,7 +106,7 @@ export default function AddToChannel({
                           onClick={() => void add(c, ch)}
                           className={cx(
                             'flex items-center gap-3 rounded-lg border px-3 py-2 touch:py-3 text-left transition-colors',
-                            all ? 'border-edge text-ink-faint' : 'border-edge-strong hover:border-cue hover:bg-cue/[0.06] disabled:opacity-50',
+                            all ? 'border-edge text-ink-faint' : 'border-edge-strong hover:border-indigo-300/60 hover:bg-indigo-400/[0.08] disabled:opacity-50',
                           )}
                         >
                           <span className="flex-1 min-w-0">
@@ -117,8 +117,8 @@ export default function AddToChannel({
                               </span>
                             )}
                           </span>
-                          <span className="font-mono text-[11px] text-ink-faint tabular-nums">{c.itemCount.toLocaleString()}</span>
-                          <OnAirLabel className={cx('text-[11px]', !all && 'text-cue')}>{all ? 'Already in' : busy === c.id ? 'Adding…' : some ? 'Add the rest' : 'Add'}</OnAirLabel>
+                          <span className="text-[11px] text-ink-faint tabular-nums">{c.itemCount.toLocaleString()}</span>
+                          <OnAirLabel className={cx('text-[11px]', !all && 'text-now')}>{all ? 'Already in' : busy === c.id ? 'Adding…' : some ? 'Add the rest' : 'Add'}</OnAirLabel>
                         </button>
                       )
                     })}

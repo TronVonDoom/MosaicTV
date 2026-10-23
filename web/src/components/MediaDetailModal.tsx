@@ -9,7 +9,7 @@ import { describeMatch, isMatched, MatchLinks, matchTarget, useMatchActions, typ
 import CastRow from './CastRow'
 import FileDetails from './title/FileDetails'
 import { Stars } from './title/TitleHero'
-import { MonoFacts, OnAirLabel, RatingBox, TestStripe } from './onair/OnAir'
+import { MonoFacts, OnAirLabel, RatingBox } from './onair/OnAir'
 import { Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
 
 /**
@@ -118,20 +118,19 @@ export default function MediaDetailModal({
         ) : poster ? (
           <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-60" />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-black/10" />
-        <TestStripe className="absolute inset-x-0 top-0 h-[4px]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#110e1e] via-[#110e1e]/50 to-black/10" />
         <IconButton
           icon="close"
           label="Close"
           onClick={onClose}
-          className="absolute top-3 right-3 bg-black/45 backdrop-blur-md text-white hover:bg-black/65 hover:text-white"
+          className="absolute top-3 right-3 bg-[rgb(12_10_22/0.5)] backdrop-blur-md text-white hover:bg-[rgb(12_10_22/0.7)] hover:text-white"
         />
         {shown !== id && (
           <IconButton
             icon="back"
             label="Back"
             onClick={() => setShown(id)}
-            className="absolute top-3 left-3 bg-black/45 backdrop-blur-md text-white hover:bg-black/65 hover:text-white"
+            className="absolute top-3 left-3 bg-[rgb(12_10_22/0.5)] backdrop-blur-md text-white hover:bg-[rgb(12_10_22/0.7)] hover:text-white"
           />
         )}
         <div className="absolute inset-x-0 bottom-0 px-5 sm:px-6 pb-4">
@@ -139,8 +138,8 @@ export default function MediaDetailModal({
             <Skeleton className="h-7 w-2/3" />
           ) : (
             <>
-              {kicker && <div className="font-mono text-[12px] uppercase tracking-[0.06em] text-white/75 truncate">{kicker}</div>}
-              <h2 className="mt-1 font-display font-extrabold uppercase text-[32px] sm:text-[40px] leading-[0.9] text-white text-balance">{item.title}</h2>
+              {kicker && <div className="text-[12px] text-white/75 truncate">{kicker}</div>}
+              <h2 className="mt-1 font-bold text-[28px] sm:text-[34px] leading-[1.05] tracking-[-0.02em] text-white text-balance">{item.title}</h2>
             </>
           )}
         </div>
@@ -167,10 +166,10 @@ export default function MediaDetailModal({
               ]}
             />
             {genres.length > 0 && (
-              <div className="mt-2.5 font-display font-semibold text-[14px] tracking-[0.18em] uppercase text-ink-muted">{genres.join(' / ')}</div>
+              <div className="mt-2.5 text-[14px] text-ink-muted">{genres.join(' · ')}</div>
             )}
-            {item.aired && <div className="mt-2 font-mono text-[11.5px] uppercase text-cue">{formatAired(item.aired)}</div>}
-            {item.tagline && <p className="mt-4 font-display italic font-semibold text-[20px] leading-tight text-ink">{item.tagline}</p>}
+            {item.aired && <div className="mt-2 text-[11.5px] text-now">{formatAired(item.aired)}</div>}
+            {item.tagline && <p className="mt-4 font-semibold text-[18px] leading-snug text-ink">{item.tagline}</p>}
             {item.overview && <p className={cx(item.tagline ? 'mt-1.5' : 'mt-4', 'text-[14px] text-ink-soft leading-relaxed')}>{item.overview}</p>}
             {(item.directors || item.studio) && (
               <p className="mt-3 text-[12.5px] text-ink-muted">
@@ -190,7 +189,7 @@ export default function MediaDetailModal({
               <div className="mt-6">
                 <div className="mb-2 flex items-baseline gap-2">
                   <OnAirLabel className="text-ink-muted">Extras</OnAirLabel>
-                  <span className="font-mono text-[11.5px] text-ink-faint tabular-nums">{item.extras.length}</span>
+                  <span className="text-[11.5px] text-ink-faint tabular-nums">{item.extras.length}</span>
                 </div>
                 <ul className="rounded-xl border border-edge bg-sunken/50 divide-y divide-edge/60 overflow-hidden">
                   {item.extras.map((x) => (
@@ -240,7 +239,7 @@ export default function MediaDetailModal({
                 type="button"
                 onClick={() => setFileOpen((v) => !v)}
                 aria-expanded={fileOpen}
-                className="flex items-center gap-1.5 font-display font-bold text-[14px] uppercase tracking-[0.16em] text-ink-muted hover:text-ink transition-colors"
+                className="flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-muted hover:text-ink transition-colors"
               >
                 <Icon name="chevronRight" size={15} className={cx('transition-transform duration-150', fileOpen && 'rotate-90')} />
                 The file
@@ -256,7 +255,7 @@ export default function MediaDetailModal({
                     onClose()
                     navigate(page.to)
                   }}
-                  className="inline-flex items-center gap-1.5 h-10 pl-4 pr-3 rounded-md bg-ink text-canvas font-display font-bold text-[16px] tracking-[0.06em] uppercase hover:bg-white"
+                  className="inline-flex items-center gap-1.5 h-10 pl-4 pr-3 rounded-full bg-indigo-400 text-now-ink font-semibold text-[14px] hover:bg-indigo-300 transition-colors"
                 >
                   {page.label}
                   <Icon name="chevronRight" size={16} />

@@ -8,14 +8,14 @@ type TallyTone = 'live' | 'next' | 'new' | 'off' | 'ok' | 'alert'
 
 const TALLY: Record<TallyTone, string> = {
   live: 'bg-live text-white',
-  next: 'bg-cue text-cue-ink',
+  next: 'bg-indigo-400 text-now-ink',
   new: 'bg-live text-white',
   off: 'border border-white/[0.16] text-ink-muted',
   ok: 'bg-emerald-400 text-emerald-950',
   alert: 'bg-rose-500 text-white',
 }
 
-/** A tally light: LIVE (red), NEXT (amber), NEW, OFF AIR — or a status: OK (green), ALERT. */
+/** A tally light: LIVE (red), NEXT (violet), NEW, OFF AIR — or a status: OK (green), ALERT. */
 export function Tally({ tone, children, className }: { tone: TallyTone; children: ReactNode; className?: string }) {
   return (
     <span
@@ -77,11 +77,6 @@ export function RatingBox({ children }: { children: ReactNode }) {
   return <span className="border border-white/[0.22] rounded-md px-1.5 py-px text-[12px] leading-tight">{children}</span>
 }
 
-/** Once the brand's colours as bars along the top of a page; the Mosaic look
- *  has none, so it draws nothing. Kept so callers needn't change. */
-export function TestStripe(_props: { className?: string }) {
-  return null
-}
 
 /** A count with its label under it, for a page's header. */
 export function StatFigure({ value, label }: { value: ReactNode; label: string }) {

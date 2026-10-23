@@ -59,7 +59,7 @@ function SignIn({ status }: { status: AuthStatus }) {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center text-center mb-8">
           <img src="/mosaictv-icon.png" alt="" className="h-14 w-14 mb-4" />
-          <h1 className="font-display font-bold uppercase text-[30px] leading-none tracking-[0.06em]">Sign in</h1>
+          <h1 className="font-bold text-[30px] leading-none tracking-[-0.02em]">Sign in</h1>
           <p className="mt-2 text-[13.5px] text-ink-muted">This MosaicTV asks who you are away from home.</p>
         </div>
         {pairing ? (

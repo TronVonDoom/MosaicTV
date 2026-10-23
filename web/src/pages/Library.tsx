@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import LibraryBrowse from '../components/LibraryBrowse'
 import LibrarySources from '../components/LibrarySources'
-import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
-import { StatFigure } from '../components/onair/OnAir'
+import { Masthead, NetworkTabs } from '../components/onair/Masthead'
+import { formatLongDuration } from '../lib/format'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { useHashTab } from '../lib/hooks'
@@ -47,17 +47,27 @@ export default function Library() {
   return (
     <div>
       <Masthead
-        kicker={<Kicker items={[{ label: 'Content' }, { label: TABS.find((t) => t.id === tab)!.label }]} />}
         title="Library"
-        lead={DESCRIPTIONS[tab]}
-        aside={
-          stats && (
-            <>
-              <StatFigure value={stats.libraries} label={stats.libraries === 1 ? 'Library' : 'Libraries'} />
-              <StatFigure value={stats.items.toLocaleString()} label="Files" />
-              <StatFigure value={Math.round(stats.totalDurationSec / 3600).toLocaleString()} label="Hours" />
-            </>
-          )
+        lead={
+          <>
+            {DESCRIPTIONS[tab]}
+            {/* What's in it all, as the old dashboard counted it. */}
+            {stats && (
+              <span className="mt-1 block text-ink-muted tabular-nums">
+                {[
+                  `${stats.libraries} ${stats.libraries === 1 ? 'library' : 'libraries'}`,
+                  stats.byType.episode ? `${stats.byType.episode.toLocaleString()} episodes` : null,
+                  stats.byType.movie ? `${stats.byType.movie.toLocaleString()} movies` : null,
+                  stats.byType.song ? `${stats.byType.song.toLocaleString()} songs` : null,
+                  stats.byType.music ? `${stats.byType.music.toLocaleString()} music videos` : null,
+                  `${formatLongDuration(stats.totalDurationSec)} back to back`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                {stats.missing > 0 && <span className="text-amber-300"> · {stats.missing.toLocaleString()} missing on disk</span>}
+              </span>
+            )}
+          </>
         }
         tabs={<NetworkTabs<Tab> tabs={TABS} active={tab} onChange={setTab} />}
       />

@@ -17,10 +17,10 @@ export function Listings({ slots, showTitles = false, onOpen }: { slots: OnAirSl
         const live = new Date(s.start).getTime() <= now && new Date(s.stop).getTime() > now
         const row = (
           <>
-            <span className="w-[84px] sm:w-[96px] shrink-0 font-mono text-[12.5px] uppercase text-cue">{live ? <Tally tone="live">Live</Tally> : day}</span>
-            <span className="w-[72px] sm:w-[84px] shrink-0 font-mono text-[14px] font-semibold tabular-nums text-ink">{time}</span>
-            <span className="hidden sm:block w-[52px] shrink-0 font-mono text-[12px] text-ink-faint">CH {s.channel.number ?? '—'}</span>
-            {code && <span className="hidden md:block w-[92px] shrink-0 font-mono text-[12px] text-ink-muted uppercase">{code}</span>}
+            <span className="w-[84px] sm:w-[96px] shrink-0 text-[12.5px] text-now">{live ? <Tally tone="live">Live</Tally> : day}</span>
+            <span className="w-[72px] sm:w-[84px] shrink-0 text-[14px] font-semibold tabular-nums text-ink">{time}</span>
+            <span className="hidden sm:block w-[52px] shrink-0 text-[12px] text-ink-faint">Ch {s.channel.number ?? '—'}</span>
+            {code && <span className="hidden md:block w-[92px] shrink-0 text-[12px] text-ink-muted">{code}</span>}
             <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-ink-soft">
               {showTitles ? (
                 <>
@@ -98,13 +98,13 @@ export default function TitleOnAirSection({
   const last = onAir.last ? formatAiring(onAir.last.at, now) : null
   const upcoming = [...(onAir.now ? [onAir.now] : []), ...onAir.next]
   const aside = last ? (
-    <span className="font-mono text-[11.5px] sm:text-[12px] uppercase tracking-[0.04em] text-ink-faint">
+    <span className="text-[11.5px] sm:text-[12px] text-ink-faint">
       Last on {last.day} {last.time}
-      {onAir.last?.channel?.number != null && ` · CH ${onAir.last.channel.number}`}
+      {onAir.last?.channel?.number != null && ` · Ch ${onAir.last.channel.number}`}
       {onAir.airedCount > 1 && ` · ${onAir.airedCount} airings logged`}
     </span>
   ) : upcoming.length > 0 ? (
-    <span className="font-mono text-[11.5px] sm:text-[12px] uppercase tracking-[0.04em] text-ink-faint">First airing on MosaicTV</span>
+    <span className="text-[11.5px] sm:text-[12px] text-ink-faint">First airing on MosaicTV</span>
   ) : null
 
   return (
@@ -121,7 +121,7 @@ export default function TitleOnAirSection({
             No channel airs {name} yet. Put it in one of a channel’s collections and it joins that channel’s schedule.
           </p>
           {onAdd && (
-            <button type="button" onClick={onAdd} className="h-10 px-4 rounded-md bg-ink text-canvas font-display font-bold text-[16px] tracking-[0.06em] uppercase hover:bg-white">
+            <button type="button" onClick={onAdd} className="h-10 px-4 rounded-full bg-indigo-400 text-now-ink font-semibold text-[14px] hover:bg-indigo-300 transition-colors">
               Add to a channel
             </button>
           )}

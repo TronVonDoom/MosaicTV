@@ -28,7 +28,7 @@ export default function Story({
     <section className={cx('grid gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1fr)_380px] items-start', className)}>
       <div className="min-w-0 space-y-4">
         <OnAirLabel>The story</OnAirLabel>
-        {tagline && <p className="font-display italic font-semibold text-[26px] sm:text-[34px] leading-[1.08] text-ink text-balance">{tagline}</p>}
+        {tagline && <p className="font-semibold text-[23px] sm:text-[28px] leading-[1.15] tracking-[-0.015em] text-ink text-balance">{tagline}</p>}
         {overview ? (
           <ExpandableText text={overview} lines={4} textClassName="text-[16px] sm:text-[17px] leading-[1.65] text-ink-soft max-w-[68ch]" />
         ) : (
@@ -89,7 +89,7 @@ export function Slate({
                 <dt>
                   <OnAirLabel className="text-[11.5px]">{s.label}</OnAirLabel>
                 </dt>
-                <dd className="mt-1 font-mono text-[13px] text-ink-soft truncate">{s.value}</dd>
+                <dd className="mt-1 text-[13px] text-ink-soft truncate">{s.value}</dd>
               </div>
             ))}
         </dl>

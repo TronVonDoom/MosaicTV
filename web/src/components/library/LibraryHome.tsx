@@ -10,7 +10,8 @@ import GuideStrip from '../onair/GuideStrip'
 import { OnAirHeading, OnAirLabel, Tally } from '../onair/OnAir'
 import PosterCard from '../PosterCard'
 import Rail from '../title/Rail'
-import { Skeleton, cx } from '../ui'
+import { Skeleton, buttonClass, cx } from '../ui'
+import Icon from '../Icon'
 
 export type LibraryView = 'home' | 'all' | 'offair'
 
@@ -36,14 +37,8 @@ function Backdrop({ slot, className }: { slot: OnAirSlot; className?: string }) 
 function TuneIn({ slot, primary = true }: { slot: OnAirSlot; primary?: boolean }) {
   if (slot.channel.number == null) return null
   return (
-    <Link
-      to={`/watch/${slot.channel.number}`}
-      className={cx(
-        'inline-flex items-center h-10 px-4 rounded-md font-display font-bold text-[16px] tracking-[0.06em] uppercase transition-colors',
-        primary ? 'bg-ink text-canvas hover:bg-white' : 'border border-ink-ghost bg-black/40 text-ink hover:border-ink-muted',
-      )}
-    >
-      Tune in
+    <Link to={`/watch/${slot.channel.number}`} className={buttonClass(primary ? 'primary' : 'secondary', 'md')}>
+      <Icon name="play" size={14} className="fill-current" /> Watch
     </Link>
   )
 }
@@ -53,42 +48,42 @@ function OnNowFeature({ slot, following, onOpen }: { slot: OnAirSlot; following:
   const now = Date.now()
   const { code, name } = splitSubtitle(slot.subtitle)
   return (
-    <div className="relative rounded-xl overflow-hidden border border-edge flex flex-col lg:flex-row min-h-[330px]">
+    <div className="relative rounded-[22px] overflow-hidden border border-white/[0.08] flex flex-col lg:flex-row min-h-[330px]">
       <Backdrop slot={slot} />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(7_8_12/0.96)_0%,rgb(7_8_12/0.75)_42%,rgb(7_8_12/0.35)_70%,rgb(7_8_12/0.9)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(8_7_13/0.95)_0%,rgb(8_7_13/0.72)_42%,rgb(8_7_13/0.3)_70%,rgb(8_7_13/0.9)_100%)]" />
       <div className="relative flex-1 p-6 sm:p-8 flex flex-col justify-end gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <Tally tone="live">Live on {slot.channel.number ?? slot.channel.name}</Tally>
-          <span className="font-mono text-[12.5px] tracking-[0.06em] uppercase text-ink">
+          <span className="text-[12.5px] text-ink">
             {formatClock(slot.start)} – {formatClock(slot.stop)} · {slot.channel.name}
           </span>
         </div>
         <button type="button" onClick={() => onOpen(slot)} className="text-left">
-          <span className="block font-display font-extrabold uppercase leading-[0.88] text-white text-[44px] sm:text-[64px] lg:text-[76px] hover:text-cue transition-colors text-balance">
+          <span className="block font-bold leading-[1.02] tracking-[-0.025em] text-white text-[36px] sm:text-[48px] lg:text-[56px] hover:text-now transition-colors text-balance">
             {slot.title}
           </span>
         </button>
-        {(code || name) && <div className="font-mono text-[13px] uppercase text-ink-soft">{[code, name].filter(Boolean).join(' · ')}</div>}
+        {(code || name) && <div className="text-[13px] text-ink-soft">{[code, name].filter(Boolean).join(' · ')}</div>}
         <div className="max-w-[520px] h-1 rounded-full bg-white/20">
-          <div className="h-1 rounded-full bg-live" style={{ width: `${Math.round(progress(slot, now) * 100)}%` }} />
+          <div className="h-1 rounded-full bg-now" style={{ width: `${Math.round(progress(slot, now) * 100)}%` }} />
         </div>
         <div className="mt-1 flex gap-2.5">
           <TuneIn slot={slot} />
           <button
             type="button"
             onClick={() => onOpen(slot)}
-            className="inline-flex items-center h-10 px-4 rounded-md border border-ink-ghost bg-black/40 font-display font-bold text-[16px] tracking-[0.06em] uppercase text-ink hover:border-ink-muted"
+            className={buttonClass('secondary', 'md')}
           >
             About it
           </button>
         </div>
       </div>
       {following.length > 0 && (
-        <div className="relative lg:w-[300px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-black/55 backdrop-blur-sm p-6 flex flex-col gap-3">
+        <div className="relative lg:w-[300px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-[rgb(12_10_22/0.6)] backdrop-blur-md p-6 flex flex-col gap-3">
           <OnAirLabel className="text-ink-muted">Up next on {slot.channel.number ?? slot.channel.name}</OnAirLabel>
           {following.map((f) => (
             <button key={f.start} type="button" onClick={() => onOpen(f)} className="flex gap-3.5 items-baseline pb-2.5 border-b border-white/10 text-left group">
-              <span className="w-[76px] shrink-0 font-mono text-[13px] text-cue whitespace-nowrap">{formatClock(f.start)}</span>
+              <span className="w-[76px] shrink-0 text-[13px] text-now whitespace-nowrap">{formatClock(f.start)}</span>
               <span className="text-[15px] font-medium text-ink-soft group-hover:text-ink truncate">{f.title}</span>
             </button>
           ))}
@@ -103,7 +98,7 @@ function OnNowCard({ slot, onOpen }: { slot: OnAirSlot; onOpen: (s: OnAirSlot) =
   const now = Date.now()
   const { code, name } = splitSubtitle(slot.subtitle)
   return (
-    <div className="relative rounded-xl overflow-hidden border border-edge min-h-[230px] flex flex-col">
+    <div className="relative rounded-[22px] overflow-hidden border border-white/[0.08] min-h-[230px] flex flex-col">
       <Backdrop slot={slot} />
       <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/75 to-canvas/10" />
       <div className="relative flex items-start justify-between p-4">
@@ -112,14 +107,14 @@ function OnNowCard({ slot, onOpen }: { slot: OnAirSlot; onOpen: (s: OnAirSlot) =
       </div>
       <div className="relative mt-auto p-4 pt-0 flex flex-col gap-2">
         <button type="button" onClick={() => onOpen(slot)} className="text-left">
-          <span className="block font-display font-extrabold uppercase text-[28px] leading-[0.92] text-white hover:text-cue transition-colors line-clamp-2">{slot.title}</span>
+          <span className="block font-bold text-[22px] leading-[1.1] tracking-[-0.015em] text-white hover:text-now transition-colors line-clamp-2">{slot.title}</span>
         </button>
-        <div className="font-mono text-[11.5px] uppercase text-ink-muted truncate">{[code, name].filter(Boolean).join(' · ') || `${formatClock(slot.start)} – ${formatClock(slot.stop)}`}</div>
+        <div className="text-[11.5px] text-ink-muted truncate">{[code, name].filter(Boolean).join(' · ') || `${formatClock(slot.start)} – ${formatClock(slot.stop)}`}</div>
         <div className="flex items-center gap-3">
           <div className="flex-1 h-1 rounded-full bg-white/20">
-            <div className="h-1 rounded-full bg-live" style={{ width: `${Math.round(progress(slot, now) * 100)}%` }} />
+            <div className="h-1 rounded-full bg-now" style={{ width: `${Math.round(progress(slot, now) * 100)}%` }} />
           </div>
-          <span className="font-mono text-[11px] text-ink-faint">{formatClock(slot.stop)}</span>
+          <span className="text-[11px] text-ink-faint">{formatClock(slot.stop)}</span>
         </div>
       </div>
     </div>
@@ -131,12 +126,13 @@ function DecadeMeter({ decades, noun }: { decades: Home['decades']; noun: string
   if (decades.length === 0) return null
   const max = Math.max(...decades.map((d) => d.count))
   const per = Math.max(1, Math.ceil(max / 30))
-  const tone = (i: number) => (i >= 24 ? 'bg-live' : i >= 16 ? 'bg-cue' : 'bg-emerald-400')
+  // Lighter as the stack climbs: the brand's violet, a meter in one colour.
+  const tone = (i: number) => (i >= 24 ? 'bg-fuchsia-300' : i >= 16 ? 'bg-now' : 'bg-indigo-400')
   return (
-    <div className="rounded-xl border border-edge bg-sunken p-5 sm:p-6 flex flex-col gap-4 min-w-0">
+    <div className="rounded-[22px] border border-white/[0.08] bg-white/[0.045] p-5 sm:p-6 flex flex-col gap-4 min-w-0">
       <div className="flex items-baseline justify-between gap-3">
         <OnAirLabel className="text-ink-muted">By decade</OnAirLabel>
-        <span className="font-mono text-[11px] text-ink-faint uppercase">
+        <span className="text-[11px] text-ink-faint">
           1 bar = {per} {noun}
         </span>
       </div>
@@ -145,13 +141,13 @@ function DecadeMeter({ decades, noun }: { decades: Home['decades']; noun: string
           const cells = Math.max(1, Math.round(d.count / per))
           return (
             <div key={d.decade} className="flex-1 min-w-[28px] flex flex-col items-center gap-2" title={`${d.count} ${noun} from the ${d.decade}s`}>
-              <span className="font-mono text-[11px] text-ink-soft tabular-nums">{d.count}</span>
+              <span className="text-[11px] text-ink-soft tabular-nums">{d.count}</span>
               <div className="w-full flex flex-col-reverse gap-[2px]">
                 {Array.from({ length: cells }, (_, i) => (
                   <div key={i} className={cx('h-[5px] rounded-[1px]', tone(i))} />
                 ))}
               </div>
-              <span className="font-display font-bold text-[14px] tracking-[0.04em] text-ink-muted">’{String(d.decade).slice(2)}s</span>
+              <span className="font-semibold text-[13.5px] text-ink-muted">’{String(d.decade).slice(2)}s</span>
             </div>
           )
         })}
@@ -190,9 +186,9 @@ export default function LibraryHome({
   if (!home) {
     return (
       <div className="space-y-10">
-        <Skeleton className="h-[330px] rounded-xl" />
-        <Skeleton className="h-[140px] rounded-xl" />
-        <Skeleton className="h-[260px] rounded-xl" />
+        <Skeleton className="h-[330px] rounded-[22px]" />
+        <Skeleton className="h-[140px] rounded-[22px]" />
+        <Skeleton className="h-[260px] rounded-[22px]" />
       </div>
     )
   }
@@ -216,11 +212,11 @@ export default function LibraryHome({
     <div className="space-y-14">
       {/* On now */}
       <section className="space-y-4">
-        <OnAirHeading aside={<span className="font-mono text-[12px] text-ink-faint uppercase">{home.onNow.length ? `${home.onNow.length} channel${home.onNow.length === 1 ? '' : 's'}` : ''}</span>}>
+        <OnAirHeading aside={<span className="text-[12px] text-ink-faint">{home.onNow.length ? `${home.onNow.length} channel${home.onNow.length === 1 ? '' : 's'}` : ''}</span>}>
           On air now
         </OnAirHeading>
         {home.onNow.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-edge-strong bg-sunken/60 px-5 py-5 flex items-center gap-4 flex-wrap">
+          <div className="rounded-[22px] border border-dashed border-white/[0.16] px-5 py-5 flex items-center gap-4 flex-wrap">
             <Tally tone="off">Off air</Tally>
             <p className="flex-1 min-w-[14rem] text-[14.5px] text-ink-muted">
               Nothing from {library.name} is on right now.
@@ -235,7 +231,7 @@ export default function LibraryHome({
         ) : home.onNow.length === 1 ? (
           <OnNowFeature slot={home.onNow[0]} following={following(home.onNow[0])} onOpen={openSlot} />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
             {home.onNow.map((s) => (
               <OnNowCard key={s.channel.id} slot={s} onOpen={openSlot} />
             ))}
@@ -293,7 +289,7 @@ export default function LibraryHome({
             <Rail
               title="Just added"
               aside={
-                <button type="button" onClick={() => onView('all')} className="font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200">
+                <button type="button" onClick={() => onView('all')} className="text-[13.5px] font-semibold text-now hover:text-white">
                   See all
                 </button>
               }
@@ -315,11 +311,11 @@ export default function LibraryHome({
           )}
 
       {/* Off air, and the library by decade */}
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-stretch">
-        <div className="rounded-xl border border-edge bg-sunken p-5 sm:p-6 flex flex-col gap-4">
+      <section className="grid gap-1.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-stretch">
+        <div className="rounded-[22px] border border-white/[0.08] bg-white/[0.045] p-5 sm:p-6 flex flex-col gap-4">
           <OnAirLabel className="text-ink-muted">Off air</OnAirLabel>
           <div className="flex items-end gap-4 flex-wrap">
-            <span className={cx('font-display font-extrabold text-[88px] sm:text-[104px] leading-[0.8] tabular-nums', home.offAir ? 'text-cue' : 'text-emerald-400')}>
+            <span className={cx('font-bold text-[72px] sm:text-[88px] leading-[0.85] tracking-[-0.04em] tabular-nums', home.offAir ? 'text-now' : 'text-emerald-300')}>
               {home.offAir.toLocaleString()}
             </span>
             <span className="pb-1 text-[16px] sm:text-[18px] leading-snug text-ink-soft max-w-[18rem]">
@@ -331,9 +327,9 @@ export default function LibraryHome({
           {home.offAirGenres.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {home.offAirGenres.slice(0, 10).map((g) => (
-                <span key={g.name} className="inline-flex items-baseline gap-1.5 rounded-[4px] border border-edge-strong px-2.5 py-1.5 text-[13.5px] text-ink-soft">
+                <span key={g.name} className="inline-flex items-baseline gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-[13.5px] text-ink-soft">
                   {g.name}
-                  <span className="font-mono text-[11px] text-ink-faint tabular-nums">{g.count}</span>
+                  <span className="text-[11px] text-ink-faint tabular-nums">{g.count}</span>
                 </span>
               ))}
             </div>
@@ -343,7 +339,7 @@ export default function LibraryHome({
               <button
                 type="button"
                 onClick={() => onView('offair')}
-                className="h-10 px-4 rounded-md bg-ink text-canvas font-display font-bold text-[16px] tracking-[0.06em] uppercase hover:bg-white"
+                className={buttonClass('primary', 'md')}
               >
                 See the {home.offAir.toLocaleString()} off air
               </button>

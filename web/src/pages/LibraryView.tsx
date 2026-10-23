@@ -29,17 +29,18 @@ import { peek, remember, useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import LibraryHome, { type LibraryView as View } from '../components/library/LibraryHome'
 import JumpBar from '../components/library/JumpBar'
-import { StatFigure } from '../components/onair/OnAir'
 import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
 import Icon from '../components/Icon'
 import { EmptyState, Menu, Segmented, Select, Skeleton, buttonClass, cx, type MenuItem } from '../components/ui'
 import AddToChannel from '../components/onair/AddToChannel'
 import { useItemMenu } from '../lib/itemMenu'
+import { useMediaQuery } from '../lib/hooks'
 import { artistLabel, artistPath, creditOf, extraLabel, formatDuration, posterGradient } from '../lib/format'
 
 const PAGE_SIZE = 60
 // The app's header (h-14), which the grid's toolbar sticks under.
-const HEADER_HEIGHT = 56
+// The phone's top bar; on a desktop the rail is at the side and nothing sits on top.
+const PHONE_BAR = 56
 type ShowSort = 'title' | 'year' | 'episodes' | 'rating'
 /** A music library by artist (as a TV one is by show), by album, or every song or video. */
 type MusicView = 'artists' | 'albums' | 'songs'
@@ -71,7 +72,7 @@ function SongRow({ m, onOpen, menu }: { m: MediaItem; onOpen: () => void; menu: 
       type="button"
       onClick={onOpen}
       {...hold}
-      className={cx('min-w-0 flex-1 flex items-center gap-3 sm:gap-4 py-2 touch:py-2.5 px-1 sm:px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue', hold.className)}
+      className={cx('min-w-0 flex-1 flex items-center gap-3 sm:gap-4 py-2 touch:py-2.5 px-1 sm:px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-now', hold.className)}
     >
       <span
         className="relative w-10 h-10 shrink-0 rounded overflow-hidden grid place-items-center ring-1 ring-inset ring-white/10"
@@ -87,8 +88,8 @@ function SongRow({ m, onOpen, menu }: { m: MediaItem; onOpen: () => void; menu: 
         <span className="block truncate text-[14px] font-medium text-ink-soft group-hover:text-ink">{m.title}</span>
         <span className="block truncate text-[12.5px] text-ink-faint">{[artistLabel(creditOf(m)), m.album].filter(Boolean).join(' — ')}</span>
       </span>
-      <span className="hidden sm:block w-12 shrink-0 text-right font-mono text-[12px] text-ink-faint tabular-nums">{m.year ?? ''}</span>
-      <span className="w-14 shrink-0 text-right font-mono text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
+      <span className="hidden sm:block w-12 shrink-0 text-right text-[12px] text-ink-faint tabular-nums">{m.year ?? ''}</span>
+      <span className="w-14 shrink-0 text-right text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
     </button>
     <div className="shrink-0 mr-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100 transition-opacity">
       <Menu items={menu} label={`More for ${m.title}`} />
@@ -144,6 +145,7 @@ export default function LibraryView() {
   const pendingJump = useRef<number | null>(null)
   const jumpTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [activeLetter, setActiveLetter] = useState<JumpLetter | null>(null)
+  const wide = useMediaQuery('(min-width: 64rem)')
 
   const isTv = library?.kind === 'tv'
   const isMusic = library?.kind === 'music' || library?.kind === 'audio'
@@ -390,7 +392,7 @@ export default function LibraryView() {
   const showStarts = useMemo(() => (local && inTitleOrder ? letterStarts(gridTitles) : null), [local, inTitleOrder, gridTitles])
   const starts = view === 'home' ? null : local ? showStarts : params.sort === 'title' ? letters : null
   // Where the grid's sticky toolbar ends, once stuck under the header.
-  const stuckBottom = HEADER_HEIGHT + toolbarHeight
+  const stuckBottom = (wide ? 0 : PHONE_BAR) + toolbarHeight
   const queryKey = `${params.q}|${params.sort}|${match}`
   // The letter just jumped to and where the page came to rest, so a letter
   // that starts partway along a row isn't read as the one before it.
@@ -562,11 +564,9 @@ export default function LibraryView() {
       <Masthead
         kicker={<Kicker items={[{ label: 'Library', to: '/library' }, { label: library?.name ?? '…' }]} />}
         title={library?.name ?? 'Library'}
+        lead={stats.length > 0 ? stats.map((s) => `${s.value} ${s.label.toLowerCase()}`).join(' · ') : undefined}
         aside={
           <>
-            {stats.map((s) => (
-              <StatFigure key={s.label} value={s.value} label={s.label} />
-            ))}
             {library && (
               <LibraryActions
                 lib={library}
@@ -578,17 +578,48 @@ export default function LibraryView() {
           </>
         }
         tabs={
-          hasHome && (
-            <NetworkTabs
-              tabs={[
-                { id: 'home', label: 'Home' },
-                { id: 'all', label: 'All', count: titles },
-                { id: 'offair', label: 'Off air', count: home?.offAir },
-              ]}
-              active={view}
-              onChange={setView}
-            />
-          )
+          <>
+            {/* Every library, to switch between them in a tap. */}
+            {(libraries.data?.length ?? 0) > 1 && (
+              <nav aria-label="Libraries" className="mb-2 flex w-full flex-wrap gap-1.5">
+                {libraries.data!.map((l) => {
+                  const on = l.id === id
+                  return (
+                    <Link
+                      key={l.id}
+                      to={`/library/${l.id}`}
+                      aria-current={on ? 'page' : undefined}
+                      className={cx(
+                        'flex flex-[1_1_200px] items-center gap-3.5 rounded-[18px] transition-colors',
+                        on ? 'ring-brand [--ring-fill:#17142a] px-[15px] py-[13px]' : 'border border-white/[0.08] bg-white/[0.045] px-4 py-3.5 hover:bg-white/[0.07]',
+                      )}
+                    >
+                      <span className={cx('grid h-10 w-10 shrink-0 place-items-center rounded-xl', on ? 'bg-indigo-400/20 text-now' : 'bg-white/[0.06] text-ink-soft')}>
+                        <Icon name={l.kind === 'tv' ? 'show' : l.kind === 'movie' ? 'movie' : l.kind === 'music' || l.kind === 'audio' ? 'audio' : 'clip'} size={19} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[15px] font-bold text-ink">{l.name}</span>
+                        <span className={cx('block text-[12.5px]', on ? 'text-ink-soft' : 'text-ink-faint')}>
+                          {l.itemCount.toLocaleString()} {l.itemCount === 1 ? 'file' : 'files'}
+                        </span>
+                      </span>
+                    </Link>
+                  )
+                })}
+              </nav>
+            )}
+            {hasHome && (
+              <NetworkTabs
+                tabs={[
+                  { id: 'home', label: 'Home' },
+                  { id: 'all', label: 'All', count: titles },
+                  { id: 'offair', label: 'Off air', count: home?.offAir },
+                ]}
+                active={view}
+                onChange={setView}
+              />
+            )}
+          </>
         }
       />
 
@@ -601,7 +632,7 @@ export default function LibraryView() {
           {/* Toolbar */}
           <div
             ref={toolbar}
-            className="sticky top-14 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-edge/60 flex items-center gap-3 flex-wrap"
+            className="sticky top-14 lg:top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 mb-6 glass border-b border-white/[0.06] flex items-center gap-3 flex-wrap"
           >
             {isMusic && (
               <Segmented
@@ -615,18 +646,18 @@ export default function LibraryView() {
                 ]}
               />
             )}
-            <span className="font-mono text-[12px] uppercase text-ink-faint tabular-nums">
+            <span className="text-[13px] text-ink-faint tabular-nums">
               {firstLoad ? '…' : `${count.toLocaleString()} ${view === 'offair' ? 'off air' : noun}${q ? ' matching' : ''}`}
             </span>
             {/* A search from the header narrows the grid; this undoes it. */}
             {q && (
-              <span className="inline-flex items-center gap-1 h-7 max-w-64 rounded-md border border-cue/30 bg-cue/[0.08] pl-2.5 pr-1 text-[13px] text-ink">
+              <span className="inline-flex items-center gap-1 h-8 max-w-64 rounded-full border border-indigo-300/30 bg-indigo-400/[0.1] pl-3 pr-1 text-[13px] text-ink">
                 <span className="truncate">“{q}”</span>
                 <button
                   onClick={clearSearch}
                   aria-label="Clear search"
                   title="Show everything again"
-                  className="grid place-items-center w-5 h-5 shrink-0 rounded text-ink-faint hover:text-ink hover:bg-white/[0.06]"
+                  className="grid place-items-center w-6 h-6 shrink-0 rounded-full text-ink-faint hover:text-ink hover:bg-white/[0.06]"
                 >
                   <Icon name="close" size={13} />
                 </button>
@@ -692,7 +723,7 @@ export default function LibraryView() {
               <Icon name="info" size={14} className="shrink-0 text-ink-faint" />
               {FILTER_HINTS[match]}
               {(match === 'unmatched' || match === 'doubtful') && reviewable > 0 && (
-                <button onClick={() => setReviewing(reviewTargets)} className="font-medium text-cue hover:text-amber-200">
+                <button onClick={() => setReviewing(reviewTargets)} className="font-semibold text-now hover:text-white">
                   Fix them one by one
                 </button>
               )}

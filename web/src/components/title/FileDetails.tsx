@@ -8,7 +8,7 @@ import { cx } from '../ui'
 function Fact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={cx('min-w-0', wide && 'col-span-full')}>
-      <dt className="font-display font-bold text-[12px] uppercase tracking-[0.18em] text-ink-faint">{label}</dt>
+      <dt className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{label}</dt>
       <dd className="mt-0.5 text-[13px] text-ink-soft break-words">{value}</dd>
     </div>
   )
@@ -44,7 +44,7 @@ export default function FileDetails({ item, className }: { item: MediaItemDetail
       </dl>
       <div className="mt-4 pt-4 border-t border-edge/70 flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <div className="font-display font-bold text-[12px] uppercase tracking-[0.18em] text-ink-faint">File</div>
+          <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-ink-faint">File</div>
           <div className="mt-0.5 font-mono text-[12px] text-ink-muted break-all">{item.path}</div>
         </div>
         <button

@@ -33,7 +33,7 @@ export default function ExpandableText({
         {text}
       </p>
       {(overflows || open) && (
-        <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 font-display font-bold text-[14px] tracking-[0.14em] uppercase text-cue hover:text-amber-200">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 text-[13.5px] font-semibold text-now hover:text-white">
           {open ? 'Less' : 'More'}
         </button>
       )}

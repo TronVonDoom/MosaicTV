@@ -75,7 +75,7 @@ export default function JumpBar({
     >
       <div
         ref={list}
-        className="flex flex-col h-full max-h-[40rem] select-none touch-none"
+        className="flex flex-col h-full max-h-[40rem] select-none touch-none rounded-full border border-white/[0.08] bg-white/[0.045] px-0.5 sm:px-1 py-2"
         onPointerDown={(e) => {
           if (e.button !== 0) return
           e.preventDefault()
@@ -104,12 +104,11 @@ export default function JumpBar({
               // for the keyboard.
               onClick={(e) => e.detail === 0 && onJump(l)}
               className={cx(
-                'relative flex-1 min-h-0 w-4 sm:w-6 grid place-items-center font-display font-bold text-[12px] leading-none tracking-[0.04em] transition-colors',
-                'focus-visible:outline-none focus-visible:text-ink focus-visible:bg-white/[0.06] rounded',
-                !has ? 'text-ink-ghost/60 cursor-default' : on ? 'text-cue' : 'text-ink-faint hover:text-ink',
+                'relative flex-1 min-h-0 w-4 sm:w-[22px] grid place-items-center font-semibold text-[11.5px] leading-none transition-colors rounded-md',
+                'focus-visible:outline-none focus-visible:text-ink focus-visible:bg-white/[0.06]',
+                !has ? 'text-ink-ghost/60 cursor-default' : on ? 'bg-indigo-400 text-now-ink' : 'text-ink-faint hover:text-ink',
               )}
             >
-              {on && <span aria-hidden className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-[2px] rounded-full bg-cue" />}
               {l}
             </button>
           )

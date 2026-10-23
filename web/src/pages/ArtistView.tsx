@@ -32,7 +32,7 @@ function Cover({ album, className }: { album: AlbumCard; className?: string }) {
   const src = album.coverItemId != null && !broken ? artworkUrl(album.coverItemId, 'poster', ART.poster, album.coverVersion) : null
   return (
     <div
-      className={cx('relative aspect-square shrink-0 rounded-md overflow-hidden grid place-items-center ring-1 ring-inset ring-white/10 shadow-[0_14px_34px_-16px_rgb(0_0_0/0.9)]', className)}
+      className={cx('relative aspect-square shrink-0 rounded-xl overflow-hidden grid place-items-center ring-1 ring-inset ring-white/10 shadow-[0_14px_34px_-16px_rgb(0_0_0/0.9)]', className)}
       style={{ background: posterGradient(`${album.artist} ${album.album}`) }}
     >
       {src ? (
@@ -53,7 +53,7 @@ function AlbumTile({ album, noun, onOpen, menu }: { album: AlbumCard; noun: stri
       <button type="button" onClick={onOpen} {...hold} className={cx('w-full text-left focus-visible:outline-none', hold.className)}>
         <Cover album={album} className="w-full transition-transform duration-300 group-hover:scale-[1.02]" />
         <div className="mt-2.5 text-[14px] font-medium text-ink-soft group-hover:text-ink line-clamp-2">{albumName(album)}</div>
-        <div className="mt-0.5 font-mono text-[11px] uppercase text-ink-faint truncate">
+        <div className="mt-0.5 text-[11px] text-ink-faint truncate">
           {[album.album !== '' && album.year, `${album.items} ${noun}${album.items === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
         </div>
       </button>
@@ -76,9 +76,9 @@ function TrackRow({ m, aired, next, live, onOpen, menu }: { m: MediaItem; aired?
         type="button"
         onClick={onOpen}
         {...hold}
-        className={cx('min-w-0 flex-1 flex items-center gap-4 py-2.5 touch:py-3 px-1 sm:px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cue', hold.className)}
+        className={cx('min-w-0 flex-1 flex items-center gap-4 py-2.5 touch:py-3 px-1 sm:px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-now', hold.className)}
       >
-        <span className="w-12 shrink-0 font-mono text-[13px] text-cue tabular-nums">
+        <span className="w-12 shrink-0 text-[13px] text-now tabular-nums">
           {m.disc && m.disc > 1 ? `${m.disc}-` : ''}
           {pad(m.track)}
         </span>
@@ -86,7 +86,7 @@ function TrackRow({ m, aired, next, live, onOpen, menu }: { m: MediaItem; aired?
           <span className="block truncate text-[15px] font-medium text-ink-soft group-hover:text-ink">{m.title}</span>
           {/* Who it credits, on an album filed under someone else (a soundtrack's singer). */}
           {m.trackArtist && <span className="block mt-0.5 text-[12.5px] text-ink-muted truncate">{m.trackArtist}</span>}
-          {aired && <span className="block mt-0.5 font-mono text-[11px] uppercase text-ink-faint truncate">{formatAired(aired)}</span>}
+          {aired && <span className="block mt-0.5 text-[11px] text-ink-faint truncate">{formatAired(aired)}</span>}
         </span>
         {live && (
           <Tally tone="live" className="hidden sm:inline-flex">
@@ -103,7 +103,7 @@ function TrackRow({ m, aired, next, live, onOpen, menu }: { m: MediaItem; aired?
             Lyrics
           </Badge>
         )}
-        <span className="w-14 shrink-0 text-right font-mono text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
+        <span className="w-14 shrink-0 text-right text-[12.5px] text-ink-muted tabular-nums">{formatDuration(m.durationSec)}</span>
       </button>
       <Menu items={menu} label={`More for ${m.title}`} className={cx('shrink-0 mr-1', ROW_MENU)} />
     </div>
@@ -120,16 +120,16 @@ function VideoTile({ m, next, live, onOpen, menu }: { m: MediaItem; next?: OnAir
   return (
     <div className="group relative">
       <button type="button" onClick={onOpen} {...hold} className={cx('w-full text-left focus-visible:outline-none', hold.className)}>
-        <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-inset ring-white/10 grid place-items-center" style={{ background: posterGradient(m.title) }}>
+        <div className="relative aspect-video rounded-xl overflow-hidden ring-1 ring-inset ring-white/10 grid place-items-center" style={{ background: posterGradient(m.title) }}>
           {still ? (
             <img key={still} src={still} alt="" loading="lazy" onError={() => setFailed((n) => n + 1)} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
           ) : (
             <Icon name="audio" size={24} className="text-white/60" />
           )}
-          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[11px] text-white/90 tabular-nums">{formatDuration(m.durationSec)}</span>
+          <span className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[11px] text-white/90 tabular-nums">{formatDuration(m.durationSec)}</span>
         </div>
         <div className="mt-2 text-[14px] font-medium text-ink-soft group-hover:text-ink truncate">{m.title}</div>
-        <div className="mt-0.5 font-mono text-[11px] uppercase text-ink-faint truncate">
+        <div className="mt-0.5 text-[11px] text-ink-faint truncate">
           {live ? 'On now' : when ? `Next · ${when.day} ${when.time}` : m.year ?? ''}
         </div>
       </button>
@@ -318,7 +318,7 @@ export default function ArtistView() {
               {onAir?.now && onAir.now.channel.number != null && (
                 <Link
                   to={`/watch/${onAir.now.channel.number}`}
-                  className="inline-flex items-center gap-2 h-11 px-5 rounded-md bg-live text-white font-display font-bold text-[17px] tracking-[0.06em] uppercase hover:brightness-110"
+                  className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-indigo-400 text-now-ink font-semibold text-[15px] hover:bg-indigo-300 transition-colors"
                 >
                   <Icon name="play" size={16} className="fill-current" /> Tune in
                 </Link>
@@ -350,7 +350,7 @@ export default function ArtistView() {
           </section>
         ) : (
           <section className="space-y-6">
-            <OnAirHeading aside={<span className="font-mono text-[12px] text-ink-faint uppercase">{albums > 0 ? `${albums} in the library` : ''}</span>}>Albums</OnAirHeading>
+            <OnAirHeading aside={<span className="text-[12px] text-ink-faint">{albums > 0 ? `${albums} in the library` : ''}</span>}>Albums</OnAirHeading>
             <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-4 sm:gap-x-5 gap-y-7">
               {detail.albums.map((a) => (
                 <AlbumTile key={a.album} album={a} noun={noun} onOpen={() => navigate(withAlbum(a.album))} menu={albumMenu(a)} />
