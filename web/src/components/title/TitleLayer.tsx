@@ -2,11 +2,11 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
- * A movie's or show's page, laid over its library's grid beside the sidebar
- * and under the top bar — so the grid underneath keeps its place (and its
- * loaded pages) for when you come back. It scrolls on its own; the page
- * behind stays put. Portalled to <body>: the page's entry animation would
- * otherwise make "fixed" mean "fixed to the page".
+ * A movie's or show's page, laid over its library's grid beside the side rail
+ * (on a phone, between the top bar and the tab bar) — so the grid underneath
+ * keeps its place (and its loaded pages) for when you come back. It scrolls on
+ * its own; the page behind stays put. Portalled to <body>: the page's entry
+ * animation would otherwise make "fixed" mean "fixed to the page".
  */
 export default function TitleLayer({ children, scrollKey }: { children: ReactNode; scrollKey?: string | number }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -33,7 +33,7 @@ export default function TitleLayer({ children, scrollKey }: { children: ReactNod
   return createPortal(
     <div
       ref={ref}
-      className="fixed top-14 bottom-0 right-0 left-0 lg:left-[var(--rail-w,248px)] z-20 overflow-y-auto overflow-x-clip bg-canvas layer-in transition-[left] duration-200"
+      className="fixed top-14 lg:top-0 bottom-[var(--tabbar-h,0px)] lg:bottom-0 right-0 left-0 lg:left-[var(--rail-w,92px)] z-20 overflow-y-auto overflow-x-clip bg-canvas app-backdrop layer-in"
     >
       {children}
     </div>,

@@ -29,11 +29,30 @@ const ALL: SupportLink[] = [
 ]
 const LINKS = ALL.filter((l) => l.handle)
 
-/** The heart and the cup before the bell in the top bar: quiet until you point at them. */
-export default function SupportLinks() {
+/** The heart and the cup: quiet until you point at them. In the side rail's
+ *  foot they stand side by side; in a phone's More sheet they're rows with
+ *  their words beside them. */
+export default function SupportLinks({ layout = 'rail' }: { layout?: 'rail' | 'rows' }) {
   if (LINKS.length === 0) return null
+  if (layout === 'rows')
+    return (
+      <>
+        {LINKS.map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cx('group flex items-center gap-3 h-12 rounded-2xl px-4 text-[15px] text-ink-soft transition-colors hover:bg-white/[0.06]', l.hover)}
+          >
+            <Icon name={l.icon} size={18} className={cx('transition-[fill]', l.glyph)} />
+            {l.label}
+          </a>
+        ))}
+      </>
+    )
   return (
-    <>
+    <div className="flex items-center gap-0.5">
       {LINKS.map((l) => (
         <a
           key={l.href}
@@ -42,12 +61,11 @@ export default function SupportLinks() {
           rel="noopener noreferrer"
           title={l.label}
           aria-label={l.label}
-          className={cx('group grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-white/[0.05]', l.hover)}
+          className={cx('group grid h-8 w-8 place-items-center rounded-full text-ink-faint transition-colors hover:bg-white/[0.07]', l.hover)}
         >
-          <Icon name={l.icon} size={16} className={cx('transition-[fill]', l.glyph)} />
+          <Icon name={l.icon} size={15} className={cx('transition-[fill]', l.glyph)} />
         </a>
       ))}
-      <span aria-hidden="true" className="mx-1 h-5 w-px bg-edge" />
-    </>
+    </div>
   )
 }

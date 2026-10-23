@@ -1,27 +1,31 @@
 import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cx } from '../ui'
-import { TestStripe } from './OnAir'
 
-// Every page opens the way a library does: the brand's bars along the top, a
-// mono trail, the page's name set big in the network's condensed caps, its
-// own figures to the right, and its views as a network's tabs underneath.
+// Every page opens the same way: a trail saying where you are, the page's
+// name, its own figures and its one main action to the right, and its views
+// as pill tabs underneath.
 
-/** The mono trail over a masthead's title. The last item is where you are. */
+/** The trail over a page's title: "Channels › Cartoon Network". The last item
+ *  is where you are; every other one is a link back. */
 export function Kicker({ items }: { items: { label: ReactNode; to?: string }[] }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-2 min-w-0 font-mono text-[12px] uppercase tracking-[0.08em] text-ink-faint">
+    <nav aria-label="You are here" className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0 text-[13px] text-ink-faint">
       {items.map((c, i) => {
         const last = i === items.length - 1
         return (
           <Fragment key={i}>
-            {i > 0 && <span className="text-ink-ghost">/</span>}
+            {i > 0 && (
+              <span aria-hidden className="text-ink-ghost">
+                ›
+              </span>
+            )}
             {c.to && !last ? (
-              <Link to={c.to} className="shrink-0 hover:text-ink transition-colors">
+              <Link to={c.to} className="shrink-0 text-ink-muted hover:text-ink transition-colors">
                 {c.label}
               </Link>
             ) : (
-              <span className={cx(last ? 'text-ink-muted truncate' : 'shrink-0')}>{c.label}</span>
+              <span className={cx(last ? 'text-ink-soft truncate' : 'shrink-0')}>{c.label}</span>
             )}
           </Fragment>
         )
@@ -30,7 +34,7 @@ export function Kicker({ items }: { items: { label: ReactNode; to?: string }[] }
   )
 }
 
-/** A page's views as a network's tabs: condensed caps, a count, the tally under the open one. */
+/** A page's views as pill tabs: the open one a white pill, a count beside a label. */
 export function NetworkTabs<T extends string>({
   tabs,
   active,
@@ -41,7 +45,7 @@ export function NetworkTabs<T extends string>({
   onChange: (id: T) => void
 }) {
   return (
-    <div role="tablist" className="flex gap-6 sm:gap-8 overflow-x-auto no-scrollbar">
+    <div role="tablist" className="inline-flex max-w-full gap-0.5 rounded-full bg-white/[0.05] p-1 overflow-x-auto no-scrollbar">
       {tabs.map((t) => {
         const on = t.id === active
         return (
@@ -51,12 +55,16 @@ export function NetworkTabs<T extends string>({
             aria-selected={on}
             onClick={() => onChange(t.id)}
             className={cx(
-              'shrink-0 inline-flex items-baseline gap-2 py-3 font-display font-bold text-[17px] sm:text-[18px] tracking-[0.12em] uppercase transition-colors',
-              on ? 'text-ink shadow-[inset_0_-3px_0_var(--color-live)]' : 'text-ink-muted hover:text-ink-soft',
+              'shrink-0 inline-flex items-center gap-2 h-9 px-4 rounded-full text-[14px] font-semibold transition-colors',
+              on ? 'bg-ink text-now-ink' : 'text-ink-muted hover:text-ink hover:bg-white/[0.06]',
             )}
           >
             {t.label}
-            {t.count != null && <span className="font-mono text-[12px] font-normal tracking-normal tabular-nums text-ink-faint">{t.count.toLocaleString()}</span>}
+            {t.count != null && (
+              <span className={cx('text-[12px] font-medium tabular-nums', on ? 'text-now-ink/60' : 'text-ink-faint')}>
+                {t.count.toLocaleString()}
+              </span>
+            )}
           </button>
         )
       })}
@@ -67,8 +75,8 @@ export function NetworkTabs<T extends string>({
 /**
  * The head of a page. `kicker` is the trail above the title, `lead` the one
  * sentence under it, `aside` the page's own figures and actions (bottom-aligned
- * to the title), and `tabs` its views, ruled off under it all. `before` sits
- * left of the title (a channel's logo); `backdrop` is painted behind the lot.
+ * to the title), and `tabs` its views, under it all. `before` sits left of the
+ * title (a channel's logo); `backdrop` is painted behind the lot.
  */
 export function Masthead({
   kicker,
@@ -88,27 +96,20 @@ export function Masthead({
   backdrop?: ReactNode
 }) {
   return (
-    <header className={cx('relative mb-6', !tabs && 'pb-6 border-b border-edge')}>
-      <TestStripe className="-mt-7 mb-7 -mx-4 sm:-mx-6 lg:-mx-8 3xl:-mx-10" />
+    <header className="relative mb-6">
       {backdrop}
-      <div className="relative flex items-end justify-between gap-x-8 gap-y-5 flex-wrap">
+      <div className="relative flex items-end justify-between gap-x-8 gap-y-4 flex-wrap">
         <div className="min-w-0 flex-[1_1_20rem] flex items-end gap-5">
           {before}
           <div className="min-w-0">
-            {kicker && <div className="mb-3">{kicker}</div>}
-            <h1 className="font-display font-extrabold uppercase text-[48px] sm:text-[68px] lg:text-[84px] leading-[0.84] tracking-[-0.005em] text-ink break-words">
-              {title}
-            </h1>
-            {lead && <div className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-muted">{lead}</div>}
+            {kicker && <div className="mb-2">{kicker}</div>}
+            <h1 className="font-display font-bold text-[30px] sm:text-[36px] leading-[1.05] tracking-[-0.02em] text-ink break-words">{title}</h1>
+            {lead && <div className="mt-2 max-w-2xl text-[14px] leading-relaxed text-ink-faint">{lead}</div>}
           </div>
         </div>
         {aside && <div className="flex items-end gap-6 sm:gap-8 flex-wrap">{aside}</div>}
       </div>
-      {tabs && (
-        <div className="relative mt-6 flex items-center gap-x-6 gap-y-2 flex-wrap border-b border-edge">
-          {tabs}
-        </div>
-      )}
+      {tabs && <div className="relative mt-5 flex items-center gap-x-4 gap-y-2 flex-wrap">{tabs}</div>}
     </header>
   )
 }

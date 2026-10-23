@@ -39,17 +39,12 @@ export default function SideNav<T extends string>({
               onClick={() => onChange(it.id)}
               aria-current={on ? 'page' : undefined}
               className={cx(
-                'group relative shrink-0 flex items-center gap-3 rounded-xl text-left transition-colors',
-                'h-10 px-3 lg:h-auto lg:py-2.5',
-                on
-                  ? 'bg-white/[0.07] text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]'
-                  : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
+                'group relative shrink-0 flex items-center gap-3 rounded-full lg:rounded-2xl text-left transition-colors',
+                'h-10 px-4 lg:h-auto lg:px-3.5 lg:py-3',
+                on ? 'bg-indigo-400/[0.16] text-ink' : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.05]',
               )}
             >
-              {on && (
-                <span className="hidden lg:block absolute -left-1 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-full bg-gradient-to-b from-indigo-400 to-sky-400" />
-              )}
-              <Icon name={it.icon} size={17} className={cx('shrink-0', on ? 'text-indigo-300' : 'text-ink-faint group-hover:text-ink-muted')} />
+              <Icon name={it.icon} size={17} className={cx('shrink-0', on ? 'text-indigo-200' : 'text-ink-faint group-hover:text-ink-muted')} />
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] font-medium whitespace-nowrap">{it.label}</span>
                 {it.description && (

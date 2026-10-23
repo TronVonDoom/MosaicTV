@@ -11,8 +11,8 @@ export function SettingsSection({ title, description, children }: { title: strin
   return (
     <section className="max-w-4xl">
       <header className="mb-6">
-        <h2 className="font-display font-bold uppercase text-[26px] leading-none tracking-[0.06em] text-ink">{title}</h2>
-        <p className="mt-2 text-[13.5px] text-ink-muted leading-relaxed">{description}</p>
+        <h2 className="font-display font-bold text-[24px] leading-tight tracking-[-0.015em] text-ink">{title}</h2>
+        <p className="mt-1.5 text-[13.5px] text-ink-faint leading-relaxed">{description}</p>
       </header>
       <div className="space-y-8">{children}</div>
     </section>

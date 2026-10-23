@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 import { cx } from '../ui'
 
-// The pieces of MosaicTV's own look — a TV station's, not a streaming app's:
-// tally lights, headings set like a network's lower-thirds, facts in the
-// guide's mono, and the brand's colours as a test pattern.
+// The small pieces of MosaicTV's own look that sit on many pages: tally
+// lights, section headings, labels, and facts in a line.
 
 type TallyTone = 'live' | 'next' | 'new' | 'off' | 'ok' | 'alert'
 
@@ -11,7 +10,7 @@ const TALLY: Record<TallyTone, string> = {
   live: 'bg-live text-white',
   next: 'bg-cue text-cue-ink',
   new: 'bg-live text-white',
-  off: 'border border-edge-strong text-ink-muted',
+  off: 'border border-white/[0.16] text-ink-muted',
   ok: 'bg-emerald-400 text-emerald-950',
   alert: 'bg-rose-500 text-white',
 }
@@ -21,7 +20,7 @@ export function Tally({ tone, children, className }: { tone: TallyTone; children
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-[3px] px-2 pt-[3px] pb-[2px] font-display font-extrabold text-[13px] leading-none tracking-[0.14em] uppercase whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[11px] font-semibold leading-4 tracking-[0.08em] uppercase whitespace-nowrap',
         TALLY[tone],
         className,
       )}
@@ -32,8 +31,7 @@ export function Tally({ tone, children, className }: { tone: TallyTone; children
   )
 }
 
-/** A section's heading, set as a broadcast sets one: condensed, in caps,
- *  spaced — with room at the far end for a count or a link. */
+/** A section's heading — with room at the far end for a count or a link. */
 export function OnAirHeading({
   children,
   aside,
@@ -47,26 +45,26 @@ export function OnAirHeading({
 }) {
   return (
     <div className={cx('flex items-baseline gap-3 flex-wrap', className)}>
-      <Tag className="font-display font-extrabold text-[19px] sm:text-[21px] leading-none tracking-[0.18em] uppercase text-ink">{children}</Tag>
+      <Tag className="font-display font-semibold text-[19px] leading-tight tracking-[-0.01em] text-ink">{children}</Tag>
       {aside && <div className="ml-auto flex items-baseline gap-3 min-w-0">{aside}</div>}
     </div>
   )
 }
 
-/** A small label in the heading's face: "DIRECTED BY", "ON FILE". */
+/** A small label over a value: "DIRECTED BY", "UP NEXT". */
 export function OnAirLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cx('font-display font-bold text-[13px] leading-none tracking-[0.2em] uppercase text-ink-faint', className)}>{children}</span>
+  return <span className={cx('text-[11.5px] font-semibold leading-none tracking-[0.12em] uppercase text-ink-faint', className)}>{children}</span>
 }
 
-/** Facts in the guide's mono, a hairline between each: "1984 | PG | 1 H 46 M". */
+/** Facts in a line, a dot between each: "1984 · PG · 1 h 46 m". */
 export function MonoFacts({ items, className }: { items: ReactNode[]; className?: string }) {
   const facts = items.filter((f) => f != null && f !== false && f !== '')
   if (facts.length === 0) return null
   return (
-    <div className={cx('flex items-center gap-x-3 gap-y-1.5 flex-wrap font-mono text-[13px] sm:text-[14px] text-ink-soft uppercase tabular-nums', className)}>
+    <div className={cx('flex items-center gap-x-2.5 gap-y-1 flex-wrap text-[14px] text-ink-soft tabular-nums', className)}>
       {facts.map((f, i) => (
-        <span key={i} className="inline-flex items-center gap-3">
-          {i > 0 && <span className="w-px h-3.5 bg-edge-strong" />}
+        <span key={i} className="inline-flex items-center gap-2.5">
+          {i > 0 && <span aria-hidden className="text-ink-ghost">·</span>}
           {f}
         </span>
       ))}
@@ -76,20 +74,21 @@ export function MonoFacts({ items, className }: { items: ReactNode[]; className?
 
 /** A rating in a box, as a listing prints it: "PG", "TV-Y7". */
 export function RatingBox({ children }: { children: ReactNode }) {
-  return <span className="border border-ink-ghost rounded-[3px] px-1.5 py-px text-[12px] leading-tight">{children}</span>
+  return <span className="border border-white/[0.22] rounded-md px-1.5 py-px text-[12px] leading-tight">{children}</span>
 }
 
-/** The brand's colours as hard bars along the top of a page. */
-export function TestStripe({ className }: { className?: string }) {
-  return <div aria-hidden className={cx('test-stripe h-[5px]', className)} />
+/** Once the brand's colours as bars along the top of a page; the Mosaic look
+ *  has none, so it draws nothing. Kept so callers needn't change. */
+export function TestStripe(_props: { className?: string }) {
+  return null
 }
 
-/** A mono count with its label under it, for a page's masthead. */
+/** A count with its label under it, for a page's header. */
 export function StatFigure({ value, label }: { value: ReactNode; label: string }) {
   return (
-    <div className="flex flex-col items-start sm:items-end gap-1">
-      <span className="font-mono text-[20px] sm:text-[24px] font-semibold leading-none tabular-nums text-ink">{value}</span>
-      <OnAirLabel className="text-[11.5px]">{label}</OnAirLabel>
+    <div className="flex flex-col items-start sm:items-end gap-1.5">
+      <span className="text-[22px] sm:text-[24px] font-semibold leading-none tabular-nums text-ink">{value}</span>
+      <OnAirLabel className="text-[11px]">{label}</OnAirLabel>
     </div>
   )
 }

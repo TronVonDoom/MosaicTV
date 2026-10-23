@@ -7,10 +7,10 @@
 @custom-variant touch (@media (hover: none));
 
 /* ── MosaicTV theme ───────────────────────────────────────────────────────
-   A broadcast control room: deep graphite surfaces, one violet brand accent
-   drawn from the logo's cool side, and a red tally light for anything live.
-   The full rainbow (violet→blue→cyan→green→gold→pink) is reserved for hero
-   moments — the wordmark, progress, the odd accent bar.
+   The Mosaic look: a violet-black room of glass tiles with small gaps between
+   them, like the idents' tile wall. One violet accent (light violet for "now"),
+   a red tally for anything live, amber for breaks, and the full rainbow only
+   for the brand's own moments — the wordmark, the ring round what's selected.
 
    Tailwind's `indigo` scale is retinted to the brand violet so every accent
    (buttons, links, focus rings, active nav) adopts MosaicTV at once.
@@ -20,10 +20,18 @@
    detail — changing the app's depth or contrast means editing this block, not
    grepping for hex codes across forty files. */
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Outfit Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  /* Titles and labels, as a broadcast sets them: condensed, often in caps. */
-  --font-display: "Barlow Condensed", "Arial Narrow", ui-sans-serif, sans-serif;
+  /* Headings: the same face, heavier. Kept as its own name so a heading can
+     be told from body text in one place. */
+  --font-display: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Corners: tiles are softly rounded, the way the idents' glass tiles are.
+     lg = small controls, xl = inner panels, 2xl = tiles and cards. */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 1.75rem;
 
   /* Two steps past Tailwind's 2xl, for the monitors people actually run a
      media server's UI on: a 1080p desktop at 3xl, 1440p/4K at 4xl. */
@@ -47,13 +55,23 @@
     90deg, #a855f7, #6366f1, #3b82f6, #22d3ee, #34d399, #fbbf24, #fb7185
   );
 
+  /* "Now": the playhead in the guide, what's elapsed of a program, a time
+     that's about to come. The light end of the brand violet. */
+  --color-now: #c4b5fd;
+  --color-now-ink: #120a26;
+
   /* The on-air tally. Red, like every studio's LIVE light — kept apart from
      the error rose so "live" never reads as "broken". */
-  --color-live: #ff3b4f;
-  /* What's coming up — "NEXT", a time in a listing. The amber of a studio's
-     standby light, beside the tally's red. */
-  --color-cue: #ffb020;
+  --color-live: #ff4d6d;
+  /* A break: amber, wherever a break is drawn (the guide, an airing's parts,
+     the breaks tab), and the standby light beside the tally's red. */
+  --color-cue: #fbbf24;
   --color-cue-ink: #1a1200;
+  /* The two kinds of part in an airing drawn side by side: a show's own
+     cartoons, and a different show's short between them (Secret Squirrel
+     between two 2 Stupid Dogs). */
+  --color-part: #22d3ee;
+  --color-part-alt: #e879f9;
 
   /* ── Surfaces, back to front ──────────────────────────────────────────
      canvas  the page itself
@@ -61,17 +79,17 @@
      surface the standard panel — cards, forms, list containers
      raised  a panel lifted above its neighbours (hovers, chips)
      overlay menus, popovers, modals — the highest layer */
-  --color-canvas: #07080c;
-  --color-sunken: #0b0d13;
-  --color-surface: #10131b;
-  --color-raised: #181c27;
-  --color-overlay: #1c2130;
+  --color-canvas: #08070d;
+  --color-sunken: #0c0b14;
+  --color-surface: #13111e;
+  --color-raised: #1b1829;
+  --color-overlay: #1d1a2e;
 
   /* ── Borders ──────────────────────────────────────────────────────────
      edge is the default hairline; edge-strong marks an interactive or
      focused boundary (inputs, hovered cards). */
-  --color-edge: #1d222f;
-  --color-edge-strong: #2b3243;
+  --color-edge: #24203a;
+  --color-edge-strong: #34304d;
 
   /* ── Text, brightest to faintest ──────────────────────────────────────
      ink       primary content
@@ -79,11 +97,11 @@
      ink-muted labels, metadata, descriptions
      ink-faint hints and captions
      ink-ghost placeholders and disabled text — decorative, not readable */
-  --color-ink: #f2f4f8;
-  --color-ink-soft: #c8cdd9;
-  --color-ink-muted: #8f96a8;
-  --color-ink-faint: #6a7184;
-  --color-ink-ghost: #4a5061;
+  --color-ink: #f3f1fa;
+  --color-ink-soft: #d6d2e4;
+  --color-ink-muted: #b0abc4;
+  --color-ink-faint: #8e89a3;
+  --color-ink-ghost: #5e5973;
 
   /* ── Motion ───────────────────────────────────────────────────────────
      Two durations only. `quick` for state that should feel instant (hover,
@@ -98,6 +116,14 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /* The room a phone's tab bar takes at the foot of the screen (none beside
+       a desktop's side rail): pages and title layers keep clear of it. */
+    --tabbar-h: 5.25rem;
+  }
+  @media (min-width: 64rem) {
+    :root {
+      --tabbar-h: 0px;
+    }
   }
 
   html {
@@ -109,10 +135,7 @@
     background: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-optical-sizing: auto;
-    /* Inter's open digits and single-storey a/l variants read cleaner at UI
-       sizes; tabular figures are opted into per element (times, counts). */
-    font-feature-settings: "cv11", "ss01", "ss03";
+    /* Tabular figures are opted into per element (times, counts). */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -188,14 +211,30 @@
     );
   }
 
-  /* The standard panel: a whisper of top-lit sheen and a hairline highlight
-     on the upper edge, so cards read as objects rather than outlines. */
+  /* The standard panel: a glass tile — a little white over whatever is
+     behind it, with a hairline edge — so tiles side by side read as the
+     idents' tile wall, a few pixels of dark grout between them. */
   .surface-card {
-    background-color: var(--color-surface);
-    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.028), rgb(255 255 255 / 0) 42%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.035),
-      0 1px 2px rgb(0 0 0 / 0.35);
+    background-color: rgb(255 255 255 / 0.045);
+    border-color: rgb(255 255 255 / 0.08);
+  }
+
+  /* Frosted glass over a picture: labels on live tiles, the up-next card,
+     anything floating over artwork. */
+  .glass-label {
+    background-color: rgb(12 10 22 / 0.58);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgb(255 255 255 / 0.12);
+  }
+
+  /* The ring round what's selected or live: the brand's colours as a 2px
+     border. Pair with a background colour for the inside (`--ring-fill`). */
+  .ring-brand {
+    border: 2px solid transparent;
+    background:
+      linear-gradient(var(--ring-fill, #17142a), var(--ring-fill, #17142a)) padding-box,
+      linear-gradient(120deg, #a855f7, #3b82f6, #22d3ee, #e879f9) border-box;
   }
 
   /* Frosted chrome for bars that float over scrolling content. */
@@ -209,8 +248,8 @@
      a cooler cyan wash top-right. Fixed, so it doesn't scroll away. */
   .app-backdrop {
     background-image:
-      radial-gradient(1100px 620px at 12% -12%, rgb(139 92 246 / 0.11), transparent 60%),
-      radial-gradient(900px 560px at 100% -8%, rgb(34 211 238 / 0.055), transparent 55%);
+      radial-gradient(1100px 620px at 12% -12%, rgb(139 92 246 / 0.07), transparent 60%),
+      radial-gradient(900px 560px at 100% -8%, rgb(34 211 238 / 0.035), transparent 55%);
     background-attachment: fixed;
   }
 
@@ -230,20 +269,14 @@
       box-shadow var(--duration-smooth) var(--ease-out-soft);
   }
   .card-interactive:hover {
-    border-color: color-mix(in oklab, var(--color-indigo-500) 50%, transparent);
+    border-color: rgb(196 181 253 / 0.35);
+    background-color: rgb(255 255 255 / 0.065);
     transform: translateY(-2px);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.05),
-      0 18px 40px -18px rgb(0 0 0 / 0.85),
-      0 0 0 1px color-mix(in oklab, var(--color-indigo-500) 18%, transparent);
   }
 
-  /* Soft violet halo for the primary action and focused hero elements. */
+  /* Kept for the few places that still ask for it; the Mosaic look has no glow. */
   .glow-brand {
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.2),
-      0 1px 2px rgb(0 0 0 / 0.4),
-      0 8px 24px -10px rgb(139 92 246 / 0.75);
+    box-shadow: none;
   }
 
   /* Loading placeholder — a slow sweep across a dim block. */

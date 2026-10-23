@@ -27,8 +27,9 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 
 // ---- Surfaces ---------------------------------------------------------------
 
-/** The panel surface every card, form, and list container is built from. */
-const CARD_SURFACE = 'rounded-2xl border border-edge surface-card'
+/** The panel surface every card, form, and list container is built from: a
+ *  glass tile — a little white over the room, a hairline edge. */
+const CARD_SURFACE = 'rounded-2xl border border-white/[0.08] bg-white/[0.045]'
 
 /** The standard panel surface: every card, form, and list container. */
 export function Card({
@@ -69,8 +70,8 @@ export function CardHeader({
     <div className={cx('flex flex-wrap sm:flex-nowrap items-start gap-3 mb-4', className)}>
       {icon && <IconTile name={icon} size="sm" />}
       <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-auto">
-        <h2 className="font-display font-bold uppercase text-[16px] leading-tight tracking-[0.12em] text-ink">{title}</h2>
-        {description && <p className="text-[13px] text-ink-muted mt-1 leading-relaxed">{description}</p>}
+        <h2 className="font-display font-semibold text-[17px] leading-tight tracking-[-0.01em] text-ink">{title}</h2>
+        {description && <p className="text-[13px] text-ink-faint mt-1 leading-relaxed">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
     </div>
@@ -142,7 +143,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-4 ring-1 ring-inset',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 ring-1 ring-inset',
         tones[tone],
         className,
       )}
@@ -159,7 +160,7 @@ export function LiveBadge({ label = 'Live', className }: { label?: string; class
   return (
     <span
       className={cx(
-        'inline-flex items-center gap-1.5 rounded-md bg-live px-1.5 py-0.5 text-[10px] font-bold uppercase leading-4 tracking-wider text-white shadow-[0_0_16px_-2px_rgb(255_59_79/0.65)]',
+        'inline-flex items-center gap-1.5 rounded-full bg-live px-2 py-0.5 text-[10.5px] font-semibold leading-4 tracking-wide text-white',
         className,
       )}
     >
@@ -184,13 +185,13 @@ export function ProgressBar({
 }) {
   const pct = Math.max(0, Math.min(1, value)) * 100
   const fills = {
-    brand: 'bg-gradient-to-r from-indigo-500 to-sky-400',
-    live: 'bg-gradient-to-r from-live to-[#ff7a59]',
+    brand: 'bg-now',
+    live: 'bg-live',
     rainbow: 'bg-gradient-brand',
     neutral: 'bg-ink-muted',
   }
   return (
-    <div className={cx('h-1 rounded-full bg-white/[0.07] overflow-hidden', className)}>
+    <div className={cx('h-1 rounded-full bg-white/[0.12] overflow-hidden', className)}>
       <div
         className={cx('h-full rounded-full transition-[width] duration-700 ease-out', fills[tone])}
         style={{ width: `${pct}%` }}
@@ -205,26 +206,24 @@ type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'subtle' | 'ghost'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium select-none ' +
-  'transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ' +
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-semibold select-none ' +
+  'transition-[color,background-color,border-color,box-shadow,opacity,filter] duration-150 ' +
   'disabled:opacity-45 disabled:cursor-not-allowed disabled:pointer-events-none'
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    'text-white bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 glow-brand',
-  secondary:
-    'border border-edge-strong bg-raised/70 text-ink-soft hover:text-ink hover:bg-raised hover:border-ink-ghost ' +
-    'shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]',
-  danger: 'border border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/55',
+  // The one main action on a screen: light violet with dark words.
+  primary: 'text-now-ink bg-indigo-400 hover:bg-indigo-300',
+  secondary: 'border border-white/[0.14] bg-white/[0.05] text-ink hover:bg-white/[0.1] hover:border-white/[0.22]',
+  danger: 'border border-rose-400/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-400/60',
   // For destructive/secondary actions that shouldn't draw the eye until hovered.
-  subtle: 'border border-edge text-ink-faint hover:border-rose-500/45 hover:text-rose-300 hover:bg-rose-500/5',
-  ghost: 'text-ink-muted hover:text-ink hover:bg-white/[0.06]',
+  subtle: 'border border-white/[0.1] text-ink-faint hover:border-rose-400/45 hover:text-rose-300 hover:bg-rose-500/5',
+  ghost: 'text-ink-muted hover:text-ink hover:bg-white/[0.07]',
 }
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-[13px]',
-  md: 'h-9 px-3.5 text-sm',
-  lg: 'h-10 px-4.5 text-sm',
+  sm: 'h-8 px-3.5 text-[13px]',
+  md: 'h-10 px-4.5 text-sm',
+  lg: 'h-11 px-5.5 text-[15px]',
 }
 
 /**
@@ -288,7 +287,7 @@ export function IconButton({
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>) {
   // Square, with no padding: not buttonClass's sizes, whose px-3/px-4 outrank a
   // px-0 added after them and left the glyph squeezed to a sliver.
-  const dims = { sm: 'h-8 w-8', md: 'h-9 w-9', lg: 'h-10 w-10' }[size]
+  const dims = { sm: 'h-8 w-8', md: 'h-10 w-10', lg: 'h-11 w-11' }[size]
   return (
     <button
       title={label}
@@ -304,8 +303,8 @@ export function IconButton({
 /** The round, glassy button TV mode floats over the picture. */
 export function osdButtonClass(active = false): string {
   return cx(
-    'h-10 w-10 grid place-items-center rounded-full backdrop-blur-md ring-1 transition-colors disabled:opacity-50',
-    active ? 'bg-indigo-500/35 ring-indigo-300/50 text-indigo-100' : 'bg-black/45 ring-white/15 text-white/90 hover:bg-black/65',
+    'h-11 w-11 grid place-items-center rounded-full backdrop-blur-md ring-1 transition-colors disabled:opacity-50',
+    active ? 'bg-indigo-400/35 ring-indigo-300/60 text-white' : 'bg-[rgb(12_10_22/0.5)] ring-white/15 text-white/90 hover:bg-[rgb(12_10_22/0.7)]',
   )
 }
 
@@ -331,7 +330,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
   return (
     <kbd
       className={cx(
-        'inline-flex items-center rounded-md border border-edge-strong bg-raised/80 px-1.5 font-sans text-[10.5px] font-medium leading-5 text-ink-muted shadow-[inset_0_-1px_0_rgb(0_0_0/0.4)]',
+        'inline-flex items-center rounded-md border border-white/[0.14] bg-white/[0.05] px-1.5 font-sans text-[10.5px] font-medium leading-5 text-ink-muted',
         className,
       )}
     >
@@ -343,9 +342,9 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
 // ---- Form controls ----------------------------------------------------------
 
 const CONTROL_BASE =
-  'h-9 rounded-lg bg-sunken border border-edge-strong px-3 text-sm text-ink placeholder:text-ink-ghost ' +
-  'outline-none transition-[border-color,box-shadow] duration-150 ' +
-  'hover:border-ink-ghost focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/20 ' +
+  'h-10 rounded-xl bg-white/[0.04] border border-white/[0.12] px-3.5 text-sm text-ink placeholder:text-ink-ghost ' +
+  'outline-none transition-[border-color,box-shadow,background-color] duration-150 ' +
+  'hover:border-white/[0.2] focus:border-indigo-300 focus:bg-white/[0.06] focus:ring-3 focus:ring-indigo-400/20 ' +
   'disabled:opacity-50 disabled:cursor-not-allowed'
 
 // `ComponentPropsWithRef` rather than `InputHTMLAttributes` so callers can pass
@@ -357,13 +356,13 @@ export function Input({ className, ...rest }: ComponentPropsWithRef<'input'>) {
 
 // The native arrow is replaced with our own chevron so selects match inputs.
 const SELECT_CHEVRON =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f96a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")"
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b0abc4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")"
 
 export function Select({ className, children, style, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cx(CONTROL_BASE, 'appearance-none pr-8 bg-no-repeat cursor-pointer', className)}
-      style={{ backgroundImage: SELECT_CHEVRON, backgroundPosition: 'right 0.55rem center', ...style }}
+      className={cx(CONTROL_BASE, 'appearance-none pr-9 bg-no-repeat cursor-pointer [&>option]:bg-overlay', className)}
+      style={{ backgroundImage: SELECT_CHEVRON, backgroundPosition: 'right 0.75rem center', ...style }}
       {...rest}
     >
       {children}
@@ -403,8 +402,8 @@ export function Section({
   children: ReactNode
 }) {
   return (
-    <div className={cx('rounded-xl border border-edge bg-sunken/60 p-4', className)}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint mb-3">{title}</div>
+    <div className={cx('rounded-xl border border-white/[0.07] bg-white/[0.03] p-4', className)}>
+      <div className="text-[12px] font-semibold tracking-[0.06em] text-ink-faint mb-3">{title}</div>
       {children}
     </div>
   )
@@ -427,7 +426,7 @@ export function Segmented<T extends string>({
   return (
     <div
       role="radiogroup"
-      className={cx('inline-flex items-center gap-0.5 rounded-lg border border-edge bg-sunken p-0.5', className)}
+      className={cx('inline-flex items-center gap-0.5 rounded-full bg-white/[0.05] p-1', className)}
     >
       {options.map((o) => {
         const on = o.value === value
@@ -440,11 +439,9 @@ export function Segmented<T extends string>({
             title={o.title}
             onClick={() => onChange(o.value)}
             className={cx(
-              'inline-flex items-center gap-1.5 rounded-md font-medium transition-colors',
-              size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-8 px-3 text-[13px]',
-              on
-                ? 'bg-raised text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.06),0_1px_2px_rgb(0_0_0/0.4)]'
-                : 'text-ink-muted hover:text-ink-soft',
+              'inline-flex items-center gap-1.5 rounded-full font-semibold transition-colors',
+              size === 'sm' ? 'h-7 px-3 text-xs' : 'h-8 px-3.5 text-[13px]',
+              on ? 'bg-ink text-now-ink' : 'text-ink-muted hover:text-ink hover:bg-white/[0.06]',
             )}
           >
             {o.icon && <Icon name={o.icon} size={14} />}
@@ -477,11 +474,11 @@ export function Banner({
     error: { box: 'border-rose-500/35 bg-rose-500/[0.07] text-rose-200', icon: 'warning' as const, ic: 'text-rose-400' },
     success: { box: 'border-emerald-500/35 bg-emerald-500/[0.07] text-emerald-200', icon: 'success' as const, ic: 'text-emerald-400' },
     warn: { box: 'border-amber-500/35 bg-amber-500/[0.07] text-amber-200', icon: 'warning' as const, ic: 'text-amber-400' },
-    info: { box: 'border-edge-strong bg-raised/50 text-ink-soft', icon: 'info' as const, ic: 'text-ink-muted' },
-    accent: { box: 'border-indigo-500/30 bg-indigo-500/[0.06] text-ink-soft', icon: 'sparkles' as const, ic: 'text-indigo-300' },
+    info: { box: 'border-white/[0.1] bg-white/[0.04] text-ink-soft', icon: 'info' as const, ic: 'text-ink-muted' },
+    accent: { box: 'border-indigo-300/30 bg-indigo-400/[0.1] text-ink-soft', icon: 'sparkles' as const, ic: 'text-indigo-300' },
   }[tone]
   return (
-    <div className={cx('flex gap-2.5 rounded-xl border px-3.5 py-3 text-sm leading-relaxed', tones.box, className)}>
+    <div className={cx('flex gap-2.5 rounded-2xl border px-4 py-3 text-sm leading-relaxed', tones.box, className)}>
       <Icon name={tones.icon} size={16} className={cx('shrink-0 mt-0.5', tones.ic)} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
@@ -511,11 +508,11 @@ export function ProgressPanel({
 }) {
   const pct = total > 0 ? Math.round((processed / total) * 100) : 0
   const tones = {
-    indigo: { edge: 'border-indigo-500/30 bg-indigo-500/[0.06]', text: 'text-indigo-200' },
-    violet: { edge: 'border-fuchsia-500/25 bg-fuchsia-500/[0.05]', text: 'text-fuchsia-200' },
+    indigo: { edge: 'border-indigo-300/25 bg-indigo-400/[0.08]', text: 'text-indigo-200' },
+    violet: { edge: 'border-fuchsia-400/25 bg-fuchsia-500/[0.06]', text: 'text-fuchsia-200' },
   }[tone]
   return (
-    <div className={cx('rounded-xl border p-4', tones.edge, className)}>
+    <div className={cx('rounded-2xl border p-4', tones.edge, className)}>
       <div className="flex justify-between items-center text-sm mb-2.5">
         <span className={cx('font-medium inline-flex items-center gap-2', tones.text)}>
           <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
@@ -554,8 +551,8 @@ export function SectionHeading({
     // below the title instead of running off the edge.
     <div className={cx('flex flex-wrap items-end gap-x-3 gap-y-2.5 mb-3.5', className)}>
       <div className="min-w-0 flex-[1_1_14rem]">
-        <h2 className="flex items-center gap-2 font-display font-bold uppercase text-[16px] leading-tight tracking-[0.16em] text-ink">
-          {icon && <Icon name={icon} size={16} className="text-ink-muted" />}
+        <h2 className="flex items-center gap-2 font-display font-semibold text-[19px] leading-tight tracking-[-0.01em] text-ink">
+          {icon && <Icon name={icon} size={17} className="text-ink-muted" />}
           {title}
         </h2>
         {description && <p className="text-[13px] text-ink-faint mt-0.5">{description}</p>}
@@ -586,7 +583,7 @@ export function EmptyState({
   return (
     <div
       className={cx(
-        'relative overflow-hidden rounded-2xl border border-dashed border-edge-strong bg-surface/40 bg-dots',
+        'relative overflow-hidden rounded-2xl border border-dashed border-white/[0.16] bg-white/[0.02]',
         'px-6 py-14 flex flex-col items-center text-center',
         className,
       )}
@@ -736,14 +733,14 @@ export function Modal({
   // sticky top bar — which covered its title and close button.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-[3px] fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgb(5_4_10/0.72)] backdrop-blur-[6px] fade-in"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         className={cx(
-          'modal-in max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-edge-strong bg-surface shadow-[0_32px_80px_-20px_rgb(0_0_0/0.9),inset_0_1px_0_rgb(255_255_255/0.05)]',
+          'modal-in max-h-[calc(100vh-2rem)] overflow-auto rounded-2xl border border-white/[0.12] bg-[#110e1e] shadow-[0_32px_80px_-20px_rgb(0_0_0/0.9)]',
           panelClassName,
         )}
         onClick={(e) => e.stopPropagation()}
@@ -768,10 +765,10 @@ export function ModalHeader({
   onClose: () => void
 }) {
   return (
-    <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-edge">
+    <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-white/[0.08]">
       {icon && <IconTile name={icon} size="sm" />}
       <div className="min-w-0 flex-1">
-        <h2 className="font-semibold text-[15px] tracking-tight">{title}</h2>
+        <h2 className="font-semibold text-[17px] tracking-[-0.01em]">{title}</h2>
         {subtitle && <p className="text-[13px] text-ink-muted mt-0.5">{subtitle}</p>}
       </div>
       <IconButton icon="close" label="Close" size="sm" onClick={onClose} className="-mr-1.5 -mt-1" />
@@ -932,11 +929,11 @@ export function MenuPanel({
       // also reaching the card the trigger sits in.
       onClick={(e) => e.stopPropagation()}
       onKeyDown={onKeyDown}
-      className="fixed z-[60] min-w-48 rounded-xl border border-edge-strong bg-overlay/95 backdrop-blur p-1 shadow-2xl shadow-black/60 modal-in"
+      className="fixed z-[60] min-w-52 rounded-2xl border border-white/[0.12] bg-[rgb(23_20_42/0.96)] backdrop-blur-xl p-1.5 shadow-2xl shadow-black/60 modal-in"
     >
       {items.map((it, i) =>
         it === 'divider' ? (
-          <div key={i} className="my-1 h-px bg-edge" />
+          <div key={i} className="my-1 h-px bg-white/[0.08]" />
         ) : (
           <button
             key={i}
@@ -947,8 +944,8 @@ export function MenuPanel({
               it.onSelect()
             }}
             className={cx(
-              'w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-40 disabled:pointer-events-none touch:py-3 touch:text-[14px]',
-              it.danger ? 'text-rose-300 hover:bg-rose-500/12' : 'text-ink-soft hover:bg-white/[0.06] hover:text-ink',
+              'w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13.5px] transition-colors disabled:opacity-40 disabled:pointer-events-none touch:py-3 touch:text-[14px]',
+              it.danger ? 'text-rose-300 hover:bg-rose-500/12' : 'text-ink-soft hover:bg-white/[0.07] hover:text-ink',
             )}
           >
             {it.icon && <Icon name={it.icon} size={15} className="shrink-0 opacity-80" />}
@@ -985,12 +982,15 @@ export function Switch({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        'relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50',
-        checked ? 'bg-indigo-500' : 'bg-edge-strong',
+        'relative h-6 w-[42px] shrink-0 rounded-full transition-colors disabled:opacity-50',
+        checked ? 'bg-indigo-400' : 'bg-white/[0.14]',
       )}
     >
       <span
-        className={cx('absolute top-[3px] h-4 w-4 rounded-full bg-white transition-[left] duration-200', checked ? 'left-[19px]' : 'left-[3px]')}
+        className={cx(
+          'absolute top-[3px] h-[18px] w-[18px] rounded-full transition-[left,background-color] duration-200',
+          checked ? 'left-[21px] bg-now-ink' : 'left-[3px] bg-ink-soft',
+        )}
       />
     </button>
   )

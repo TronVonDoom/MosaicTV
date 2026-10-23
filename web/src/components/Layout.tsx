@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import ErrorBoundary from './ErrorBoundary'
@@ -9,49 +9,31 @@ import NotificationBell from './NotificationBell'
 import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
 import ContextMenuHost from './ContextMenuHost'
-import { api, type Channel, type Health, type Library } from '../lib/api'
+import { api, type Health } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
-import { channelPath } from '../lib/channels'
-import { SETTINGS_SECTIONS, STUDIO_SECTIONS } from '../lib/sections'
 import { usePolling } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
-import { IconButton, Kbd, cx } from './ui'
+import { cx } from './ui'
 
 /** Mac gets ⌘K, everyone else Ctrl-K — label it to match the actual keyboard. */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
 const PALETTE_HINT = IS_MAC ? '⌘K' : 'Ctrl K'
 
-// Seven destinations in three groups. The grouping answers "is this a feature
-// or plumbing?" at a glance: Broadcast is what airs, Content is what it's made
-// of, System keeps it running.
-type NavItem = { to: string; label: string; icon: IconName; end?: boolean }
-const NAV_GROUPS: { heading: string; items: NavItem[] }[] = [
-  {
-    heading: 'Broadcast',
-    items: [
-      { to: '/', label: 'Dashboard', icon: 'dashboard', end: true },
-      { to: '/channels', label: 'Channels', icon: 'channels' },
-      { to: '/watch', label: 'Watch', icon: 'tv' },
-    ],
-  },
-  {
-    heading: 'Content',
-    items: [
-      { to: '/library', label: 'Library', icon: 'libraries' },
-      { to: '/studio', label: 'Studio', icon: 'media' },
-    ],
-  },
-  {
-    heading: 'System',
-    items: [
-      { to: '/logs', label: 'Logs', icon: 'logs' },
-      { to: '/settings', label: 'Settings', icon: 'settings' },
-    ],
-  },
+// Five places, the same on every screen: what's on, building channels, what
+// you own, what you make for your channels, and the server itself. A place is
+// lit while you're anywhere inside it.
+type Place = { to: string; label: string; icon: IconName; end?: boolean; also?: string[] }
+const PLACES: Place[] = [
+  { to: '/', label: 'Guide', icon: 'guide', end: true },
+  { to: '/channels', label: 'Channels', icon: 'channels' },
+  { to: '/library', label: 'Library', icon: 'libraries' },
+  { to: '/studio', label: 'Studio', icon: 'media' },
+  { to: '/settings', label: 'Settings', icon: 'settings', also: ['/logs'] },
 ]
-
-const COLLAPSE_KEY = 'mosaictv.navCollapsed'
+// A phone's tab bar holds the first three and a More sheet for the rest.
+const TAB_PLACES = PLACES.slice(0, 3)
+const MORE_PLACES = PLACES.slice(3)
 
 /**
  * Which page a path is, for remounting on navigation. A movie's or show's
@@ -62,349 +44,190 @@ function pageKey(pathname: string): string {
   return pathname.replace(/^(\/library\/[^/]+)\/(movie|show)\/.*$/, '$1')
 }
 
-/** The rail's collapsed state: the user's own choice once they've made one,
- *  otherwise collapsed on a laptop-width window, where 248px of labels would
- *  squeeze the page itself. */
-function readCollapsed(): boolean {
-  try {
-    const saved = localStorage.getItem(COLLAPSE_KEY)
-    if (saved != null) return saved === '1'
-  } catch {
-    /* storage blocked — fall through to the width default */
-  }
-  return typeof window !== 'undefined' && window.innerWidth < 1280
+function isIn(place: Place, pathname: string): boolean {
+  const under = (p: string) => pathname === p || pathname.startsWith(p + '/')
+  if (place.end) return pathname === place.to
+  return under(place.to) || (place.also ?? []).some(under)
 }
 
-// Which rail items the user has opened or closed by hand; the rest open
-// while you're in them.
-const OPEN_KEY = 'mosaictv.navOpen'
-
-function readOpen(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}') ?? {}
-  } catch {
-    return {}
-  }
-}
-
-/** What the pages learn from the frame: whether the sidebar is listing their
- *  sections (open, on a desktop), so they needn't list them again. */
+/** What the pages learn from the frame: whether the rail is listing their
+ *  sections, so they needn't list them again. The Mosaic rail lists only the
+ *  five places, so a page always shows its own sections. */
 export type LayoutContext = { railSections: boolean }
 
 type Live = { channels: number; viewers: number }
 
-/** One entry under a rail item: a channel, a library, a page's section. */
-type SubItem = { key: string; to: string; label: ReactNode; title: string; active: boolean }
-
-/** The entries under a rail item — none for the ones without any. */
-function subItems(
-  to: string,
-  where: { pathname: string; hash: string },
-  channels: Channel[] | null,
-  libraries: Library[] | null,
-): SubItem[] {
-  const { pathname, hash } = where
-  const under = (p: string) => pathname === p || pathname.startsWith(p + '/')
-  // A page's #sections; no hash (or one it doesn't know) is its first.
-  const sections = (page: string, list: readonly { id: string; label: string }[]) => {
-    const current = list.find((s) => `#${s.id}` === hash)?.id ?? list[0].id
-    return list.map((s) => ({ key: s.id, to: `${page}#${s.id}`, label: s.label, title: s.label, active: pathname === page && s.id === current }))
-  }
-  switch (to) {
-    case '/channels':
-      // On air by number, then the drafts.
-      return [...(channels ?? [])]
-        .sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.name.localeCompare(b.name))
-        .map((c) => ({
-          key: String(c.id),
-          to: channelPath(c),
-          label: (
-            <>
-              <span className="w-7 shrink-0 font-mono text-[11px] text-ink-faint tabular-nums">{c.number ?? '—'}</span>
-              <span className="truncate">{c.name}</span>
-            </>
-          ),
-          title: c.number != null ? `${c.number} · ${c.name}` : `${c.name} (draft)`,
-          active: under(channelPath(c)),
-        }))
-    case '/library':
-      return [
-        ...(libraries ?? []).map((l) => ({
-          key: `library-${l.id}`,
-          to: `/library/${l.id}`,
-          label: l.name,
-          title: l.name,
-          active: under(`/library/${l.id}`),
-        })),
-        { key: 'sources', to: '/library#sources', label: 'Sources', title: 'Sources', active: pathname === '/library' && hash === '#sources' },
-      ]
-    case '/studio':
-      return sections('/studio', STUDIO_SECTIONS)
-    case '/settings':
-      return sections('/settings', SETTINGS_SECTIONS)
-    default:
-      return []
-  }
-}
-
-/** A rail item's look: the page you're on, a section you're somewhere inside
- *  (one of its entries is the page), or neither. */
-function navItemClass(state: 'on' | 'within' | 'off', collapsed: boolean): string {
-  return cx(
-    'group relative flex items-center gap-3 h-9 w-full rounded-lg text-[13.5px] font-medium transition-colors',
-    collapsed ? 'justify-center' : 'px-2.5',
-    state === 'on'
-      ? 'bg-white/[0.07] text-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]'
-      : state === 'within'
-        ? 'text-ink hover:bg-white/[0.035]'
-        : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
-  )
-}
-
-function NavIcon({ name, active }: { name: IconName; active: boolean }) {
+/** One of the five places in the side rail: its icon, its name under it. */
+function RailPlace({ place, active }: { place: Place; active: boolean }) {
   return (
-    <Icon
-      name={name}
-      size={18}
-      className={cx('shrink-0 transition-colors', active ? 'text-indigo-300' : 'text-ink-faint group-hover:text-ink-muted')}
-    />
-  )
-}
-
-function Sidebar({
-  collapsed,
-  onToggle,
-  live,
-  channels,
-  libraries,
-  health,
-  className,
-  onNavigate,
-  onConnect,
-}: {
-  collapsed: boolean
-  onToggle?: () => void
-  live: Live | null
-  channels: Channel[] | null
-  libraries: Library[] | null
-  health: Health | null
-  className?: string
-  onNavigate?: () => void
-  onConnect: () => void
-}) {
-  const version = health?.version ?? null
-  const location = useLocation()
-  const [open, setOpen] = useState(readOpen)
-  const toggle = (to: string, value: boolean) =>
-    setOpen((o) => {
-      const next = { ...o, [to]: value }
-      try {
-        localStorage.setItem(OPEN_KEY, JSON.stringify(next))
-      } catch {
-        /* private mode — it just won't stick */
-      }
-      return next
-    })
-  return (
-    <aside
+    <NavLink
+      to={place.to}
+      end={place.end}
+      aria-current={active ? 'page' : undefined}
       className={cx(
-        'flex flex-col h-full border-r border-edge bg-[#090b10]/95 transition-[width] duration-200',
-        collapsed ? 'w-[72px]' : 'w-[248px]',
-        className,
+        'group flex w-[68px] flex-col items-center gap-1 rounded-2xl py-2.5 transition-colors',
+        active ? 'bg-indigo-400/[0.16] text-ink' : 'text-ink-muted hover:bg-white/[0.05] hover:text-ink',
       )}
     >
-      {/* Brand */}
-      <Link
-        to="/"
-        onClick={onNavigate}
-        className={cx('flex items-center gap-2.5 h-16 shrink-0', collapsed ? 'justify-center px-0' : 'px-5')}
-        title="MosaicTV"
-      >
-        <img src="/mosaictv-icon.png" alt="" className="w-8 h-8 shrink-0 drop-shadow-[0_4px_12px_rgb(139_92_246/0.45)]" />
-        {!collapsed && (
-          <span className="flex items-baseline gap-2 min-w-0">
-            <span className="text-[17px] font-semibold tracking-[-0.02em] text-ink">
-              Mosaic<span className="text-gradient-brand">TV</span>
-            </span>
-            {version && /^\d/.test(version) && (
-              <span className="text-[10.5px] font-medium text-ink-ghost tabular-nums">v{version}</span>
-            )}
-          </span>
-        )}
-      </Link>
+      <Icon name={place.icon} size={22} className={cx('shrink-0', active ? 'text-indigo-200' : 'text-ink-faint group-hover:text-ink-soft')} />
+      <span className="text-[11.5px] font-semibold leading-none">{place.label}</span>
+    </NavLink>
+  )
+}
 
-      {/* Navigation */}
-      <nav className={cx('flex-1 overflow-y-auto pb-4 space-y-5', collapsed ? 'px-3' : 'px-3')}>
-        {NAV_GROUPS.map((group) => (
-          <div key={group.heading}>
-            {collapsed ? (
-              <div className="mx-auto my-2 h-px w-6 bg-edge" />
-            ) : (
-              <div className="px-2.5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-ghost">
-                {group.heading}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                // Entries only fit beside labels: the collapsed rail has none.
-                const kids = collapsed ? [] : subItems(item.to, location, channels, libraries)
-                const within = item.end
-                  ? location.pathname === item.to
-                  : location.pathname === item.to || location.pathname.startsWith(item.to + '/')
-                const isOpen = kids.length > 0 && (open[item.to] ?? within)
-                const kidActive = kids.some((k) => k.active)
-                return (
-                  <div key={item.to}>
-                    <div className="relative">
-                      <NavLink
-                        to={item.to}
-                        end={item.end}
-                        onClick={onNavigate}
-                        title={collapsed ? item.label : undefined}
-                        className={({ isActive }) =>
-                          cx(navItemClass(!isActive ? 'off' : kidActive ? 'within' : 'on', collapsed), kids.length > 0 && 'pr-9')
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {isActive && (
-                              <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-indigo-400 to-sky-400" />
-                            )}
-                            <NavIcon name={item.icon} active={isActive} />
-                            {!collapsed && item.label}
-                          </>
-                        )}
-                      </NavLink>
-                      {kids.length > 0 && (
-                        <button
-                          onClick={() => toggle(item.to, !isOpen)}
-                          aria-expanded={isOpen}
-                          aria-label={`${isOpen ? 'Hide' : 'Show'} what's in ${item.label}`}
-                          title={isOpen ? 'Hide' : 'Show'}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 grid place-items-center w-7 h-7 rounded-md text-ink-faint hover:text-ink hover:bg-white/[0.06] transition-colors"
-                        >
-                          <Icon name="chevronRight" size={16} className={cx('transition-transform duration-150', isOpen && 'rotate-90')} />
-                        </button>
-                      )}
-                    </div>
-                    {isOpen && (
-                      <div className="mt-0.5 mb-1.5 ml-[19px] pl-2.5 border-l border-edge space-y-px">
-                        {kids.map((k) => (
-                          <Link
-                            key={k.key}
-                            to={k.to}
-                            onClick={onNavigate}
-                            title={k.title}
-                            aria-current={k.active ? 'page' : undefined}
-                            className={cx(
-                              'flex items-center gap-1.5 h-8 min-w-0 rounded-md px-2.5 text-[13px] transition-colors',
-                              k.active
-                                ? 'bg-white/[0.07] text-ink font-medium'
-                                : 'text-ink-muted hover:text-ink-soft hover:bg-white/[0.035]',
-                            )}
-                          >
-                            {typeof k.label === 'string' ? <span className="truncate">{k.label}</span> : k.label}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+/** The side rail on a desktop: the logo, search, the five places, and at its
+ *  foot whether anything's on air, background work, player setup and thanks. */
+function Rail({ live, health, onSearch, onConnect }: { live: Live | null; health: Health | null; onSearch: () => void; onConnect: () => void }) {
+  const { pathname } = useLocation()
+  const version = health?.version && /^\d/.test(health.version) ? `v${health.version}` : null
+  return (
+    <aside className="flex h-full w-[92px] flex-col items-center gap-1.5 border-r border-white/[0.06] py-4">
+      <Link to="/" title={version ? `MosaicTV ${version}` : 'MosaicTV'} className="mb-3 grid place-items-center">
+        <img src="/mosaictv-icon.png" alt="MosaicTV" className="h-10 w-10 drop-shadow-[0_4px_12px_rgb(139_92_246/0.45)]" />
+      </Link>
+      <button
+        onClick={onSearch}
+        title={`Search everything (${PALETTE_HINT})`}
+        aria-label={`Search everything (${PALETTE_HINT})`}
+        className="mb-2 grid h-11 w-14 place-items-center rounded-2xl border border-white/[0.1] bg-white/[0.05] text-ink-muted transition-colors hover:bg-white/[0.09] hover:text-ink"
+      >
+        <Icon name="search" size={19} />
+      </button>
+      <nav aria-label="Main" className="flex flex-col items-center gap-1.5">
+        {PLACES.map((p) => (
+          <RailPlace key={p.to} place={p} active={isIn(p, pathname)} />
         ))}
       </nav>
 
-      {/* Connecting players: the last thing above the line, however long the
-          navigation above it runs. */}
-      <div className="shrink-0 px-3 pb-2">
-        <button
-          onClick={() => {
-            onNavigate?.()
-            onConnect()
-          }}
-          title={collapsed ? 'Live TV setup' : 'The addresses your players tune in with'}
-          className={navItemClass('off', collapsed)}
-        >
-          <NavIcon name="link" active={false} />
-          {!collapsed && 'Live TV setup'}
-        </button>
-      </div>
-
-      {/* On-air status — "is it actually broadcasting?" answered from anywhere. */}
-      <div className="shrink-0 border-t border-edge p-3">
+      <div className="mt-auto flex flex-col items-center gap-1.5">
         {live && (
           <Link
-            to="/channels"
-            onClick={onNavigate}
+            to="/"
             title={
               live.channels > 0
                 ? `${live.channels} channel${live.channels === 1 ? '' : 's'} on air · ${live.viewers} watching`
                 : 'Nothing on air'
             }
-            className={cx(
-              'flex items-center gap-3 rounded-xl border transition-colors',
-              collapsed ? 'justify-center p-2.5' : 'px-3 py-2.5',
-              live.channels > 0
-                ? 'border-live/25 bg-live/[0.06] hover:bg-live/[0.1]'
-                : 'border-edge bg-surface/60 hover:bg-surface',
-            )}
+            className="flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-ink-faint transition-colors hover:bg-white/[0.05] hover:text-ink-soft"
           >
-            <span className={cx('flex items-end gap-[3px] h-4 shrink-0', live.channels === 0 && 'opacity-40')}>
+            <span className={cx('flex h-4 items-end gap-[3px]', live.channels === 0 && 'opacity-40')}>
               {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className={cx('w-[3px] h-4 rounded-full', live.channels > 0 ? 'bg-live eq-bar' : 'bg-ink-ghost scale-y-50 origin-bottom')}
-                />
+                <span key={i} className={cx('h-4 w-[3px] rounded-full', live.channels > 0 ? 'bg-live eq-bar' : 'origin-bottom scale-y-50 bg-ink-ghost')} />
               ))}
             </span>
-            {!collapsed && (
-              <span className="min-w-0 leading-tight">
-                <span className={cx('block text-[13px] font-semibold', live.channels > 0 ? 'text-ink' : 'text-ink-muted')}>
-                  {live.channels > 0 ? `${live.channels} channel${live.channels === 1 ? '' : 's'} live` : 'Nothing on air'}
-                </span>
-                <span className="block text-[11.5px] text-ink-faint">
-                  {live.viewers > 0 ? `${live.viewers} watching now` : 'No one watching'}
-                </span>
-              </span>
-            )}
+            <span className="text-[11px] font-semibold tabular-nums leading-none">
+              {live.channels > 0 ? `${live.channels} live` : 'Off air'}
+            </span>
           </Link>
         )}
-        {onToggle && (
-          <button
-            onClick={onToggle}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cx(
-              'mt-2 flex items-center gap-2.5 h-8 w-full rounded-lg text-[12.5px] text-ink-faint hover:text-ink-soft hover:bg-white/[0.035] transition-colors',
-              collapsed ? 'justify-center' : 'px-2.5',
-            )}
-          >
-            <Icon name={collapsed ? 'expand' : 'collapse'} size={16} />
-            {!collapsed && 'Collapse'}
-          </button>
-        )}
+        <NotificationBell placement="rail" />
+        <button
+          onClick={onConnect}
+          title="Live TV setup: the addresses your players tune in with"
+          aria-label="Live TV setup"
+          className="grid h-10 w-10 place-items-center rounded-full text-ink-muted transition-colors hover:bg-white/[0.07] hover:text-ink"
+        >
+          <Icon name="link" size={18} />
+        </button>
+        <SupportLinks />
       </div>
     </aside>
   )
 }
 
+/** A phone's More sheet: the places that don't fit the tab bar, player setup,
+ *  and the ways to say thanks. */
+function MoreSheet({ onClose, onConnect, health }: { onClose: () => void; onConnect: () => void; health: Health | null }) {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const version = health?.version && /^\d/.test(health.version) ? `v${health.version}` : null
+  return (
+    <div className="lg:hidden fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-[rgb(5_4_10/0.7)] backdrop-blur-[3px] fade-in" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-label="More"
+        className="absolute inset-x-2 bottom-2 rounded-3xl border border-white/[0.12] bg-[rgb(20_17_34/0.97)] p-2 shadow-2xl shadow-black/70 modal-in"
+      >
+        {MORE_PLACES.map((p) => (
+          <Link
+            key={p.to}
+            to={p.to}
+            onClick={onClose}
+            aria-current={isIn(p, pathname) ? 'page' : undefined}
+            className={cx(
+              'flex h-12 items-center gap-3 rounded-2xl px-4 text-[15px] font-semibold transition-colors',
+              isIn(p, pathname) ? 'bg-indigo-400/[0.16] text-ink' : 'text-ink-soft hover:bg-white/[0.06]',
+            )}
+          >
+            <Icon name={p.icon} size={19} className="text-ink-faint" />
+            {p.label}
+          </Link>
+        ))}
+        <button
+          onClick={() => {
+            onClose()
+            onConnect()
+          }}
+          className="flex h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-[15px] font-semibold text-ink-soft transition-colors hover:bg-white/[0.06]"
+        >
+          <Icon name="link" size={19} className="text-ink-faint" />
+          Live TV setup
+        </button>
+        <div className="my-1.5 h-px bg-white/[0.08]" />
+        <SupportLinks layout="rows" />
+        {version && <div className="px-4 pb-2 pt-1 text-[12px] text-ink-ghost">MosaicTV {version}</div>}
+      </div>
+    </div>
+  )
+}
+
+/** A phone's tab bar: Guide, Channels, Library, and More. */
+function TabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
+  const { pathname } = useLocation()
+  const moreActive = moreOpen || MORE_PLACES.some((p) => isIn(p, pathname))
+  const tab = (active: boolean) =>
+    cx(
+      'flex w-[72px] flex-col items-center gap-1 rounded-2xl py-2 transition-colors',
+      active ? 'bg-indigo-400/[0.18] text-ink' : 'text-ink-muted',
+    )
+  return (
+    <nav
+      aria-label="Main"
+      className="lg:hidden fixed inset-x-2.5 bottom-2.5 z-40 flex h-[66px] items-center justify-around rounded-3xl border border-white/[0.1] bg-[rgb(20_17_34/0.86)] backdrop-blur-xl"
+    >
+      {TAB_PLACES.map((p) => {
+        const active = isIn(p, pathname)
+        return (
+          <NavLink key={p.to} to={p.to} end={p.end} aria-current={active ? 'page' : undefined} className={tab(active)}>
+            <Icon name={p.icon} size={21} />
+            <span className="text-[11px] font-semibold leading-none">{p.label}</span>
+          </NavLink>
+        )
+      })}
+      <button onClick={onMore} aria-expanded={moreOpen} className={tab(moreActive)}>
+        <Icon name="more" size={21} />
+        <span className="text-[11px] font-semibold leading-none">More</span>
+      </button>
+    </nav>
+  )
+}
+
 export default function Layout() {
   const location = useLocation()
-  const [collapsed, setCollapsed] = useState(readCollapsed)
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
-  // The channels and libraries the rail lists under Channels and Library —
-  // kept from the last visit, so the rail is whole from the first frame.
+  const [moreOpen, setMoreOpen] = useState(false)
   const channels = useCached(reads.channels)
   const channelList = channels.data ?? null
-  const libraries = useCached(reads.libraries).data ?? null
   const [health, setHealth] = useState<Health | null>(null)
   // How many channels are actually on air, so the rail can say so at a glance
-  // instead of making the user open the Dashboard to find out. Not from the
-  // copy kept on disk, which doesn't know who's watching.
+  // from anywhere. Not from the copy kept on disk, which doesn't know who's
+  // watching.
   const onAir = channelList?.filter((c) => c.number != null)
   const live: Live | null =
     onAir && !channels.stored && !channels.error ? { channels: onAir.length, viewers: onAir.reduce((n, c) => n + c.viewers, 0) } : null
@@ -422,116 +245,49 @@ export default function Layout() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // The mobile drawer closes itself on navigation.
-  useEffect(() => setMobileOpen(false), [location.pathname])
+  // The phone's More sheet closes itself on navigation.
+  useEffect(() => setMoreOpen(false), [location.pathname])
 
   const loadHealth = () =>
     api
       .health()
       .then(setHealth)
       .catch(() => {})
-
   useEffect(() => {
     loadHealth()
   }, [])
   // Who's watching, what's on, and a channel renamed or renumbered (here or elsewhere).
   useLiveRefresh(channels.reload, ['viewers', 'onAir', 'channel'], { fallbackMs: 10000 })
-  // The libraries change only on the Library page, whose own read of them
-  // (the same one) brings the rail up to date.
   usePolling(loadHealth, 30000)
-
-  // Remember only an explicit choice, so the width default keeps applying
-  // until someone actually toggles the rail.
-  const toggleCollapsed = () =>
-    setCollapsed((c) => {
-      try {
-        localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1')
-      } catch {
-        /* private mode — the preference just won't stick */
-      }
-      return !c
-    })
-
-  // The header's search is a library's search too (its page has no box of its
-  // own): it names the library you're in, and shows what its grid is narrowed to.
-  const hereLibrary = libraries?.find((l) => l.id === Number(/^\/library\/(\d+)/.exec(location.pathname)?.[1])) ?? null
-  const standing = /^\/library\/\d+\/?$/.test(location.pathname) ? new URLSearchParams(location.search).get('q')?.trim() : ''
 
   // How wide the rail is, for what lies beside it outside this tree: a movie's
   // or show's page (see TitleLayer) is portalled to <body>.
   useEffect(() => {
-    document.documentElement.style.setProperty('--rail-w', collapsed ? '72px' : '248px')
-  }, [collapsed])
+    document.documentElement.style.setProperty('--rail-w', '92px')
+  }, [])
 
   return (
     <div className="min-h-screen text-ink bg-canvas app-backdrop">
-      {/* Desktop rail */}
-      <div className={cx('hidden lg:block fixed inset-y-0 left-0 z-40', collapsed ? 'w-[72px]' : 'w-[248px]')}>
-        <Sidebar
-          collapsed={collapsed}
-          onToggle={toggleCollapsed}
-          live={live}
-          channels={channelList}
-          libraries={libraries}
-          health={health}
-          onConnect={() => setConnectOpen(true)}
-        />
+      {/* The side rail, on a desktop */}
+      <div className="hidden lg:block fixed inset-y-0 left-0 z-40 bg-canvas/80 backdrop-blur-xl">
+        <Rail live={live} health={health} onSearch={() => setPaletteOpen(true)} onConnect={() => setConnectOpen(true)} />
       </div>
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] fade-in" onClick={() => setMobileOpen(false)} />
-          <div className="absolute inset-y-0 left-0 drawer-in shadow-2xl shadow-black/70">
-            <Sidebar
-              collapsed={false}
-              live={live}
-              channels={channelList}
-              libraries={libraries}
-              health={health}
-                  onNavigate={() => setMobileOpen(false)}
-              onConnect={() => setConnectOpen(true)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className={cx('flex flex-col min-h-screen transition-[padding] duration-200', collapsed ? 'lg:pl-[72px]' : 'lg:pl-[248px]')}>
-        <header className="sticky top-0 z-30 glass border-b border-edge/70">
-          <div className="flex items-center gap-3 h-14 px-4 sm:px-6 lg:px-8">
-            <IconButton icon="menu" label="Open menu" className="lg:hidden -ml-1.5" onClick={() => setMobileOpen(true)} />
-            <Link to="/" className="lg:hidden shrink-0 flex items-center gap-2 mr-1">
-              <img src="/mosaictv-icon.png" alt="MosaicTV" className="w-7 h-7 shrink-0" />
+      <div className="flex min-h-screen flex-col lg:pl-[92px] pb-[var(--tabbar-h)]">
+        {/* A phone's top bar: the logo, search, and background work. */}
+        <header className="lg:hidden sticky top-0 z-30 glass border-b border-white/[0.06]">
+          <div className="flex h-14 items-center gap-3 px-4">
+            <Link to="/" className="shrink-0">
+              <img src="/mosaictv-icon.png" alt="MosaicTV" className="h-8 w-8" />
             </Link>
-
-            {/* A visible entry point for the palette — a shortcut nobody
-                discovers is a shortcut nobody uses. */}
             <button
               onClick={() => setPaletteOpen(true)}
-              className="group flex items-center gap-2.5 h-9 flex-1 min-w-0 max-w-md rounded-lg border border-edge bg-surface/70 px-3 text-left text-[13px] text-ink-faint hover:border-edge-strong hover:text-ink-muted transition-colors"
+              className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border border-white/[0.1] bg-white/[0.05] px-4 text-left text-[14px] text-ink-faint"
             >
               <Icon name="search" size={16} className="shrink-0" />
-              <span className="flex-1 truncate">
-                {standing ? (
-                  <span className="text-ink">{standing}</span>
-                ) : (
-                  <>
-                    <span className="sm:hidden">{hereLibrary ? `Search ${hereLibrary.name}…` : 'Search…'}</span>
-                    <span className="hidden sm:inline">
-                      {hereLibrary ? `Search ${hereLibrary.name}, channels, settings…` : 'Search channels, shows, settings…'}
-                    </span>
-                  </>
-                )}
-              </span>
-              <span className="hidden sm:inline-flex">
-                <Kbd>{PALETTE_HINT}</Kbd>
-              </span>
+              <span className="truncate">Search shows, channels, settings…</span>
             </button>
-
-            <div className="ml-auto shrink-0 flex items-center gap-1.5">
-              <SupportLinks />
-              <NotificationBell />
-            </div>
+            <NotificationBell />
           </div>
         </header>
 
@@ -540,17 +296,20 @@ export default function Layout() {
               rather than leaving a 1440p screen with empty margins. */}
           <div
             key={pageKey(location.pathname)}
-            className="max-w-[1680px] 3xl:max-w-[2160px] 4xl:max-w-[2720px] mx-auto px-4 sm:px-6 lg:px-8 3xl:px-10 py-7 fade-in"
+            className="max-w-[1600px] 3xl:max-w-[2160px] 4xl:max-w-[2720px] mx-auto px-4 sm:px-6 lg:px-7 3xl:px-10 pt-6 pb-8 lg:pt-7 fade-in"
           >
             <ErrorBoundary resetKey={location.pathname}>
               {/* A page's script still on its way (see App.tsx): the layout stays. */}
               <Suspense fallback={null}>
-                <Outlet context={{ railSections: !collapsed } satisfies LayoutContext} />
+                <Outlet context={{ railSections: false } satisfies LayoutContext} />
               </Suspense>
             </ErrorBoundary>
           </div>
         </main>
       </div>
+
+      <TabBar onMore={() => setMoreOpen((v) => !v)} moreOpen={moreOpen} />
+      {moreOpen && <MoreSheet onClose={() => setMoreOpen(false)} onConnect={() => setConnectOpen(true)} health={health} />}
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onConnect={() => setConnectOpen(true)} />
       {connectOpen && <ConnectPlayers onClose={() => setConnectOpen(false)} />}

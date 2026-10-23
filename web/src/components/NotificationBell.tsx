@@ -36,12 +36,14 @@ function ago(iso: string): string {
 }
 
 /**
- * The bell in the top bar: background work (ident builds, library scans,
- * metadata fetches) with live progress, and a toast when something finishes.
- * The server says when any of it moves on; the bell also looks straight away
- * when the app starts a job (ACTIVITY_EVENT).
+ * The bell at the foot of the side rail (on a phone, in the top bar):
+ * background work (ident builds, library scans, metadata fetches) with live
+ * progress, and a toast when something finishes. The server says when any of
+ * it moves on; the bell also looks straight away when the app starts a job
+ * (ACTIVITY_EVENT). `placement` says which way its panel opens: out to the
+ * right from the rail, or down from the top bar.
  */
-export default function NotificationBell() {
+export default function NotificationBell({ placement = 'bar' }: { placement?: 'rail' | 'bar' }) {
   const [items, setItems] = useState<Activity[]>([])
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState(() => readSet(SEEN_KEY))
@@ -117,14 +119,18 @@ export default function NotificationBell() {
         onClick={toggle}
         aria-expanded={open}
         aria-label={unread ? `Notifications (${unread})` : 'Notifications'}
-        className="relative grid h-8 w-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-white/[0.05] hover:text-ink"
+        title="Activity"
+        className={cx(
+          'relative grid place-items-center rounded-full text-ink-muted transition-colors hover:bg-white/[0.07] hover:text-ink',
+          placement === 'rail' ? 'h-10 w-10' : 'h-9 w-9',
+        )}
       >
-        <Icon name="bell" size={16} />
+        <Icon name="bell" size={placement === 'rail' ? 19 : 17} />
         {running ? (
-          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-400 pulse-live" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-indigo-300 pulse-live" />
         ) : (
           unread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-indigo-500 px-1 text-[10px] font-semibold leading-none text-white tabular-nums">
+            <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-indigo-400 px-1 text-[10px] font-semibold leading-none text-now-ink tabular-nums">
               {unread}
             </span>
           )
@@ -132,7 +138,12 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-edge-strong bg-overlay/95 shadow-2xl shadow-black/60 backdrop-blur modal-in">
+        <div
+          className={cx(
+            'absolute z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/[0.12] bg-[rgb(23_20_42/0.97)] shadow-2xl shadow-black/60 backdrop-blur-xl modal-in',
+            placement === 'rail' ? 'left-full bottom-0 ml-3' : 'right-0 top-full mt-2',
+          )}
+        >
           <div className="flex items-center justify-between border-b border-edge px-3.5 py-2.5">
             <span className="text-[13px] font-semibold text-ink">Activity</span>
             {shown.some((a) => a.state !== 'running') && (
