@@ -366,7 +366,7 @@ export default function MediaSearchInput({
       <div key={s} className="pb-1">
         <div className="flex items-center justify-between px-2.5 pt-2.5 pb-1">
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-faint">{SHELF_LABEL[s]}</span>
-          <button type="button" onClick={() => choose(s)} className="inline-flex items-center gap-0.5 text-[11.5px] text-indigo-300 hover:text-indigo-200">
+          <button type="button" onClick={() => choose(s)} className="inline-flex items-center gap-0.5 text-[11.5px] text-now hover:text-white">
             More in {SHELF_LABEL[s]} <Icon name="chevronRight" size={12} />
           </button>
         </div>
@@ -385,7 +385,7 @@ export default function MediaSearchInput({
             type="button"
             onClick={() => void loadMore()}
             disabled={more}
-            className="w-full rounded-lg px-2.5 py-2 text-[12.5px] text-indigo-300 hover:text-indigo-200 hover:bg-white/[0.04]"
+            className="w-full rounded-lg px-2.5 py-2 text-[12.5px] text-now hover:text-white hover:bg-white/[0.04]"
           >
             {more ? 'Loading…' : `Show more (${(fresh.total - fresh.results.length).toLocaleString()} left)`}
           </button>
@@ -465,7 +465,7 @@ export default function MediaSearchInput({
                   <button
                     type="button"
                     onClick={() => add(place)}
-                    className="inline-flex items-center gap-1 shrink-0 rounded-md px-2 h-7 text-[11.5px] font-medium text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/15"
+                    className="inline-flex items-center gap-1 shrink-0 rounded-md px-2 h-7 text-[11.5px] font-medium text-now hover:text-white hover:bg-indigo-500/15"
                   >
                     <Icon name="plus" size={13} /> Add {place.kind === 'artist' ? 'the artist' : `the whole ${place.kind}`}
                   </button>

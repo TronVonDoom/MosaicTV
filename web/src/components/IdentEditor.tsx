@@ -427,7 +427,7 @@ export default function IdentEditor({
                 <>
                   Fades in as the break starts and out as it ends; without music, the look’s soft tone plays. Add tracks
                   in{' '}
-                  <Link to="/studio#audio" className="text-indigo-300 hover:text-indigo-200">
+                  <Link to="/studio#audio" className="text-now hover:text-white">
                     Studio → Music
                   </Link>
                   .

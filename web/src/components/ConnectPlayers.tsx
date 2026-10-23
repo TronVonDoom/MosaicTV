@@ -193,7 +193,7 @@ export default function ConnectPlayers({ onClose }: { onClose: () => void }) {
             href="https://github.com/TronVonDoom/mosaictv/blob/main/docs/clients.md"
             target="_blank"
             rel="noreferrer"
-            className="text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
+            className="text-now hover:text-white inline-flex items-center gap-1"
           >
             Full player guide <Icon name="external" size={12} />
           </a>

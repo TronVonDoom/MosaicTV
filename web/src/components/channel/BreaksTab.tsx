@@ -290,7 +290,7 @@ export default function BreaksTab({
                             <Icon name="warning" size={13} />
                             Never airs: breaks are off wherever it plays.
                           </span>
-                          <button type="button" className="text-indigo-300 hover:text-indigo-200" onClick={() => onEditBlock(blocks[0]?.id)}>
+                          <button type="button" className="text-now hover:text-white" onClick={() => onEditBlock(blocks[0]?.id)}>
                             Turn breaks on in Schedule
                           </button>
                         </div>

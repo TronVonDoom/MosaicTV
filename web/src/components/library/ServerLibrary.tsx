@@ -28,7 +28,7 @@ function FolderMap({ map, onChange }: { map: [string, string][]; onChange: (m: [
     <div className="space-y-2">
       {map.map(([from, to], i) => (
         <div key={from} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] md:items-center">
-          <code className="truncate rounded-md bg-sunken px-2.5 py-2 font-mono text-[12.5px] text-ink-soft" title={from}>
+          <code className="truncate rounded-lg bg-white/[0.04] px-2.5 py-2 font-mono text-[12.5px] text-ink-soft" title={from}>
             {from}
           </code>
           <Icon name="chevronRight" size={15} className="hidden md:block text-ink-faint" />
@@ -145,7 +145,7 @@ export function AddFromServer({ kind, onAdded }: { kind: ServerKind; onAdded: ()
       </form>
       {error && <Banner>{error}</Banner>}
       {server && (
-        <div className="space-y-4 rounded-xl border border-edge bg-sunken/40 p-4">
+        <div className="space-y-4 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
           <div className="flex items-center gap-2 text-[13px] text-ink-soft">
             <Icon name="success" size={15} className="text-emerald-400" />
             Connected to {server.name}
@@ -229,7 +229,7 @@ export function ServerSourcePanel({ lib, disabled, onSaved }: { lib: Library; di
           Read from {where}
           {src.libraryName && <span className="text-ink-faint font-normal"> · its “{src.libraryName}” library</span>}
         </div>
-        <button type="button" disabled={disabled} onClick={() => setEditing((e) => !e)} className="text-xs text-indigo-300 hover:text-indigo-200 disabled:opacity-40">
+        <button type="button" disabled={disabled} onClick={() => setEditing((e) => !e)} className="text-xs text-now hover:text-white disabled:opacity-40">
           {editing ? 'Cancel' : 'Change'}
         </button>
       </div>
@@ -251,7 +251,7 @@ export function ServerSourcePanel({ lib, disabled, onSaved }: { lib: Library; di
         <p className="text-[12px] text-ink-faint">Not read yet — scan it.</p>
       )}
       {editing && (
-        <div className="space-y-3 rounded-xl border border-edge bg-sunken/40 p-3">
+        <div className="space-y-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Address">
               <Input value={url} onChange={(e) => setUrl(e.target.value)} />

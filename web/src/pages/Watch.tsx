@@ -410,7 +410,7 @@ export default function Watch() {
           <Icon name="tv" size={34} className="mx-auto mb-4 text-indigo-300" />
           <div className="text-lg font-semibold">Nothing on air yet</div>
           <p className="mt-1 text-sm text-ink-muted">Give a channel a number to put it on air, then come back.</p>
-          <Link to="/channels" className="mt-5 inline-flex text-sm text-indigo-300 hover:text-indigo-200">
+          <Link to="/channels" className="mt-5 inline-flex text-sm text-now hover:text-white">
             Go to Channels
           </Link>
         </div>

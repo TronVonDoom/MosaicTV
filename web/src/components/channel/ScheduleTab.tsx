@@ -333,7 +333,7 @@ export default function ScheduleTab({
                 {w.blockId != null && ch.timeBlocks.some((b) => b.id === w.blockId) && (
                   <button
                     type="button"
-                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    className="shrink-0 text-[12.5px] text-now hover:text-white"
                     onClick={() => {
                       const b = ch.timeBlocks.find((x) => x.id === w.blockId)
                       if (b) {
@@ -348,7 +348,7 @@ export default function ScheduleTab({
                 {w.leaveOutSpecials && w.collectionId != null && (
                   <button
                     type="button"
-                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    className="shrink-0 text-[12.5px] text-now hover:text-white"
                     onClick={() =>
                       guard(
                         () =>
@@ -365,7 +365,7 @@ export default function ScheduleTab({
                 {w.holdHolidays && (
                   <button
                     type="button"
-                    className="shrink-0 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+                    className="shrink-0 text-[12.5px] text-now hover:text-white"
                     onClick={() => guard(() => api.updateChannel(channelId, { holidaysInSeason: true }), 'Holiday episodes wait for their season — the guide follows from the next program')}
                   >
                     Keep them to their season
@@ -736,7 +736,7 @@ export default function ScheduleTab({
                         : `No ident plays here while breaks are off. Turned on, it would be ${what}.`}
                   </span>
                   {onOpenBreaks && (
-                    <button type="button" onClick={onOpenBreaks} className="shrink-0 text-indigo-300 hover:text-indigo-200">
+                    <button type="button" onClick={onOpenBreaks} className="shrink-0 text-now hover:text-white">
                       Choose idents on the Breaks tab
                     </button>
                   )}

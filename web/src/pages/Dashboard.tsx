@@ -104,7 +104,7 @@ export default function Dashboard() {
             description="What every channel is airing this minute. Click a channel's picture to watch it live."
             actions={
               onAir.length > 0 && (
-                <Link to="/channels" className="text-[13px] text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1">
+                <Link to="/channels" className="text-[13px] text-now hover:text-white inline-flex items-center gap-1">
                   Manage channels <Icon name="chevronRight" size={14} />
                 </Link>
               )
@@ -149,7 +149,7 @@ export default function Dashboard() {
               title="Coming up"
               description="The next few hours across every channel. Click a program for its details."
               actions={
-                <Link to="/channels#guide" className="text-[13px] text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1">
+                <Link to="/channels#guide" className="text-[13px] text-now hover:text-white inline-flex items-center gap-1">
                   Full guide <Icon name="chevronRight" size={14} />
                 </Link>
               }
@@ -172,7 +172,7 @@ export default function Dashboard() {
             <SectionHeading
               title="Library"
               actions={
-                <Link to="/library" className="text-[13px] text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1">
+                <Link to="/library" className="text-[13px] text-now hover:text-white inline-flex items-center gap-1">
                   Browse <Icon name="chevronRight" size={14} />
                 </Link>
               }

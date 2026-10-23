@@ -9,7 +9,7 @@ import { SettingRow, SettingsGroup, SettingsSection } from './SettingsKit'
 
 const SOURCE_NAME: Record<MetadataSource, string> = { tmdb: 'TMDB', tvdb: 'TheTVDB', nfo: '.nfo files', embedded: 'file tags', musicbrainz: 'MusicBrainz', lrclib: 'LRCLIB' }
 
-const link = 'text-indigo-300 hover:text-indigo-200'
+const link = 'text-now hover:text-white'
 
 function ago(iso: string): string {
   const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)

@@ -66,7 +66,7 @@ export default function DirectoryPicker({
               {listing?.parent && (
                 <button
                   onClick={() => load(listing.parent!)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-raised/60 text-left text-sm text-ink-muted"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/[0.05] text-left text-sm text-ink-muted"
                 >
                   <span>↩</span> ..
                 </button>
@@ -78,7 +78,7 @@ export default function DirectoryPicker({
                 <button
                   key={d.path}
                   onClick={() => load(d.path)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-raised/60 text-left text-sm"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/[0.05] text-left text-sm"
                 >
                   <Icon name="folder" size={16} className="text-ink-muted shrink-0" />
                   <span className="truncate">{d.name}</span>

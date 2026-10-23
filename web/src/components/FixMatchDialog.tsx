@@ -363,7 +363,7 @@ export default function FixMatchDialog({
           </div>
           <p className="mt-1.5 text-[11.5px] text-ink-faint">
             Numbered in the order this library reads them — the first to give a detail wins. Change it under the library’s{' '}
-            <Link to="/library#sources" className="text-indigo-300 hover:text-indigo-200">
+            <Link to="/library#sources" className="text-now hover:text-white">
               Sources
             </Link>
             .
@@ -600,7 +600,7 @@ function CurrentMatch({
         href={sourcePage(source, kind, m.id!)}
         target="_blank"
         rel="noreferrer"
-        className="shrink-0 inline-flex items-center gap-1 text-[12.5px] text-indigo-300 hover:text-indigo-200"
+        className="shrink-0 inline-flex items-center gap-1 text-[12.5px] text-now hover:text-white"
       >
         {MATCH_SOURCE_NAMES[source]} <Icon name="external" size={13} />
       </a>

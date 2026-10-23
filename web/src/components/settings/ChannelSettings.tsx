@@ -17,7 +17,7 @@ export const HORIZONS = [
   { hours: 168, label: '1 week' },
 ] as const
 
-const link = 'text-indigo-300 hover:text-indigo-200'
+const link = 'text-now hover:text-white'
 
 /** What every channel does unless it says otherwise: how far ahead it's
  *  built, which audio track it airs, and the logo over the picture. */

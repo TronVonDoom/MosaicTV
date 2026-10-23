@@ -345,7 +345,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
             <button
               type="button"
               onClick={() => setForm({ ...form, folders: [...form.folders, ''] })}
-              className="text-sm text-indigo-300 hover:text-indigo-200"
+              className="text-sm text-now hover:text-white"
             >
               + Add another folder
             </button>
@@ -375,7 +375,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                     <span className="font-medium">{lib.name}</span>
                     <Badge>{KIND_LABELS[lib.kind]}</Badge>
                     {lib.source && <Badge tone="info">{SERVER_NAMES[lib.source.kind]}</Badge>}
-                    <span className="text-xs text-ink-faint">{lib.itemCount} items</span>
+                    <span className="text-xs text-ink-faint">{lib.itemCount.toLocaleString()} {lib.itemCount === 1 ? 'file' : 'files'}</span>
                   </div>
                 </div>
                 <LibraryActions
@@ -434,7 +434,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                 <button
                   onClick={() => setPicker({ mode: 'add', libraryId: lib.id })}
                   disabled={busy}
-                  className="text-xs text-indigo-300 hover:text-indigo-200 disabled:opacity-40"
+                  className="text-xs text-now hover:text-white disabled:opacity-40"
                 >
                   + Add folder
                 </button>
