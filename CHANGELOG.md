@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.20.0 — In season, signed in, and on the guide channel (2026-10-22)
 
 - **Seasonal blocks.** A time block can air only between two dates — Oct 1
   to Oct 31 every year, or Dec 20 to Dec 26 2026 once — picked in a new
