@@ -329,7 +329,7 @@ export default function ScheduleTab({
           {warnings.map((w, i) => (
             <Banner key={i} tone={w.severity === 'warn' ? 'warn' : 'info'}>
               <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="min-w-0 flex-1">{w.message}</span>
+                <span className="min-w-0 flex-[1_1_16rem]">{w.message}</span>
                 {w.blockId != null && ch.timeBlocks.some((b) => b.id === w.blockId) && (
                   <button
                     type="button"

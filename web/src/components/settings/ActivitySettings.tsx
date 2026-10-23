@@ -294,7 +294,7 @@ export default function ActivitySettings() {
           </div>
         ) : (
           shown.map((e) => (
-            <div key={e.id} className="flex gap-2 items-start">
+            <div key={e.id} className="flex flex-wrap sm:flex-nowrap gap-x-2 gap-y-0.5 items-start">
               <span className="text-ink-faint shrink-0 tabular-nums">
                 {new Date(e.ts).toLocaleTimeString()}
               </span>
@@ -315,7 +315,7 @@ export default function ActivitySettings() {
                   {e.session}
                 </button>
               )}
-              <span className="text-ink-soft whitespace-pre-wrap break-words min-w-0">
+              <span className="basis-full sm:basis-auto text-ink-soft whitespace-pre-wrap break-words min-w-0">
                 {e.message}
                 {e.detail && <span className="block text-ink-faint mt-0.5 pl-1">{e.detail}</span>}
               </span>

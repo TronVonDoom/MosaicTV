@@ -201,15 +201,6 @@
   .bg-gradient-brand {
     background-image: var(--gradient-brand);
   }
-  /* The brand's colours as hard-edged bars, like a test pattern's: the
-     stripe along the top of a title's or a library's page. */
-  .test-stripe {
-    background-image: linear-gradient(
-      90deg,
-      #a855f7 0 14.3%, #6366f1 14.3% 28.6%, #3b82f6 28.6% 42.9%, #22d3ee 42.9% 57.2%,
-      #34d399 57.2% 71.5%, #fbbf24 71.5% 85.8%, #fb7185 85.8% 100%
-    );
-  }
 
   /* The standard panel: a glass tile — a little white over whatever is
      behind it, with a hairline edge — so tiles side by side read as the

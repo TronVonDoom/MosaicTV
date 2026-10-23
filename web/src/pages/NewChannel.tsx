@@ -691,8 +691,8 @@ function StepFoot({ back, hint, next }: { back?: React.ReactNode; hint: string; 
   return (
     <div className="flex w-full flex-wrap items-center gap-2.5 rounded-[20px] border border-white/[0.08] bg-white/[0.045] px-4 py-3.5">
       {back}
-      <span className="flex-[1_1_10px] text-center text-[13px] text-ink-faint">{hint}</span>
-      {next}
+      <span className="order-first w-full text-[13px] text-ink-faint sm:order-none sm:w-auto sm:flex-[1_1_10px] sm:text-center">{hint}</span>
+      <span className="ml-auto">{next}</span>
     </div>
   )
 }
