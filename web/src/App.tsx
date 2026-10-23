@@ -7,7 +7,7 @@ import Layout from './components/Layout'
 // fetched in the background once it's up — kept by the browser for good, as
 // every built file is — so going to one doesn't wait on the network either.
 const pages = {
-  Dashboard: () => import('./pages/Dashboard'),
+  Guide: () => import('./pages/Guide'),
   Library: () => import('./pages/Library'),
   LibraryView: () => import('./pages/LibraryView'),
   ShowView: () => import('./pages/ShowView'),
@@ -20,7 +20,7 @@ const pages = {
   Logs: () => import('./pages/Logs'),
   Pair: () => import('./pages/Pair'),
 }
-const Dashboard = lazy(pages.Dashboard)
+const Guide = lazy(pages.Guide)
 const Library = lazy(pages.Library)
 const LibraryView = lazy(pages.LibraryView)
 const ShowView = lazy(pages.ShowView)
@@ -73,9 +73,9 @@ export default function App() {
         }
       />
       <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        {/* The TV Guide became a section of the Channels page. */}
-        <Route path="guide" element={<Navigate to="/channels#guide" replace />} />
+        {/* The home screen is the guide: what's on, across every channel. */}
+        <Route index element={<Guide />} />
+        <Route path="guide" element={<Navigate to="/" replace />} />
 
         <Route path="channels" element={<Channels />} />
         <Route path="channels/:slug" element={<ChannelEditor />} />

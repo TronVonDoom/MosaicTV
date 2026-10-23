@@ -106,10 +106,9 @@ export default function CommandPalette({
     const go = (to: string) => () => navigate(to)
 
     const statics: Command[] = [
-      { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', group: 'Go to', run: go('/'), keywords: 'home overview status live now' },
-      { id: 'channels', label: 'Channels', icon: 'channels', group: 'Go to', run: go('/channels') },
+      { id: 'guide', label: 'Guide', icon: 'guide', group: 'Go to', run: go('/'), keywords: 'home dashboard epg tv guide listings schedule what is on now tonight live' },
+      { id: 'channels', label: 'Channels', icon: 'channels', group: 'Go to', run: go('/channels'), keywords: 'lineup new channel drafts' },
       { id: 'watch', label: 'Watch TV', icon: 'tv', group: 'Go to', run: go('/watch'), keywords: 'tv mode full screen surf flip channels lean back play' },
-      { id: 'guide', label: 'TV Guide', context: 'Channels', icon: 'guide', group: 'Go to', run: go('/channels#guide'), keywords: 'epg listings schedule what is on tonight' },
       { id: 'library', label: 'Library', context: 'Browse', icon: 'libraries', group: 'Go to', run: go('/library#browse'), keywords: 'shows movies music artists albums media' },
       { id: 'sources', label: 'Library', context: 'Sources', icon: 'folder', group: 'Go to', run: go('/library#sources'), keywords: 'scan folders add library tmdb metadata' },
       { id: 'logos', label: 'Studio', context: 'Logos', icon: 'image', group: 'Go to', run: go('/studio#images'), keywords: 'watermark images' },
@@ -120,6 +119,7 @@ export default function CommandPalette({
       { id: 'set-channels', label: 'Settings', context: 'Channels', icon: 'settings', group: 'Settings', run: go('/settings#channels'), keywords: 'horizon build ahead guide depth audio language watermark logo overlay opacity' },
       { id: 'set-streaming', label: 'Settings', context: 'Streaming', icon: 'settings', group: 'Settings', run: go('/settings#streaming'), keywords: 'hls mpegts stream format playlist m3u tuner hdhomerun plex emby' },
       { id: 'set-encoding', label: 'Settings', context: 'Encoding', icon: 'settings', group: 'Settings', run: go('/settings#encoding'), keywords: 'ffmpeg profile bitrate gpu nvenc' },
+      { id: 'set-sign-in', label: 'Settings', context: 'Sign-in', icon: 'settings', group: 'Settings', run: go('/settings#sign-in'), keywords: 'password pairing code devices away from home remote tailscale player links security' },
       { id: 'set-maintenance', label: 'Settings', context: 'Maintenance', icon: 'settings', group: 'Settings', run: go('/settings#maintenance'), keywords: 'backup reset wipe clean slate' },
     ]
 
@@ -274,29 +274,29 @@ export default function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[12vh] bg-black/65 backdrop-blur-[3px] fade-in"
+      className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[10vh] bg-[rgb(5_4_10/0.72)] backdrop-blur-[6px] fade-in"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
-        className="modal-in w-full max-w-[620px] rounded-2xl border border-edge-strong bg-overlay/95 backdrop-blur-xl shadow-[0_40px_100px_-20px_rgb(0_0_0/0.9),inset_0_1px_0_rgb(255_255_255/0.06)] overflow-hidden"
+        aria-label="Search everything"
+        className="modal-in w-full max-w-[680px] rounded-3xl ring-brand [--ring-fill:#110e1e] shadow-[0_40px_100px_-20px_rgb(0_0_0/0.9)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-4 border-b border-edge">
-          <Icon name="search" size={18} className="text-ink-faint shrink-0" />
+        <div className="flex items-center gap-3.5 px-5 border-b border-white/[0.08]">
+          <Icon name="search" size={21} className="text-indigo-300 shrink-0" />
           <input
             ref={inputRef}
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search pages, channels, shows, movies and music…"
+            placeholder="Search pages, channels, shows, movies, music and settings…"
             aria-label="Search"
-            className="flex-1 bg-transparent h-14 text-[15px] text-ink outline-none placeholder:text-ink-ghost"
+            className="flex-1 bg-transparent h-16 text-[18px] font-medium text-ink outline-none placeholder:text-ink-ghost placeholder:font-normal"
           />
-          <Kbd>esc</Kbd>
+          <Kbd>Esc</Kbd>
         </div>
 
         <div ref={listRef} className="max-h-[56vh] overflow-y-auto p-2">
@@ -312,7 +312,7 @@ export default function CommandPalette({
               return (
                 <div key={cmd.id}>
                   {showGroup && (
-                    <div className="px-3 pt-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-ghost">
+                    <div className="px-3 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
                       {cmd.group}
                     </div>
                   )}
@@ -321,14 +321,14 @@ export default function CommandPalette({
                     onMouseMove={() => setCursor(i)}
                     onClick={() => pick(cmd)}
                     className={cx(
-                      'w-full flex items-center gap-3 rounded-lg px-3 h-10 text-left text-[13.5px] transition-colors',
-                      active ? 'bg-white/[0.07] text-ink' : 'text-ink-soft',
+                      'w-full flex items-center gap-3 rounded-2xl px-3 h-12 text-left text-[14.5px] transition-colors',
+                      active ? 'bg-indigo-400/[0.16] text-ink' : 'text-ink-soft',
                     )}
                   >
                     <span
                       className={cx(
-                        'grid place-items-center w-7 h-7 rounded-md border shrink-0 overflow-hidden',
-                        active ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-200' : 'border-edge bg-surface text-ink-muted',
+                        'grid place-items-center w-8 h-8 rounded-xl shrink-0 overflow-hidden',
+                        active ? 'bg-indigo-400/20 text-indigo-100' : 'bg-white/[0.06] text-ink-muted',
                       )}
                     >
                       {cmd.image ? (
@@ -337,9 +337,9 @@ export default function CommandPalette({
                         <Icon name={cmd.icon} size={15} />
                       )}
                     </span>
-                    <span className="truncate font-medium">{cmd.label}</span>
-                    {cmd.context && <span className="text-[12.5px] text-ink-faint truncate">{cmd.context}</span>}
-                    {active && <Icon name="chevronRight" size={15} className="ml-auto text-ink-faint shrink-0" />}
+                    <span className="truncate font-semibold">{cmd.label}</span>
+                    {cmd.context && <span className="text-[13px] text-ink-faint truncate">{cmd.context}</span>}
+                    {active && <span className="ml-auto shrink-0 text-[12px] font-semibold text-indigo-200">Open ↵</span>}
                   </button>
                 </div>
               )
@@ -347,7 +347,7 @@ export default function CommandPalette({
           )}
         </div>
 
-        <div className="flex items-center gap-4 px-4 h-10 border-t border-edge text-[11.5px] text-ink-faint">
+        <div className="flex items-center gap-4 px-5 h-11 border-t border-white/[0.08] text-[12px] text-ink-faint">
           <span className="inline-flex items-center gap-1.5">
             <Kbd>↑</Kbd>
             <Kbd>↓</Kbd> to move

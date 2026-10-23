@@ -13,6 +13,7 @@ import { formatClock } from '../lib/format'
 import { useNow } from '../lib/hooks'
 import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
+import SegmentBar, { hasParts, piecesOf } from '../components/guide/SegmentBar'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
@@ -92,6 +93,13 @@ export default function Watch() {
   )
   const channel = lineup.find((c) => c.number === current) ?? null
   const row = channel ? rows[channel.id] : undefined
+  // The channel's guide for the next couple of hours, to draw what's on now in
+  // its parts and breaks the way the guide does.
+  const guideRead = useCached(channel ? reads.guides([channel.id], 2, 0) : null)
+  const pieces = useMemo(() => {
+    if (!channel || !row?.now) return []
+    return piecesOf(guideRead.data?.[channel.id]?.items, new Date(row.now.startTime).getTime(), new Date(row.now.stopTime).getTime())
+  }, [channel, row?.now, guideRead.data])
 
   useLiveRefresh(nowRead.reload, ['onAir', 'guide'], { fallbackMs: 15_000 })
 
@@ -213,7 +221,7 @@ export default function Watch() {
 
   const exit = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    // Back to wherever TV mode was opened from; straight to the dashboard if it
+    // Back to wherever TV mode was opened from; straight to the guide if it
     // was opened directly.
     if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1)
     else navigate('/')
@@ -444,8 +452,8 @@ export default function Watch() {
           <div className="relative flex flex-col items-center gap-4 fade-in">
             <ChannelLogo logoId={channel.logoId} name={channel.name} size={112} className="rounded-3xl" />
             <div className="text-center">
-              <div className="font-mono text-[15px] tracking-[0.2em] text-white/60">CH {channel.number}</div>
-              <div className="mt-1 text-2xl font-semibold tracking-tight">{channel.name}</div>
+              <div className="text-[34px] font-bold leading-none tabular-nums text-white/80">{channel.number}</div>
+              <div className="mt-1.5 text-2xl font-semibold tracking-tight">{channel.name}</div>
             </div>
           </div>
         )}
@@ -460,7 +468,7 @@ export default function Watch() {
             <p className="text-[13.5px] text-white/60 max-w-sm">Flip channels here and the TV follows.</p>
             <button
               onClick={stopCasting}
-              className="mt-2 rounded-full bg-white/10 ring-1 ring-white/15 px-4 py-2 text-[13px] font-medium hover:bg-white/15"
+              className="mt-2 h-11 rounded-full bg-white/10 ring-1 ring-white/15 px-5 text-[14px] font-semibold hover:bg-white/15"
             >
               Stop casting
             </button>
@@ -473,8 +481,8 @@ export default function Watch() {
         <div className="absolute top-6 right-8 pointer-events-none">
           <div
             className={cx(
-              'font-mono font-semibold tabular-nums leading-none drop-shadow-[0_2px_12px_rgb(0_0_0/0.8)]',
-              notFound ? 'text-[28px] text-rose-200' : 'text-[64px] text-white',
+              'font-bold tabular-nums leading-none drop-shadow-[0_2px_12px_rgb(0_0_0/0.8)]',
+              notFound ? 'text-[28px] text-rose-200' : 'text-[68px] text-white',
             )}
           >
             {osdNumber}
@@ -491,30 +499,35 @@ export default function Watch() {
         )}
       >
         {channel && (
-          <div className="mx-auto max-w-4xl rounded-2xl bg-black/55 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl p-4 sm:p-5 flex gap-4 items-center">
+          <div className="mx-auto max-w-4xl rounded-3xl glass-label shadow-2xl p-4 sm:p-5 flex gap-4 items-center">
             <ChannelLogo logoId={channel.logoId} name={channel.name} size={64} className="rounded-2xl hidden sm:grid" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-[13px]">
-                <span className="font-mono font-semibold text-indigo-300 tabular-nums">{channel.number}</span>
+                <span className="text-[15px] font-bold tabular-nums">{channel.number}</span>
                 <span className="font-medium text-white/85 truncate">{channel.name}</span>
                 <LiveBadge />
+                {row?.now && row.now.parts > 1 && <span className="text-white/55">{row.now.parts} parts</span>}
               </div>
               {row?.now ? (
                 <>
-                  <div className="mt-1.5 text-xl sm:text-2xl font-semibold tracking-tight truncate">{unitLabel(row.now)}</div>
-                  {row.now.subtitle && <div className="text-sm text-white/70 truncate">{row.now.subtitle}</div>}
+                  <div className="mt-1.5 text-2xl sm:text-[30px] font-bold leading-tight tracking-[-0.01em] truncate">{unitLabel(row.now)}</div>
+                  {row.now.subtitle && <div className="text-[15px] text-white/75 truncate">{row.now.subtitle}</div>}
                   <div className="mt-3 flex items-center gap-3 text-[12px] text-white/60 tabular-nums">
                     <span>{formatClock(row.now.startTime)}</span>
-                    <div className="flex-1 h-1 rounded-full bg-white/15 overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-sky-400" style={{ width: `${progressOf(row.now, nowMs) * 100}%` }} />
-                    </div>
+                    {hasParts(pieces) ? (
+                      <SegmentBar pieces={pieces} nowMs={nowMs} height={5} className="flex-1" />
+                    ) : (
+                      <div className="flex-1 h-[5px] rounded-full bg-white/20 overflow-hidden">
+                        <div className="h-full rounded-full bg-now" style={{ width: `${progressOf(row.now, nowMs) * 100}%` }} />
+                      </div>
+                    )}
                     <span>{formatClock(row.now.stopTime)}</span>
-                    <span className="hidden sm:inline text-white/45">{minutesLeft(row.now, nowMs)} min left</span>
+                    <span className="hidden sm:inline text-white/50">{minutesLeft(row.now, nowMs)} min left</span>
                   </div>
                   {row.next[0] && (
-                    <div className="mt-2.5 text-[13px] text-white/60 truncate">
-                      <span className="text-white/40">Next · {formatClock(row.next[0].startTime)}</span>{' '}
-                      <span className="text-white/80">{unitLabel(row.next[0])}</span>
+                    <div className="mt-2.5 text-[13.5px] text-white/60 truncate">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-200/80">Up next · {formatClock(row.next[0].startTime)}</span>{' '}
+                      <span className="text-white/85">{unitLabel(row.next[0])}</span>
                       {row.next[0].subtitle && <span className="text-white/50"> · {row.next[0].subtitle}</span>}
                     </div>
                   )}
@@ -529,7 +542,7 @@ export default function Watch() {
 
       {/* Player trouble. */}
       {(error || reconnecting) && !tuning && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 rounded-xl bg-black/70 backdrop-blur ring-1 ring-white/10 px-4 py-2 text-[13px] flex items-center gap-2">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 rounded-full glass-label px-4 py-2 text-[13px] flex items-center gap-2">
           <Icon name={error ? 'warning' : 'refresh'} size={15} className={error ? 'text-rose-300' : 'animate-spin'} />
           {error ?? 'Reconnecting…'}
         </div>
@@ -537,7 +550,7 @@ export default function Watch() {
       {muted && (
         <button
           onClick={toggleMute}
-          className="absolute top-6 left-6 rounded-full bg-black/60 backdrop-blur ring-1 ring-white/15 px-3.5 py-1.5 text-[13px] flex items-center gap-2 hover:bg-black/75"
+          className="absolute top-6 left-6 rounded-full glass-label px-4 py-2 text-[13px] flex items-center gap-2 hover:bg-[rgb(12_10_22/0.75)]"
         >
           <Icon name="muted" size={15} /> Sound is off — press <Kbd>M</Kbd> or tap to unmute
         </button>
@@ -570,7 +583,7 @@ export default function Watch() {
               }}
             />
           )}
-          <div className="flex items-center rounded-full sm:bg-black/45 sm:backdrop-blur-md sm:ring-1 sm:ring-white/15">
+          <div className="flex items-center rounded-full sm:bg-[rgb(12_10_22/0.5)] sm:backdrop-blur-md sm:ring-1 sm:ring-white/15">
             <OsdButton icon={muted || volume === 0 ? 'muted' : 'volume'} label={muted ? 'Unmute (M)' : 'Mute (M)'} onClick={toggleMute} />
             {/* Phones set the volume with their own buttons; the slider is for the rest. */}
             <input
@@ -611,7 +624,7 @@ export default function Watch() {
           <div
             className={cx(
               'h-full w-full sm:w-[min(560px,92vw)] ring-1 flex flex-col drawer-in',
-              classic ? 'bg-gradient-to-b from-[#0a1a78] to-[#06104a] ring-[#3d63ea]/70' : 'bg-[#07080c]/90 ring-white/10',
+              classic ? 'bg-gradient-to-b from-[#0a1a78] to-[#06104a] ring-[#3d63ea]/70' : 'bg-[rgb(17_14_30/0.94)] backdrop-blur-xl ring-white/10',
             )}
             onClick={(e) => e.stopPropagation()}
           >
@@ -648,13 +661,13 @@ export default function Watch() {
                       'w-full text-left flex items-center gap-3 px-3 py-2.5 transition-colors',
                       classic
                         ? cx('mb-1.5 rounded-[3px] border', sel ? 'bg-[#ffd84a] border-[#ffd84a] text-[#0a1a78]' : 'bg-[#13299e] border-[#3d63ea] hover:bg-[#1a35bd]')
-                        : cx('rounded-xl', sel ? 'bg-white/[0.09] ring-1 ring-indigo-400/40' : 'hover:bg-white/[0.04]'),
+                        : cx('rounded-2xl mb-1', sel ? 'bg-indigo-400/[0.14] ring-1 ring-indigo-300/50' : 'hover:bg-white/[0.05]'),
                     )}
                   >
                     <span
                       className={cx(
                         'w-9 shrink-0 tabular-nums text-right',
-                        classic ? cx('text-[17px] font-extrabold', sel ? 'text-[#0a1a78]' : 'text-[#ffd84a]') : 'font-mono text-[14px] font-semibold text-indigo-300',
+                        classic ? cx('text-[17px] font-extrabold', sel ? 'text-[#0a1a78]' : 'text-[#ffd84a]') : 'text-[16px] font-bold text-white',
                       )}
                     >
                       {c.number}
@@ -678,7 +691,7 @@ export default function Watch() {
                           <span className="mt-1 flex items-center gap-2">
                             <span className={cx('h-[3px] w-16 rounded-full overflow-hidden', classic ? (sel ? 'bg-[#0a1a78]/25' : 'bg-white/20') : 'bg-white/15')}>
                               <span
-                                className={cx('block h-full', classic ? (sel ? 'bg-[#0a1a78]' : 'bg-[#ffd84a]') : 'bg-indigo-400')}
+                                className={cx('block h-full', classic ? (sel ? 'bg-[#0a1a78]' : 'bg-[#ffd84a]') : 'bg-now')}
                                 style={{ width: `${progressOf(r.now, nowMs) * 100}%` }}
                               />
                             </span>
@@ -716,7 +729,7 @@ export default function Watch() {
 
       {helpOpen && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm grid place-items-center p-6" onClick={() => setHelpOpen(false)}>
-          <div className="rounded-2xl bg-[#0b0d13]/95 ring-1 ring-white/10 p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-3xl bg-[rgb(17_14_30/0.96)] ring-1 ring-white/12 p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-semibold tracking-tight mb-4">TV mode keys</div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-[13.5px]">
               {(
