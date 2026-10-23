@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.21.0 — A new look (2026-10-23)
+
+The whole web app is redrawn and reorganised. Nothing it can do has
+changed: every setting, button and view from 0.20.0 is still here, some of
+them in a new place. The server is untouched.
+
+- **The look.** One typeface (Outfit) in place of the condensed capitals and
+  the monospace text, frosted glass tiles on a near-black background, and a
+  single violet accent. Red still means live, and amber now only ever means
+  breaks.
+- **Five places.** A slim rail down the left side (on a phone, a bar along
+  the bottom: Guide, Channels, Library, More) holds Guide, Channels,
+  Library, Studio and Settings, with search at its top (Ctrl K) that finds
+  channels, titles and settings sections. Every page below the top level
+  starts with a breadcrumb.
+- **The Guide is the home page.** What's on now on one channel, large, with
+  what's up next beside it, and then every channel in the grid. A program
+  that airs in parts shows its parts and its breaks as a bar along its foot.
+  Tap a channel's tile in the grid to bring it up top. The old Dashboard is
+  gone: its guide is here, its library figures are on the Library page, and
+  its server chart is in Settings › Activity.
+- **Channels.** Each channel is a card with its number, logo, what it's
+  airing and the shape of its schedule, with Watch in one tap. Channels can
+  be filtered by group. The guide that used to sit below the cards lives on
+  the Guide page.
+- **New channel in three steps.** Name it, pick what it plays from your
+  shows, movies and music as posters, then choose all day or in blocks. The
+  channel is saved after the first step, so you can leave and finish it
+  later; the picks become the channel's own collection.
+- **A channel's page.** Four tabs, On air, Schedule, Breaks and Settings,
+  under one header that shows its live picture, number, logo and what's on,
+  with Watch and Copy stream URL. The channel's collections are at the foot
+  of the Schedule tab now. Old links to the General, Collections and Guide
+  tabs land on their new homes.
+- **Library.** Tiles at the top switch between libraries, the toolbar and the
+  A–Z bar are restyled, and show, movie and artist pages have new headers.
+  The Library page's summary line counts episodes, movies, songs and the
+  total running time, and says when files are missing on disk.
+- **Settings › Activity.** The Logs page moved into Settings as Activity,
+  with the server's status, its CPU and memory chart, and the log with every
+  filter, Copy all, Download and Clear. `/logs` lands there.
+- **Phones.** No screen scrolls sideways at phone width, and save bars clear
+  the bottom tab bar.
+
 ## 0.20.0 — In season, signed in, and on the guide channel (2026-10-22)
 
 - **Seasonal blocks.** A time block can air only between two dates — Oct 1
