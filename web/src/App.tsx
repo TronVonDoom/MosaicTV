@@ -16,6 +16,7 @@ const pages = {
   Settings: () => import('./pages/Settings'),
   Channels: () => import('./pages/Channels'),
   ChannelEditor: () => import('./pages/ChannelEditor'),
+  NewChannel: () => import('./pages/NewChannel'),
   Studio: () => import('./pages/Studio'),
   Logs: () => import('./pages/Logs'),
   Pair: () => import('./pages/Pair'),
@@ -29,6 +30,7 @@ const MovieView = lazy(pages.MovieView)
 const Settings = lazy(pages.Settings)
 const Channels = lazy(pages.Channels)
 const ChannelEditor = lazy(pages.ChannelEditor)
+const NewChannel = lazy(pages.NewChannel)
 const Studio = lazy(pages.Studio)
 const Logs = lazy(pages.Logs)
 const Pair = lazy(pages.Pair)
@@ -78,6 +80,7 @@ export default function App() {
         <Route path="guide" element={<Navigate to="/" replace />} />
 
         <Route path="channels" element={<Channels />} />
+        <Route path="channels/new" element={<NewChannel />} />
         <Route path="channels/:slug" element={<ChannelEditor />} />
 
         <Route path="library" element={<Library />} />

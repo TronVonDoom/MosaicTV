@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import Icon, { type IconName } from './Icon'
 import type { Channel, Stats } from '../lib/api'
 import { channelPath } from '../lib/channels'
-import { cx } from './ui'
+import { buttonClass, cx } from './ui'
 
 type Step = { title: string; hint: string; to: string; done: boolean; icon: IconName }
 
@@ -41,7 +41,7 @@ function Ring({ pct }: { pct: number }) {
  * — so it reflects the instance's actual state, and undoing something (deleting
  * the last channel, say) brings the relevant step back.
  *
- * Returns null once every step is done; the Dashboard renders it above the fold
+ * Returns null once every step is done; the Guide renders it above the fold
  * while it's incomplete and nowhere at all afterwards.
  */
 export default function GettingStarted({ stats, channels }: { stats: Stats; channels: Channel[] }) {
@@ -54,9 +54,9 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
   const steps: Step[] = [
     { title: 'Add a library', hint: 'Point at a folder under /media', to: '/library#sources', done: stats.libraries > 0, icon: 'folder' },
     { title: 'Scan your media', hint: 'Index shows, movies & music, then grab their art and details', to: '/library#sources', done: stats.items > 0, icon: 'libraries' },
-    { title: 'Create a channel', hint: 'Name it — the number can wait', to: '/channels', done: channels.length > 0, icon: 'channels' },
-    { title: 'Schedule it', hint: 'Collections, then a rotation or time blocks', to: `${firstPath}#schedule`, done: scheduled, icon: 'calendar' },
-    { title: 'Build the guide', hint: 'Guide tab → Build', to: `${firstPath}#guide`, done: built, icon: 'guide' },
+    { title: 'Create a channel', hint: 'Name it — the number can wait', to: '/channels/new', done: channels.length > 0, icon: 'channels' },
+    { title: 'Schedule it', hint: 'Pick what it plays, then all day or blocks', to: `${firstPath}#schedule`, done: scheduled, icon: 'calendar' },
+    { title: 'Build the guide', hint: 'On air tab → Build', to: `${firstPath}#on-air`, done: built, icon: 'guide' },
     { title: 'Go live', hint: 'Give it a number to join the M3U & guide', to: firstPath, done: onAir, icon: 'live' },
   ]
   if (steps.every((s) => s.done)) return null
@@ -69,14 +69,8 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
   const next = steps[nextIndex]
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-indigo-500/25 surface-card">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-brand opacity-80" />
-      <div
-        className="absolute -top-32 -right-24 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #8b5cf6, transparent 70%)' }}
-      />
-
-      <div className="relative p-6">
+    <section className="relative overflow-hidden rounded-[22px] border border-white/[0.08] bg-white/[0.045]">
+      <div className="relative p-5 sm:p-6">
         <div className="flex items-center gap-5 flex-wrap">
           <div className="relative">
             <Ring pct={pct} />
@@ -85,18 +79,13 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold tracking-tight">
-              <span className="text-gradient-brand">Welcome to MosaicTV</span>
-            </h2>
+            <h2 className="text-[20px] font-bold tracking-[-0.01em] text-ink">Welcome to MosaicTV</h2>
             <p className="text-[13.5px] text-ink-muted mt-0.5">
               Six steps from a folder of media to your own live TV channel.
             </p>
           </div>
           {next && (
-            <Link
-              to={next.to}
-              className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 glow-brand"
-            >
+            <Link to={next.to} className={buttonClass('primary', 'md')}>
               Next: {next.title}
               <Icon name="chevronRight" size={16} />
             </Link>
@@ -109,28 +98,28 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
               <Link
                 to={s.to}
                 className={cx(
-                  'group flex items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors h-full',
+                  'group flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors h-full',
                   s.done
-                    ? 'border-emerald-500/20 bg-emerald-500/[0.04]'
+                    ? 'border border-emerald-400/20 bg-emerald-400/[0.04]'
                     : i === nextIndex
-                      ? 'border-indigo-500/50 bg-indigo-500/[0.08] hover:border-indigo-400'
-                      : 'border-edge bg-sunken/60 hover:border-edge-strong',
+                      ? 'ring-brand [--ring-fill:#17142a]'
+                      : 'border border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.05]',
                 )}
               >
                 <span
                   className={cx(
-                    'grid place-items-center w-9 h-9 shrink-0 rounded-lg',
+                    'grid place-items-center w-9 h-9 shrink-0 rounded-full',
                     s.done
-                      ? 'bg-emerald-500/15 text-emerald-300'
+                      ? 'bg-emerald-400/[0.18] text-emerald-300'
                       : i === nextIndex
-                        ? 'bg-indigo-500 text-white shadow-[0_6px_20px_-6px_rgb(139_92_246/0.8)]'
-                        : 'bg-raised text-ink-faint',
+                        ? 'bg-indigo-400 text-now-ink'
+                        : 'bg-white/[0.07] text-ink-faint',
                   )}
                 >
                   <Icon name={s.done ? 'check' : s.icon} size={17} />
                 </span>
                 <span className="min-w-0">
-                  <span className={cx('block text-[13.5px] font-medium', s.done ? 'text-ink-muted' : 'text-ink')}>
+                  <span className={cx('block text-[14px] font-semibold', s.done ? 'text-ink-muted' : 'text-ink')}>
                     <span className="text-ink-ghost tabular-nums mr-1.5">{i + 1}.</span>
                     {s.title}
                   </span>
@@ -142,13 +131,13 @@ export default function GettingStarted({ stats, channels }: { stats: Stats; chan
         </ol>
 
         <p className="text-xs text-ink-faint mt-5">
-          Then connect Jellyfin, Plex, Emby or VLC with the <span className="text-ink-soft">Live TV setup</span>{' '}
-          item at the bottom of the sidebar — or read the{' '}
+          Then connect Jellyfin, Plex, Emby or VLC with <span className="text-ink-soft">Live TV setup</span>{' '}
+          at the foot of the side rail (under More on a phone) — or read the{' '}
           <a
             href="https://github.com/TronVonDoom/mosaictv/blob/main/docs/getting-started.md"
             target="_blank"
             rel="noreferrer"
-            className="text-indigo-300 hover:text-indigo-200"
+            className="text-now hover:text-white"
           >
             Getting Started guide
           </a>

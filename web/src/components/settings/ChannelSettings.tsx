@@ -112,7 +112,7 @@ export default function ChannelSettings({ info, onChange }: { info: SettingsInfo
           hint={
             <>
               Plenty of files list the original language first — an anime rip is often Japanese on track 1 and English on track 2 —
-              and without a preference the first track is what plays. A channel can choose its own on its General tab, so an anime
+              and without a preference the first track is what plays. A channel can choose its own on its Settings tab, so an anime
               channel can stay subtitled while everything else runs dubbed.
             </>
           }

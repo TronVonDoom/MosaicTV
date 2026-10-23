@@ -47,7 +47,7 @@ function PositionPicker({ value, onChange }: { value: CardPosition; onChange: (p
               onClick={() => onChange(pos)}
               className={cx(
                 'rounded-[4px] transition-colors',
-                value === pos ? 'bg-indigo-500 shadow-[0_0_0_1px_rgb(165_180_252/0.5)]' : 'bg-white/[0.06] hover:bg-white/[0.14]',
+                value === pos ? 'bg-indigo-400 shadow-[0_0_0_1px_rgb(196_181_253/0.5)]' : 'bg-white/[0.06] hover:bg-white/[0.14]',
               )}
             />
           ) : (
@@ -148,14 +148,14 @@ export default function ComingUpFields({
           {channelId != null && <CardPreview channelId={channelId} cfg={cfg} />}
 
           <Section title="Timing">
-            <div className="inline-flex rounded-lg border border-edge-strong overflow-hidden">
+            <div className="inline-flex gap-0.5 rounded-full bg-white/[0.05] p-1">
               {TIMINGS.map((t) => (
                 <button
                   key={t.value}
                   type="button"
                   onClick={() => set('timing', t.value)}
-                  className={`px-3.5 py-1.5 text-sm transition-colors ${
-                    cfg.timing === t.value ? 'bg-indigo-500 text-white' : 'bg-surface text-ink-muted hover:text-ink'
+                  className={`h-8 rounded-full px-3.5 text-[13px] font-semibold transition-colors ${
+                    cfg.timing === t.value ? 'bg-ink text-now-ink' : 'text-ink-muted hover:text-ink hover:bg-white/[0.07]'
                   }`}
                 >
                   {t.label}

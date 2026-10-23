@@ -4,6 +4,7 @@ import type { Collection } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { channelIdIn, channelSlug } from '../lib/channels'
+import { copyText } from '../lib/clipboard'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import { useHashTab, useNow, type DraftCache } from '../lib/hooks'
@@ -16,15 +17,19 @@ import GeneralTab from '../components/channel/GeneralTab'
 import ScheduleTab from '../components/channel/ScheduleTab'
 import BreaksTab from '../components/channel/BreaksTab'
 import GuideTab from '../components/channel/GuideTab'
-import { Banner, Button, EmptyState, Skeleton, buttonClass } from '../components/ui'
+import { Banner, EmptyState, LiveBadge, Menu, SectionHeading, Skeleton, buttonClass } from '../components/ui'
 import Icon from '../components/Icon'
-import { Kicker, Masthead, NetworkTabs } from '../components/onair/Masthead'
-import { StatFigure, Tally } from '../components/onair/OnAir'
+import { Kicker, NetworkTabs } from '../components/onair/Masthead'
+import { Tally } from '../components/onair/OnAir'
 
 const NO_COLLECTIONS: Collection[] = []
 
-const TAB_IDS = ['general', 'collections', 'schedule', 'breaks', 'guide'] as const
+// Four tabs, in the order you'd use them. The old five are kept as names that
+// land on their new home: General is Settings, Collections sit at the foot of
+// Schedule, the Guide is On air.
+const TAB_IDS = ['on-air', 'schedule', 'breaks', 'settings'] as const
 type Tab = (typeof TAB_IDS)[number]
+const TAB_ALIASES: Partial<Record<string, Tab>> = { general: 'settings', collections: 'schedule', guide: 'on-air', fillers: 'breaks' }
 
 const Loading = () => (
   <div className="space-y-4">
@@ -98,8 +103,11 @@ function ChannelEditorFor({
   const colsRead = useCached(reads.collections(channelId))
   const cols = colsRead.data ?? NO_COLLECTIONS
   const [error, setError] = useState<string | null>(null)
-  // "#fillers" is what the Breaks tab was called — old links still land on it.
-  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'general', { fillers: 'breaks' })
+  const [tab, setTab] = useHashTab<Tab>(TAB_IDS, 'on-air', TAB_ALIASES)
+  // "#collections" (the old tab) lands on Schedule, scrolled to its collections.
+  useEffect(() => {
+    if (hash === '#collections') requestAnimationFrame(() => document.getElementById('collections')?.scrollIntoView({ behavior: 'smooth' }))
+  }, [hash])
   // A block the Breaks tab asked to open on the Schedule tab.
   const [scheduleFocus, setScheduleFocus] = useState<number | null>(null)
   const nowRead = useCached(reads.channelsNow)
@@ -152,11 +160,10 @@ function ChannelEditorFor({
   if (!ch) return missing ? <NotFound what="such channel" /> : <Loading />
 
   const tabs = [
-    { id: 'general', label: 'General' },
-    { id: 'collections', label: 'Collections', count: cols.length || null },
+    { id: 'on-air', label: 'On air' },
     { id: 'schedule', label: 'Schedule', count: ch.rotationItems.length + ch.timeBlocks.length || null },
     { id: 'breaks', label: 'Breaks' },
-    { id: 'guide', label: 'Guide' },
+    { id: 'settings', label: 'Settings' },
   ] as const
 
   const unit = ch.number != null ? now?.now ?? null : null
@@ -165,97 +172,112 @@ function ChannelEditorFor({
       Math.max(1, new Date(unit.stopTime).getTime() - new Date(unit.startTime).getTime())
     : 0
 
+  async function copyStream() {
+    const url = `${window.location.origin}/iptv/channel/${ch!.number}.ts`
+    if (await copyText(url)) toast.success(`Copied the stream URL for ${ch!.name}`)
+    else toast.error(`Copy blocked by the browser — the URL is ${url}`)
+  }
   return (
     <div>
-      {/* The channel's name as the network sets it, and what it's airing as a
-          lower-third, over the picture of it. */}
-      <Masthead
-        kicker={<Kicker items={[{ label: 'Channels', to: '/channels' }, ...(ch.group ? [{ label: ch.group }] : []), { label: ch.name }]} />}
-        before={<ChannelLogo logoId={ch.logoId} name={ch.name} size={80} className="rounded-xl shrink-0 hidden sm:grid" />}
-        title={ch.name}
-        backdrop={
-          unit && (
-            <div className="absolute right-0 top-[5px] -bottom-2 w-full md:w-3/5 -mr-4 sm:-mr-6 lg:-mr-8 3xl:-mr-10 opacity-45 pointer-events-none [mask-image:linear-gradient(to_right,transparent,black_55%)]">
-              <div className="absolute inset-0 mask-fade-b">
-                <ProgramArt unit={unit} logoId={ch.logoId} name={ch.name} />
-              </div>
-            </div>
-          )
-        }
-        lead={
-          unit ? (
-            <div className="max-w-xl">
-              <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
-                <Tally tone="live">Now</Tally>
-                <span className="font-mono text-[12.5px] uppercase tabular-nums text-ink-soft">
-                  {formatClock(unit.startTime)} – {formatClock(unit.stopTime)}
-                </span>
-                <span className="min-w-0 truncate font-display font-bold text-[22px] leading-none tracking-[0.02em] uppercase text-ink">{unit.title}</span>
-                {unit.subtitle && <span className="min-w-0 truncate font-mono text-[12.5px] uppercase text-ink-muted">{unit.subtitle}</span>}
-              </div>
-              <div className="flex items-center gap-3 mt-2.5">
-                <div className="flex-1 max-w-80 h-1 rounded-full bg-white/15">
-                  <div className="h-1 rounded-full bg-live" style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
-                </div>
-                <span className="font-mono text-[11.5px] uppercase tabular-nums text-ink-faint whitespace-nowrap">
-                  {formatRemaining(new Date(unit.stopTime).getTime() - nowMs)}
-                </span>
-              </div>
-            </div>
+      <header className="mb-6">
+        <div className="mb-2.5">
+          <Kicker items={[{ label: 'Channels', to: '/channels' }, { label: ch.number != null ? `${ch.number} ${ch.name}` : ch.name }]} />
+        </div>
+        {/* The channel, the same on every tab: what it's airing as a small
+            live picture, its number, logo and name, and the way to watch it. */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-white/[0.08] bg-white/[0.045] p-3 pr-4 sm:pr-5">
+          {ch.number != null ? (
+            <Link
+              to={`/watch/${ch.number}`}
+              aria-label={`Watch ${ch.number} ${ch.name}`}
+              className="group relative h-[94px] w-[168px] shrink-0 overflow-hidden rounded-xl bg-[#15122a]"
+            >
+              <ProgramArt unit={unit} logoId={ch.logoId} name={ch.name} />
+              {unit && <LiveBadge className="absolute left-2 top-2" />}
+            </Link>
           ) : (
-            <div className="flex items-center gap-3 flex-wrap">
-              <Tally tone="off">{ch.number == null ? 'Draft' : 'Off air'}</Tally>
-              <span>
-                {ch.number == null
-                  ? 'Hidden from players until you give it a number on the General tab.'
-                  : ch.rotationItems.length + ch.timeBlocks.length === 0
-                    ? 'Nothing scheduled yet — add collections, then a rotation or time blocks.'
-                    : 'Nothing airing this minute.'}
-              </span>
-            </div>
-          )
-        }
-        aside={
-          <>
-            {ch.number != null && (
-              <>
-                <StatFigure value={ch.number} label="Channel" />
-                <StatFigure value={now?.viewers ?? 0} label="Watching" />
-              </>
+            <span className="grid h-[94px] w-[168px] shrink-0 place-items-center rounded-xl border border-dashed border-white/[0.16]">
+              <ChannelLogo logoId={ch.logoId} name={ch.name} size={56} plate={false} />
+            </span>
+          )}
+          {ch.number != null && <span className="text-[40px] font-bold leading-none tracking-[-0.03em] text-indigo-100 tabular-nums">{ch.number}</span>}
+          {ch.number != null && <ChannelLogo logoId={ch.logoId} name={ch.name} size={44} plate={false} className="hidden sm:grid" />}
+          <div className="min-w-0 flex-[1_1_16rem]">
+            <h1 className="font-display text-[24px] sm:text-[26px] font-bold leading-tight tracking-[-0.015em] text-ink truncate">{ch.name}</h1>
+            {unit ? (
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-ink-muted">
+                <span className="min-w-0 truncate">
+                  Now: <span className="font-semibold text-ink-soft">{unit.title}</span>
+                  {unit.subtitle && <span className="text-ink-faint"> · {unit.subtitle}</span>}
+                </span>
+                <span className="inline-flex items-center gap-2 tabular-nums text-[12.5px] text-ink-faint">
+                  <span className="h-1 w-20 overflow-hidden rounded-full bg-white/15">
+                    <span className="block h-full rounded-full bg-now" style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
+                  </span>
+                  {formatClock(unit.startTime)} – {formatClock(unit.stopTime)} · {formatRemaining(new Date(unit.stopTime).getTime() - nowMs)}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-ink-muted">
+                <Tally tone="off">{ch.number == null ? 'Draft' : 'Off air'}</Tally>
+                <span>
+                  {ch.number == null
+                    ? 'Hidden from players until you give it a number on the Settings tab.'
+                    : ch.rotationItems.length + ch.timeBlocks.length === 0
+                      ? 'Nothing scheduled yet — add a collection on the Schedule tab, then a rotation or blocks.'
+                      : 'Nothing airing this minute.'}
+                </span>
+              </div>
             )}
-            <div className="flex items-center gap-2">
-              {ch.number != null && (
-                <Link to={`/watch/${ch.number}`} className={buttonClass('secondary', 'md')}>
-                  <Icon name="play" size={16} /> Watch
-                </Link>
-              )}
-              <Button variant="secondary" icon="guide" onClick={() => setTab('guide')}>
-                Guide
-              </Button>
-            </div>
-          </>
-        }
-        tabs={<NetworkTabs<Tab> tabs={tabs} active={tab} onChange={setTab} />}
-      />
+          </div>
+          <div className="flex items-center gap-2">
+            {(now?.viewers ?? 0) > 0 && (
+              <span className="mr-1 inline-flex items-center gap-1 text-[12.5px] text-ink-faint tabular-nums" title={`${now?.viewers} watching`}>
+                <Icon name="eye" size={13} /> {now?.viewers}
+              </span>
+            )}
+            {ch.number != null && (
+              <Link to={`/watch/${ch.number}`} className={buttonClass('primary', 'md')}>
+                <Icon name="play" size={15} className="fill-current" /> Watch
+              </Link>
+            )}
+            {ch.number != null && (
+              <Menu label="More for this channel" items={[{ label: 'Copy stream URL', icon: 'copy', onSelect: copyStream }]} />
+            )}
+          </div>
+        </div>
+        <div className="mt-4">
+          <NetworkTabs<Tab> tabs={tabs} active={tab} onChange={setTab} />
+        </div>
+      </header>
 
       {error && <Banner className="mb-5">{error}</Banner>}
 
-      {tab === 'general' && <GeneralTab channelId={channelId} ch={ch} guard={guard} drafts={drafts} />}
-
-      {tab === 'collections' && <CollectionManager channelId={channelId} onChange={loadCols} />}
+      {tab === 'settings' && <GeneralTab channelId={channelId} ch={ch} guard={guard} drafts={drafts} />}
 
       {tab === 'schedule' && (
-        <ScheduleTab
-          channelId={channelId}
-          ch={ch}
-          guard={guard}
-          drafts={drafts}
-          cols={cols}
-          onError={setError}
-          focusBlockId={scheduleFocus}
-          onFocused={() => setScheduleFocus(null)}
-          onOpenBreaks={() => setTab('breaks')}
-        />
+        <>
+          <ScheduleTab
+            channelId={channelId}
+            ch={ch}
+            guard={guard}
+            drafts={drafts}
+            cols={cols}
+            onError={setError}
+            focusBlockId={scheduleFocus}
+            onFocused={() => setScheduleFocus(null)}
+            onOpenBreaks={() => setTab('breaks')}
+          />
+          {/* What the rotation and the blocks pick from: this channel's
+              collections, edited here and nowhere else. */}
+          <section id="collections" className="mt-10 scroll-mt-6">
+            <SectionHeading
+              title="Collections on this channel"
+              description="What the rotation and the blocks above pick from. A change here reaches every block that plays it."
+            />
+            <CollectionManager channelId={channelId} onChange={loadCols} />
+          </section>
+        </>
       )}
 
       {tab === 'breaks' && (
@@ -270,7 +292,7 @@ function ChannelEditorFor({
         />
       )}
 
-      {tab === 'guide' && (
+      {tab === 'on-air' && (
         <GuideTab channelId={channelId} ch={ch} onReload={load} onError={setError} />
       )}
     </div>

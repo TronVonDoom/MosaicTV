@@ -288,7 +288,7 @@ export default function GuideGrid({
                       {cellInner}
                     </button>
                   ) : (
-                    <Link to={channelPath(c, 'guide')} title={c.name} className={cellClass}>
+                    <Link to={channelPath(c, 'on-air')} title={c.name} className={cellClass}>
                       {cellInner}
                     </Link>
                   )}

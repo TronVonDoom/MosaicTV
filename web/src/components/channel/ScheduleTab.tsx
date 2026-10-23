@@ -317,7 +317,7 @@ export default function ScheduleTab({
       <EmptyState
         icon="browse"
         title="Nothing to schedule yet"
-        description="A schedule is built from collections — groups of shows, movies or music you assemble on the Collections tab. Make one first, then come back."
+        description="A schedule is built from collections — groups of shows, movies or music. Make one under Collections on this channel, below, then come back up here."
       />
     )
   }
@@ -765,7 +765,7 @@ export default function ScheduleTab({
               </div>
             ) : (
               <p className="text-xs text-ink-faint mt-1">
-                Uses the channel's setting from the General tab. Check this to give the block its own —
+                Uses the channel's setting from its Settings tab. Check this to give the block its own —
                 including turning the card off for this block only.
               </p>
             )}

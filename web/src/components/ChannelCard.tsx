@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
 import Icon from './Icon'
 import { ART, artworkUrl, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
-import { formatClock, formatRemaining, posterGradient } from '../lib/format'
+import { posterGradient } from '../lib/format'
 import { channelPath } from '../lib/channels'
-import { Badge, LiveBadge, Menu, ProgressBar, buttonClass, cx, type MenuItem } from './ui'
+import { IconButton, Menu, cx, type MenuItem } from './ui'
 
 /**
  * The picture behind a program: its wide TMDB backdrop when there is one,
@@ -76,163 +76,131 @@ export function ProgramArt({
 }
 
 function progressOf(unit: NowUnit | null, nowMs: number) {
-  if (!unit) return { value: 0, remaining: 0 }
+  if (!unit) return 0
   const start = new Date(unit.startTime).getTime()
   const stop = new Date(unit.stopTime).getTime()
-  return { value: stop > start ? (nowMs - start) / (stop - start) : 0, remaining: stop - nowMs }
+  return stop > start ? Math.min(1, Math.max(0, (nowMs - start) / (stop - start))) : 0
 }
 
-/** "Next 8:29 PM  Misery" — one line under the progress bar. */
-function UpNext({ next }: { next: NowUnit | undefined }) {
-  if (!next) return <div className="text-[12.5px] text-ink-ghost">Nothing else scheduled yet</div>
-  return (
-    <div className="flex items-center gap-2 min-w-0 text-[12.5px]">
-      <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Next</span>
-      <span className="shrink-0 tabular-nums text-ink-faint">{formatClock(next.startTime)}</span>
-      <span className="truncate text-ink-soft">
-        {next.title}
-        {next.subtitle && next.type === 'episode' && <span className="text-ink-faint"> · {next.subtitle.split(' · ')[0]}</span>}
-      </span>
-    </div>
-  )
+/** "2 blocks · 3 in rotation" — the schedule's shape in a few words. */
+function planOf(c: Channel) {
+  if (c.rotationCount + c.blockCount === 0) return 'No schedule yet'
+  const parts: string[] = []
+  if (c.blockCount > 0) parts.push(`${c.blockCount} block${c.blockCount === 1 ? '' : 's'}`)
+  if (c.rotationCount > 0) parts.push(`${c.rotationCount} in rotation`)
+  return parts.join(' · ')
 }
 
 /**
- * One channel as a card: what it's airing right now over that program's art,
- * how far through it is, and what's next. The artwork tunes TV mode to it.
- *
- * `live` is the Dashboard's version. `manage` is the Channels page's — the
- * same face plus the schedule's shape and the actions to edit or remove it.
+ * One channel on the Channels page: what it's airing over that program's
+ * picture, its name and the shape of its schedule, and the way to watch it.
+ * The picture and the name open the channel; the round button watches it.
  */
 export default function ChannelCard({
   channel,
   now,
   nowMs,
-  variant = 'live',
   menu,
   style,
 }: {
   channel: Channel
   now: ChannelNow | undefined
   nowMs: number
-  variant?: 'live' | 'manage'
   menu?: MenuItem[]
   style?: React.CSSProperties
 }) {
   const draft = channel.number == null
-  const unit = now?.now ?? null
-  const { value, remaining } = progressOf(unit, nowMs)
-  const scheduled = channel.rotationCount + channel.blockCount > 0
-
-  let status: ReactNode
-  if (draft) status = <Badge tone="neutral">Draft</Badge>
-  else if (unit) status = <LiveBadge />
-  else status = <Badge tone="warn" dot>Off air</Badge>
+  const unit = draft ? null : (now?.now ?? null)
+  const open = channelPath(channel)
 
   return (
     <article
       style={style}
       className={cx(
-        'group relative flex flex-col overflow-hidden rounded-2xl border surface-card card-interactive rise-in',
-        draft ? 'border-dashed border-edge-strong' : 'border-edge',
+        'group relative flex flex-col overflow-hidden rounded-[22px] border rise-in',
+        draft ? 'border-dashed border-white/[0.16] bg-white/[0.025]' : 'border-white/[0.08] bg-white/[0.045]',
       )}
     >
-      {/* Artwork + what's on */}
-      <div className="relative aspect-[16/9] overflow-hidden">
-        <ProgramArt unit={draft ? null : unit} logoId={channel.logoId} name={channel.name} />
+      <Link to={open} aria-label={`Open ${channel.name}`} className="relative block h-[168px] overflow-hidden bg-[#15122a]">
+        <ProgramArt unit={unit} logoId={channel.logoId} name={channel.name} />
 
-        <div className="absolute inset-x-0 top-0 p-3 flex items-start justify-between gap-2">
-          {/* Just its number, as a set's channel display shows it (the logo
-              is the card's picture when nothing's on). */}
-          <span className="rounded-lg bg-black/55 backdrop-blur-md ring-1 ring-white/10 px-2.5 py-1 font-mono text-[14px] font-semibold leading-5 text-white tabular-nums">
-            {draft ? '—' : channel.number}
+        {/* Its number and logo, as a set's channel display shows them. */}
+        <span className="absolute left-3 top-3 flex items-center gap-2 rounded-xl border border-white/[0.12] bg-[rgb(12_10_22/0.55)] px-2.5 py-1.5 backdrop-blur-md">
+          <span className="text-[16px] font-bold leading-none tabular-nums text-white">{draft ? '—' : channel.number}</span>
+          {channel.logoId != null && <ChannelLogo logoId={channel.logoId} name={channel.name} size={22} plate={false} />}
+        </span>
+
+        <span className="absolute right-3.5 top-3.5 flex items-center gap-2">
+          {channel.viewers > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-[rgb(12_10_22/0.55)] px-2 py-1 text-[11.5px] font-semibold tabular-nums text-white backdrop-blur-md"
+              title={`${channel.viewers} watching`}
+            >
+              <Icon name="eye" size={12} /> {channel.viewers}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgb(12_10_22/0.55)] px-2.5 py-1 text-[12px] font-semibold text-white backdrop-blur-md">
+            <span className={cx('h-1.5 w-1.5 rounded-full', draft ? 'bg-ink-faint' : unit ? 'bg-live' : 'bg-cue')} />
+            {draft ? 'Draft' : unit ? 'On air' : 'Off air'}
           </span>
-          <div className="flex items-center gap-1.5">
-            {channel.viewers > 0 && (
-              <span
-                className="inline-flex items-center gap-1 rounded-md bg-black/55 backdrop-blur-md ring-1 ring-white/10 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums"
-                title={`${channel.viewers} watching`}
-              >
-                <Icon name="eye" size={12} /> {channel.viewers}
-              </span>
-            )}
-            {status}
-          </div>
-        </div>
+        </span>
 
-        {/* Leave room on the right only when a poster sits there. */}
-        <div className={cx('absolute inset-x-0 bottom-0 p-4', !draft && unit && !unit.hasBackdrop && unit.art && 'pr-[34%]')}>
-          <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/60 truncate">
-            {channel.name}
-            {channel.group && <span className="text-white/35"> · {channel.group}</span>}
-          </div>
+        <span className={cx('absolute inset-x-3.5 bottom-3', unit && !unit.hasBackdrop && unit.art && 'pr-[34%]')}>
           {draft ? (
-            <div className="mt-1 text-[15px] font-semibold text-white/85">Not on air yet</div>
+            <span className="block text-[13px] text-ink-soft">Not on air yet — give it a number to put it in the guide.</span>
           ) : unit ? (
             <>
-              <h3 className="mt-0.5 text-lg font-semibold leading-tight text-white line-clamp-1 [text-shadow:0_2px_12px_rgb(0_0_0/0.6)]">
-                {unit.title}
-              </h3>
-              {unit.subtitle && <p className="text-[13px] text-white/70 line-clamp-1 mt-0.5">{unit.subtitle}</p>}
+              <span className="block text-[12px] text-ink-soft">Now</span>
+              <span className="block truncate text-[16px] font-bold text-white">{unit.title}</span>
+              <span className="mt-[7px] block h-[3px] rounded-full bg-white/[0.22]">
+                <span className="block h-full rounded-full bg-now" style={{ width: `${Math.round(progressOf(unit, nowMs) * 100)}%` }} />
+              </span>
             </>
           ) : (
-            <div className="mt-1 text-[15px] font-semibold text-white/80">
-              {scheduled ? 'Between programs' : 'Nothing scheduled'}
-            </div>
+            <span className="block text-[14px] font-semibold text-white/80">
+              {channel.rotationCount + channel.blockCount > 0 ? 'Between programs' : 'Nothing scheduled'}
+            </span>
           )}
-        </div>
+        </span>
+      </Link>
 
+      <div className="flex items-center gap-2.5 px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Link to={open} className="truncate text-[17px] font-bold text-ink hover:text-white">
+              {channel.name}
+            </Link>
+            {channel.group && (
+              <span className="shrink-0 rounded-full bg-white/[0.07] px-2.5 py-0.5 text-[11.5px] text-ink-soft">{channel.group}</span>
+            )}
+          </div>
+          <div className="truncate text-[12.5px] text-ink-faint">{planOf(channel)}</div>
+        </div>
         {!draft && (
           <Link
             to={`/watch/${channel.number}`}
             aria-label={`Watch ${channel.name}`}
             title={`Watch ${channel.number} ${channel.name}`}
-            className="absolute inset-0 grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:opacity-100 transition-opacity duration-200"
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-indigo-400 text-now-ink transition-colors hover:bg-indigo-300"
           >
-            <span className="grid place-items-center w-14 h-14 rounded-full bg-white/95 text-black shadow-[0_12px_40px_-4px_rgb(0_0_0/0.8)] scale-90 group-hover:scale-100 transition-transform duration-200">
-              <Icon name="play" size={22} className="translate-x-0.5 fill-current" />
-            </span>
+            <Icon name="play" size={15} className="translate-x-px fill-current" />
           </Link>
         )}
-      </div>
-
-      {/* Progress + next */}
-      <div className="flex flex-col gap-3 p-4 flex-1">
-        {draft ? (
-          <p className="text-[12.5px] text-ink-muted leading-relaxed">
-            Give it a number to put it in the playlist and guide.
-          </p>
-        ) : unit ? (
-          <div>
-            <ProgressBar value={value} tone={unit.kind === 'filler' ? 'neutral' : 'live'} />
-            <div className="flex justify-between mt-1.5 text-[11.5px] tabular-nums text-ink-faint">
-              <span>
-                {formatClock(unit.startTime)} – {formatClock(unit.stopTime)}
-              </span>
-              <span className="text-ink-muted">{formatRemaining(remaining)}</span>
-            </div>
-          </div>
-        ) : null}
-        {!draft && <UpNext next={now?.next[0]} />}
-
-        {variant === 'manage' && (
-          <div className="mt-auto pt-3 border-t border-edge/70 flex items-center gap-2">
-            <span className="flex-1 min-w-0 truncate text-[12px] text-ink-faint">
-              {scheduled ? (
-                <>
-                  {channel.blockCount > 0 && `${channel.blockCount} block${channel.blockCount === 1 ? '' : 's'}`}
-                  {channel.blockCount > 0 && channel.rotationCount > 0 && ' · '}
-                  {channel.rotationCount > 0 && `${channel.rotationCount} in rotation`}
-                </>
-              ) : (
-                'No schedule yet'
-              )}
-            </span>
-            <Link to={channelPath(channel)} className={buttonClass('secondary', 'sm')}>
-              <Icon name="edit" size={14} /> Edit
-            </Link>
-            {menu && <Menu items={menu} />}
-          </div>
+        {menu && (
+          <Menu
+            items={menu}
+            label={`More for ${channel.name}`}
+            trigger={({ open: shown, toggle }) => (
+              <IconButton
+                icon="more"
+                label={`More for ${channel.name}`}
+                variant="secondary"
+                onClick={toggle}
+                aria-expanded={shown}
+                className="h-[42px] w-[42px] shrink-0"
+              />
+            )}
+          />
         )}
       </div>
     </article>

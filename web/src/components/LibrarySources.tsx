@@ -407,7 +407,7 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
                     ]
                       .filter(Boolean)
                       .join(' and ')}
-                    . Each channel decides whether they air, on its Collections tab.
+                    . Each channel decides whether they air, in its collections on the Schedule tab.
                   </span>
                 </div>
               )}

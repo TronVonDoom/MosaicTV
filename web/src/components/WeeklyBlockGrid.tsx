@@ -46,9 +46,12 @@ function lanes(segs: Seg[]): Map<Seg, { lane: number; of: number }> {
   return out
 }
 
-function color(id: number): { bg: string; border: string } {
-  const hue = (id * 47) % 360
-  return { bg: `hsl(${hue} 55% 45% / 0.30)`, border: `hsl(${hue} 60% 58%)` }
+// Each block its own colour from the app's palette — violet, cyan, fuchsia,
+// blue, teal, pink, indigo — never amber, which means breaks.
+const PALETTE = ['167 139 250', '34 211 238', '232 121 249', '96 165 250', '45 212 191', '244 114 182', '129 140 248']
+function color(slot: number): { bg: string; border: string } {
+  const rgb = PALETTE[slot % PALETTE.length]
+  return { bg: `rgb(${rgb} / 0.2)`, border: `rgb(${rgb} / 0.75)` }
 }
 
 const fmt = (min: number) => {
@@ -71,6 +74,10 @@ export default function WeeklyBlockGrid({
   onAddAt: (day: number, startMin: number) => void
 }) {
   const segs = expand(blocks)
+  // A colour per collection, in the order they first appear, so two
+  // collections on one channel never share one (up to seven of them).
+  const slots = new Map<number, number>()
+  for (const b of blocks) if (!slots.has(b.collectionId)) slots.set(b.collectionId, slots.size)
 
   function clickColumn(e: React.MouseEvent<HTMLDivElement>, day: number) {
     // Only when clicking empty column space (not a block).
@@ -114,7 +121,7 @@ export default function WeeklyBlockGrid({
                 const seasonal = today.filter((s) => hasSeason(s.block))
                 const placed = lanes(seasonal)
                 return [...today.filter((s) => !hasSeason(s.block)), ...seasonal].map((s, i) => {
-                  const c = color(s.block.collectionId)
+                  const c = color(slots.get(s.block.collectionId) ?? 0)
                   const top = (s.top / 60) * PX_H
                   const height = Math.max(12, ((s.bottom - s.top) / 60) * PX_H)
                   const season = formatSeason(s.block)
@@ -132,18 +139,18 @@ export default function WeeklyBlockGrid({
                         onEditBlock(s.block)
                       }}
                       title={`${s.block.collection.name} · ${fmt(s.block.startMinute)}–${fmt(s.block.endMinute)}${season ? ` · ${season}` : ''}`}
-                      className={cx('absolute rounded border px-1 py-0.5 text-left overflow-hidden hover:brightness-125', season && 'border-dashed shadow-[0_0_0_1px_rgba(0,0,0,0.35)]')}
+                      className={cx('absolute rounded-md border border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden hover:brightness-125', season && 'border-dashed shadow-[0_0_0_1px_rgba(0,0,0,0.35)]')}
                       style={{
                         top,
                         height,
                         ...pos,
                         borderColor: c.border,
                         background: season
-                          ? `repeating-linear-gradient(135deg, ${c.bg} 0 6px, hsl(0 0% 100% / 0.06) 6px 9px), hsl(230 25% 12% / 0.85)`
+                          ? `repeating-linear-gradient(135deg, ${c.bg} 0 6px, rgb(255 255 255 / 0.06) 6px 9px), rgb(19 17 30 / 0.85)`
                           : c.bg,
                       }}
                     >
-                      <div data-block="1" className="text-[10px] font-medium text-ink truncate leading-tight">{s.block.collection.name}</div>
+                      <div data-block="1" className="text-[10.5px] font-semibold text-ink truncate leading-tight">{s.block.collection.name}</div>
                       {height > 26 && (
                         <div data-block="1" className={cx('text-[9px] truncate', season ? 'text-amber-200/90' : 'text-ink-soft/80')}>
                           {season ?? fmt(s.block.startMinute)}

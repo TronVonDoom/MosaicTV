@@ -132,7 +132,7 @@ export default function EncodingSettings() {
   return (
     <SettingsSection
       title="Encoding"
-      description="The ffmpeg profiles a channel can pick on its General tab — resolution, bitrate, the GPU that does the work. A channel without one uses the built-in default."
+      description="The ffmpeg profiles a channel can pick on its Settings tab — resolution, bitrate, the GPU that does the work. A channel without one uses the built-in default."
     >
       <SettingsGroup
         title="Profiles"
