@@ -1,3 +1,4 @@
+import { logoToken } from '../metadata/logo.js'
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
@@ -110,7 +111,10 @@ mediaRouter.get('/:id', async (req, res) => {
   })
   if (!item) return res.status(404).json({ error: 'Not found' })
   const aired = await episodesAired([id])
-  res.json({ ...item, library: { ...item.library, metadataSources: asMetadataSources(item.library.metadataSources) }, aired: aired[id] ?? null })
+  // An episode wears its show's logo; music has none.
+  const showLogo = item.type === 'episode' && item.showId != null ? (await prisma.show.findUnique({ where: { id: item.showId }, select: { tmdbLogoPath: true } }))?.tmdbLogoPath : null
+  const logo = item.type === 'music' || item.type === 'song' ? null : logoToken(item.logoPath, item.type === 'episode' ? showLogo : item.tmdbLogoPath)
+  res.json({ ...item, library: { ...item.library, metadataSources: asMetadataSources(item.library.metadataSources) }, aired: aired[id] ?? null, logo })
 })
 
 // GET /api/media/:id/on-air -> the channels that bring it in, its airings now

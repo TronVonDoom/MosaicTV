@@ -418,6 +418,7 @@ export default function ShowView() {
         cue={<OnAirCue onAir={onAir} />}
         bug={bug}
         title={showTitle}
+        logo={{ id: detail?.artItemId, token: detail?.logo }}
         facts={
           detail
             ? [

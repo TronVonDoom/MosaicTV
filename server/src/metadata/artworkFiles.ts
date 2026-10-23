@@ -13,6 +13,7 @@ import { thumbsDir, tmdbCacheDir } from '../paths.js'
 import { runFfmpeg } from '../streaming/run.js'
 import { TMDB_IMAGE_BASE } from './tmdb.js'
 import { mediaServer, type MediaServer, type ServerKind } from '../sources/mediaServer.js'
+import { isLogoFile } from './logo.js'
 
 /** Whether stored art is an image's address (TheTVDB's), not a TMDB path. */
 export const isAddress = (art: string) => /^https?:\/\//i.test(art)
@@ -32,13 +33,15 @@ async function serverFor(libraryId: number): Promise<MediaServer | null> {
 }
 
 // A media server's image, fetched with its library's key and kept like the
-// rest — about `size` wide ("w342"), as the server resizes it.
+// rest — about `size` wide ("w342"), as the server resizes it, or as it is
+// ("original"). Kept as the type it came as, so a logo stays see-through.
 async function serverImage(art: string, size: string, timeoutMs?: number): Promise<string | null> {
   const m = /^server:(\d+):(\/.*)$/.exec(art)
   if (!m) return null
   const w = /^w(\d+)$/.exec(size)?.[1]
-  const file = path.join(tmdbCacheDir(), `server_${createHash('sha1').update(`${art}|${w ?? ''}`).digest('hex').slice(0, 24)}.jpg`)
-  if (fs.existsSync(file)) return file
+  const name = path.join(tmdbCacheDir(), `server_${createHash('sha1').update(`${art}|${w ?? ''}`).digest('hex').slice(0, 24)}`)
+  const kept = ['.jpg', '.png', '.webp'].map((x) => name + x).find((f) => fs.existsSync(f))
+  if (kept) return kept
   const server = await serverFor(Number(m[1]))
   if (!server) return null
   const got = await Promise.race([
@@ -46,6 +49,7 @@ async function serverImage(art: string, size: string, timeoutMs?: number): Promi
     new Promise<null>((r) => (timeoutMs ? setTimeout(() => r(null), timeoutMs) : undefined)),
   ])
   if (!got) return null
+  const file = name + (/png/i.test(got.type) ? '.png' : /webp/i.test(got.type) ? '.webp' : '.jpg')
   const tmp = `${file}.${process.pid}.part`
   await fsp.writeFile(tmp, got.body)
   await fsp.rename(tmp, file)
@@ -220,4 +224,25 @@ export async function posterFileFor(
     tmdbPath = show?.tmdbPosterPath ?? tmdbPath
   }
   return tmdbPath ? cachedRemoteImage(tmdbPath, 'w342', 3000) : null
+}
+
+/**
+ * A title's logo as a file: the one beside it (a movie's own, an episode's
+ * show's), else the one found online — a movie's, an episode's show's —
+ * fetched once at about `size` ("w500") and kept as the PNG it is. Null when
+ * it has none, or it can't be had (within `timeoutMs`, when given).
+ */
+export async function logoFileFor(
+  item: { libraryId: number; type: string; showTitle: string | null; logoPath: string | null; tmdbLogoPath: string | null },
+  size = 'w500',
+  timeoutMs?: number,
+): Promise<string | null> {
+  if (isLogoFile(item.logoPath) && fs.existsSync(item.logoPath)) return item.logoPath
+  let online = item.type === 'episode' ? null : item.tmdbLogoPath
+  if (!online && item.showTitle) {
+    const show = await prisma.show.findFirst({ where: { libraryId: item.libraryId, title: item.showTitle }, select: { tmdbLogoPath: true } })
+    online = show?.tmdbLogoPath ?? null
+  }
+  // A media server's logo comes as it is: its resize is for posters' shape.
+  return online ? cachedRemoteImage(online, isServerArt(online) ? 'original' : size, timeoutMs) : null
 }

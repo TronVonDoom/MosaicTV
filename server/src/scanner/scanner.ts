@@ -153,6 +153,7 @@ async function processFile(
     existing.posterPath === art.posterPath &&
     existing.showPosterPath === art.showPosterPath &&
     existing.seasonPosterPath === art.seasonPosterPath &&
+    existing.logoPath === art.logoPath &&
     existing.lyricsPath === lyricsPath &&
     existing.title === title &&
     existing.showId === (show?.id ?? null) &&
@@ -203,6 +204,7 @@ async function processFile(
     posterPath: art.posterPath,
     showPosterPath: art.showPosterPath,
     seasonPosterPath: art.seasonPosterPath,
+    logoPath: art.logoPath,
     sizeBytes: stat.size,
     mtimeMs,
     missing: false,
@@ -542,9 +544,16 @@ async function queueRescan(ids: number[]): Promise<void> {
 const MUSIC_RULES = '3'
 const MUSIC_KEY = 'musicRules'
 
+// Bumped when there's new art to find beside the files (1: logos — clearlogo.png,
+// logo.png), so each TV and movie library is scanned once at the next start to
+// pick it up (and one read from a media server, its server's logos).
+const ART_RULES = '1'
+const ART_KEY = 'artRules'
+
 /** At boot: when the episode-name rules have changed, queue each TV library
  *  for a scan (see rescanAfterUpgrade) and mark its episodes to be read again;
- *  when the song-tag rules have, each Music library. */
+ *  when there's new art to look for, each TV and movie library; when the
+ *  song-tag rules have, each Music library. */
 export async function reparseAfterUpgrade(): Promise<void> {
   const done = await prisma.setting.findUnique({ where: { key: PARSE_KEY } })
   if (done?.value !== PARSE_RULES) {
@@ -552,6 +561,11 @@ export async function reparseAfterUpgrade(): Promise<void> {
     if (ids.length > 0) await prisma.mediaItem.updateMany({ where: { libraryId: { in: ids }, type: 'episode' }, data: { metaAt: null } })
     await queueRescan(ids)
     await prisma.setting.upsert({ where: { key: PARSE_KEY }, create: { key: PARSE_KEY, value: PARSE_RULES }, update: { value: PARSE_RULES } })
+  }
+  const art = await prisma.setting.findUnique({ where: { key: ART_KEY } })
+  if (art?.value !== ART_RULES) {
+    await queueRescan((await prisma.library.findMany({ where: { kind: { in: ['tv', 'movie'] } }, select: { id: true } })).map((l) => l.id))
+    await prisma.setting.upsert({ where: { key: ART_KEY }, create: { key: ART_KEY, value: ART_RULES }, update: { value: ART_RULES } })
   }
   const music = await prisma.setting.findUnique({ where: { key: MUSIC_KEY } })
   if (music?.value !== MUSIC_RULES) {

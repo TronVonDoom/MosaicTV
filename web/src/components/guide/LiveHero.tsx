@@ -9,6 +9,7 @@ import { copyText } from '../../lib/clipboard'
 import { formatClock, formatRemaining } from '../../lib/format'
 import { toast } from '../../lib/toast'
 import { IconButton, LiveBadge, buttonClass, cx } from '../ui'
+import TitleLogo from '../title/TitleLogo'
 
 /** "Season 4 · Episodes 21–22" is the subtitle's job; a block of songs or a
  *  break says what it is. */
@@ -54,7 +55,9 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
         <div className="pointer-events-none absolute inset-x-3.5 bottom-3.5 z-20 max-w-[640px] rounded-2xl glass-label px-5 py-4">
           {unit ? (
             <>
-              <div className="text-[24px] sm:text-[30px] font-bold leading-[1.1] tracking-[-0.01em] line-clamp-1">{unit.title}</div>
+              <TitleLogo id={unit.mediaItemId} logo={unit.logo} title={unit.title} w={300} className="mb-1 max-h-[52px] sm:max-h-[64px] max-w-[min(100%,320px)]">
+                <div className="text-[24px] sm:text-[30px] font-bold leading-[1.1] tracking-[-0.01em] line-clamp-1">{unit.title}</div>
+              </TitleLogo>
               {unit.subtitle && <div className="mt-0.5 text-[14.5px] text-ink-soft line-clamp-1">{unit.subtitle}</div>}
               <div className="mt-3 flex items-center gap-3 text-[12px] tabular-nums text-ink-muted">
                 <span>{formatClock(start)}</span>

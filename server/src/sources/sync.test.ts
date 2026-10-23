@@ -47,7 +47,7 @@ plex.get('/library/sections/2/all', (req, res) => {
     return res.json({
       MediaContainer: {
         totalSize: 1,
-        Metadata: [{ ratingKey: '10', title: 'Dexter’s Laboratory', year: 1996, summary: 'A boy genius.', contentRating: 'TV-Y7', audienceRating: 8.1, thumb: '/library/metadata/10/thumb/1', art: '/library/metadata/10/art/1', Genre: [{ tag: 'Animation' }, { tag: 'Comedy' }] }],
+        Metadata: [{ ratingKey: '10', title: 'Dexter’s Laboratory', year: 1996, summary: 'A boy genius.', contentRating: 'TV-Y7', audienceRating: 8.1, thumb: '/library/metadata/10/thumb/1', art: '/library/metadata/10/art/1', Image: [{ type: 'coverPoster', url: '/library/metadata/10/thumb/1' }, { type: 'clearLogo', url: '/library/metadata/10/clearLogo/1' }], Genre: [{ tag: 'Animation' }, { tag: 'Comedy' }] }],
       },
     })
   }
@@ -66,6 +66,7 @@ plex.get('/library/sections/2/all', (req, res) => {
   })
 })
 plex.get('/library/metadata/10/thumb/1', (_req, res) => res.type('image/png').send(PNG))
+plex.get('/library/metadata/10/clearLogo/1', (_req, res) => res.type('image/png').send(PNG))
 // Plex's resizer, which a width asks for.
 plex.get(/^\/photo\/:\/transcode$/, (req, res) => (req.query.url === '/library/metadata/10/thumb/1' && req.query.width === '342' ? res.type('image/png').send(PNG) : res.status(404).end()))
 
@@ -77,7 +78,7 @@ jf.get('/Library/VirtualFolders', (_req, res) => res.json([{ Name: 'Movies', Col
 jf.get('/Items', (req, res) => {
   if (req.query.IncludeItemTypes !== 'Movie') return res.json({ Items: [], TotalRecordCount: 0 })
   res.json({
-    Items: [{ Id: 'm1', Name: 'Heat', ProductionYear: 1995, Overview: 'A heist.', Genres: ['Crime', 'Drama'], OfficialRating: 'R', CommunityRating: 8.3, ImageTags: { Primary: 't' }, BackdropImageTags: ['b'], Path: 'D:\\Media\\Movies\\Heat (1995)\\Heat (1995).mkv' }],
+    Items: [{ Id: 'm1', Name: 'Heat', ProductionYear: 1995, Overview: 'A heist.', Genres: ['Crime', 'Drama'], OfficialRating: 'R', CommunityRating: 8.3, ImageTags: { Primary: 't', Logo: 'l' }, BackdropImageTags: ['b'], Path: 'D:\\Media\\Movies\\Heat (1995)\\Heat (1995).mkv' }],
     TotalRecordCount: 1,
   })
 })
@@ -115,6 +116,7 @@ const heat = await prisma.mediaItem.findFirstOrThrow({ where: { libraryId: movie
 const listed = (await (await fetch(`${apiUrl}/api/libraries`)).json()) as { id: number; source: { kind: string; result: { matched: number } } | null }[]
 
 const art = await cachedRemoteImage(`server:${tv.json.id}:/library/metadata/10/thumb/1`, 'w342')
+const logo = await cachedRemoteImage(`server:${tv.json.id}:/library/metadata/10/clearLogo/1`, 'original')
 
 test('a server’s file paths map to where they are here', () => {
   const map = parsePathMap(JSON.stringify([['/data', '/media'], ['/data/tv', '/srv/tv'], ['D:\\Media', '/media/d']]))
@@ -141,6 +143,7 @@ test('the server names the show, its numbers and its episodes', () => {
   assert.equal(show.genres, 'Animation, Comedy')
   assert.equal(show.contentRating, 'TV-Y7')
   assert.equal(show.tmdbPosterPath, `server:${tv.json.id}:/library/metadata/10/thumb/1`)
+  assert.equal(show.tmdbLogoPath, `server:${tv.json.id}:/library/metadata/10/clearLogo/1`, 'Plex’s clear logo')
   assert.deepEqual(
     eps.map((e) => [e.title, e.season, e.episode, e.showTitle, e.serverKey]),
     [
@@ -173,6 +176,7 @@ test('a movie library from a Jellyfin on Windows', () => {
   assert.equal(heat.genres, 'Crime, Drama')
   assert.equal(heat.tmdbPosterPath, `server:${movies.json.id}:/Items/m1/Images/Primary`)
   assert.equal(heat.tmdbBackdropPath, `server:${movies.json.id}:/Items/m1/Images/Backdrop/0`)
+  assert.equal(heat.tmdbLogoPath, `server:${movies.json.id}:/Items/m1/Images/Logo`, 'Jellyfin’s logo')
 })
 
 test('the server’s key never leaves', () => {
@@ -186,6 +190,7 @@ test('the server’s key never leaves', () => {
 test('its artwork is fetched with the key, and kept', () => {
   assert.ok(art && fs.existsSync(art))
   assert.deepEqual(fs.readFileSync(art!), PNG)
+  assert.ok(logo?.endsWith('.png'), 'a logo is kept as the PNG it came as — see-through')
 })
 
 test('a music library isn’t read from a server', async () => {

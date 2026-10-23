@@ -13,7 +13,9 @@ import {
   getMovie,
   getSeason,
   getTmdbKey,
+  getTmdbLogos,
   getTv,
+  bestTmdbLogo,
   groupEpisodes,
   movieRating,
   resolveRef,
@@ -84,6 +86,8 @@ export type Found = {
   /** A TMDB path, or a TheTVDB address. */
   poster: string | null
   backdrop: string | null
+  /** Its logo, the same way (a PNG). */
+  logo: string | null
   details: Partial<Details>
   /** The ids it gives the title elsewhere — what the other source can match it by. */
   refs: ExternalRef[]
@@ -111,6 +115,9 @@ export type Provider = {
   episodes(tvId: number, order: string | null, seasons: number[]): Promise<FoundEpisodes>
   /** A show's other orders; null when it didn't answer. */
   orders(tvId: number): Promise<EpisodeOrder[] | null>
+  /** Just its logo, for a title read before logos were kept: a path or an
+   *  address, '' when it has none, null when it didn't answer. */
+  logo(kind: Kind, id: number): Promise<string | null>
 }
 
 /** Which source an episode order is one of (null: as aired, on every source). */
@@ -140,6 +147,7 @@ function tmdbMovieFound(m: TmdbMovie): Found {
     year: yearOf(m.release_date),
     poster: m.poster_path ?? null,
     backdrop: m.backdrop_path ?? null,
+    logo: bestTmdbLogo(m.images?.logos),
     details: {
       overview: orNull(m.overview),
       genres: genresToString(m.genres),
@@ -164,6 +172,7 @@ function tmdbTvFound(t: TmdbTv): Found {
     year: yearOf(t.first_air_date),
     poster: t.poster_path ?? null,
     backdrop: t.backdrop_path ?? null,
+    logo: bestTmdbLogo(t.images?.logos),
     details: {
       overview: orNull(t.overview),
       genres: genresToString(t.genres),
@@ -209,6 +218,10 @@ function tmdbProvider(key: string): Provider {
     },
     search: (kind, title, year) => (kind === 'movie' ? searchMovies(key, title, year) : searchShows(key, title, year)),
     resolve: (kind, ref) => resolveRef(key, ref, kind),
+    async logo(kind, id) {
+      const logos = await getTmdbLogos(key, kind, id)
+      return logos ? bestTmdbLogo(logos) ?? '' : null
+    },
     async episodes(tvId, order, seasons) {
       const byNumber = new Map<string, FoundEpisode>()
       if (order) {
@@ -252,6 +265,7 @@ function tvdbSeriesFound(s: TvdbSeries): Found {
     year: yearOf(s.firstAired) ?? (Number(s.year) || null),
     poster: tvdbArt(s.image) ?? tvdbBestArt(s.artworks, TVDB_ART.seriesPoster),
     backdrop: tvdbBestArt(s.artworks, TVDB_ART.seriesBackground),
+    logo: tvdbLogo(s.artworks, TVDB_ART.seriesClearLogo),
     details: {
       overview,
       genres: list(s.genres?.map((g) => g.name ?? '').filter(Boolean)),
@@ -278,6 +292,7 @@ function tvdbMovieFound(m: TvdbMovie): Found {
     year: Number(m.year) || yearOf(release),
     poster: tvdbArt(m.image) ?? tvdbBestArt(m.artworks, TVDB_ART.moviePoster),
     backdrop: tvdbBestArt(m.artworks, TVDB_ART.movieBackground),
+    logo: tvdbLogo(m.artworks, TVDB_ART.movieClearLogo),
     details: {
       overview,
       genres: list(m.genres?.map((g) => g.name ?? '').filter(Boolean)),
@@ -291,6 +306,12 @@ function tvdbMovieFound(m: TvdbMovie): Found {
     refs: tvdbRefs(m.remoteIds, 'movie'),
     seasons: null,
   }
+}
+
+/** Its best clear logo, when it's a PNG (they all are, but an address says so). */
+function tvdbLogo(art: Parameters<typeof tvdbBestArt>[0], type: number): string | null {
+  const logo = tvdbBestArt(art, type)
+  return logo && /\.png($|[?#])/i.test(logo) ? logo : null
 }
 
 function tvdbEpisode(e: TvdbEpisode): FoundEpisode {
@@ -311,6 +332,10 @@ function tvdbProvider(c: TvdbCreds): Provider {
     },
     search: (kind, title, year) => searchTvdb(c, kind, title, year),
     resolve: (kind, ref) => resolveTvdbRef(c, ref, kind),
+    async logo(kind, id) {
+      const x = kind === 'movie' ? await getTvdbMovie(c, id) : await getTvdbSeries(c, id)
+      return x ? tvdbLogo(x.artworks, kind === 'movie' ? TVDB_ART.movieClearLogo : TVDB_ART.seriesClearLogo) ?? '' : null
+    },
     async episodes(tvId, order) {
       const byNumber = new Map<string, FoundEpisode>()
       const eps = await getTvdbEpisodes(c, tvId, order ? order.slice('tvdb:'.length) : 'official')

@@ -3,7 +3,7 @@ import type { Response } from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
-import { cachedRemoteImage, frameThumb, localThumb, remoteArtFile } from '../metadata/artworkFiles.js'
+import { cachedRemoteImage, frameThumb, localThumb, logoFileFor, remoteArtFile } from '../metadata/artworkFiles.js'
 
 export const artworkRouter = Router()
 
@@ -29,6 +29,7 @@ function thumbWidth(q: unknown): number | null {
 // TMDB serves fixed sizes — ask for the smallest that covers the request.
 const tmdbPosterSize = (w: number | null) => (!w ? 'w500' : w <= 185 ? 'w185' : w <= 342 ? 'w342' : 'w500')
 const tmdbBackdropSize = (w: number | null) => (!w || w > 780 ? 'w1280' : w <= 300 ? 'w300' : 'w780')
+const tmdbLogoSize = (w: number | null) => (!w || w > 300 ? 'w500' : 'w300')
 
 function sendArtwork(res: Response, filePath: string, maxAgeSec = 86400) {
   res.setHeader('Cache-Control', `public, max-age=${maxAgeSec}`)
@@ -72,7 +73,7 @@ artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
   sendArtwork(res, cached, 604800)
 })
 
-// GET /api/artwork/:id?type=poster|show|season|backdrop|still|frame&w=
+// GET /api/artwork/:id?type=poster|show|season|backdrop|still|frame|logo&w=
 // Serves local artwork when the scanner found some, else falls back to the
 // item's (or its show's) TMDB or TheTVDB poster, downloaded and cached locally. Only paths
 // recorded on the item are used, so this can't be made to read arbitrary files.
@@ -80,6 +81,8 @@ artworkRouter.get('/tmdb/:size/:file', async (req, res) => {
 // `backdrop` is the wide TMDB still behind the web UI's hero panels: a movie's
 // own, or an episode's show's. There's no local equivalent to prefer. `still`
 // is an episode's own frame from TMDB; `frame` one taken from the file itself.
+// `logo` is a movie's name as artwork, or an episode's show's — a file beside
+// it first, then the one its metadata found — served as the PNG it is.
 //
 // `w` asks for a thumbnail about that wide — see thumbWidth.
 artworkRouter.get('/:id', async (req, res) => {
@@ -92,8 +95,10 @@ artworkRouter.get('/:id', async (req, res) => {
       posterPath: true,
       showPosterPath: true,
       seasonPosterPath: true,
+      logoPath: true,
       tmdbPosterPath: true,
       tmdbBackdropPath: true,
+      tmdbLogoPath: true,
       tmdbStillPath: true,
       path: true,
       durationSec: true,
@@ -107,6 +112,12 @@ artworkRouter.get('/:id', async (req, res) => {
 
   const type = req.query.type
   const w = thumbWidth(req.query.w)
+
+  if (type === 'logo') {
+    const logo = await logoFileFor(item, tmdbLogoSize(w))
+    if (!logo) return res.status(404).end()
+    return sendArtwork(res, logo, 604800)
+  }
 
   if (type === 'frame') {
     const frame = await frameThumb(item.path, item.durationSec, w ?? 480)

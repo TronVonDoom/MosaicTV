@@ -195,6 +195,7 @@ export default function MovieView() {
           )
         }
         title={item.title}
+        logo={{ id: item.id, token: item.extra ? null : item.logo }}
         facts={[
           !item.extra && item.year,
           item.contentRating && <RatingBox>{item.contentRating}</RatingBox>,

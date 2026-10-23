@@ -3,6 +3,7 @@
 // the hours around an airing drawn as the guide draws them. What a media
 // server can't say about its titles, and MosaicTV can.
 
+import { logoToken } from '../metadata/logo.js'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
 import { byArtistName, collectionWhere, hasFilter, type Airs } from './collections.js'
@@ -24,7 +25,22 @@ const targetWhere = (t: OnAirTarget): Prisma.MediaItemWhereInput =>
 
 const CHANNEL = { select: { id: true, number: true, name: true, logoId: true } } as const
 const MEDIA = {
-  select: { id: true, title: true, showTitle: true, showId: true, libraryId: true, season: true, episode: true, type: true, year: true, artist: true, trackArtist: true },
+  select: {
+    id: true,
+    title: true,
+    showTitle: true,
+    showId: true,
+    libraryId: true,
+    season: true,
+    episode: true,
+    type: true,
+    year: true,
+    artist: true,
+    trackArtist: true,
+    logoPath: true,
+    tmdbLogoPath: true,
+    show: { select: { tmdbLogoPath: true } },
+  },
 } as const
 
 type Row = Prisma.PlayoutItemGetPayload<{ include: { channel: typeof CHANNEL; mediaItem: typeof MEDIA } }>
@@ -62,6 +78,7 @@ function slotOf(rows: Row[]): OnAirSlot {
     showId: m?.showId ?? null,
     libraryId: m?.libraryId ?? null,
     artist: m && (m.type === 'music' || m.type === 'song') ? m.artist : null,
+    logo: !m || m.type === 'music' || m.type === 'song' ? null : logoToken(m.logoPath, m.type === 'episode' ? m.show?.tmdbLogoPath : m.tmdbLogoPath),
   }
 }
 

@@ -11,6 +11,7 @@ import FileDetails from './title/FileDetails'
 import { Stars } from './title/TitleHero'
 import { MonoFacts, OnAirLabel, RatingBox } from './onair/OnAir'
 import { Button, IconButton, Menu, Modal, Skeleton, cx } from './ui'
+import TitleLogo from './title/TitleLogo'
 
 /**
  * A quick look at one file — an episode, a movie, an extra, a clip — from
@@ -138,8 +139,23 @@ export default function MediaDetailModal({
             <Skeleton className="h-7 w-2/3" />
           ) : (
             <>
-              {kicker && <div className="text-[12px] text-white/75 truncate">{kicker}</div>}
-              <h2 className="mt-1 font-bold text-[28px] sm:text-[34px] leading-[1.05] tracking-[-0.02em] text-white text-balance">{item.title}</h2>
+              {isEpisode && item.logo ? (
+                // An episode: its show's logo, then which episode.
+                <div className="flex items-end gap-2.5">
+                  <TitleLogo id={item.id} logo={item.logo} title={item.showTitle ?? ''} w={300} className="max-h-[44px] max-w-[min(70%,240px)]">
+                    <div className="text-[12px] text-white/75 truncate">{kicker}</div>
+                  </TitleLogo>
+                  {sxe && <span className="pb-0.5 text-[12px] text-white/75 tabular-nums">{sxe}</span>}
+                </div>
+              ) : (
+                kicker && <div className="text-[12px] text-white/75 truncate">{kicker}</div>
+              )}
+              <h2 className="mt-1 font-bold text-[28px] sm:text-[34px] leading-[1.05] tracking-[-0.02em] text-white text-balance">
+                {/* A movie's logo is its title; an episode's name stays words. */}
+                <TitleLogo id={item.id} logo={isEpisode || item.extra ? null : item.logo} title={item.title} w={300} className="mt-1 max-h-[72px] sm:max-h-[88px] max-w-[min(100%,360px)]">
+                  {item.title}
+                </TitleLogo>
+              </h2>
             </>
           )}
         </div>

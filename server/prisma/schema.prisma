@@ -145,6 +145,10 @@ model Show {
   // one: a TMDB path like "/abc.jpg", or a TheTVDB image's full address.
   tmdbPosterPath   String?
   tmdbBackdropPath String?
+  // Its logo — its name as artwork, a transparent PNG — the same way: a TMDB
+  // path, a TheTVDB address, or its media server's. A logo file in its folder
+  // (MediaItem.logoPath) comes first.
+  tmdbLogoPath     String?
   // How it came by its TMDB match (see TmdbMatch in the contract), and what
   // TMDB calls the show it matched — shown beside the show's own title, and
   // what tells an automatic match that looks wrong.
@@ -631,6 +635,9 @@ model MediaItem {
   posterPath       String? // this item's own art (movie poster / episode thumb)
   showPosterPath   String? // show-level art (shared by all episodes of a show)
   seasonPosterPath String? // season-level art (shared by a season's episodes)
+  // A logo file beside it: a movie's own, an episode's show's (clearlogo.png,
+  // logo.png — Kodi's and Jellyfin's names). Ahead of any found online.
+  logoPath         String?
   // TMDB metadata (mainly for movies; episodes/other may stay null). The
   // poster and backdrop are the first source's that has one (see Show).
   tmdbId           Int?
@@ -639,6 +646,8 @@ model MediaItem {
   rating           Float?
   tmdbPosterPath   String?
   tmdbBackdropPath String?
+  // A movie's logo from its sources (see Show.tmdbLogoPath); its logoPath file first.
+  tmdbLogoPath     String?
   // How a movie came by its TMDB match, and what TMDB calls it (see Show).
   tmdbMatch        String?
   tmdbTitle        String?

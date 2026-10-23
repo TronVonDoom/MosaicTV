@@ -1,3 +1,4 @@
+import { logoToken } from '../metadata/logo.js'
 import { Router } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '../db.js'
@@ -95,6 +96,8 @@ showsRouter.get('/detail', async (req, res) => {
     // whether there's anything to fetch.
     hasBackdrop: !!showRow?.tmdbBackdropPath,
     artItemId: episodes[0]?.id ?? null,
+    // Asked for by that same episode: its folder's logo file, else the show's.
+    logo: logoToken(episodes[0]?.logoPath, showRow?.tmdbLogoPath),
     seasons,
     extras,
   })

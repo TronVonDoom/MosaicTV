@@ -210,7 +210,8 @@ test('new episode-name rules queue the TV libraries for a scan and a fresh read,
   await prisma.mediaItem.updateMany({ where: { libraryId: tv.id }, data: { metaAt: new Date() } })
   await prisma.setting.create({ data: { key: 'rescanLibraries', value: '4242' } })
   await reparseAfterUpgrade()
-  assert.equal((await prisma.setting.findUniqueOrThrow({ where: { key: 'rescanLibraries' } })).value, `4242,${tv.id}`)
+  // The movie library too: the art rules (logos) want TV and movie libraries scanned once.
+  assert.equal((await prisma.setting.findUniqueOrThrow({ where: { key: 'rescanLibraries' } })).value, `4242,${tv.id},${movies.id}`)
   assert.equal(await prisma.mediaItem.count({ where: { libraryId: tv.id, type: 'episode', metaAt: { not: null } } }), 0)
   // Once only.
   await prisma.setting.delete({ where: { key: 'rescanLibraries' } })

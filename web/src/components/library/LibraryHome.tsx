@@ -11,6 +11,7 @@ import { OnAirHeading, OnAirLabel, Tally } from '../onair/OnAir'
 import PosterCard from '../PosterCard'
 import Rail from '../title/Rail'
 import { Skeleton, buttonClass, cx } from '../ui'
+import TitleLogo from '../title/TitleLogo'
 import Icon from '../Icon'
 
 export type LibraryView = 'home' | 'all' | 'offair'
@@ -59,9 +60,11 @@ function OnNowFeature({ slot, following, onOpen }: { slot: OnAirSlot; following:
           </span>
         </div>
         <button type="button" onClick={() => onOpen(slot)} className="text-left">
-          <span className="block font-bold leading-[1.02] tracking-[-0.025em] text-white text-[36px] sm:text-[48px] lg:text-[56px] hover:text-now transition-colors text-balance">
-            {slot.title}
-          </span>
+          <TitleLogo id={slot.mediaItemId} logo={slot.logo} title={slot.title} className="max-h-[96px] sm:max-h-[130px] max-w-[min(100%,520px)]">
+            <span className="block font-bold leading-[1.02] tracking-[-0.025em] text-white text-[36px] sm:text-[48px] lg:text-[56px] hover:text-now transition-colors text-balance">
+              {slot.title}
+            </span>
+          </TitleLogo>
         </button>
         {(code || name) && <div className="text-[13px] text-ink-soft">{[code, name].filter(Boolean).join(' · ')}</div>}
         <div className="max-w-[520px] h-1 rounded-full bg-white/20">
@@ -107,7 +110,9 @@ function OnNowCard({ slot, onOpen }: { slot: OnAirSlot; onOpen: (s: OnAirSlot) =
       </div>
       <div className="relative mt-auto p-4 pt-0 flex flex-col gap-2">
         <button type="button" onClick={() => onOpen(slot)} className="text-left">
-          <span className="block font-bold text-[22px] leading-[1.1] tracking-[-0.015em] text-white hover:text-now transition-colors line-clamp-2">{slot.title}</span>
+          <TitleLogo id={slot.mediaItemId} logo={slot.logo} title={slot.title} w={300} className="max-h-[60px] max-w-[min(100%,240px)]">
+            <span className="block font-bold text-[22px] leading-[1.1] tracking-[-0.015em] text-white hover:text-now transition-colors line-clamp-2">{slot.title}</span>
+          </TitleLogo>
         </button>
         <div className="text-[11.5px] text-ink-muted truncate">{[code, name].filter(Boolean).join(' · ') || `${formatClock(slot.start)} – ${formatClock(slot.stop)}`}</div>
         <div className="flex items-center gap-3">

@@ -25,6 +25,13 @@ const listen = async (s: http.Server) => {
 
 // ── A stand-in TMDB ─────────────────────────────────────────────────────────
 
+// An SVG can't be shown on the TV picture; English beats wordless, however voted.
+const RUGRATS_LOGOS = [
+  { file_path: '/rugrats.svg', iso_639_1: 'en', vote_average: 9 },
+  { file_path: '/rugrats-wordless.png', iso_639_1: null, vote_average: 8 },
+  { file_path: '/rugrats-logo.png', iso_639_1: 'en', vote_average: 5 },
+]
+
 const tmdb = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x')
   const p = url.pathname
@@ -42,7 +49,10 @@ const tmdb = http.createServer((req, res) => {
       poster_path: '/rugrats.jpg',
       seasons: [{ season_number: 1, poster_path: '/rugrats-s1.jpg' }],
       external_ids: { tvdb_id: 76295, imdb_id: 'tt0101188' },
+      images: { logos: RUGRATS_LOGOS },
     })
+  if (p === '/tv/3022/images') return json(res, { logos: RUGRATS_LOGOS })
+  if (p === '/movie/603/images') return json(res, { logos: [] })
   if (p === '/tv/3022/season/1')
     return json(res, {
       episodes: [
@@ -78,6 +88,7 @@ const SERIES: Record<number, object> = {
     artworks: [
       { type: 3, image: `${ART}/fanart/de.jpg`, language: 'deu', score: 99 },
       { type: 3, image: `${ART}/fanart/76295-1.jpg`, language: null, score: 10 },
+      { type: 23, image: `${ART}/v4/series/76295/clearlogo/eng.png`, language: 'eng', score: 5 },
     ],
     genres: [{ name: 'Animation' }, { name: 'Children' }],
     contentRatings: [{ name: 'TV-Y', country: 'usa' }],
@@ -113,6 +124,10 @@ const MOVIES: Record<number, object> = {
     name: 'The Matrix',
     year: '1999',
     image: `${ART}/movies/169/posters/matrix.jpg`,
+    artworks: [
+      { type: 25, image: `${ART}/movies/169/clearlogo/matrix-de.png`, language: 'deu', score: 9 },
+      { type: 25, image: `${ART}/movies/169/clearlogo/matrix.png`, language: 'eng', score: 3 },
+    ],
     translations: { overviewTranslations: [{ language: 'eng', overview: 'TheTVDB: welcome to the real world.', tagline: 'Free your mind' }] },
     remoteIds: [{ id: 'tt0133093', sourceName: 'IMDB' }],
   },
@@ -277,6 +292,7 @@ test('after TMDB, TheTVDB fills in what TMDB lacks — found through the IMDb id
   assert.deepEqual([m.tmdbId, m.tmdbMatch, m.tvdbId, m.tvdbMatch], [603, 'auto', 169, 'linked'])
   assert.deepEqual([m.overview, m.tagline, m.tmdbPosterPath, m.metaSources], ['TMDB: a hacker learns the truth.', 'Free your mind', '/matrix.jpg', 'tmdb,tvdb'])
   assert.ok(!tvdbAsked.some((a) => a.startsWith('/search?query=The+Matrix')), 'not searched for by title')
+  assert.equal(m.tmdbLogoPath, `${ART}/movies/169/clearlogo/matrix.png`, 'TMDB has no logo for it: TheTVDB’s English one comes in')
 })
 
 test('moved up, TheTVDB goes first: its details and poster win', async () => {
@@ -295,6 +311,7 @@ test('a show TMDB matched is found on TheTVDB by the id TMDB lists; its episodes
   // TheTVDB's art without text beats a German one; TMDB's poster comes first.
   assert.deepEqual([s.tmdbPosterPath, s.tmdbBackdropPath], ['/rugrats.jpg', `${ART}/fanart/76295-1.jpg`])
   assert.deepEqual(s.seasons.map((x) => [x.number, x.tmdbPosterPath]), [[1, '/rugrats-s1.jpg']])
+  assert.equal(s.tmdbLogoPath, '/rugrats-logo.png', 'TMDB’s English PNG logo, ahead of TheTVDB’s')
 
   const [a, b, c] = await Promise.all([row(e1.id), row(e2.id), row(e3.id)])
   assert.deepEqual([a.title, a.overview, a.tmdbStillPath, a.metaSources], ['Tommy’s First Birthday', 'TMDB: a party.', '/e1.jpg', 'tmdb,tvdb'])
@@ -341,7 +358,23 @@ test('Fix match on TheTVDB is kept by hand, and TMDB follows it; unmatching TheT
 test('Unmatch with no source named takes every match away', async () => {
   await metadata.unmatchMovie(matrix.id)
   const m = await row(matrix.id)
-  assert.deepEqual([m.tmdbId, m.tmdbMatch, m.tvdbId, m.tvdbMatch, m.tmdbPosterPath], [null, 'skip', null, 'skip', null])
+  assert.deepEqual([m.tmdbId, m.tmdbMatch, m.tvdbId, m.tvdbMatch, m.tmdbPosterPath, m.tmdbLogoPath], [null, 'skip', null, 'skip', null, null])
   await metadata.enrichLibrary(movies.id, 'missing')
   assert.deepEqual([(await row(matrix.id)).tmdbMatch, (await row(matrix.id)).tvdbMatch], ['skip', 'skip'])
+})
+
+test('titles matched before logos were kept look up just their logos, once', async () => {
+  await prisma.show.update({ where: { id: rugrats.id }, data: { tmdbLogoPath: null } })
+  await prisma.setting.deleteMany({ where: { key: 'logosFilled' } })
+  const asked = tvdbAsked.length
+  await metadata.fillLogosAfterUpgrade()
+  assert.equal((await showRow()).tmdbLogoPath, '/rugrats-logo.png', 'from TMDB’s images, its show matched there')
+  assert.equal((await row(obscure.id)).tmdbLogoPath, null, 'TheTVDB has none for it')
+  assert.ok(tvdbAsked.slice(asked).includes('/movies/5000/extended?meta=translations'), 'asked TheTVDB, its only match')
+  assert.equal((await prisma.setting.findUnique({ where: { key: 'logosFilled' } }))?.value, '1')
+
+  // Done: a later start doesn't ask again.
+  await prisma.show.update({ where: { id: rugrats.id }, data: { tmdbLogoPath: null } })
+  await metadata.fillLogosAfterUpgrade()
+  assert.equal((await showRow()).tmdbLogoPath, null)
 })

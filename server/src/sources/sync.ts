@@ -113,6 +113,7 @@ export async function syncFromServer(libraryId: number): Promise<SyncResult> {
                   year: sShow.year,
                   tmdbPosterPath: serverArt(libraryId, sShow.poster),
                   tmdbBackdropPath: serverArt(libraryId, sShow.backdrop),
+                  tmdbLogoPath: serverArt(libraryId, sShow.logo ?? null),
                   serverKey: sShow.key,
                   metaSources: lib.source,
                   metaAt: new Date(),
@@ -163,6 +164,7 @@ export async function syncFromServer(libraryId: number): Promise<SyncResult> {
               year: m.year,
               tmdbPosterPath: serverArt(libraryId, m.poster),
               tmdbBackdropPath: serverArt(libraryId, m.backdrop),
+              tmdbLogoPath: serverArt(libraryId, m.logo ?? null),
               serverKey: m.key,
               metaSources: lib.source,
           })

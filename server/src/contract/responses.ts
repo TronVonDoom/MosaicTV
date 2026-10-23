@@ -300,6 +300,9 @@ export type MediaItemDetail = MediaItem & {
   extras: MediaItem[]
   /** The movie an extra belongs to. */
   parent: { id: number; title: string; year: number | null } | null
+  /** A token for its logo — a movie's own, an episode's show's — that changes
+   *  when the logo does; null when it has none. Asked for as artwork type "logo". */
+  logo: string | null
 }
 
 export type MediaPage = {
@@ -444,6 +447,8 @@ export type ShowDetail = {
   tvdbYear: number | null
   /** Whether the show has a TMDB backdrop, and an episode to request it by. */
   hasBackdrop?: boolean
+  /** Its logo's token (see MediaItemDetail.logo), asked for by that episode too. */
+  logo?: string | null
   artItemId?: number | null
   /** What its metadata sources say beyond TMDB's match (see MediaItem). */
   contentRating: string | null
@@ -778,6 +783,8 @@ export type NowUnit = {
   /** Which artwork request answers for this program, or null if none will. */
   art: 'poster' | 'show' | null
   hasBackdrop: boolean
+  /** Its logo's token (see MediaItemDetail.logo); null when it has none. */
+  logo: string | null
   parts: number
 }
 
@@ -904,6 +911,8 @@ export type OnAirSlot = {
   mediaItemId: number | null
   showId: number | null
   libraryId: number | null
+  /** Its logo's token (see MediaItemDetail.logo), asked for by that file. */
+  logo?: string | null
   /** A song's or music video's artist, whose page it opens. */
   artist?: string | null
 }

@@ -5,6 +5,7 @@ import ChannelLogo from '../ChannelLogo'
 import Icon from '../Icon'
 import { MonoFacts } from '../onair/OnAir'
 import { IconButton, Menu, buttonClass, cx, type MenuItem } from '../ui'
+import TitleLogo from './TitleLogo'
 
 /** The page width a title's sections share with its hero. */
 export const TITLE_WIDTH = 'max-w-[1480px] 3xl:max-w-[1880px] mx-auto px-4 sm:px-6 lg:px-10'
@@ -35,6 +36,7 @@ export default function TitleHero({
   bug,
   kicker,
   title,
+  logo,
   facts = [],
   genres = [],
   status,
@@ -53,6 +55,8 @@ export default function TitleHero({
   /** A small line over the title: what it is, when it isn't obvious. */
   kicker?: ReactNode
   title: string
+  /** Its logo, shown as the title when it has one: the item to ask for it by and the API's token. */
+  logo?: { id: number | null | undefined; token: string | null | undefined }
   /** Facts in a row: year, rating, runtime, stars. */
   facts?: ReactNode[]
   genres?: string[]
@@ -111,7 +115,9 @@ export default function TitleHero({
           {cue && <div className="flex items-center gap-3 flex-wrap">{cue}</div>}
           {kicker && <div className="text-[14px] font-semibold text-ink-muted">{kicker}</div>}
           <h1 className={cx('font-bold leading-[1.02] tracking-[-0.03em] text-white text-balance break-words', titleSize(title))}>
-            {title}
+            <TitleLogo id={logo?.id} logo={logo?.token} title={title} className="mb-1 max-h-[104px] sm:max-h-[140px] lg:max-h-[170px] max-w-[min(100%,620px)]">
+              {title}
+            </TitleLogo>
           </h1>
           <MonoFacts items={facts} className="mt-1" />
           {genres.length > 0 && (

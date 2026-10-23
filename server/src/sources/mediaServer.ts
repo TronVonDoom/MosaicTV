@@ -25,6 +25,8 @@ export type ServerMeta = {
   /** Paths on the server ("/library/metadata/1/thumb/2", "/Items/abc/Images/Primary"). */
   poster: string | null
   backdrop: string | null
+  /** Its logo (a transparent PNG), where the server has one. */
+  logo?: string | null
 }
 export type ServerShow = ServerMeta & { key: string; title: string }
 export type ServerEpisode = ServerMeta & { key: string; showKey: string; showTitle: string; title: string; season: number | null; episode: number | null; files: string[] }
@@ -95,6 +97,8 @@ type PlexMeta = {
   audienceRating?: number
   thumb?: string
   art?: string
+  /** Newer servers list a title's images, its clear logo among them. */
+  Image?: { type?: string; url?: string }[]
   Genre?: PlexTag[]
   Media?: { Part?: PlexPart[] }[]
 }
@@ -110,6 +114,7 @@ function plexMeta(m: PlexMeta): ServerMeta {
     airDate: dateOnly(m.originallyAvailableAt),
     poster: str(m.thumb),
     backdrop: str(m.art),
+    logo: str(m.Image?.find((i) => i.type === 'clearLogo')?.url),
   }
 }
 const plexFiles = (m: PlexMeta) => (m.Media ?? []).flatMap((x) => (x.Part ?? []).flatMap((p) => (p.file ? [p.file] : [])))
@@ -192,7 +197,7 @@ type JfItem = {
   OfficialRating?: string
   CommunityRating?: number
   Genres?: string[]
-  ImageTags?: { Primary?: string }
+  ImageTags?: { Primary?: string; Logo?: string }
   BackdropImageTags?: string[]
   MediaSources?: { Path?: string }[]
 }
@@ -207,6 +212,7 @@ function jfMeta(i: JfItem): ServerMeta {
     airDate: dateOnly(i.PremiereDate),
     poster: i.Id && i.ImageTags?.Primary ? `/Items/${i.Id}/Images/Primary` : null,
     backdrop: i.Id && i.BackdropImageTags?.length ? `/Items/${i.Id}/Images/Backdrop/0` : null,
+    logo: i.Id && i.ImageTags?.Logo ? `/Items/${i.Id}/Images/Logo` : null,
   }
 }
 // An item's files: every version it has, else its own path.
@@ -224,7 +230,7 @@ export function jellyfinServer(url: string, token: string, kind: 'jellyfin' | 'e
     const out: JfItem[] = []
     for (let start = 0; ; start += PAGE) {
       const page = await getJson<{ Items?: JfItem[]; TotalRecordCount?: number }>(
-        `${base}/Items?ParentId=${encodeURIComponent(library)}&Recursive=true&IncludeItemTypes=${type}&Fields=${FIELDS}&EnableImageTypes=Primary,Backdrop&StartIndex=${start}&Limit=${PAGE}`,
+        `${base}/Items?ParentId=${encodeURIComponent(library)}&Recursive=true&IncludeItemTypes=${type}&Fields=${FIELDS}&EnableImageTypes=Primary,Backdrop,Logo&StartIndex=${start}&Limit=${PAGE}`,
         headers,
       )
       const got = page.Items ?? []

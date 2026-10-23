@@ -47,6 +47,9 @@ type TmdbCredits = {
   cast?: { name: string; character?: string; profile_path?: string | null; order?: number }[]
   crew?: { name: string; job?: string }[]
 }
+/** One of a title's images as TMDB lists them (a logo, here). */
+export type TmdbImage = { file_path?: string; iso_639_1?: string | null; vote_average?: number; vote_count?: number; width?: number; height?: number }
+
 export type TmdbMovie = {
   id: number
   title: string
@@ -64,6 +67,7 @@ export type TmdbMovie = {
   // Appended (see getMovie).
   release_dates?: { results?: { iso_3166_1: string; release_dates: { certification?: string; type?: number }[] }[] }
   credits?: TmdbCredits
+  images?: { logos?: TmdbImage[] }
 }
 export type TmdbTvSeason = {
   season_number: number
@@ -88,6 +92,7 @@ export type TmdbTv = {
   content_ratings?: { results?: { iso_3166_1: string; rating?: string }[] }
   credits?: TmdbCredits
   external_ids?: { imdb_id?: string | null; tvdb_id?: number | null }
+  images?: { logos?: TmdbImage[] }
 }
 /** One episode as TMDB lists it — in a season, or in an episode group. */
 export type TmdbEpisode = {
@@ -240,15 +245,38 @@ export async function resolveRef(key: string, ref: ExternalRef, kind: 'movie' | 
   return (kind === 'movie' ? r?.movie_results : r?.tv_results)?.[0]?.id ?? null
 }
 
-/** A movie's details, with its ratings by country and its credits. */
+// Its logos come with its details: the English ones and those with no words
+// of a language (a picture), which is all a logo can be shown as here.
+const LOGO_LANGUAGES = 'en,null'
+
+/** A movie's details, with its ratings by country, its credits and its logos. */
 export async function getMovie(key: string, id: number): Promise<TmdbMovie | null> {
-  return tmdbGet<TmdbMovie>(key, `/movie/${id}`, { append_to_response: 'release_dates,credits' })
+  return tmdbGet<TmdbMovie>(key, `/movie/${id}`, { append_to_response: 'release_dates,credits,images', include_image_language: LOGO_LANGUAGES })
 }
 
-/** A show's details, with its ratings by country, its credits, and its ids
- *  elsewhere (TheTVDB's, IMDb's). */
+/** A show's details, with its ratings by country, its credits, its ids
+ *  elsewhere (TheTVDB's, IMDb's) and its logos. */
 export async function getTv(key: string, id: number): Promise<TmdbTv | null> {
-  return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits,external_ids' })
+  return tmdbGet<TmdbTv>(key, `/tv/${id}`, { append_to_response: 'content_ratings,credits,external_ids,images', include_image_language: LOGO_LANGUAGES })
+}
+
+/** Just a title's logos — for filling in logos of titles read before there were any. */
+export async function getTmdbLogos(key: string, kind: 'movie' | 'tv', id: number): Promise<TmdbImage[] | null> {
+  const r = await tmdbGet<{ logos?: TmdbImage[] }>(key, `/${kind}/${id}/images`, { include_image_language: LOGO_LANGUAGES }, { logos: [] })
+  return r ? r.logos ?? [] : null
+}
+
+/**
+ * The logo to show: a PNG (an SVG can't go on the TV picture, and isn't safe
+ * to serve as-is), English before wordless, then the best voted, then the
+ * widest. Null when it has none.
+ */
+export function bestTmdbLogo(logos: TmdbImage[] | undefined): string | null {
+  const rank = (l: TmdbImage) => (l.iso_639_1 === 'en' ? 1 : 0)
+  const best = (logos ?? [])
+    .filter((l) => l.file_path && /^\/[\w-]+\.png$/i.test(l.file_path))
+    .sort((a, b) => rank(b) - rank(a) || (b.vote_average ?? 0) - (a.vote_average ?? 0) || (b.width ?? 0) - (a.width ?? 0))[0]
+  return best?.file_path ?? null
 }
 
 /** One season's episodes, as aired — none for a season TMDB doesn't have

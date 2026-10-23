@@ -14,6 +14,7 @@ import { useNow } from '../lib/hooks'
 import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
 import SegmentBar, { hasParts, piecesOf } from '../components/guide/SegmentBar'
+import TitleLogo from '../components/title/TitleLogo'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
@@ -510,7 +511,9 @@ export default function Watch() {
               </div>
               {row?.now ? (
                 <>
-                  <div className="mt-1.5 text-2xl sm:text-[30px] font-bold leading-tight tracking-[-0.01em] truncate">{unitLabel(row.now)}</div>
+                  <TitleLogo id={row.now.mediaItemId} logo={row.now.logo} title={unitLabel(row.now)} w={300} className="mt-2 mb-1 max-h-[44px] sm:max-h-[56px] max-w-[min(100%,300px)]">
+                    <div className="mt-1.5 text-2xl sm:text-[30px] font-bold leading-tight tracking-[-0.01em] truncate">{unitLabel(row.now)}</div>
+                  </TitleLogo>
                   {row.now.subtitle && <div className="text-[15px] text-white/75 truncate">{row.now.subtitle}</div>}
                   <div className="mt-3 flex items-center gap-3 text-[12px] text-white/60 tabular-nums">
                     <span>{formatClock(row.now.startTime)}</span>

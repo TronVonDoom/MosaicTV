@@ -219,7 +219,8 @@ export const tvdbPeople = (chars: TvdbCharacter[] | undefined, type: string): st
 ]
 
 // Artwork kinds by TheTVDB's ids (GET /artwork/types).
-export const TVDB_ART = { seriesPoster: 2, seriesBackground: 3, seasonPoster: 7, moviePoster: 14, movieBackground: 15 } as const
+// ClearLogo is a title's name as a transparent PNG.
+export const TVDB_ART = { seriesPoster: 2, seriesBackground: 3, seasonPoster: 7, moviePoster: 14, movieBackground: 15, seriesClearLogo: 23, movieClearLogo: 25 } as const
 
 /** Its best image of a kind: in TVDB_LANGUAGE, else with no text, else English, else any — best scored first. */
 export function tvdbBestArt(art: TvdbArtwork[] | undefined, type: number): string | null {

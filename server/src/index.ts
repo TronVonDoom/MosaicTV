@@ -19,6 +19,7 @@ import { migrateDatabase } from './dbMigrate.js'
 import { replanIfTimezoneChanged } from './schedule/scheduleChanges.js'
 import { seedDefaultAudio, seedDefaultLogo } from './seedDefaults.js'
 import { reparseAfterUpgrade, rescanAfterUpgrade, tagExtras } from './scanner/scanner.js'
+import { fillLogosAfterUpgrade } from './metadata/metadata.js'
 import { librariesRouter } from './routes/libraries.js'
 import { sourcesRouter } from './routes/sources.js'
 import { mediaRouter } from './routes/media.js'
@@ -209,6 +210,8 @@ async function boot(): Promise<void> {
   await reparseAfterUpgrade().catch((e) => log('error', 'system', 'Queueing the upgrade’s rescan failed', String(e?.stack || e)))
   // In the background: a library's scan can take a while.
   rescanAfterUpgrade().catch((e) => log('error', 'system', 'Scanning libraries after the upgrade failed', String(e?.stack || e)))
+  // Logos for titles matched before they were kept: one lookup a title, once.
+  fillLogosAfterUpgrade().catch((e) => log('error', 'system', 'Looking up logos failed', String(e?.stack || e)))
   resetSegments() // clear any stale segmenter output from a previous run
   const ram = inMemory(hlsDir())
   log('info', 'system', `Live segments are written to ${hlsDir()}${ram ? ', in memory' : ram === false ? ', on disk' : ''}`)

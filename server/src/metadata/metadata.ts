@@ -59,6 +59,7 @@ import {
 import { showCards } from '../shows.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { libraryChanged } from '../events.js'
+import { log } from '../logs.js'
 
 const CONCURRENCY = 4
 
@@ -357,12 +358,19 @@ function matchColumns(looked: LookedAll): Record<string, unknown> {
   return out
 }
 
-/** The poster and backdrop of the first source (in the title's order) that
- *  found it and has one — left as they are when no source was asked. */
-function artColumns(order: MetadataSource[], looked: LookedAll): { tmdbPosterPath?: string | null; tmdbBackdropPath?: string | null } {
+/** The poster, backdrop and logo of the first source (in the title's order)
+ *  that found it and has one — left as they are when no source was asked. */
+function artColumns(
+  order: MetadataSource[],
+  looked: LookedAll,
+): { tmdbPosterPath?: string | null; tmdbBackdropPath?: string | null; tmdbLogoPath?: string | null } {
   if (!MATCH_SOURCES.some((s) => looked[s])) return {}
   const founds = order.filter(isMatchSource).flatMap((s) => (looked[s]?.found ? [looked[s]!.found!] : []))
-  return { tmdbPosterPath: founds.find((f) => f.poster)?.poster ?? null, tmdbBackdropPath: founds.find((f) => f.backdrop)?.backdrop ?? null }
+  return {
+    tmdbPosterPath: founds.find((f) => f.poster)?.poster ?? null,
+    tmdbBackdropPath: founds.find((f) => f.backdrop)?.backdrop ?? null,
+    tmdbLogoPath: founds.find((f) => f.logo)?.logo ?? null,
+  }
 }
 
 const detailsOf = (looked: LookedAll) => ({ tmdb: looked.tmdb?.found?.details ?? null, tvdb: looked.tvdb?.found?.details ?? null })
@@ -378,6 +386,7 @@ const NO_MATCH = {
   tvdbYear: null,
   tmdbPosterPath: null,
   tmdbBackdropPath: null,
+  tmdbLogoPath: null,
   overview: null,
   genres: null,
   rating: null,
@@ -942,6 +951,67 @@ export async function matchNewTitles(libraryId: number): Promise<void> {
 export async function matchAllNewTitles(): Promise<void> {
   const libs = await prisma.library.findMany({ where: { kind: { in: ['movie', 'tv'] } }, select: { id: true }, orderBy: { id: 'asc' } })
   for (const l of libs) await matchNewTitles(l.id).catch(() => {})
+}
+
+// ── Logos for titles read before there were any ─────────────────────────────
+
+// Set once the logos of titles matched before 0.22 have been looked up.
+const LOGOS_KEY = 'logosFilled'
+const MATCH_SELECT = { tmdbId: true, tmdbMatch: true, tmdbTitle: true, tmdbYear: true, tvdbId: true, tvdbMatch: true, tvdbTitle: true, tvdbYear: true } as const
+
+/**
+ * Once, after the upgrade that started keeping logos: each matched movie and
+ * show that has none asks its sources, in its library's order, for just its
+ * logo — one request a title, rather than reading every library again. A
+ * library read from a media server gets its logos at its next read instead.
+ * Not marked done when most of the asking went unanswered (no network at
+ * start), so it tries again at the next start.
+ */
+export async function fillLogosAfterUpgrade(): Promise<void> {
+  if ((await prisma.setting.findUnique({ where: { key: LOGOS_KEY } }))?.value === '1') return
+  const libs = await prisma.library.findMany({ where: { kind: { in: ['movie', 'tv'] }, source: 'folders' }, select: { id: true, kind: true } })
+  const lacking = { tmdbLogoPath: null, OR: [{ tmdbId: { not: null } }, { tvdbId: { not: null } }] }
+  let asked = 0
+  let unanswered = 0
+  let found = 0
+  let titles = 0
+  for (const lib of libs) {
+    const a = await agentFor(lib.id)
+    if (Object.keys(a.online).length === 0) continue
+    const rows: (MatchFields & { id: number; kind: Kind })[] =
+      lib.kind === 'tv'
+        ? (await prisma.show.findMany({ where: { libraryId: lib.id, ...lacking }, select: { id: true, ...MATCH_SELECT } })).map((s) => ({ ...s, kind: 'tv' as const }))
+        : (await prisma.mediaItem.findMany({ where: { libraryId: lib.id, type: 'movie', extra: null, ...lacking }, select: { id: true, ...MATCH_SELECT } })).map((m) => ({ ...m, kind: 'movie' as const }))
+    titles += rows.length
+    let next = 0
+    const worker = async () => {
+      while (next < rows.length) {
+        const t = rows[next++]
+        for (const s of titleOrder(a, t)) {
+          if (!isMatchSource(s)) continue
+          const m = sourceMatch(t, s)
+          const p = a.online[s]
+          if (!p || m.id == null || m.match === 'skip' || m.match === 'notFound') continue
+          asked++
+          const logo = await p.logo(t.kind, m.id).catch(() => null)
+          if (logo === null) {
+            unanswered++
+            continue
+          }
+          if (!logo) continue
+          found++
+          const where = { id: t.id, tmdbLogoPath: null }
+          if (t.kind === 'tv') await prisma.show.updateMany({ where, data: { tmdbLogoPath: logo } })
+          else await prisma.mediaItem.updateMany({ where, data: { tmdbLogoPath: logo } })
+          break
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, worker))
+    if (rows.length) libraryChanged(lib.id)
+  }
+  if (titles) log('info', 'system', `Logos: found ${found} for the ${titles} matched title(s) that had none${unanswered ? ` — ${unanswered} lookup(s) went unanswered` : ''}`)
+  if (asked === 0 || unanswered * 2 < asked) await prisma.setting.upsert({ where: { key: LOGOS_KEY }, create: { key: LOGOS_KEY, value: '1' }, update: { value: '1' } })
 }
 
 // ── One title (Fix match, Unmatch, Refresh, episode order) ──────────────────

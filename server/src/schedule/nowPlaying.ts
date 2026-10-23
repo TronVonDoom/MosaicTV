@@ -8,6 +8,7 @@
 import { prisma } from '../db.js'
 import { episodeCode } from '../labels.js'
 import { creditOf, type ChannelNow as ChannelNowDTO, type NowUnit } from '../contract/index.js'
+import { logoToken } from '../metadata/logo.js'
 
 type MediaForNow = {
   id: number
@@ -27,6 +28,9 @@ type MediaForNow = {
   showPosterPath: string | null
   tmdbPosterPath: string | null
   tmdbBackdropPath: string | null
+  /** Its logo file (a movie's, an episode's show's) and a movie's online one. */
+  logoPath?: string | null
+  tmdbLogoPath?: string | null
 }
 
 type RowForNow = {
@@ -44,6 +48,7 @@ type ShowMeta = {
   rating: number | null
   tmdbPosterPath: string | null
   tmdbBackdropPath: string | null
+  tmdbLogoPath?: string | null
 }
 
 /** One program as the UI shows it (a contract shape). A multi-part airing is a single unit. */
@@ -92,6 +97,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
       rating: null,
       art: null,
       hasBackdrop: false,
+      logo: null,
     }
   }
 
@@ -115,6 +121,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
       rating: show?.rating ?? m.rating,
       art: m.showPosterPath || show?.tmdbPosterPath ? 'show' : m.posterPath ? 'poster' : null,
       hasBackdrop: !!show?.tmdbBackdropPath,
+      logo: logoToken(m.logoPath, show?.tmdbLogoPath),
     }
   }
 
@@ -131,6 +138,7 @@ export function describeUnit(unit: RowForNow[], show: ShowMeta | undefined): Now
     rating: m.rating,
     art: m.posterPath || m.tmdbPosterPath ? 'poster' : null,
     hasBackdrop: !!m.tmdbBackdropPath,
+    logo: m.type === 'music' || m.type === 'song' ? null : logoToken(m.logoPath, m.tmdbLogoPath),
   }
 }
 
@@ -152,6 +160,8 @@ const MEDIA_SELECT = {
   showPosterPath: true,
   tmdbPosterPath: true,
   tmdbBackdropPath: true,
+  logoPath: true,
+  tmdbLogoPath: true,
 } as const
 
 /** A channel's now and next; the route adds its number and viewers. */
@@ -203,7 +213,7 @@ export async function channelsNow(channelIds: number[], nextCount = 3): Promise<
   if (wanted.size) {
     const rows = await prisma.show.findMany({
       where: { OR: [...wanted].map(([libraryId, titles]) => ({ libraryId, title: { in: [...titles] } })) },
-      select: { libraryId: true, title: true, overview: true, genres: true, rating: true, tmdbPosterPath: true, tmdbBackdropPath: true },
+      select: { libraryId: true, title: true, overview: true, genres: true, rating: true, tmdbPosterPath: true, tmdbBackdropPath: true, tmdbLogoPath: true },
     })
     for (const s of rows) shows.set(`${s.libraryId}\u0000${s.title}`, s)
   }

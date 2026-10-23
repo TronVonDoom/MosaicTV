@@ -7,11 +7,15 @@ import { coversDir } from '../paths.js'
 import type { LibraryKind } from './parse.js'
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'tbn']
+// A logo is shown over pictures, so only formats that can be see-through.
+const LOGO_EXTS = ['png', 'webp']
 
 export type Artwork = {
   posterPath: string | null
   showPosterPath: string | null
   seasonPosterPath: string | null
+  /** A movie's logo, or an episode's show's (see MediaItem.logoPath). */
+  logoPath: string | null
 }
 
 // Cache directory listings for the duration of a scan so show/season folders
@@ -32,11 +36,11 @@ async function listFiles(dir: string, cache: DirCache): Promise<string[] | null>
 }
 
 /** Return the actual filename in `files` matching any base name + image ext (case-insensitive). */
-function matchImage(files: string[] | null, baseNames: string[]): string | null {
+function matchImage(files: string[] | null, baseNames: string[], exts = IMAGE_EXTS): string | null {
   if (!files) return null
   const lower = files.map((f) => [f.toLowerCase(), f] as const)
   for (const base of baseNames) {
-    for (const ext of IMAGE_EXTS) {
+    for (const ext of exts) {
       const target = `${base}.${ext}`.toLowerCase()
       const hit = lower.find(([l]) => l === target)
       if (hit) return hit[1]
@@ -46,6 +50,8 @@ function matchImage(files: string[] | null, baseNames: string[]): string | null 
 }
 
 const FOLDER_POSTER_NAMES = ['poster', 'folder', 'cover', 'default']
+// Kodi's name for a logo, then Jellyfin's and Plex's.
+const LOGO_NAMES = ['clearlogo', 'logo']
 
 /**
  * Detect local artwork next to a media file using Plex/Kodi/Jellyfin naming:
@@ -53,6 +59,8 @@ const FOLDER_POSTER_NAMES = ['poster', 'folder', 'cover', 'default']
  *   Show:    <show folder>/poster.jpg | folder.jpg | show.jpg | banner.jpg
  *   Season:  <season folder>/poster.jpg  OR  <show folder>/Season01.jpg
  *   Episode: <season folder>/<EpisodeFile>.jpg | <EpisodeFile>-thumb.jpg
+ *   Logo:    <movie folder>/<MovieName>-clearlogo.png | clearlogo.png | logo.png,
+ *            <show folder>/clearlogo.png | logo.png (PNG or WebP)
  *   Music video: <Video>.jpg | <Video>-poster.jpg | <Video>-thumb.jpg, else
  *            <album folder>/cover.jpg | folder.jpg; the artist's picture
  *            <artist folder>/artist.jpg | folder.jpg | poster.jpg
@@ -70,12 +78,13 @@ export async function detectArtwork(
   const segments = rel.split(/[\\/]/).filter(Boolean)
   const showFolder = segments.length > 1 ? path.join(libraryPath, segments[0]) : null
 
-  const art: Artwork = { posterPath: null, showPosterPath: null, seasonPosterPath: null }
+  const art: Artwork = { posterPath: null, showPosterPath: null, seasonPosterPath: null, logoPath: null }
   const join = (dir: string, name: string | null) => (name ? path.join(dir, name) : null)
 
   if (kind === 'movie') {
     const files = await listFiles(folder, cache)
     art.posterPath = join(folder, matchImage(files, [...FOLDER_POSTER_NAMES, 'movie', baseName]))
+    art.logoPath = join(folder, matchImage(files, [`${baseName}-clearlogo`, `${baseName}-logo`, ...LOGO_NAMES], LOGO_EXTS))
     return art
   }
 
@@ -91,6 +100,7 @@ export async function detectArtwork(
         showFolder,
         matchImage(showFiles, [...FOLDER_POSTER_NAMES, 'show', 'banner']),
       )
+      art.logoPath = join(showFolder, matchImage(showFiles, LOGO_NAMES, LOGO_EXTS))
     }
 
     // Season poster: prefer the season folder, else "SeasonNN" in the show folder.
