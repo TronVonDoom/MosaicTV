@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.22.0 — Show and movie logos (2026-10-23)
+
+- **Logos.** A show's or movie's logo — its name as artwork, like the All in
+  the Family wordmark — is shown where its name is: on its page, in the
+  Guide's big "now playing" panel, on the library's "On air now" shelf, on
+  the Watch banner and in quick look (an episode's show's logo, beside which
+  episode it is). A title with no logo keeps its name as text.
+- **Where they come from.** The same sources as posters, in each library's
+  order: TMDB (English or wordless logos), TheTVDB (its clear logos), and
+  Plex, Jellyfin or Emby for a library read from one. A logo file beside the
+  media comes first: `clearlogo.png` or `logo.png` in a show's folder, and
+  for a movie `<Movie name>-clearlogo.png`, `clearlogo.png` or `logo.png`
+  (PNG or WebP, so it can be see-through).
+- **After upgrading.** Titles already matched look up just their logos once,
+  in the background — one request each, not a full metadata refresh — and
+  TV and movie libraries are scanned once to pick up logo files and media
+  servers' logos.
+
 ## 0.21.0 — A new look (2026-10-23)
 
 The whole web app is redrawn and reorganised. Nothing it can do has
