@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.23.0 — New up-next cards (2026-10-23)
 
 - **New up-next cards.** Five looks, redrawn in the app's typeface and colours:
   the **Art banner** (a bar filled with the next program's artwork, a violet
