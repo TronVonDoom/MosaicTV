@@ -1,6 +1,24 @@
 # Changelog
 
-## 0.24.0 — The glass strip (2026-10-24)
+## 0.24.1 — Revivals as shows of their own (2026-10-25)
+
+- **Shows of one name but different years are kept apart.** A show's
+  folder year was dropped before it was filed, so "Scrubs (2001)" and
+  "Scrubs (2026)" were both "Scrubs": the revival's episodes went into the
+  original, and didn't show up as a show of their own. Now a folder of
+  another year is a show of its own, titled with its year ("Scrubs
+  (2026)"); rename it if you like. A folder with no year, or the same year,
+  still joins the show of its name, so "Gargoyles (x264)" stays with
+  "Gargoyles (1994)".
+- **Shows already filed together split on the next scan.** The original
+  keeps its title, its match, its place in collections and its broadcast
+  episodes; the other years become shows of their own and are matched on
+  their own. A collection that picked the whole show no longer plays the
+  other years' episodes — add the new show to it if you want them.
+- **Media-server libraries too.** Two Plex, Jellyfin or Emby shows of the
+  same title are kept apart by their year the same way.
+- A show titled with its year is looked up as its title and that year, both
+  when its details are read and in Fix match.
 
 - **A slimmer banner while watching.** TV mode's "what's on" banner is now
   one slim glass strip along the bottom: the channel's tile, the title's logo
