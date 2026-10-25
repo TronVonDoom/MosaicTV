@@ -478,11 +478,14 @@ export async function buildItemArgs(params: BuildItemParams): Promise<BuiltItem>
       cards.push({ card, x: at.x, y: at.y, windows, fadeSec: look.fadeSeconds, scale, from })
       if (chLogo && card.logoAt) {
         // The stream draws cards over the watermark, so the logo goes back on
-        // top of the ribbon while it's up.
+        // top of the ribbon while it's up: at once for a solid logo (it
+        // matches the watermark exactly), faded up with the ribbon for a
+        // see-through one, which it brings to full strength.
         const cap = await renderLogoCap(chLogo, base)
         if (cap) {
           cardFiles.push(cap.png)
-          cards.push({ card: cap, x: Math.round(chLogo.x), y: Math.round(chLogo.y), windows, fadeSec: 0, scale, from: [0, 0] })
+          const fadeSec = chLogo.opacity < 0.99 ? look.fadeSeconds : 0
+          cards.push({ card: cap, x: Math.round(chLogo.x), y: Math.round(chLogo.y), windows, fadeSec, scale, from: [0, 0] })
         }
       }
       log('debug', 'stream', `Ch ${channelNumber} ${what} card: ${content.title}${content.subtitle ? ' — ' + content.subtitle : ''}`, `${look.style}, ${chLogo ? 'on the logo' : look.position}, ${windows.length} window(s)`, tag)

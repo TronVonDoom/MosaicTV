@@ -29,7 +29,6 @@ function thumbWidth(q: unknown): number | null {
 // TMDB serves fixed sizes — ask for the smallest that covers the request.
 const tmdbPosterSize = (w: number | null) => (!w ? 'w500' : w <= 185 ? 'w185' : w <= 342 ? 'w342' : 'w500')
 const tmdbBackdropSize = (w: number | null) => (!w || w > 780 ? 'w1280' : w <= 300 ? 'w300' : 'w780')
-const tmdbLogoSize = (w: number | null) => (!w || w > 300 ? 'w500' : 'w300')
 
 function sendArtwork(res: Response, filePath: string, maxAgeSec = 86400) {
   res.setHeader('Cache-Control', `public, max-age=${maxAgeSec}`)
@@ -114,7 +113,8 @@ artworkRouter.get('/:id', async (req, res) => {
   const w = thumbWidth(req.query.w)
 
   if (type === 'logo') {
-    const logo = await logoFileFor(item, tmdbLogoSize(w))
+    // One size for every app: kept ahead (warmLogos), and a logo is small.
+    const logo = await logoFileFor(item)
     if (!logo) return res.status(404).end()
     return sendArtwork(res, logo, 604800)
   }

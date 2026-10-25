@@ -61,7 +61,7 @@ async function artFor(mi: MediaItem): Promise<CardContent['art']> {
 
 // A title's logo and wide still for the cards that show them — each capped so
 // a slow lookup online never holds up an encode.
-const logoFor = (mi: MediaItem) => logoFileFor(mi, 'w500', 3000).catch(() => null)
+const logoFor = (mi: MediaItem) => logoFileFor(mi, 3000).catch(() => null)
 const backdropFor = (mi: MediaItem) => backdropFileFor(mi).catch(() => null)
 
 type Row = { channelId: number; startTime: Date; stopTime?: Date; groupKey: string | null; mediaItem: MediaItem | null }

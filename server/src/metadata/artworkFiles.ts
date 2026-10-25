@@ -32,6 +32,27 @@ async function serverFor(libraryId: number): Promise<MediaServer | null> {
   return server
 }
 
+// Where a media server's image is kept at `size`, but for its extension (the
+// type it came as).
+function serverImageName(art: string, size: string): string {
+  const w = /^w(\d+)$/.exec(size)?.[1]
+  return path.join(tmdbCacheDir(), `server_${createHash('sha1').update(`${art}|${w ?? ''}`).digest('hex').slice(0, 24)}`)
+}
+const keptServerImage = (art: string, size: string) =>
+  ['.jpg', '.png', '.webp'].map((x) => serverImageName(art, size) + x).find((f) => fs.existsSync(f))
+
+// Where a TMDB or TheTVDB image is kept: a TMDB path by its name at `size`
+// (basenamed, so it can't climb out of the cache dir), an address by its hash.
+function remoteImageFile(art: string, size: string): string {
+  if (!isAddress(art)) return path.join(tmdbCacheDir(), `${size}_${path.basename(art)}`)
+  const ext = path.extname(art.replace(/[?#].*$/, '')).toLowerCase()
+  return path.join(tmdbCacheDir(), `tvdb_${createHash('sha1').update(art).digest('hex').slice(0, 24)}${/^\.(jpe?g|png|webp)$/.test(ext) ? ext : '.jpg'}`)
+}
+
+/** Whether an image found online is on disk already at `size`. */
+export const isKept = (art: string, size: string): boolean =>
+  isServerArt(art) ? !!keptServerImage(art, size) : fs.existsSync(remoteImageFile(art, size))
+
 // A media server's image, fetched with its library's key and kept like the
 // rest — about `size` wide ("w342"), as the server resizes it, or as it is
 // ("original"). Kept as the type it came as, so a logo stays see-through.
@@ -39,8 +60,8 @@ async function serverImage(art: string, size: string, timeoutMs?: number): Promi
   const m = /^server:(\d+):(\/.*)$/.exec(art)
   if (!m) return null
   const w = /^w(\d+)$/.exec(size)?.[1]
-  const name = path.join(tmdbCacheDir(), `server_${createHash('sha1').update(`${art}|${w ?? ''}`).digest('hex').slice(0, 24)}`)
-  const kept = ['.jpg', '.png', '.webp'].map((x) => name + x).find((f) => fs.existsSync(f))
+  const name = serverImageName(art, size)
+  const kept = keptServerImage(art, size)
   if (kept) return kept
   const server = await serverFor(Number(m[1]))
   if (!server) return null
@@ -63,13 +84,9 @@ async function serverImage(art: string, size: string, timeoutMs?: number): Promi
 // TheTVDB image's address (one size only).
 export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: number): Promise<string | null> {
   if (isServerArt(art)) return serverImage(art, size, timeoutMs)
-  // Both come from our own DB. A TMDB path is basenamed so it can't climb out
-  // of the cache dir; an address is named by its hash.
+  // Both come from our own DB.
   const address = isAddress(art)
-  const ext = address ? path.extname(art.replace(/[?#].*$/, '')).toLowerCase() : ''
-  const file = address
-    ? path.join(tmdbCacheDir(), `tvdb_${createHash('sha1').update(art).digest('hex').slice(0, 24)}${/^\.(jpe?g|png|webp)$/.test(ext) ? ext : '.jpg'}`)
-    : path.join(tmdbCacheDir(), `${size}_${path.basename(art)}`)
+  const file = remoteImageFile(art, size)
   if (fs.existsSync(file)) return file
   const source = !address ? 'TMDB' : /coverartarchive|archive\.org/i.test(art) ? 'Cover Art Archive' : 'TheTVDB'
 
@@ -226,15 +243,19 @@ export async function posterFileFor(
   return tmdbPath ? cachedRemoteImage(tmdbPath, 'w342', 3000) : null
 }
 
+/** The one size a title's online logo is kept and served at, to every app and the on-screen card. */
+const LOGO_SIZE = 'w500'
+// A media server's logo comes as it is: its resize is for posters' shape.
+const logoSize = (online: string) => (isServerArt(online) ? 'original' : LOGO_SIZE)
+
 /**
  * A title's logo as a file: the one beside it (a movie's own, an episode's
  * show's), else the one found online — a movie's, an episode's show's —
- * fetched once at about `size` ("w500") and kept as the PNG it is. Null when
- * it has none, or it can't be had (within `timeoutMs`, when given).
+ * fetched once (warmLogos fetches it ahead) and kept as the PNG it is. Null
+ * when it has none, or it can't be had (within `timeoutMs`, when given).
  */
 export async function logoFileFor(
   item: { libraryId: number; type: string; showTitle: string | null; logoPath: string | null; tmdbLogoPath: string | null },
-  size = 'w500',
   timeoutMs?: number,
 ): Promise<string | null> {
   if (isLogoFile(item.logoPath) && fs.existsSync(item.logoPath)) return item.logoPath
@@ -243,6 +264,58 @@ export async function logoFileFor(
     const show = await prisma.show.findFirst({ where: { libraryId: item.libraryId, title: item.showTitle }, select: { tmdbLogoPath: true } })
     online = show?.tmdbLogoPath ?? null
   }
-  // A media server's logo comes as it is: its resize is for posters' shape.
-  return online ? cachedRemoteImage(online, isServerArt(online) ? 'original' : size, timeoutMs) : null
+  return online ? cachedRemoteImage(online, logoSize(online), timeoutMs) : null
+}
+
+let warming: Promise<void> | null = null
+let warmAgain = false
+// Off until the server turns it on at start, so tests never reach the internet.
+let warmOn = false
+
+/** Fetch logos ahead from now on (see warmLogos), starting with any not yet kept. */
+export function startWarmingLogos(): Promise<void> {
+  warmOn = true
+  return warmLogos()
+}
+
+/**
+ * Every title's logo found online, fetched ahead and kept on disk, so the
+ * first app to show one has it at once rather than waiting on TMDB (or the
+ * media server). Runs at start, after a library's details are read and after
+ * a Fix match; a logo already kept costs a file check, so a run with nothing
+ * new is quick. A title with a logo file of its own is skipped: that one wins.
+ * One run at a time; asked during a run, it runs once more after.
+ */
+export function warmLogos(): Promise<void> {
+  if (!warmOn) return Promise.resolve()
+  if (warming) {
+    warmAgain = true
+    return warming
+  }
+  warming = (async () => {
+    do {
+      warmAgain = false
+      const [shows, movies] = await Promise.all([
+        prisma.show.findMany({ where: { tmdbLogoPath: { not: null }, episodes: { none: { logoPath: { not: null } } } }, select: { tmdbLogoPath: true } }),
+        prisma.mediaItem.findMany({ where: { type: 'movie', tmdbLogoPath: { not: null }, logoPath: null }, select: { tmdbLogoPath: true } }),
+      ])
+      const todo = [...new Set([...shows, ...movies].map((t) => t.tmdbLogoPath!))].filter((p) => !isKept(p, logoSize(p)))
+      if (todo.length === 0) continue
+      let next = 0
+      let kept = 0
+      const worker = async () => {
+        while (next < todo.length) {
+          const p = todo[next++]
+          if (await cachedRemoteImage(p, logoSize(p), 15_000).catch(() => null)) kept++
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(3, todo.length) }, worker))
+      log('info', 'system', `Logos: kept ${kept} of ${todo.length} new title logo(s) on disk`)
+    } while (warmAgain)
+  })()
+    .catch((e) => log('warn', 'system', 'Fetching title logos ahead failed', String(e)))
+    .finally(() => {
+      warming = null
+    })
+  return warming
 }

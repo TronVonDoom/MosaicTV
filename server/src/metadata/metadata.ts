@@ -60,6 +60,7 @@ import { showCards } from '../shows.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { libraryChanged } from '../events.js'
 import { log } from '../logs.js'
+import { warmLogos } from './artworkFiles.js'
 
 const CONCURRENCY = 4
 
@@ -922,6 +923,8 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
     status.currentTitle = null
     status.finishedAt = new Date().toISOString()
     libraryChanged(library.id)
+    // Logos it found, kept on disk before anyone asks for them.
+    if (library.kind === 'movie' || library.kind === 'tv') void warmLogos()
   }
 }
 
@@ -1054,6 +1057,7 @@ export async function matchMovie(id: number, source: MatchSource, pickedId: numb
   const f = await pickable(a, source).get('movie', pickedId)
   if (!f) throw new MatchError(`${MATCH_SOURCE_NAMES[source]} has no movie with id ${pickedId}.`, 404)
   const r = await enrichMovie(a, item, followPick(source), false, { [source]: { found: f, by: 'manual' } })
+  void warmLogos()
   if (r.stuck) throw stuckError(a, r.stuck)
   if (r.genres) await genresChanged()
 }
@@ -1082,6 +1086,7 @@ export async function refreshMovie(id: number): Promise<void> {
   const a = await agentFor(item.libraryId)
   if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(item, s).match === 'manual')) throw new MatchError(nothingToReadIn(a))
   const r = await enrichMovie(a, item, (s) => sourceMatch(item, s).id == null, false)
+  void warmLogos()
   if (r.stuck) throw stuckError(a, r.stuck)
   if (r.genres) await genresChanged()
 }
@@ -1095,6 +1100,7 @@ export async function matchShow(id: number, source: MatchSource, pickedId: numbe
   const order = orderSource(show.episodeOrder) === source && f.id !== had.id ? null : show.episodeOrder
   if (order !== show.episodeOrder) await prisma.show.update({ where: { id }, data: { episodeOrder: null, episodeOrderName: null } })
   const r = await enrichShow(a, { ...show, episodeOrder: order }, followPick(source), false, { [source]: { found: f, by: 'manual' } })
+  void warmLogos()
   if (r.stuck) throw stuckError(a, r.stuck)
 }
 
@@ -1122,6 +1128,7 @@ export async function refreshShow(id: number): Promise<void> {
   const { a, show } = await showRow(id)
   if (!canRead(a) && !MATCH_SOURCES.some((s) => sourceMatch(show, s).match === 'manual')) throw new MatchError(nothingToReadIn(a))
   const r = await enrichShow(a, show, (s) => sourceMatch(show, s).id == null, false)
+  void warmLogos()
   if (r.stuck) throw stuckError(a, r.stuck)
 }
 

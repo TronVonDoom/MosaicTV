@@ -10,10 +10,10 @@ import { reads } from '../lib/reads'
 import { castChannel, stopCasting } from '../lib/cast'
 import { useLiveRefresh } from '../lib/events'
 import { formatClock } from '../lib/format'
-import { useNow } from '../lib/hooks'
+import { useMediaQuery, useNow } from '../lib/hooks'
 import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
-import SegmentBar, { hasParts, piecesOf } from '../components/guide/SegmentBar'
+import SegmentBar, { hasParts, piecesOf, type Piece } from '../components/guide/SegmentBar'
 import TitleLogo from '../components/title/TitleLogo'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
@@ -52,6 +52,13 @@ const progressOf = (u: NowUnit, now: number) => {
   return e > s ? Math.min(1, Math.max(0, (now - s) / (e - s))) : 0
 }
 const unitLabel = (u: NowUnit) => (u.kind === 'filler' ? 'Station break' : u.title)
+/** "part 1 of 2": which of an airing's parts is on, or null for one in a single part. */
+const partOf = (pieces: readonly Piece[], now: number): string | null => {
+  const parts = pieces.filter((p) => !p.filler)
+  if (parts.length < 2) return null
+  const at = Math.max(1, parts.filter((p) => p.start <= now).length)
+  return `part ${at} of ${parts.length}`
+}
 
 export default function Watch() {
   const params = useParams()
@@ -59,6 +66,8 @@ export default function Watch() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const nowMs = useNow(1000)
+  // A big screen gets the banner at full size (lg in the classes below).
+  const wide = useMediaQuery('(min-width: 1024px)')
 
   // The lineup the last visit kept, so tuning starts without waiting on it.
   const channelsRead = useCached(reads.channels)
@@ -396,7 +405,8 @@ export default function Watch() {
 
   const bannerShown = nowMs < bannerUntil || tuning
   const controlsShown = nowMs < controlsUntil
-  const osdNumber = digits || notFound || (bannerShown && current != null ? String(current) : '')
+  // The number being typed (the banner's tile says the channel tuned).
+  const osdNumber = digits || notFound || ''
 
   // The retro looks go over the picture here — not while it's on a TV.
   const { box, frame, fourThree } = usePicture(videoRef, looks.tvSet && !castingTo)
@@ -492,53 +502,72 @@ export default function Watch() {
         </div>
       )}
 
-      {/* The banner: what's on, how far in, what's next. */}
+      {/* The banner: one slim glass strip — the channel, what's on, how far
+          in, what's next — stacked on a phone held upright. */}
       <div
         className={cx(
-          'absolute inset-x-4 sm:inset-x-8 bottom-6 sm:bottom-8 pointer-events-none transition-all duration-500',
+          'absolute inset-x-3 sm:inset-x-10 bottom-4 sm:bottom-5 lg:bottom-9 pointer-events-none transition-all duration-500',
           bannerShown && channel && !guideOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4',
         )}
       >
         {channel && (
-          <div className="mx-auto max-w-4xl rounded-3xl glass-label shadow-2xl p-4 sm:p-5 flex gap-4 items-center">
-            <ChannelLogo logoId={channel.logoId} name={channel.name} size={64} className="rounded-2xl hidden sm:grid" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[13px]">
-                <span className="text-[15px] font-bold tabular-nums">{channel.number}</span>
-                <span className="font-medium text-white/85 truncate">{channel.name}</span>
-                <LiveBadge />
-                {row?.now && row.now.parts > 1 && <span className="text-white/55">{row.now.parts} parts</span>}
-              </div>
+          <div className="watch-strip mx-auto max-w-[1060px] rounded-[22px] lg:rounded-[28px] shadow-[0_18px_50px_rgb(0_0_0/0.45)] p-3.5 sm:p-2.5 sm:pr-4 lg:p-3.5 lg:pr-6 gap-x-3 gap-y-3 lg:gap-x-5">
+            {/* The channel: its logo over its number, in a tile of its own. */}
+            <div className="[grid-area:tile] flex flex-col items-center justify-center gap-1 size-12 sm:size-[52px] lg:size-[76px] rounded-[13px] sm:rounded-[14px] lg:rounded-[18px] bg-white/[0.07]">
+              <ChannelLogo logoId={channel.logoId} name={channel.name} plate={false} size={wide ? 44 : 30} />
+              <span className="text-[12.5px] lg:text-[18px] leading-none font-bold tabular-nums">{channel.number}</span>
+            </div>
+            <div className="[grid-area:main] min-w-0 flex flex-col gap-1 lg:gap-1.5">
               {row?.now ? (
                 <>
-                  <TitleLogo id={row.now.mediaItemId} logo={row.now.logo} title={unitLabel(row.now)} w={300} className="mt-2 mb-1 max-h-[44px] sm:max-h-[56px] max-w-[min(100%,300px)]">
-                    <div className="mt-1.5 text-2xl sm:text-[30px] font-bold leading-tight tracking-[-0.01em] truncate">{unitLabel(row.now)}</div>
-                  </TitleLogo>
-                  {row.now.subtitle && <div className="text-[15px] text-white/75 truncate">{row.now.subtitle}</div>}
-                  <div className="mt-3 flex items-center gap-3 text-[12px] text-white/60 tabular-nums">
-                    <span>{formatClock(row.now.startTime)}</span>
-                    {hasParts(pieces) ? (
-                      <SegmentBar pieces={pieces} nowMs={nowMs} height={5} className="flex-1" />
-                    ) : (
-                      <div className="flex-1 h-[5px] rounded-full bg-white/20 overflow-hidden">
-                        <div className="h-full rounded-full bg-now" style={{ width: `${progressOf(row.now, nowMs) * 100}%` }} />
-                      </div>
-                    )}
-                    <span>{formatClock(row.now.stopTime)}</span>
-                    <span className="hidden sm:inline text-white/50">{minutesLeft(row.now, nowMs)} min left</span>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <TitleLogo id={row.now.mediaItemId} logo={row.now.logo} title={unitLabel(row.now)} w={300} className="max-h-[28px] sm:max-h-[26px] lg:max-h-[38px] max-w-[min(100%,300px)]">
+                      <div className="text-[17px] lg:text-[22px] font-bold leading-tight tracking-[-0.01em] truncate">{unitLabel(row.now)}</div>
+                    </TitleLogo>
+                    <LiveBadge className="shrink-0" />
                   </div>
-                  {row.next[0] && (
-                    <div className="mt-2.5 text-[13.5px] text-white/60 truncate">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-200/80">Up next · {formatClock(row.next[0].startTime)}</span>{' '}
-                      <span className="text-white/85">{unitLabel(row.next[0])}</span>
-                      {row.next[0].subtitle && <span className="text-white/50"> · {row.next[0].subtitle}</span>}
-                    </div>
-                  )}
+                  <div className="text-[13px] sm:text-[12.5px] lg:text-[15px] text-white/75 truncate">{row.now.subtitle ?? channel.name}</div>
                 </>
               ) : (
-                <div className="mt-1.5 text-lg text-white/70">Nothing scheduled right now</div>
+                <>
+                  <div className="text-[17px] lg:text-[22px] font-bold leading-tight truncate">{channel.name}</div>
+                  <div className="text-[13px] lg:text-[15px] text-white/65">Nothing scheduled right now</div>
+                </>
               )}
             </div>
+            {row?.now && (
+              <div className="[grid-area:prog] w-full sm:w-[150px] lg:w-[250px] flex flex-col gap-1.5 lg:gap-2 text-[11.5px] sm:text-[10.5px] lg:text-[12.5px] text-white/60 tabular-nums">
+                <div className="flex justify-between">
+                  <span>{formatClock(row.now.startTime)}</span>
+                  <span>{formatClock(row.now.stopTime)}</span>
+                </div>
+                {hasParts(pieces) ? (
+                  <SegmentBar pieces={pieces} nowMs={nowMs} height={5} />
+                ) : (
+                  <div className="h-[5px] rounded-full bg-white/20 overflow-hidden">
+                    <div className="h-full rounded-full bg-now" style={{ width: `${progressOf(row.now, nowMs) * 100}%` }} />
+                  </div>
+                )}
+                <span className="text-white/75">
+                  {minutesLeft(row.now, nowMs)} min left
+                  {partOf(pieces, nowMs) && <span className="hidden lg:inline"> · {partOf(pieces, nowMs)}</span>}
+                </span>
+              </div>
+            )}
+            {row?.next[0] && (
+              <>
+                <span aria-hidden className="[grid-area:rule] hidden sm:block w-px h-10 lg:h-14 bg-white/[0.12]" />
+                <div className="[grid-area:next] min-w-0 sm:w-[120px] lg:w-[190px] flex items-baseline sm:items-start sm:flex-col gap-2 sm:gap-0.5 lg:gap-1 border-t sm:border-0 border-white/[0.08] pt-2.5 sm:pt-0 whitespace-nowrap">
+                  <span className="text-[10px] lg:text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-200/90">
+                    Up next · {formatClock(row.next[0].startTime)}
+                  </span>
+                  <span className="text-[14px] sm:text-[13.5px] lg:text-[17px] font-semibold truncate shrink-0 max-w-[62%] sm:max-w-full">{unitLabel(row.next[0])}</span>
+                  {row.next[0].subtitle && (
+                    <span className="sm:hidden lg:block min-w-0 text-[12.5px] text-white/55 truncate max-w-full">{row.next[0].subtitle}</span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import type { AddressInfo } from 'node:net'
 import express from 'express'
 import type { Playout } from '../contract/index.js'
 import { tempDb } from '../testDb.js'
+import { logoToken } from '../metadata/logo.js'
 
 const { prisma } = await tempDb('mosaictv-playout-')
 const { channelsRouter } = await import('./channels.js')
@@ -83,6 +84,19 @@ test('rows carry only the contract fields, never the checkpoint', () => {
   assert.ok(!text.includes('xxxx'), 'no checkpoint content is sent')
   for (const item of playout.items)
     assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+})
+
+test('each program says whether its title has a logo, as a token, and no more', async () => {
+  await prisma.show.update({ where: { id: ppg.id }, data: { tmdbLogoPath: '/ppg-logo.png' } })
+  const got = (await (await fetch(`${base}/api/channels/${ch.id}/playout?hours=2`)).json()) as Playout
+  const token = logoToken(null, '/ppg-logo.png')
+  assert.ok(token)
+  assert.deepEqual(
+    got.items.map((i) => i.mediaItem?.logo),
+    [token, token, token],
+  )
+  for (const i of got.items) for (const k of ['logoPath', 'tmdbLogoPath', 'show']) assert.ok(!(k in (i.mediaItem ?? {})), `${k} is not sent`)
+  await prisma.show.update({ where: { id: ppg.id }, data: { tmdbLogoPath: null } })
 })
 
 test('back= keeps what just aired in the guide', async () => {

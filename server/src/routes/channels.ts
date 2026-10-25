@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { logoToken } from '../metadata/logo.js'
 import { prisma } from '../db.js'
 import { MAX_HORIZON_HOURS, buildPlayout, horizonHours, prunePlayout } from '../schedule/playout.js'
 import { GUIDE_GRACE_MS, KEEP_DAYS, airedForGuide, airedHistory } from '../schedule/aired.js'
@@ -498,6 +499,10 @@ channelsRouter.get('/:id/playout', async (req, res) => {
       durationSec: true,
       posterPath: true,
       tmdbPosterPath: true,
+      // Read for its logo token (below), then left out.
+      logoPath: true,
+      tmdbLogoPath: true,
+      show: { select: { tmdbLogoPath: true } },
     },
   } as const
   const select = {
@@ -564,6 +569,16 @@ channelsRouter.get('/:id/playout', async (req, res) => {
   const together = (a: number, b: number) =>
     (!!blocks[b] && blocks[a]?.key === blocks[b]!.key) || (!!rows[b]?.groupKey && rows[a].groupKey === rows[b].groupKey)
   while (keep > 0 && keep < rows.length && together(keep - 1, keep)) keep--
-  const items = rows.slice(keep).map(({ channelId: _channel, collectionId: _collection, ...it }, i) => ({ ...it, block: blocks[keep + i] }))
+  // Each program says whether it has a title logo (its token, as now-and-next
+  // gives it), so an app can show the logo for any program, not only now's.
+  const withLogo = (m: (typeof rows)[number]['mediaItem']) => {
+    if (!m) return null
+    const { logoPath, tmdbLogoPath, show, ...rest } = m
+    const music = m.type === 'music' || m.type === 'song'
+    return { ...rest, logo: music ? null : logoToken(logoPath, m.type === 'episode' ? show?.tmdbLogoPath : tmdbLogoPath) }
+  }
+  const items = rows
+    .slice(keep)
+    .map(({ channelId: _channel, collectionId: _collection, mediaItem, ...it }, i) => ({ ...it, mediaItem: withLogo(mediaItem), block: blocks[keep + i] }))
   res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
 })

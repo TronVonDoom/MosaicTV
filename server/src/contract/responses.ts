@@ -734,6 +734,8 @@ export type PlayoutEntry = {
     durationSec: number | null
     posterPath: string | null
     tmdbPosterPath: string | null
+    /** The title's logo token (see metadata/logo.ts): null when it has none. */
+    logo?: string | null
   } | null
 }
 

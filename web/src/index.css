@@ -219,6 +219,26 @@
     border: 1px solid rgb(255 255 255 / 0.12);
   }
 
+  /* TV mode's banner (Watch.tsx): one slim glass row — the channel, what's
+     on, how far in, what's next — darker than a label so it reads on the
+     brightest cartoon; stacked on a phone held upright. */
+  .watch-strip {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'tile main' 'prog prog' 'next next';
+    align-items: center;
+    background-color: rgb(14 12 26 / 0.76);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid rgb(255 255 255 / 0.13);
+  }
+  @media (min-width: 640px) {
+    .watch-strip {
+      grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+      grid-template-areas: 'tile main prog rule next';
+    }
+  }
+
   /* The ring round what's selected or live: the brand's colours as a 2px
      border. Pair with a background colour for the inside (`--ring-fill`). */
   .ring-brand {

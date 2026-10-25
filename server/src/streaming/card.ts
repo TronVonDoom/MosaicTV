@@ -90,7 +90,6 @@ export type RenderedCard = {
 }
 
 const VIOLET = '#c4b5fd'
-const VIOLET_INK = '#120a26'
 const CYAN = '#67e8f9'
 const STAR = '#fbbf24'
 const INK_SOFT = '#ece9f6'
@@ -336,12 +335,13 @@ const split = (time: string | null | undefined): [string, string] => {
 // ---- Banner ------------------------------------------------------------------
 
 /**
- * Art banner: the next program's backdrop fills a bar, darkened toward its
- * outer end where a violet block gives the time; on it the title's logo (or
- * its name) and, under that, the episode and every part's title.
+ * Art banner: the next program's backdrop fills a rounded bar, darkened
+ * toward its outer end where a violet block gives the time; on it the title's
+ * logo (or its name) and, under that, the episode and every part's title.
  */
 function bannerSvg(c: CardContent, s: number, o: CardOptions): Drawn {
   const H = 112 * s
+  const R = 18 * s
   const BW = 96 * s
   const PAD = 20 * s
   const right = o.anchor === 'right'
@@ -378,7 +378,7 @@ function bannerSvg(c: CardContent, s: number, o: CardOptions): Drawn {
     ${BLOCK('bn-block')}
     ${BRAND_LINE('bn-line', right ? 1 : 0, right ? 0 : 1)}
     <linearGradient id="bn-shade" x1="${right ? 1 : 0}" y1="0" x2="${right ? 0 : 1}" y2="0"><stop offset="0" stop-color="#0a0816" stop-opacity="0.97"/><stop offset="0.4" stop-color="#0a0816" stop-opacity="0.9"/><stop offset="0.72" stop-color="#0a0816" stop-opacity="0.45"/><stop offset="1" stop-color="#0a0816" stop-opacity="0.12"/></linearGradient>
-    <clipPath id="bn-clip"><rect width="${n2(W)}" height="${n2(H)}"/></clipPath>
+    <clipPath id="bn-clip"><rect width="${n2(W)}" height="${n2(H)}" rx="${n2(R)}"/></clipPath>
     <filter id="lift" x="-20%" y="-30%" width="140%" height="160%"><feDropShadow dx="0" dy="${n2(3 * s)}" stdDeviation="${n2(5 * s)}" flood-color="#000" flood-opacity="0.6"/></filter>`
   const body = `
     <g clip-path="url(#bn-clip)">
@@ -388,17 +388,17 @@ function bannerSvg(c: CardContent, s: number, o: CardOptions): Drawn {
       <rect y="${n2(H - 3 * s)}" width="${n2(W)}" height="${n2(3 * s)}" fill="url(#bn-line)"/>
       <rect x="${n2(block)}" width="${n2(BW)}" height="${n2(H)}" fill="url(#bn-block)"/>
     </g>
-    <rect x="0.5" y="0.5" width="${n2(W - 1)}" height="${n2(H - 1)}" fill="none" stroke="#ffffff" stroke-opacity="0.14"/>
+    <rect x="0.5" y="0.5" width="${n2(W - 1)}" height="${n2(H - 1)}" rx="${n2(R - 0.5)}" fill="none" stroke="#ffffff" stroke-opacity="0.14"/>
     ${blockText}
     ${title}
     ${detail}`
-  return { w: W, h: H, box: { x: 0, y: 0, w: W, h: H }, frost: null, shadow: `<rect width="${n2(W)}" height="${n2(H)}"/>`, defs, body }
+  return { w: W, h: H, box: { x: 0, y: 0, w: W, h: H }, frost: null, shadow: `<rect width="${n2(W)}" height="${n2(H)}" rx="${n2(R)}"/>`, defs, body }
 }
 
 // ---- Logo bar ----------------------------------------------------------------
 
 /**
- * Logo bar: a slim frosted bar, rounded at its far end, with the title's logo
+ * Logo bar: a slim frosted pill, round at both ends, with the title's logo
  * standing up out of it; beside the logo, UP NEXT and the time over the
  * episode and its parts.
  */
@@ -415,17 +415,17 @@ function logobarSvg(c: CardContent, s: number, o: CardOptions): Drawn {
   const line1 = [text(c.eyebrow.toUpperCase(), top + 27 * s, 11.5 * s, 800, VIOLET, { ls: 2 * s }), ...(c.time ? [gap(9 * s), text(c.time, top + 27 * s, 15 * s, 700, '#ffffff')] : [])]
   const probe = rowWidth(detailPieces(c, 0, detailSize, s, detailMax, '#f3f1fa', 'cyan'))
   const textW = Math.min(detailMax, Math.max(rowWidth(line1), probe))
-  const lead = 16 * s + nameW + 18 * s // logo and the gap after it
+  // The logo (or name) starts this far in from the bar's round end.
+  const IN = 22 * s
+  const lead = IN + nameW + 18 * s // logo and the gap after it
   const W = even(lead + 1 * s + 18 * s + textW + 30 * s)
   const X = (x: number) => (right ? W - x : x)
-  const R = 32 * s
-  // Square at the screen-edge end, round at the far end.
-  const shape = right
-    ? `M${n2(W)} ${n2(top)} H${n2(R)} A${n2(R)} ${n2(R)} 0 0 0 0 ${n2(top + R)} A${n2(R)} ${n2(R)} 0 0 0 ${n2(R)} ${n2(top + BH)} H${n2(W)} Z`
-    : `M0 ${n2(top)} H${n2(W - R)} A${n2(R)} ${n2(R)} 0 0 1 ${n2(W)} ${n2(top + R)} A${n2(R)} ${n2(R)} 0 0 1 ${n2(W - R)} ${n2(top + BH)} H0 Z`
+  const R = BH / 2
+  // Round at both ends.
+  const shape = `M${n2(R)} ${n2(top)} H${n2(W - R)} A${n2(R)} ${n2(R)} 0 0 1 ${n2(W - R)} ${n2(top + BH)} H${n2(R)} A${n2(R)} ${n2(R)} 0 0 1 ${n2(R)} ${n2(top)} Z`
   const name = logo
-    ? picture(logo.href, right ? W - 16 * s - logo.w : 16 * s, top + BH - 8 * s - logo.h, logo.w, logo.h, ` filter="url(#lift)"`)
-    : row([text(fitText(c.title, 800, nameSize, 300 * s, 0, 'Outfit'), top + 40 * s, nameSize, 800, '#ffffff')], X(16 * s), right)
+    ? picture(logo.href, right ? W - IN - logo.w : IN, top + BH - 8 * s - logo.h, logo.w, logo.h, ` filter="url(#lift)"`)
+    : row([text(fitText(c.title, 800, nameSize, 300 * s, 0, 'Outfit'), top + 40 * s, nameSize, 800, '#ffffff')], X(IN), right)
   const divX = X(lead)
   const tx = X(lead + 1 * s + 18 * s)
   const defs = `
@@ -521,28 +521,29 @@ function snipeSvg(c: CardContent, s: number, o: CardOptions): Drawn {
 
 /**
  * Preview: a little 16:9 screen of the next program — its backdrop (its
- * poster when it has none), a violet UP NEXT tag with the time, and the
- * title's logo over the episode and its parts.
+ * poster when it has none) in a frame of the brand's colours, an UP NEXT tag
+ * with the time in the snipe's gradient, and the title's logo over the
+ * episode and its parts.
  */
 function previewSvg(c: CardContent, s: number): Drawn {
   const W = even(304 * s)
   const H = even(171 * s)
-  const R = 13 * s
+  const R = 16 * s
   const art = c.backdrop ?? c.art?.file ?? null
   const artHref = art ? imageHref(art) : null
   const inset = 9 * s
   const pad = 12 * s
   // The tag: ▶ UP NEXT 4:15 PM
   const tagSize = 11 * s
-  const label = text(c.eyebrow.toUpperCase(), 0, tagSize, 800, VIOLET_INK, { ls: 1.4 * s })
-  const timeP = c.time ? text(c.time, 0, 12 * s, 700, VIOLET_INK) : null
+  const label = text(c.eyebrow.toUpperCase(), 0, tagSize, 800, '#ffffff', { ls: 1.4 * s })
+  const timeP = c.time ? text(c.time, 0, 12 * s, 700, '#ffffff') : null
   const tagW = 8 * s + 9 * s + 6 * s + label.w + (timeP ? 6 * s + timeP.w : 0) + 10 * s
   const tagH = 20 * s
   const tagBase = inset + 14.3 * s
-  const tag = `<rect x="${n2(inset)}" y="${n2(inset)}" width="${n2(tagW)}" height="${n2(tagH)}" rx="${n2(tagH / 2)}" fill="${VIOLET}"/>
-    <path d="M${n2(inset + 8 * s)} ${n2(inset + 5.5 * s)} l${n2(8 * s)} ${n2(4.5 * s)} l${n2(-8 * s)} ${n2(4.5 * s)} z" fill="${VIOLET_INK}"/>
-    ${text(c.eyebrow.toUpperCase(), tagBase, tagSize, 800, VIOLET_INK, { ls: 1.4 * s }).draw(inset + 23 * s)}
-    ${timeP ? text(c.time as string, tagBase, 12 * s, 700, VIOLET_INK).draw(inset + 23 * s + label.w + 6 * s) : ''}`
+  const tag = `<rect x="${n2(inset)}" y="${n2(inset)}" width="${n2(tagW)}" height="${n2(tagH)}" rx="${n2(tagH / 2)}" fill="url(#pv-tag)"/>
+    <path d="M${n2(inset + 8 * s)} ${n2(inset + 5.5 * s)} l${n2(8 * s)} ${n2(4.5 * s)} l${n2(-8 * s)} ${n2(4.5 * s)} z" fill="#ffffff"/>
+    ${text(c.eyebrow.toUpperCase(), tagBase, tagSize, 800, '#ffffff', { ls: 1.4 * s }).draw(inset + 23 * s)}
+    ${timeP ? text(c.time as string, tagBase, 12 * s, 700, '#ffffff', { opacity: 0.92 }).draw(inset + 23 * s + label.w + 6 * s) : ''}`
 
   // From the bottom up: the detail (up to two lines), then the logo or name.
   const lineSize = 13 * s
@@ -571,6 +572,8 @@ function previewSvg(c: CardContent, s: number): Drawn {
 
   const defs = `
     <clipPath id="pv-clip"><rect width="${n2(W)}" height="${n2(H)}" rx="${n2(R)}"/></clipPath>
+    <linearGradient id="pv-tag" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="0.6" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+    <linearGradient id="pv-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a855f7"/><stop offset="0.38" stop-color="#3b82f6"/><stop offset="0.7" stop-color="#22d3ee"/><stop offset="1" stop-color="#e879f9"/></linearGradient>
     <linearGradient id="pv-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#06050c" stop-opacity="0.45"/><stop offset="0.24" stop-color="#06050c" stop-opacity="0"/><stop offset="0.38" stop-color="#06050c" stop-opacity="0.12"/><stop offset="1" stop-color="#06050c" stop-opacity="0.92"/></linearGradient>
     <filter id="lift" x="-20%" y="-30%" width="140%" height="160%"><feDropShadow dx="0" dy="${n2(3 * s)}" stdDeviation="${n2(5 * s)}" flood-color="#000" flood-opacity="0.6"/></filter>`
   const body = `
@@ -579,7 +582,7 @@ function previewSvg(c: CardContent, s: number): Drawn {
       ${artHref ? `<image href="${artHref}" width="${n2(W)}" height="${n2(H)}" preserveAspectRatio="xMidYMid slice"/>` : ''}
       <rect width="${n2(W)}" height="${n2(H)}" fill="url(#pv-shade)"/>
     </g>
-    <rect x="${n2(0.75 * s)}" y="${n2(0.75 * s)}" width="${n2(W - 1.5 * s)}" height="${n2(H - 1.5 * s)}" rx="${n2(R - 0.75 * s)}" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="${n2(1.5 * s)}"/>
+    <rect x="${n2(s)}" y="${n2(s)}" width="${n2(W - 2 * s)}" height="${n2(H - 2 * s)}" rx="${n2(R - s)}" fill="none" stroke="url(#pv-ring)" stroke-width="${n2(2 * s)}"/>
     ${tag}
     ${name}
     ${detailSvg}`
@@ -812,16 +815,19 @@ export async function renderCard(
 }
 
 /**
- * The channel's logo alone, as its watermark draws it — for the snipe, which
- * slides out from behind it: the stream draws cards over the watermark, so
- * this redraws the logo on top while the ribbon is up.
+ * The channel's logo alone, where its watermark draws it — for the snipe,
+ * which slides out from behind it: the stream draws cards over the watermark,
+ * so this redraws the logo on top while the ribbon is up. Always at full
+ * strength: a see-through watermark redrawn as it is would double over the
+ * picture and turn ghostly on the ribbon, so a see-through logo is faded up
+ * to full as the ribbon comes out instead (see itemBuild).
  */
 export async function renderLogoCap(logo: ChannelLogo, outBase: string): Promise<RenderedCard | null> {
   const href = imageHref(logo.file)
   if (!href) return null
   const W = even(Math.max(2, Math.round(logo.w)))
   const H = even(Math.max(2, Math.round(logo.h)))
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><image href="${href}" width="${W}" height="${H}" preserveAspectRatio="none" opacity="${logo.opacity}"/></svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><image href="${href}" width="${W}" height="${H}" preserveAspectRatio="none"/></svg>`
   const png = `${outBase}-logo.png`
   fs.writeFileSync(png, await render(svg))
   return { png, mask: null, width: W, height: H, box: { x: 0, y: 0, w: W, h: H }, frost: null }
@@ -873,10 +879,10 @@ export async function renderCardPreview(
     lg && logoHref
       ? `<image href="${logoHref}" x="${lg.x}" y="${lg.y}" width="${lg.w}" height="${lg.w}" opacity="${lg.opacity}" preserveAspectRatio="${align} meet"/>`
       : ''
-  // The snipe's logo is drawn back over the ribbon, as the stream does.
+  // The snipe's logo is drawn back over the ribbon at full strength, as the stream does.
   const cap =
     d.logoAt && opts.logo && imageHref(opts.logo.file)
-      ? `<image href="${imageHref(opts.logo.file)}" x="${n2(opts.logo.x)}" y="${n2(opts.logo.y)}" width="${n2(opts.logo.w)}" height="${n2(opts.logo.h)}" opacity="${opts.logo.opacity}" preserveAspectRatio="none"/>`
+      ? `<image href="${imageHref(opts.logo.file)}" x="${n2(opts.logo.x)}" y="${n2(opts.logo.y)}" width="${n2(opts.logo.w)}" height="${n2(opts.logo.h)}" preserveAspectRatio="none"/>`
       : ''
   const layers = cardLayers(d, scale, ox, oy, W, H)
   const svg = `<svg xml:space="preserve" xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
