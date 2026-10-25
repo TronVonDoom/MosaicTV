@@ -77,6 +77,17 @@ setSegmenterDeps({
   },
 })
 
+// Every version of the live playlist a player could have fetched, in order.
+const playlists: string[] = []
+function notePlaylist() {
+  try {
+    const text = fs.readFileSync(segmenterPlaylistFile(90), 'utf8')
+    if (text !== playlists.at(-1)) playlists.push(text)
+  } catch {
+    /* not written yet */
+  }
+}
+
 /**
  * Let `ms` of channel time pass, touching the stream like a viewer does.
  * Time only moves while the producer waits on the clock: its database work
@@ -87,6 +98,7 @@ async function watch(ms: number, viewer = true) {
     for (let i = 0; i < 5000 && !segmenterIdle(90); i++) await realTick()
     mock.timers.tick(250)
     if (viewer && t % 4000 === 0) touchSegmenter(90, '10.0.0.5', 'test')
+    if (t % 1000 === 0) notePlaylist()
     await realTurn()
   }
 }
@@ -154,6 +166,40 @@ test('the live playlist is well formed: rising sequence, a discontinuity at each
   assert.ok(files.length >= 30, `only ${files.length} segments in the window`)
   assert.ok(text.includes('#EXT-X-DISCONTINUITY'), 'no discontinuity in the window')
   for (const n of files) assert.ok(fs.existsSync(segmenterPlaylistFile(90).replace('index.m3u8', `seg_${n}.ts`)), `seg_${n}.ts missing`)
+})
+
+test('every playlist says when its segments air, so a player can place the window', () => {
+  // A player that keeps time by the playlist (ExoPlayer) needs a time in every
+  // version of it. Only a program's first segment used to carry one, and it
+  // leaves the window a couple of minutes in: from then on ExoPlayer lost its
+  // place and the Android app fell into a reconnect loop.
+  assert.ok(playlists.length > 200, `only ${playlists.length} playlists seen`)
+  const aired = new Map<number, number>() // segment -> its time, as first published
+  for (const text of playlists) {
+    const lines = text.split('\n')
+    let pdt: number | null = null
+    let prevEnd: number | null = null // where the segment before ends, by its time and length
+    let disc = false
+    for (const l of lines) {
+      if (l === '#EXT-X-DISCONTINUITY') disc = true
+      else if (l.startsWith('#EXT-X-PROGRAM-DATE-TIME:')) pdt = Date.parse(l.slice('#EXT-X-PROGRAM-DATE-TIME:'.length))
+      else if (l.startsWith('#EXTINF:')) {
+        assert.ok(pdt != null, `a segment with no time:\n${text}`)
+        // Within a program the times follow the durations exactly; at a
+        // boundary they may only move on (a skip ahead), never back.
+        if (prevEnd != null && !disc) assert.ok(Math.abs(pdt - prevEnd) <= 2, `time jumps ${pdt - prevEnd}ms inside a program`)
+        if (prevEnd != null && disc) assert.ok(pdt >= prevEnd - 2, `time goes back ${prevEnd - pdt}ms at a boundary`)
+        prevEnd = pdt + parseFloat(l.slice('#EXTINF:'.length)) * 1000
+      } else if (/^seg_\d+\.ts$/.test(l)) {
+        const n = Number(l.slice(4, -3))
+        const was = aired.get(n)
+        if (was == null) aired.set(n, pdt!)
+        else assert.equal(pdt, was, `seg_${n}.ts changed its time`)
+        pdt = null
+        disc = false
+      }
+    }
+  }
 })
 
 test('a schedule edit puts the new next program on the up-next card of the one on air', async () => {

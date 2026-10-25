@@ -101,9 +101,9 @@ export function setSegmenterDeps(over: Partial<SegmenterDeps>): () => void {
 
 // One segment in the master playlist. `seq` is the global monotonic index and
 // the on-disk name (seg_{seq}.ts); `disc` marks an item boundary the player
-// resets on; `pdt` is the scheduled program-date-time on the first segment of
-// each run (for guide alignment).
-type MasterSeg = { seq: number; durSec: number; disc: boolean; pdt?: string }
+// resets on; `pdtMs` is where the segment's first frame sits on the schedule
+// (its EXT-X-PROGRAM-DATE-TIME).
+type MasterSeg = { seq: number; durSec: number; disc: boolean; pdtMs: number }
 
 // Bookkeeping for one item's ffmpeg run and its child playlist. `startMs` is
 // where the run's first frame sits on the schedule; `encodedSec` is how much
@@ -695,10 +695,10 @@ class ChannelSegmenter {
       this.nextSeq++
       const disc = run.firstOfRun && this.emittedAny
       // Stamped with its place on the schedule, not when it happened to finish.
-      const pdt = run.firstOfRun ? new Date(run.startMs).toISOString() : undefined
+      const pdtMs = run.startMs + run.encodedSec * 1000
       run.firstOfRun = false
       this.emittedAny = true
-      this.segs.push({ seq, durSec: entries[j].dur, disc, pdt })
+      this.segs.push({ seq, durSec: entries[j].dur, disc, pdtMs })
       run.ingested++
       run.encodedSec += entries[j].dur
       this.evict()
@@ -726,9 +726,15 @@ class ChannelSegmenter {
       `#EXT-X-DISCONTINUITY-SEQUENCE:${this.discontSeq}`,
       '#EXT-X-INDEPENDENT-SEGMENTS',
     ]
+    // Every segment carries its time, not just a program's first. That one
+    // leaves the window a couple of minutes into a program, and a playlist
+    // with no time in it is where ExoPlayer goes wrong: it keeps the last time
+    // it saw as the start of every window after, loses its place against the
+    // clock and drifts off the back of the window over a long program, and
+    // the Android app, tuned in again mid-program, fell into a reconnect loop.
     for (const s of this.segs) {
       if (s.disc) out.push('#EXT-X-DISCONTINUITY')
-      if (s.pdt) out.push(`#EXT-X-PROGRAM-DATE-TIME:${s.pdt}`)
+      out.push(`#EXT-X-PROGRAM-DATE-TIME:${new Date(s.pdtMs).toISOString()}`)
       out.push(`#EXTINF:${s.durSec.toFixed(3)},`, `seg_${s.seq}.ts`)
     }
     const file = this.playlistFile()
