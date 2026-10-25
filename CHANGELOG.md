@@ -20,6 +20,8 @@
 - A show titled with its year is looked up as its title and that year, both
   when its details are read and in Fix match.
 
+## 0.24.0 — The glass strip (2026-10-24)
+
 - **A slimmer banner while watching.** TV mode's "what's on" banner is now
   one slim glass strip along the bottom: the channel's tile, the title's logo
   over its episode, how far in (a broadcast episode's parts and breaks to
