@@ -10,7 +10,7 @@ import { log } from '../logs.js'
 import { libraryChanged } from '../events.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
 import { matchNewTitles } from '../metadata/metadata.js'
-import { mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
+import { isYearedTitle, mergeShows, renameShow, showFor, type FiledShow } from '../shows.js'
 import { syncFromServer } from '../sources/sync.js'
 import type { ScanStatus } from '../contract/index.js'
 
@@ -122,7 +122,7 @@ async function processFile(
       ? { id: told.showId, title: told.showTitle, created: false }
       : null
     : parsed.showTitle
-      ? await showFor(libraryId, parsed.showTitle, pass.shows)
+      ? await showFor(libraryId, parsed.showTitle, parsed.year, pass.shows)
       : null
   if (show?.created) pass.created.add(show.id)
   if (told) Object.assign(parsed, { season: told.season, episode: told.episode })
@@ -258,7 +258,10 @@ async function followRefiledShows(libraryId: number, pass: ScanPass): Promise<vo
     if (pass.created.has(to)) {
       const ownTitle = !old.names.some((n) => n.name === old.title)
       await mergeShows(to, from)
-      if (!ownTitle) await renameShow(from, target.title)
+      // A folder that gained a year its show's metadata doesn't share
+      // ("Rugrats" → "Rugrats (1990)") was titled with its year only because
+      // this show held the bare title: it keeps that title.
+      if (!ownTitle && !isYearedTitle(target.title, old.title)) await renameShow(from, target.title)
       log('info', 'system', `"${old.title}" is now filed as "${target.title}" — its collection picks and broadcast episodes stay with it`)
     } else {
       const r = await mergeShows(from, to)

@@ -93,3 +93,84 @@ test('a renamed folder carries its show along — id, picks and title', async ()
   assert.equal((await prisma.collectionItem.findUniqueOrThrow({ where: { id: pick.id } })).showId, cow.id)
   assert.equal(await prisma.show.count({ where: { libraryId: lib.id } }), 2)
 })
+
+test('a revival in a folder of its own year is a show of its own', async () => {
+  episode('Scrubs (2001)', 1, 1)
+  episode('Scrubs (2001)', 1, 2)
+  await scanLibrary(lib.id)
+  const scrubs = await showOf('Scrubs')
+  const pick = await prisma.collectionItem.create({ data: { collectionId: col.id, kind: 'show', showId: scrubs.id, libraryId: lib.id, label: 'Scrubs' } })
+
+  episode('Scrubs (2026)', 1, 1)
+  episode('Scrubs (2026)', 1, 2)
+  await scanLibrary(lib.id)
+  const revival = await showOf('Scrubs (2026)')
+  assert.notEqual(revival.id, scrubs.id)
+  assert.equal(revival.year, 2026)
+  assert.deepEqual(revival.names.map((n) => n.name), ['Scrubs (2026)'])
+  assert.ok((await episodesOf(revival.id)).every((m) => m.path.includes('Scrubs (2026)') && m.showTitle === 'Scrubs (2026)'))
+  const original = await episodesOf(scrubs.id)
+  assert.equal(original.length, 2)
+  assert.ok(original.every((m) => m.path.includes('Scrubs (2001)')), 'the revival must not join the original')
+  assert.equal((await prisma.collectionItem.findUniqueOrThrow({ where: { id: pick.id } })).showId, scrubs.id)
+
+  // And it stays that way.
+  await scanLibrary(lib.id, true)
+  assert.equal((await episodesOf(scrubs.id)).length, 2)
+  assert.equal((await episodesOf(revival.id)).length, 2)
+})
+
+test('a folder with no year, or the same year, joins the show of its name', async () => {
+  episode('Gargoyles (1994)', 1, 1)
+  episode('Gargoyles (x264)', 1, 2)
+  episode('Gargoyles (1994) {tmdb-1719}', 2, 1)
+  await scanLibrary(lib.id)
+  const g = await showOf('Gargoyles')
+  assert.equal((await episodesOf(g.id)).length, 3)
+  assert.equal(await prisma.show.count({ where: { title: { startsWith: 'Gargoyles' } } }), 1)
+})
+
+test('shows of different years filed as one by older builds are split apart', async () => {
+  episode('The Tick (1994) (x264)', 1, 1)
+  episode('The Tick (1994) (x264)', 1, 2)
+  episode('The Tick (2001) (Other)', 1, 1)
+  episode('The Tick (2016) (x264)', 1, 1)
+  await scanLibrary(lib.id)
+  // As an older build left it: every folder under the one bare name, the show
+  // matched (so with a year) as the first.
+  const tick = await showOf('The Tick')
+  for (const t of ['The Tick (2001)', 'The Tick (2016)']) {
+    const other = await prisma.show.findFirst({ where: { title: t } })
+    if (other) await mergeShows(other.id, tick.id)
+  }
+  await prisma.showName.deleteMany({ where: { showId: tick.id, name: { not: 'The Tick' } } })
+  await prisma.show.update({ where: { id: tick.id }, data: { year: 1994 } })
+  assert.equal((await episodesOf(tick.id)).length, 4)
+
+  await scanLibrary(lib.id)
+  const kept = await episodesOf(tick.id)
+  assert.equal(kept.length, 2)
+  assert.ok(kept.every((m) => m.path.includes('(1994)')))
+  assert.equal((await prisma.show.findUniqueOrThrow({ where: { id: tick.id } })).title, 'The Tick')
+  for (const [t, y] of [['The Tick (2001)', 2001], ['The Tick (2016)', 2016]] as const) {
+    const s = await showOf(t)
+    const eps = await episodesOf(s.id)
+    assert.equal(eps.length, 1)
+    assert.ok(eps.every((m) => m.path.includes(`(${y})`)))
+  }
+})
+
+test("a folder that gains a year its show's metadata doesn't share keeps its show and title", async () => {
+  episode('Rugrats', 1, 1)
+  episode('Rugrats', 1, 2)
+  await scanLibrary(lib.id)
+  const rug = await showOf('Rugrats')
+  await prisma.show.update({ where: { id: rug.id }, data: { year: 1991 } })
+  fs.renameSync(path.join(root, 'Rugrats'), path.join(root, 'Rugrats (1990)'))
+  await scanLibrary(lib.id)
+  const after = await prisma.show.findUniqueOrThrow({ where: { id: rug.id }, include: { names: true } })
+  assert.equal(after.title, 'Rugrats')
+  assert.deepEqual(after.names.map((n) => n.name).sort(), ['Rugrats', 'Rugrats (1990)'])
+  assert.equal((await episodesOf(rug.id)).length, 2)
+  assert.equal(await prisma.show.count({ where: { title: { startsWith: 'Rugrats' } } }), 1)
+})

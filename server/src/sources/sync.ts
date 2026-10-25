@@ -103,7 +103,7 @@ export async function syncFromServer(libraryId: number): Promise<SyncResult> {
           if (!title) continue
           let show = ours.get(ep.showKey)
           if (!show) {
-            show = await showFor(libraryId, title, filed)
+            show = await showFor(libraryId, title, sShow?.year ?? null, filed)
             ours.set(ep.showKey, show)
             if (sShow) {
               await prisma.show.update({

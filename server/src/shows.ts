@@ -1,50 +1,115 @@
 // Shows as rows. Everything that means "this show" — its episodes, collection
 // picks, broadcast episodes — points at a Show by id, and the scanner files a
 // file under a show through the show's names (ShowName): the titles its folders
-// parse to. That's what lets a show be renamed, or two spellings of one show be
-// merged, as a change to one row that the next scan keeps.
+// parse to, and the same with their year ("Scrubs (2001)"). That's what lets a
+// show be renamed, or two spellings of one show be merged, as a change to one
+// row that the next scan keeps.
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from './db.js'
 import { log } from './logs.js'
-import type { Show, TmdbMatch } from './contract/index.js'
+import { titleAndYear, type Show, type TmdbMatch } from './contract/index.js'
 
 export type ShowRef = { id: number; title: string }
 /** A show as the scanner found it; `created` = this lookup made it. */
 export type FiledShow = ShowRef & { created: boolean }
 
+/** A show's name with its folder's year: "Scrubs (2026)". */
+export const yearedName = (name: string, year: number): string => `${name} (${year})`
+
+/** Whether `title` is `name` with a year after it — what a show is titled
+ *  when another of that name had the bare one first. */
+export function isYearedTitle(title: string, name: string): boolean {
+  const t = titleAndYear(title)
+  return t.year != null && t.title === name
+}
+
 /**
- * The show a file whose folder parses to `name` belongs to, creating it the
- * first time the library sees that name. A name another show has taken (a
- * merge) files there; otherwise a show already titled `name` (one renamed to
- * match its folder) takes the name on.
+ * The show a file whose folder parses to `name` (and `year`, from "Scrubs
+ * (2026)") belongs to, creating it the first time the library sees that name.
+ * A name another show has taken (a merge) files there; otherwise a show
+ * already titled `name` (one renamed to match its folder) takes the name on.
+ *
+ * Folders of one name but different years are different shows — Scrubs
+ * (2001) and its 2026 revival — so a folder's year is part of its name: the
+ * first folder with a year claims the show of that name for its year, and a
+ * folder of another year starts a show of its own, titled with its year. A
+ * folder with no year, or the show's own year, joins the show of that name.
  *
  * `pending` de-duplicates concurrent lookups within one scan pass — four files
  * probe at once, and two first episodes of a new show must not both create it.
  */
-export function showFor(libraryId: number, name: string, pending?: Map<string, Promise<FiledShow>>): Promise<FiledShow> {
-  const key = `${libraryId}\u0000${name}`
+export function showFor(
+  libraryId: number,
+  name: string,
+  year: number | null,
+  pending?: Map<string, Promise<FiledShow>>,
+): Promise<FiledShow> {
+  const key = `${libraryId}\u0000${name}\u0000${year ?? ''}`
   const inFlight = pending?.get(key)
   if (inFlight) return inFlight
-  const p = resolveShow(libraryId, name)
+  // Lookups of one name take turns, whatever their year: a 2001 folder and a
+  // 2026 one must not both claim the show of that name.
+  const turn = `${libraryId}\u0000${name}\u0000turn`
+  const before = pending?.get(turn)
+  const p = before ? before.catch(() => null).then(() => resolveShow(libraryId, name, year)) : resolveShow(libraryId, name, year)
   pending?.set(key, p)
+  pending?.set(turn, p)
   // A failure must not be remembered for the rest of the pass.
   p.catch(() => pending?.delete(key))
   return p
 }
 
-async function resolveShow(libraryId: number, name: string): Promise<FiledShow> {
-  const named = await prisma.showName.findUnique({
-    where: { libraryId_name: { libraryId, name } },
-    select: { show: { select: { id: true, title: true } } },
+type Tx = Prisma.TransactionClient
+type Held = { id: number; title: string; year: number | null }
+const HELD = { id: true, title: true, year: true } as const
+
+async function resolveShow(libraryId: number, name: string, year: number | null): Promise<FiledShow> {
+  const yeared = year != null ? yearedName(name, year) : null
+  const found = await prisma.showName.findMany({
+    where: { libraryId, name: { in: yeared ? [yeared, name] : [name] } },
+    select: { name: true, show: { select: HELD } },
   })
-  if (named) return { ...named.show, created: false }
+  const exact = found.find((n) => n.name === (yeared ?? name))
+  if (exact) return { id: exact.show.id, title: exact.show.title, created: false }
+  const bare = found.find((n) => n.name === name)?.show ?? null
   return prisma.$transaction(async (tx) => {
-    const titled = await tx.show.findUnique({ where: { libraryId_title: { libraryId, title: name } }, select: { id: true, title: true } })
-    const show = titled ?? (await tx.show.create({ data: { libraryId, title: name }, select: { id: true, title: true } }))
-    await tx.showName.create({ data: { libraryId, name, showId: show.id } })
+    const link = (showId: number, names: string[]) =>
+      Promise.all(names.map((n) => tx.showName.create({ data: { libraryId, name: n, showId } })))
+    // The show of that name: by its name, else one titled it.
+    const holder = bare ?? (await tx.show.findUnique({ where: { libraryId_title: { libraryId, title: name } }, select: HELD }))
+    if (holder && (year == null || (await takesYear(tx, holder, year)))) {
+      await link(holder.id, [...(bare ? [] : [name]), ...(yeared ? [yeared] : [])])
+      return { id: holder.id, title: holder.title, created: false }
+    }
+    if (!holder) {
+      const show = await tx.show.create({ data: { libraryId, title: name, year }, select: { id: true, title: true } })
+      await link(show.id, [name, ...(yeared ? [yeared] : [])])
+      return { ...show, created: true }
+    }
+    // Another year's show has the name: this folder is a show of its own.
+    const title = yeared!
+    const titled = await tx.show.findUnique({ where: { libraryId_title: { libraryId, title } }, select: { id: true, title: true } })
+    const show = titled ?? (await tx.show.create({ data: { libraryId, title, year }, select: { id: true, title: true } }))
+    await link(show.id, [title])
     return { ...show, created: !titled }
   })
+}
+
+/**
+ * Whether a folder of `year` belongs to `show`, the show of its name: the
+ * years its folders brought it, when any did; else its own year — its
+ * metadata's, or its first file's — when it has one.
+ */
+async function takesYear(tx: Tx, show: Held, year: number): Promise<boolean> {
+  const names = await tx.showName.findMany({ where: { showId: show.id }, select: { name: true } })
+  const years = names.map((n) => titleAndYear(n.name).year).filter((y): y is number => y != null)
+  if (years.length) return years.includes(year)
+  const own =
+    show.year ??
+    (await tx.mediaItem.findFirst({ where: { showId: show.id, year: { not: null } }, orderBy: { id: 'asc' }, select: { year: true } }))?.year ??
+    null
+  return own == null || own === year
 }
 
 /** A show by its library and on-screen title (how the API still names shows). */

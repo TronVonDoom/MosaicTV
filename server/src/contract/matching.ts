@@ -144,6 +144,16 @@ export function matchDoubt(
   return titlesAgree(file.title, m.title) ? null : 'title'
 }
 
+/**
+ * A title less a year at its end, and that year: "Scrubs (2026)" — how a show
+ * is titled when another of its name came first — is "Scrubs" of 2026, which
+ * is what a search for it goes by.
+ */
+export function titleAndYear(title: string): { title: string; year: number | null } {
+  const m = title.match(/^(.+) \((\d{4})\)$/)
+  return m ? { title: m[1], year: Number(m[2]) } : { title, year: null }
+}
+
 /** The first of a title's automatic matches (on a library's sources, first
  *  first) that looks wrong, and why. */
 export function titleDoubt(

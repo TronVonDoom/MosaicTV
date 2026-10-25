@@ -24,6 +24,7 @@ import {
   matchSources,
   pathIdHint,
   sourceMatch,
+  titleAndYear,
   titleDoubt,
   titlesAgree,
   type EpisodeOrder,
@@ -644,9 +645,11 @@ async function showRows(a: Agent, where: object): Promise<ShowRow[]> {
 async function enrichShow(a: Agent, show: ShowRow, research: (s: MatchSource) => boolean, guard: boolean, picks: LookedAll = {}): Promise<Read> {
   const order = titleOrder(a, show, Object.keys(picks) as MatchSource[])
   const nfo = order.includes('nfo') && show.folder ? await a.nfo.show(show.folder) : null
+  // "Scrubs (2026)" is looked for as Scrubs of 2026.
+  const named = titleAndYear(show.title)
   const looked = await lookUpAll(
     providersIn(a, order),
-    { kind: 'tv', title: show.title, year: show.fileYear, fields: show, hints: hintsOf(show.folder, nfo?.ids) },
+    { kind: 'tv', title: named.title, year: show.fileYear ?? named.year, fields: show, hints: hintsOf(show.folder, nfo?.ids) },
     research,
     picks,
   )

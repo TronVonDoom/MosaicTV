@@ -7,6 +7,7 @@ import {
   matchesOf,
   matchSources,
   sourceMatch,
+  titleAndYear,
   titleDoubt,
   type MatchFields,
   type MatchSource,
@@ -55,7 +56,9 @@ export function matchTarget(
     tvdbTitle: x.tvdbTitle,
     tvdbYear: x.tvdbYear,
   }
-  return { kind, id: x.id, title: file.title, year: file.year, fields, poster: x.tmdbPosterPath, sources, episodeCount }
+  // A show titled with its year ("Scrubs (2026)") is searched for without it.
+  const named = kind === 'show' ? titleAndYear(file.title) : { title: file.title, year: null }
+  return { kind, id: x.id, title: named.title, year: file.year ?? named.year, fields, poster: x.tmdbPosterPath, sources, episodeCount }
 }
 
 /** Whether any of its library's sources has it matched. */
