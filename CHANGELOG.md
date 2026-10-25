@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.24.0 — The glass strip (2026-10-24)
+
+- **A slimmer banner while watching.** TV mode's "what's on" banner is now
+  one slim glass strip along the bottom: the channel's tile, the title's logo
+  over its episode, how far in (a broadcast episode's parts and breaks to
+  scale, and which part is on) and what's next. It takes about a seventh of
+  the screen; on a phone held upright it stacks into a compact card. The big
+  channel number no longer flashes up on a tune, since the strip says it;
+  typed digits still show.
+- **Logos across the whole guide.** Every program in a channel's guide now
+  says whether its title has a logo, not only what's on now and next, so the
+  apps can show the logo of a program that's over or still to come.
+- **Logos kept ahead.** Every show's and movie's logo is fetched into the
+  server's cache in the background (at start, after a library's details are
+  read, and after a Fix match), so the first time one is shown it's there
+  at once instead of waiting on TMDB. Logos are served at one size to every
+  app.
+- **Up-next cards.** The Art banner has rounded corners, the Logo bar is
+  round at both ends, and the Preview has a frame in the brand's colours
+  with the Snipe's gradient on its Up next tag. On a see-through channel
+  logo, the Snipe now brings the logo up to full strength as the ribbon
+  slides out, instead of drawing it a second time over itself.
+
 ## 0.23.0 — New up-next cards (2026-10-23)
 
 - **New up-next cards.** Five looks, redrawn in the app's typeface and colours:
