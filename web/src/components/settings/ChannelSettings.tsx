@@ -80,7 +80,7 @@ export default function ChannelSettings({ info, onChange }: { info: SettingsInfo
   const wmDirty = !!wm && !!info && JSON.stringify(wm) !== JSON.stringify(info.watermark)
 
   return (
-    <SettingsSection title="Channels" description="What every channel does unless it says otherwise on its own General or Breaks tab.">
+    <SettingsSection title="Channels" description="What every channel does unless it says otherwise on its own Settings or Breaks tab.">
       <SettingsGroup title="Schedule">
         <SettingRow
           label="Build ahead"
