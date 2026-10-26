@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.2 — Faces in frame (2026-10-26)
+
+- **Faces stay in the picture at the top of the guide.** That picture is
+  much wider than the artwork it shows, so cropping the artwork from the
+  middle cut off its top, which is where most artwork puts the faces. It's
+  now cropped from higher up, the way the movie and show pages already were.
+  Channel cards get the same.
+
 ## 0.25.1 — Sharper pictures (2026-10-26)
 
 - **A sharp picture at the top of the guide.** The live channel's picture
