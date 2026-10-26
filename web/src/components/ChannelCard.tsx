@@ -37,6 +37,8 @@ export function ProgramArt({
 
   return (
     <div className={cx('absolute inset-0 overflow-hidden', className)} style={{ background: posterGradient(unit?.title ?? name) }}>
+      {/* Faces sit high in most backdrops, so a wide frame (the guide's hero) crops from
+          a quarter down rather than the middle, which cut heads off. */}
       {useBackdrop && (
         <img
           src={artworkUrl(id, 'backdrop', ART.card)}
@@ -45,7 +47,7 @@ export function ProgramArt({
           alt=""
           loading="lazy"
           onError={() => setBackdropFailed(true)}
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+          className="absolute inset-0 w-full h-full object-cover object-[50%_25%] transition-transform duration-700 ease-out group-hover:scale-[1.04]"
         />
       )}
       {usePoster && (
