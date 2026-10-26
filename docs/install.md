@@ -14,8 +14,9 @@ is no ARM image yet, so a Raspberry Pi or an ARM NAS can't run it.
 | `:v0.14.0` (any `vX.Y.Z`) | One release, pinned. It never changes, so it never updates either. |
 | `:edge` | Every change as it lands on `main`, before a release. For testing what's next — it can break. |
 
-**Settings → Maintenance** shows the version you're running; on `:edge` it
-ends with the commit (`0.14.0+cb8eee7`). Put it in any bug report.
+**Settings → Maintenance → About this instance** shows the version you're
+running; on `:edge` it ends with the commit (`0.14.0+cb8eee7`). Put it in any
+bug report.
 
 Every install needs the same two mounts and one port:
 
@@ -181,13 +182,15 @@ has shipped.
 | `PORT` | `8688` | Port the app listens on |
 | `DATABASE_URL` | `file:/app/data/mosaictv.db` | SQLite database location |
 | `MEDIA_ROOT` | `/media` | Root the in-app folder picker may browse |
-| `TMDB_API_KEY` | – | TMDB key (can also be set in the UI under Settings) |
-| `TVDB_API_KEY` / `TVDB_PIN` | – | TheTVDB key, and the subscriber PIN a user-supported key needs (both can also be set under Settings) |
+| `TMDB_API_KEY` | – | TMDB key (can also be set in the UI under Settings → Metadata) |
+| `TVDB_API_KEY` / `TVDB_PIN` | – | TheTVDB key, and the subscriber PIN a user-supported key needs (both can also be set under Settings → Metadata) |
 | `TVDB_LANGUAGE` | `eng` | The language TheTVDB's names and summaries are read in (ISO 639-2) |
 | `NVIDIA_VISIBLE_DEVICES` | – | `all` or a GPU UUID, for NVIDIA transcoding |
 | `NVIDIA_DRIVER_CAPABILITIES` | – | `all`, for NVIDIA transcoding |
 | `HLS_DIR` | `/app/data/hls` | Where playing channels write their live segments — see below |
 | `VAAPI_DEVICE` | `/dev/dri/renderD128` | The GPU render node for VAAPI, on a host with more than one |
+| `RATING_COUNTRY` | `US` | Whose age ratings TMDB's are read in (`GB`, `DE`…) |
+| `MOSAICTV_RESET_SIGN_IN` | – | `1` turns sign-in off as MosaicTV starts, for a lost password — see [Security](security.md). Take it out again after |
 
 ## Live segments in RAM (optional)
 
@@ -210,4 +213,5 @@ to spare.
 **Settings → Maintenance → Live segments** says where they're going and
 whether that's in memory.
 
-Next step: [Getting Started](getting-started.md) →
+Next step: [Getting Started](getting-started.md) — your first channel in ten
+minutes — then the [Recipes](recipes.md) →

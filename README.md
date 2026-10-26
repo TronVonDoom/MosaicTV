@@ -11,13 +11,14 @@
 <p align="center">
   <a href="docs/install.md"><b>Install</b></a> ·
   <a href="docs/getting-started.md"><b>Getting started</b></a> ·
-  <a href="docs/README.md"><b>Docs</b></a> ·
+  <a href="docs/README.md"><b>The guide</b></a> ·
+  <a href="docs/recipes.md"><b>Recipes</b></a> ·
   <a href="https://www.reddit.com/r/MosaicTV/"><b>r/MosaicTV</b></a> ·
   <a href="CHANGELOG.md"><b>Changelog</b></a>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.webp" alt="The MosaicTV dashboard on a Sunday evening: Hellboy II on Halloween, The Ren &amp; Stimpy Show on Nickelodeon, King of the Hill on J&amp;B TV, Ed, Edd n Eddy on Cartoon Network and a song on Music, with the guide for the next few hours" width="100%" />
+  <img src="docs/screenshots/guide.webp" alt="The Guide, MosaicTV's home page: Cartoon Network live up top with what's on next beside it, and every channel's listings underneath" width="100%" />
 </p>
 
 ---
@@ -29,18 +30,35 @@ October, a station that plays your music — then flip to one like real TV: it's
 already playing, mid-episode, right on schedule.
 
 The pictures on this page come from a real MosaicTV running those very
-channels.
+channels: Cartoon Network on 64, Nickelodeon on 31, Halloween on 13, J&B TV on
+42 and Music on 99.
 
 ## At a glance
 
 - 📺 **Real live-TV channels** — tune in mid-program like broadcast TV; every channel resumes where it left off, forever.
 - 🧩 **Cartoons in the half-hours they aired as** — shorts grouped into broadcast episodes, even with a short borrowed from another show.
-- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation, day and time blocks with soft or exact-time starts, five playback orders, and a broadcast clock that starts shows on the :00 and :30. Edit any time: the guide follows from the next program on.
-- 🎬 **Broadcast polish** — station logos and watermarks, station breaks with idents made from your logo, commercial breaks at each episode's act breaks, and an "up next" card with the next show's poster.
+- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation, day and time blocks with soft or exact-time starts, seasonal blocks for October or Christmas week, five playback orders, and a broadcast clock that starts shows on the :00 and :30. Edit any time: the guide follows from the next program on.
+- 🎬 **Broadcast polish** — station logos and watermarks, station breaks with idents made from your logo, commercial breaks at each episode's act breaks, promos for what's on later, and an "up next" card in five looks with the next show's own logo.
 - 🎵 **Music channels** — songs from your own files over a now-playing screen: the album art, a spectrum drawn from the song, or its lyrics as they're sung.
-- 🔍 **A library built in** — a scanner that reads .nfo files, tags, TMDB and TheTVDB, with show pages that know where everything's on.
-- 📡 **Works with what you watch on** — M3U + XMLTV for Jellyfin, Emby, VLC, TiviMate and any IPTV app, a built-in HDHomeRun tuner for Plex, and TV mode in the browser.
-- ⚡ **One container, GPU or not** — web UI, database and ffmpeg included; NVIDIA, Intel, AMD or Apple encoding verified on your host, with a clean CPU fallback.
+- 📋 **A guide channel** — the old cable guide as a channel of its own, so any player that can tune a channel can see what's on.
+- 🔍 **A library built in** — a scanner that reads .nfo files, tags, TMDB and TheTVDB (or your Plex, Jellyfin or Emby server), with show and movie pages that know where everything's on.
+- 📡 **Works with what you watch on** — M3U + XMLTV for Jellyfin, Emby, VLC, TiviMate and any IPTV app, a built-in HDHomeRun tuner for Plex, and TV mode in the browser with casting, picture in picture and a CRT look.
+- ⚡ **One container, GPU or not** — web UI, database and ffmpeg included; ready-made 720p to 4K profiles; NVIDIA, Intel, AMD or Apple encoding verified on your host, with a clean CPU fallback.
+- 🔒 **Home stays easy, away stays safe** — no login on your home network, optional sign-in for anywhere else, and player links of their own.
+
+## The Guide
+
+The home page is what's on. One channel, live and large, with what's up next
+beside it — a program that airs in parts shows its parts and its breaks as a
+bar along its foot — and every channel underneath on one time axis: a few
+hours of what already aired, a red now-line, and as far ahead as the
+schedules are built. Pick a channel's tile to bring it up top; pick a program
+for its details; pick the picture to watch.
+
+<img src="docs/screenshots/guide-grid.webp" alt="Every channel in the guide on one time axis, a broadcast episode drawn in its parts and the breaks between programs in amber" width="100%" />
+
+It's the same schedule your players get as XMLTV. More in
+[Watching](docs/watching.md).
 
 ## Cartoons, the way they aired
 
@@ -74,6 +92,15 @@ splits it.
 The walkthrough is in
 [Channels & Scheduling](docs/channels.md#broadcast-episodes-multi-segment-shows).
 
+## A new channel in three steps
+
+**Channels → New channel**: name it, pick what it plays from your shows,
+movies and music as posters — with how long it all runs before anything
+repeats — and choose **all day** or **in blocks**. It's saved after the first
+step, so you can leave and finish it later.
+
+<img src="docs/screenshots/new-channel.webp" alt="New channel, step two: picking Cartoon Network's shows as posters, with the running total beside them" width="100%" />
+
 ## A schedule that runs like a station
 
 The **rotation** is a channel's 24/7 backbone — collections that loop
@@ -81,7 +108,7 @@ forever, one or more programs a turn. **Time blocks** take over for set days
 and times, on a weekly grid. A **soft** start waits for the current program to
 finish; a **hard** start begins on the dot, with a station break covering the
 gap. Each block can have its own playback order, logo, breaks and up-next
-card.
+card — and a **season**, so it only airs between two dates.
 
 Here's Nickelodeon in 1996: Nickelodeon by day, Nick at Nite every night, and
 SNICK on Saturdays from 8 — a hard start on a half-hour **broadcast clock**,
@@ -100,8 +127,12 @@ Guides are built ahead and topped up on their own, so listings never run dry —
 and there's nothing to rebuild after an edit: the guide changes from the next
 program on, and every show carries on from the episode it was up to. The
 **Schedule** tab warns you about the traps before they air (a block that will
-run into an exact-time start, specials airing first), and the Guide tab shows
-**what aired** and lays the schedule out **weeks ahead**.
+run into an exact-time start, specials airing first, a collection too short
+for its blocks), **Holiday episodes in their season** keeps *A Rugrats
+Christmas* to December, and the **On air** tab shows **what aired** and lays the
+schedule out **weeks ahead**.
+
+<img src="docs/screenshots/weeks-ahead.webp" alt="Nickelodeon's schedule laid out weeks ahead: how late each block really starts, break time per day, and when each show goes back to an earlier episode" width="100%" />
 
 ### Channels built from collections
 
@@ -128,14 +159,6 @@ whose turn is next changes.
 
 <img src="docs/screenshots/playback-orders.webp" alt="The Nickelodeon collection's settings: the five playback orders with a preview of the first airings" width="100%" />
 
-### The guide
-
-The **Channels** page has every channel with the full **TV guide** underneath:
-a pinned time ruler, a red now-line, 12/24/48-hour spans and three zoom levels.
-It's the same XMLTV your players get.
-
-<img src="docs/screenshots/channels.webp" alt="The TV guide across every channel with a red now-line" width="100%" />
-
 ## Station breaks
 
 **Breaks** cover the gaps so blocks end on time, and each channel's **Breaks**
@@ -158,12 +181,16 @@ blocks have breaks, a week map coloured by the ident each block plays, and a
 warning when an ident would never air. Play a six-second preview with the real
 logo and music before you save.
 
-<img src="docs/screenshots/breaks.webp" alt="Nickelodeon's Breaks tab: which blocks have breaks, a Mosaic ident for Nickelodeon and SNICK, and a frosted-glass one for Nick at Nite" width="100%" />
+<img src="docs/screenshots/breaks.webp" alt="Nickelodeon's Breaks tab: the next break, which blocks have breaks, a Mosaic ident for Nickelodeon and SNICK, and a frosted-glass one for Nick at Nite" width="100%" />
 
 With **breaks inside programs**, a channel cuts to a break at each episode's
 act breaks — found from the file's chapter marks, or from its fades to black
 when it has none — and on a broadcast clock, each slot's break time is shared
-out across them, the way it aired with commercials.
+out across them, the way it aired with commercials. And a break can end on a
+**promo** for something later on the channel — *Tonight at 8*, *Saturday at
+9 AM* — drawn from the program's own artwork:
+
+<img src="docs/screenshots/promo.webp" alt="A promo at the end of a break on Nickelodeon, for a show later that night" width="100%" />
 
 ## "Up next" cards
 
@@ -179,14 +206,14 @@ episode, and every part of a broadcast episode. Five looks:
 - **Coming up** — the next program and up to four after it, with the time
   each part of a broadcast episode starts.
 
-<img src="docs/screenshots/up-next-card.webp" alt="The art banner over Cow and Chicken, naming Dexter's Laboratory at 4:15 PM and its three parts" width="100%" />
+<img src="docs/screenshots/up-next-card.webp" alt="The art banner on Cartoon Network, naming the next broadcast episode and its parts" width="100%" />
 
 Any corner or edge, three sizes, and a card never covers your logo: it steps
 clear of it. The bars start at the screen's edge, so on a 4:3 show their end
 sits out in the black side bar. A live preview in the channel's settings shows
 its actual next program.
 
-<img src="docs/screenshots/up-next-styles.webp" alt="The logo bar naming Venom, the snipe sliding out of the Cartoon Network logo, the preview, and Coming up listing five movies" width="100%" />
+<img src="docs/screenshots/up-next-styles.webp" alt="The logo bar on J&B TV, the snipe sliding out of the Cartoon Network logo, the preview on Nickelodeon, and Coming up listing the Halloween channel's next five movies" width="100%" />
 
 ## Music channels
 
@@ -199,21 +226,32 @@ lyrics, free. Music videos get a matching **Now playing** card. In the guide, a
 run of songs reads as one block an hour named after its collection, with the set
 list a click away, instead of a sliver per song.
 
-<img src="docs/screenshots/now-playing.webp" alt="The Music channel's now-playing screen: Cloudtop Cruise from Mario Kart 8, on the Super Smash Bros. anthology" width="100%" />
+<img src="docs/screenshots/now-playing.webp" alt="The Music channel's now-playing screen: the album art, the song and how far in it is, and what played before and what's next" width="100%" />
 
-## Your library, with artwork
+## A guide channel
+
+Make any channel a **guide channel**, like the one cable systems had: every
+other channel's now and next, ninety minutes of the grid scrolling up the
+screen, with a clock and a window on something that's on. A player that can
+only tune channels — Plex's Live TV, an IPTV box, a TV with no guide of its
+own — can see what's on. In the classic blue look, or the app's own.
+
+<img src="docs/screenshots/guide-channel.webp" alt="The guide channel in its two looks: the classic blue cable guide and MosaicTV's own" width="100%" />
+
+## Your library, with logos and artwork
 
 A Plex-style scanner indexes TV, movies, music videos and music, files each
 title's extras under it, and reads metadata the way Plex's agents do — .nfo
 files, the files' own tags, TMDB and TheTVDB, in the order you set: posters,
-backdrops, summaries, ratings, cast, and every episode's name, air date and
-still. Every title's page shows where it's on the air — the channels carrying
-it, its next airing and the evening around it — with **Add to a channel**
-a click away.
+backdrops, **logos**, summaries, ratings, cast, and every episode's name, air
+date and still. Already run Plex, Jellyfin or Emby? A library can read its
+details from your server instead. Every title's page shows where it's on the
+air — the channels carrying it, its next airing and the evening around it —
+with **Add to a channel** a click away.
 
-<img src="docs/screenshots/show.webp" alt="Dexter's Laboratory's page over its backdrop, with the evening it airs in on Cartoon Network" width="100%" />
+<img src="docs/screenshots/show.webp" alt="Dexter's Laboratory's page over its backdrop, with its logo and the evening it airs in on Cartoon Network" width="100%" />
 
-<img src="docs/screenshots/library.webp" alt="The library: each source as a mosaic of its posters, with a top-rated shelf" width="100%" />
+<img src="docs/screenshots/library-home.webp" alt="The TV library's home: what's on now from it, the next hours of the channels airing it, and what no channel airs yet" width="100%" />
 
 ## Studio: logos and watermarks
 
@@ -226,15 +264,20 @@ your breaks live here too.
 
 ## TV mode
 
-**Watch** turns the browser into a TV: the channels full screen, a banner with
-what's on and what's next as you tune in, and a channel guide over the picture.
-Flip with **↑ / ↓** or a swipe, type a number to jump straight to a channel,
-**⌫** for the last one. Cast to a Chromecast or Google TV (Chrome/Edge, over
-HTTPS) or an Apple TV (Safari, AirPlay). **Looks** put the shows back on the
-set they aired on: a CRT's scanlines and curve, an old TV set round a 4:3
-program, and the guide in the blue cable-guide look.
+**Watch** turns the browser into a TV: the channels full screen, a slim glass
+strip with what's on, how far in and what's next as you tune in, and a channel
+guide over the picture. Flip with **↑ / ↓** or a swipe, type a number to jump
+straight to a channel, **⌫** for the last one. Pop it into **picture in
+picture**, cast to a Chromecast or Google TV (Chrome/Edge, over HTTPS) or an
+Apple TV (Safari, AirPlay). **Looks** put the shows back on the set they aired
+on: a CRT's scanlines and curve, an old TV set round a 4:3 program, and the
+guide in the blue cable-guide look.
 
-<img src="docs/screenshots/tv-mode.webp" alt="TV mode on Cartoon Network with the channel guide open over the picture" width="100%" />
+<img src="docs/screenshots/tv-mode.webp" alt="TV mode on Cartoon Network with the glass strip: the channel, the show's logo, how far in, and what's next" width="100%" />
+
+<img src="docs/screenshots/tv-looks.webp" alt="TV mode on Nickelodeon with the CRT look and the old TV set round a 4:3 show" width="100%" />
+
+All the keys are in [Watching](docs/watching.md).
 
 ## And the rest
 
@@ -242,14 +285,14 @@ program, and the guide in the blue cable-guide look.
   show, movie and artist in your library.
 - **Notifications** — a bell follows ident builds, library scans and metadata
   fetches with live progress, wherever you are in the app.
-- **Works on a phone, and on a 4K monitor** — the sidebar becomes a drawer on a
-  phone, long-press moves things, and a big monitor gets wider pages and more
-  columns.
+- **Works on a phone, and on a 4K monitor** — on a phone the rail becomes a
+  tab bar, long-press moves things, and a big monitor gets wider pages and
+  more columns.
 
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/command-palette.webp" alt="The search palette finding Dexter's Laboratory" /></td>
-    <td width="25%"><img src="docs/screenshots/mobile-dashboard.webp" alt="The dashboard on a phone" /></td>
+    <td width="25%"><img src="docs/screenshots/mobile-guide.webp" alt="The Guide on a phone" /></td>
     <td width="25%"><img src="docs/screenshots/mobile-channels.webp" alt="Channels on a phone" /></td>
   </tr>
 </table>
@@ -257,18 +300,19 @@ program, and the guide in the blue cable-guide look.
 ### Output and encoding
 
 - **Standard M3U + XMLTV**, plus a built-in **HDHomeRun tuner** that Plex's
-  Live TV adds directly. **Live TV setup** at the bottom of the sidebar has
+  Live TV adds directly. **Live TV setup** at the foot of the side rail has
   every address with copy buttons and step-by-step instructions per player.
 - **Shared HLS** (one transcode per channel, however many viewers) or
   per-client **MPEG-TS** — and only channels someone is watching are encoded.
-- **Per-channel encoding profiles** — resolution, fps, bitrate, deinterlacing,
-  subtitle burn-in and loudness normalization — and a preferred audio language
-  per channel.
+- **Ready-made encoding profiles** — 720p, 1080p (the default), 1440p and 4K —
+  or your own: resolution, fps, bitrate, deinterlacing, subtitle burn-in and
+  loudness normalization, and a preferred audio language per channel.
 - **GPU encoding** on NVIDIA, Intel (QuickSync or VAAPI) or AMD (VAAPI) —
   and AMF or Apple VideoToolbox outside Docker — each verified by a real test
   encode on your host.
-- **One-click backup** from Settings, a copy taken before any upgrade changes
-  the database, and an in-app log viewer with a download for bug reports.
+- **One-click backup and restore** from Settings, a copy taken before any
+  upgrade changes the database, and an activity page with the server's CPU and
+  memory and a log to download for bug reports.
 
 ## Hardware requirements
 
@@ -280,7 +324,7 @@ watched at once**.
 | - | ----- | ----------- | ----- |
 | **Channels watched at once** | 1–2 | 3–5 | 6 or more |
 | **CPU** | 4 cores, from about 2015 on | 4–6 cores | 6–8 cores |
-| **GPU** | None (CPU, 720p) | Intel, AMD or NVIDIA; NVIDIA GTX 1050+ for HEVC files | NVIDIA RTX |
+| **GPU** | None (CPU, on the 720p profile) | Intel, AMD or NVIDIA; NVIDIA GTX 1050+ for HEVC files | NVIDIA RTX |
 | **RAM** | 4 GB | 8 GB | 16 GB |
 
 Any tier needs a 64-bit Intel or AMD (amd64) Docker host, an SSD with about
@@ -303,7 +347,8 @@ docker run -d \
 
 Open `http://YOUR-SERVER:8688`, add a library, scan, build a channel — the
 [Getting Started guide](docs/getting-started.md) walks you through all of it
-in about ten minutes. `:latest` is the newest release; `:edge` follows every
+in about ten minutes, and the [Recipes](docs/recipes.md) build the channels on
+this page step by step. `:latest` is the newest release; `:edge` follows every
 change.
 
 > 🔒 Out of the box MosaicTV has no login, which is right for a home network.
@@ -311,18 +356,21 @@ change.
 > (Settings → Sign-in): a password or a code you approve, and links of their
 > own for players. See [Security](docs/security.md).
 
-## Documentation
+## The guide
 
 | | |
 | - | - |
 | 🚀 [Installation](docs/install.md) | Docker run · Portainer · **Unraid template** · Compose |
-| 🏁 [Getting Started](docs/getting-started.md) | First library → first channel → first stream |
-| 🗓 [Channels & Scheduling](docs/channels.md) | Collections, broadcast episodes, rotations, time blocks, playback orders, the guide |
-| 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, up-next cards |
-| 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps · casting |
+| 🏁 [Getting Started](docs/getting-started.md) | First library → first channel → first stream, in ten minutes |
+| 🍳 [Recipes](docs/recipes.md) | Cartoon Network 2001, Nickelodeon 1996 with SNICK, a Halloween movie channel, a music channel, a guide channel — step by step |
+| 📚 [Your Library](docs/library.md) | Folders and naming, Plex/Jellyfin/Emby, metadata and logos, fixing matches, music |
+| 🗓 [Channels & Scheduling](docs/channels.md) | Collections, broadcast episodes, rotations, time blocks, seasons, the broadcast clock |
+| 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, idents, promos, up-next cards |
+| 📺 [Watching](docs/watching.md) | The Guide, TV mode and its keys, looks, picture in picture, casting, phones |
+| 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps |
 | ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | Hardware requirements, CPU vs GPU, setup per platform, profiles |
 | 🔒 [Security](docs/security.md) | Sign-in, player links, VPN access, reverse proxies |
-| 🛠 [Troubleshooting & Backup](docs/troubleshooting.md) | Common fixes, logs, backup/restore |
+| 🛠 [Troubleshooting & Backup](docs/troubleshooting.md) | Common fixes, Activity and logs, backup/restore |
 
 ## Tech stack
 
@@ -344,9 +392,9 @@ Questions, ideas, and the lineups people have built: come say hi on
 
 ## Contributing
 
-Issues and PRs welcome — bug reports with the in-app log download attached are
-extra welcome. If you're missing a feature (another ident look? another
-metadata source?), open an issue and let's talk.
+Issues and PRs welcome — bug reports with the log from **Settings → Activity →
+Download** attached are extra welcome. If you're missing a feature (another
+ident look? another metadata source?), open an issue and let's talk.
 
 ## Support
 
@@ -354,7 +402,7 @@ MosaicTV is free and stays free — every feature, for everyone. If it's earned 
 spot on your server and you'd like to chip in, you can
 [sponsor it on GitHub](https://github.com/sponsors/TronVonDoom) or
 [buy it a coffee on Ko-fi](https://ko-fi.com/tronvondoom). The heart and the
-cup beside the bell in the app's top bar go to the same places.
+cup at the foot of the app's side rail go to the same places.
 
 ### Sponsors
 

@@ -23,16 +23,16 @@ Then, from away:
   `/pair`). No password typed on a borrowed screen.
 - **The MosaicTV app** pairs the same way: it shows a code, you approve it.
 - **A player** (TiviMate, VLC, Jellyfin, Emby…) gets **links of its own**
-  under **Player links**: an M3U, an XMLTV guide and a tuner address with a
-  key in the path. They reach the channels and their guide — nothing else of
+  under **Player links** → **Add a player** (give it a name): an M3U, an XMLTV
+  guide and a tuner address with a key in the path. They reach the channels and their guide — nothing else of
   the app — and every address inside them (each channel, each HLS segment,
   the guide's pictures) carries the key. Remove the player and its links stop
   working.
 - **Casting** hands the TV a link of its own, so a cast plays wherever the TV
   is.
 
-Everything signed in is listed there with when and from where it was last
-seen, and can be signed out. A content reset (**Maintenance → Reset**) leaves
+Everything signed in is listed under **Signed in** with when and from where it
+was last seen, and can be signed out. A content reset (**Maintenance → Reset**) leaves
 sign-in as it was.
 
 How it's guarded:

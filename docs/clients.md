@@ -5,25 +5,17 @@ MosaicTV speaks the two standards every IPTV-capable player understands:
 - **M3U playlist** — `http://YOUR-SERVER:8688/iptv/channels.m3u`
 - **XMLTV guide (EPG)** — `http://YOUR-SERVER:8688/iptv/xmltv.xml`
 
-(Both URLs — plus the HDHomeRun tuner address — are one click away under
-**Live TV setup** at the bottom of the sidebar, with copy buttons and per-player steps.)
+Both — plus the HDHomeRun tuner address Plex and Emby use — are one click
+away under **Live TV setup**, the link button at the foot of the side rail
+(under **More** on a phone), with copy buttons and the steps for each player:
 
-Tune in mid-program and a channel picks up at the right spot, just like real TV.
+<img src="screenshots/live-tv-setup.webp" alt="Live TV setup: the M3U playlist, XMLTV guide and HDHomeRun tuner addresses with copy buttons, and the steps for Jellyfin, Plex, Emby and VLC & apps" width="70%" />
 
-## Casting from TV mode
+Tune in mid-program and a channel picks up at the right spot, just like real
+TV. Only channels with a **number** are listed — drafts stay out.
 
-**Watch** (TV mode — or click any channel's picture) has a **Cast** button over
-the picture. Once a TV is playing, TV mode is its remote: flip channels and the
-TV follows.
-
-- **Chrome / Edge → Chromecast or Google TV.** Chrome only allows casting from
-  a page opened over **HTTPS** (or `localhost`), so it works once MosaicTV is
-  served over HTTPS — Tailscale's `tailscale serve` or a reverse proxy with a
-  real certificate both do it. The TV plays the channel's stream itself, so it
-  must be able to reach that same address. On plain `http://` the button
-  explains this instead; Chrome's own menu (⋮ → Cast…) can still mirror the tab.
-- **Safari → AirPlay.** No HTTPS needed; TV mode plays Safari's native
-  stream so it can be handed to an Apple TV.
+Watching in the browser instead, or casting to a TV from it? That's TV mode:
+see [Watching](watching.md#casting).
 
 ---
 
@@ -88,7 +80,8 @@ emulates one natively, so no Threadfin/xTeVe is required.
    pull in the channel list, then finishes setup with the guide from the
    XMLTV URL above.
 
-**Settings → Streaming → HDHomeRun tuner** holds what the tuner reports:
+**Settings → Streaming → HDHomeRun tuner** holds what the tuner reports (a
+**Copy** button beside the address):
 
 - **Address** — the `host:port` to give Plex, with a copy button (the address
   the page is open on; use another if Plex reaches MosaicTV differently).
@@ -123,9 +116,20 @@ Works on Android TV / Fire TV boxes on your LAN.
 
 ---
 
+## Away from home
+
+With [sign-in](security.md) on, a player outside your home network uses
+**links of its own** — an M3U, an XMLTV guide and a tuner address with a key
+in the path — from **Settings → Sign-in → Player links**. They reach the
+channels and their guide and nothing else, and removing the player turns them
+off.
+
 ## Notes
 
 - **Guide logos** come from each channel's assigned logo ([Branding](branding.md)).
+- **Posters and episode details** — each program's picture, episode name,
+  description and dates — are in the XMLTV guide too, for players that show
+  them.
 - **Channel groups** (the Group field) map to M3U `group-title`, which most
   players use to categorize channels.
 - **Draft channels** (no number) are excluded from the playlist, guide, and

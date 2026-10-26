@@ -1,16 +1,26 @@
 # Troubleshooting & Backup
 
-## First stop: the Logs page
+## First stop: Settings › Activity
 
-**Logs** in the sidebar shows the live application log — scans, stream
-starts/stops, ffmpeg fallbacks, errors — and has a download button for filing
-issues. Most mysteries are explained there.
+**Settings → Activity** is what the server is doing: whether it's
+**Running** (or has **No ffmpeg**), its CPU and memory as a chart, and the
+live application log — scans, stream starts and stops, ffmpeg fallbacks,
+errors. Most mysteries are explained there. (Old links to `/logs` land here.)
 
-## Second stop: the Container load chart
+<img src="screenshots/settings-activity.webp" alt="Settings › Activity: the server running, its container load chart, and the server log with its filters" width="100%" />
 
-The **Dashboard** graphs container CPU and memory over the last 5/15/60 minutes,
-with a vertical rule at every playout change — an episode, a break, or a music
-video starting. Hover any point to read the exact figures and what was playing.
+**The log** can be narrowed by level (**Errors**, **Warnings**, **Info**,
+**Debug**), by source (**Playout**, **Streams**, **FFmpeg**, **System**…) and
+by stream, and keeps up by itself. **Copy all** and **Download** take the
+whole log, debug lines included, whatever the filters show — attach the
+download to a bug report. **Clear** empties it.
+
+### The container load chart
+
+**Container load** graphs the container's CPU and memory over the last 5 or
+15 minutes or the last hour, with a vertical rule at every playout change — an
+episode, a break, or a music video starting. Hover any point to read the exact
+figures and what was playing.
 
 Read it for *step changes*, not spikes: every transition spawns an encoder, so a
 brief jump at each rule is normal. What matters is CPU that climbs at a rule and
@@ -22,7 +32,7 @@ app process only and exclude ffmpeg — the figures are meaningless in that case
 
 ## Common issues
 
-### The dashboard says "ffmpeg: NOT available"
+### Activity says "No ffmpeg"
 Only possible in non-Docker/dev setups (the Docker image bundles ffmpeg).
 Install ffmpeg and make sure it's on the PATH.
 
@@ -35,11 +45,12 @@ Install ffmpeg and make sure it's on the PATH.
   [Getting Started](getting-started.md#1-add-a-library).
 
 ### Shows/movies have no posters
-- Add a **TMDB** or **TheTVDB** key (Settings) and run **Match unmatched**
-  from the library's **⋯** menu.
-- Still none? The library's filter → **Unmatched** lists what neither source
-  found; open one and **Match** it by hand on either (a TMDB, TheTVDB or IMDb
-  link works too), or **Fix them one by one**.
+- Add a **TMDB** or **TheTVDB** key (**Settings → Metadata**) and run **Match
+  unmatched** from the library's **⋯** menu.
+- Still none? The library's **All** tab → filter → **Unmatched** lists what
+  neither source found; open one and **Match** it by hand on either (a TMDB,
+  TheTVDB or IMDb link works too), or **Fix them one by one**. See
+  [Fixing a wrong match](library.md#fixing-a-wrong-match).
 - The wrong poster? **Check matches** lists automatic matches that look off;
   open one and **Fix match**.
 - Local artwork is only picked up during a **scan** — rescan after adding
@@ -48,9 +59,9 @@ Install ffmpeg and make sure it's on the PATH.
 ### A channel isn't in the M3U / guide
 - Draft channels (no **number**) are excluded on purpose — set a number.
 - The channel needs a schedule — a rotation and/or blocks with something in
-  them. Its guide builds by itself from there; the channel's **Guide** tab
-  shows it, and **Logs** says why if it couldn't ("couldn't rebuild the
-  guide").
+  them. Its guide builds by itself from there; the channel's **On air** tab
+  shows it, and **Settings → Activity** says why if it couldn't ("couldn't
+  rebuild the guide").
 
 ### The stream stops when a second device tunes in
 That's your *player's* tuner limit, not MosaicTV: raise Jellyfin's
@@ -62,12 +73,13 @@ client gets its own stream, and in shared-HLS mode they all read one.
 - If several people watch at once, switch **Settings → Streaming** to
   **shared HLS** — one transcode per channel instead of one per viewer. This is
   usually the single biggest win. See [Connecting Players](clients.md#streaming-mode-shared-hls-vs-mpeg-ts).
-- Lower the encoding profile (720p, faster preset), or
+- Move the channel to the ready-made **720p** profile (its **Settings** tab),
+  or a faster preset, or
 - enable [hardware acceleration](hardware-acceleration.md).
 - Remember: only channels **being watched** are encoded.
-- Look for `encoder slower than real-time` in **Logs** — that's the encoder
-  failing to keep up, and it's what viewers see as freezing.
-- Cross-check the Dashboard's **Container load** chart: if CPU steps up at one
+- Look for `encoder slower than real-time` in **Settings → Activity** — that's
+  the encoder failing to keep up, and it's what viewers see as freezing.
+- Cross-check the **Container load** chart there: if CPU steps up at one
   transition and stays there, that item (or the profile it's using) is the cost.
 
 ### Schedule times are off by hours
@@ -76,13 +88,13 @@ Every channel's guide is rebuilt for the new timezone when it starts.
 
 ### I edited my schedule but the stream still plays the old one
 Edits take effect from the next program: the one on now plays out first, and
-so does one starting within about 20 seconds. The channel's **Guide** tab says
-where the change took effect ("Updated from …"). If nothing changes after
-that, look in **Logs** for "couldn't rebuild the guide".
+so does one starting within about 20 seconds. The channel's **On air** tab
+says where the change took effect ("Updated from …"). If nothing changes
+after that, look in **Settings → Activity** for "couldn't rebuild the guide".
 
 ### GPU isn't being used
 Check the [Hardware Acceleration](hardware-acceleration.md) setup for your
-platform, then look in **Logs** for either:
+platform, then look in **Settings → Activity** for either:
 
 - `Video encoder selected: …` — what MosaicTV actually settled on, or
 - `Profile requests <vendor> but <encoder> does not work on this host` — the
@@ -96,7 +108,7 @@ container isn't seeing the card (runtime/toolkit issue). On VAAPI, make sure
 
 ### A program shows the station ident instead
 The channel couldn't play that file, so it covered the slot and moved on to the
-next program on time. **Logs** says why:
+next program on time. **Settings → Activity** says why:
 
 - `… retrying it on the CPU` then `… holding the rest of its slot with the
   station ident` — the file failed on the GPU and again on the CPU. The line
@@ -114,7 +126,7 @@ Everything MosaicTV owns lives in **one folder**: the `/app/data` volume
 (database, uploaded logos, music and clips, built idents). Your media is never
 touched.
 
-- **In-app:** **Settings → Maintenance → Download backup (.tar.gz)** — grabs
+- **In-app:** **Settings → Maintenance → Download a backup** (a `.tar.gz`) — grabs
   the database, logos, music and clips, and the covers copied out of your
   music files, in one archive. It leaves out what MosaicTV makes again by
   itself: the live streams' segments, built idents, now-playing screens,
@@ -151,11 +163,16 @@ an upgrade that *did* apply, stop the container, copy that file over
 `mosaictv.db` (delete `mosaictv.db-wal` and `-shm` beside it), and run the older
 image.
 
-**Reset:** **Settings → Maintenance → Reset to a clean slate** wipes the
-database (optionally also uploaded logos, music and clips) for a fresh start — take a
-backup first.
+**Reset:** **Settings → Maintenance → Reset to a clean slate** wipes every
+library, channel, collection and setting, and starts again with the MosaicTV
+logo and starter music a new install has. With **Delete uploaded files too**
+your logos, music and clips go as well; off, they stay in the Studio for the
+new start. Sign-in is left as it was. It can't be undone — take a backup
+first.
 
 ## Still stuck?
 
-Open an issue: <https://github.com/TronVonDoom/mosaictv/issues> — include the
-downloaded logs and what you expected vs. what happened.
+Ask on [r/MosaicTV](https://www.reddit.com/r/MosaicTV/), or open an issue:
+<https://github.com/TronVonDoom/mosaictv/issues> — include the log from
+**Settings → Activity → Download**, the version from **Settings →
+Maintenance**, and what you expected vs. what happened.

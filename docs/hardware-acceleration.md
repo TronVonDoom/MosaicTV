@@ -46,7 +46,7 @@ you build, or how many people watch.
 | - | ----- | ----------- | ----- |
 | **Channels watched at once** | 1–2 | 3–5 | 6 or more |
 | **CPU** | 4 cores, from about 2015 on | 4–6 cores | 6–8 cores |
-| **GPU** | None — CPU encoding at the default 720p | Any GPU from the table above; NVIDIA GTX 1050 or newer if your files are mostly HEVC (x265) | NVIDIA RTX |
+| **GPU** | None — CPU encoding, on the 720p profile | Any GPU from the table above; NVIDIA GTX 1050 or newer if your files are mostly HEVC (x265) | NVIDIA RTX |
 | **RAM** | 4 GB | 8 GB | 16 GB, to keep live segments in RAM |
 
 Every server also needs:
@@ -85,8 +85,9 @@ Measured on a 4-core i7-4790K with a GTX 970 encoding (NVENC), 1080p output:
 | 1080p HEVC, 10-bit | CPU (the GTX 970 can't decode HEVC) | 2.4 cores | 630 MB |
 
 The whole container used 1.3 GB of RAM with those three on air. With no GPU
-at all, budget roughly 1–1.5 cores per channel at the default 720p from H.264
-files, and 3–4 cores per channel at 1080p from HEVC files.
+at all, budget roughly 1–1.5 cores per channel at 720p from H.264 files, and
+3–4 cores per channel at 1080p (the default profile) from HEVC files — so a
+CPU-only server is happiest with its channels on the 720p profile.
 
 ---
 
@@ -100,7 +101,7 @@ files, and 3–4 cores per channel at 1080p from HEVC files.
    - **NVIDIA GPUs** (`NVIDIA_VISIBLE_DEVICES`): `all`, or one GPU's UUID from
      `nvidia-smi -L` to pin a specific card
    - **NVIDIA Capabilities** (`NVIDIA_DRIVER_CAPABILITIES`): `all`
-3. Apply. Check **Logs** in MosaicTV — streams should mention `h264_nvenc`.
+3. Apply. Check **Settings → Activity** in MosaicTV — streams should mention `h264_nvenc`.
 
 ### docker run
 
@@ -141,28 +142,39 @@ iGPU).
 - **Docker Compose:** uncomment the `devices:` lines in `docker-compose.yml`.
 
 Leave the profile's **Hardware** on **Auto**: it tries QuickSync first (11th-gen
-Core, Arc and newer), then VAAPI (older Intel, and AMD). Check **Logs** —
-streams should mention `h264_qsv` or `h264_vaapi`. A host with more than one
+Core, Arc and newer), then VAAPI (older Intel, and AMD). Check **Settings →
+Activity** — streams should mention `h264_qsv` or `h264_vaapi`. A host with more than one
 GPU may need `VAAPI_DEVICE` set to the right render node (see above).
 
 ---
 
 ## Encoding profiles
 
-**Settings → Encoding** — create profiles and assign them per channel
-(channel **Settings** tab). Four come ready-made — 720p, 1080p, 1440p (2K)
-and 2160p (4K), all 30 fps, medium quality, GPU when there is one, loudness
-evened out — and 1080p is the default: new channels start on it, and a
-deleted profile's channels move to it.
+**Settings → Encoding** holds the profiles — how a channel is encoded: its
+picture size, frame rate, quality and the GPU that does the work — and each
+channel picks one on its **Settings** tab.
+
+<img src="screenshots/settings-encoding.webp" alt="Settings › Encoding: the ready-made 720p, 1080p, 1440p and 2160p profiles, with 1080p the default" width="100%" />
+
+Four come ready-made — **720p**, **1080p**, **1440p (2K)** and **2160p (4K)**,
+all 30 fps, medium quality, the GPU when there is one, and loudness evened out
+from one program to the next. **1080p is the default**, labelled
+"1080p (Default)": new channels start on it, it can't be deleted, and deleting
+any other profile moves its channels onto it. Pick another default under
+**Default profile**. Each ready-made profile is added once, so one you delete
+stays deleted.
+
+**New profile** makes your own; click one to edit it:
 
 | Setting | What it does |
 | ------- | ------------ |
-| **Resolution / FPS** | Output size and frame rate for the whole channel |
-| **Quality** | Bitrate/CRF ladder (scaled by resolution) |
-| **Hardware** | `auto` (GPU if present), `nvidia` (warns + falls back if missing), `cpu` (force libx264) |
-| **Preset** | Encoder speed/quality trade-off (`veryfast`… for x264, `p1`–`p7` for nvenc) |
-| **Video bitrate / buffer** | Explicit rate control override |
-| **Scaling mode / deinterlace** | How source video is fitted; deinterlacing for older content |
+| **Resolution / Frame rate** | Output size and frame rate for the whole channel |
+| **Scaling** | How a picture of another shape is fitted: **Scale and pad** (black bars, nothing lost), **Scale and crop**, or **Stretch** |
+| **Hardware acceleration** | **Auto** (GPU if present), a vendor (NVIDIA, QSV, VAAPI, AMF, VideoToolbox — warns and falls back if missing), or **CPU** (force libx264) |
+| **Preset** | Encoder speed/quality trade-off (`veryfast`… for x264, `p1`–`p7` for NVENC) |
+| **Quality** | Low / Medium / High: a bitrate ladder scaled by resolution (at Medium, about 16 Mbps at 1440p and 26 at 4K) |
+| **Bitrate / Buffer** | An explicit rate in place of the quality ladder |
+| **Deinterlace** | For older, interlaced content |
 | **Burn in subtitles** | Render the source's first embedded subtitle track into the picture |
 | **Audio bitrate / channels** | AAC output settings |
 | **Normalize loudness** | Even out volume across different sources |
@@ -173,5 +185,6 @@ deleted profile's channels move to it.
 > encoded picture. It applies to programs (never breaks) and only when the file
 > actually has a subtitle stream, so it costs nothing on sources without one.
 
-A practical split: a "HD" profile (1080p, `auto`) for your main channels and a
-"Light" profile (720p, `cpu`, capped threads) for background/break-heavy ones.
+A practical split: the ready-made **1080p** for your main channels and **720p**
+for background or break-heavy ones — or for every channel on a server with no
+GPU.
