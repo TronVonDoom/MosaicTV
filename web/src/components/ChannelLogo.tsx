@@ -21,6 +21,7 @@ export default function ChannelLogo({
   size = 40,
   className,
   plate = true,
+  wide = false,
 }: {
   logoId: number | null
   name: string
@@ -28,9 +29,13 @@ export default function ChannelLogo({
   className?: string
   /** The dark plate behind the logo; off for logos laid over artwork. */
   plate?: boolean
+  /** A wide logo runs up to three times as wide as it is tall, rather than
+   *  shrinking to a sliver in a square: for one beside a channel's number. */
+  wide?: boolean
 }) {
   const [broken, setBroken] = useState(false)
   const show = logoId != null && !broken
+  const long = wide && show
   return (
     <span
       className={cx(
@@ -38,14 +43,15 @@ export default function ChannelLogo({
         plate && 'rounded-xl border border-edge bg-[#0b0d12] shadow-[inset_0_1px_0_rgb(255_255_255/0.04)]',
         className,
       )}
-      style={{ width: size, height: size, ...(show || !plate ? {} : { background: posterGradient(name) }) }}
+      style={{ ...(long ? { minWidth: size } : { width: size }), height: size, ...(show || !plate ? {} : { background: posterGradient(name) }) }}
     >
       {show ? (
         <img
           src={logoImageUrl(logoId)}
           alt=""
           onError={() => setBroken(true)}
-          className="max-w-[78%] max-h-[78%] object-contain drop-shadow-[0_2px_6px_rgb(0_0_0/0.5)]"
+          style={long ? { height: size * 0.78, width: 'auto', maxWidth: size * 3 } : undefined}
+          className={cx('object-contain drop-shadow-[0_2px_6px_rgb(0_0_0/0.5)]', !long && 'max-w-[78%] max-h-[78%]')}
         />
       ) : (
         <span className="font-semibold text-white/90 tracking-tight" style={{ fontSize: size * 0.34 }}>

@@ -110,10 +110,11 @@ export async function cachedRemoteImage(art: string, size = 'w500', timeoutMs?: 
 }
 
 /** A cached TMDB or TheTVDB image about `w` wide: TMDB's comes at the size
- *  asked for, TheTVDB's (one size only) is shrunk like a local poster. */
+ *  asked for, but its original — and TheTVDB's (one size only) — is shrunk
+ *  like a local poster. */
 export async function remoteArtFile(art: string, size: string, w: number | null): Promise<string | null> {
   const cached = await cachedRemoteImage(art, size)
-  if (!cached || !w || !(isAddress(art) || isServerArt(art))) return cached
+  if (!cached || !w || !(size === 'original' || isAddress(art) || isServerArt(art))) return cached
   return (await localThumb(cached, w)) ?? cached
 }
 

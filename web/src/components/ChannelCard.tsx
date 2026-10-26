@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
 import Icon from './Icon'
-import { ART, artworkUrl, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
+import { ART, artworkUrl, wideSrcSet, type Channel, type ChannelNow, type NowUnit } from '../lib/api'
 import { posterGradient } from '../lib/format'
 import { channelPath } from '../lib/channels'
 import { IconButton, Menu, cx, type MenuItem } from './ui'
@@ -18,11 +18,14 @@ export function ProgramArt({
   logoId,
   name,
   className,
+  sizes = '560px',
 }: {
   unit: NowUnit | null
   logoId: number | null
   name: string
   className?: string
+  /** How wide it's drawn, as an <img>'s `sizes`, so a big one gets a big picture. */
+  sizes?: string
 }) {
   const [backdropFailed, setBackdropFailed] = useState(false)
   const [posterFailed, setPosterFailed] = useState(false)
@@ -37,6 +40,8 @@ export function ProgramArt({
       {useBackdrop && (
         <img
           src={artworkUrl(id, 'backdrop', ART.card)}
+          srcSet={wideSrcSet(id, 'backdrop')}
+          sizes={sizes}
           alt=""
           loading="lazy"
           onError={() => setBackdropFailed(true)}
@@ -127,7 +132,7 @@ export default function ChannelCard({
         {/* Its number and logo, as a set's channel display shows them. */}
         <span className="absolute left-3 top-3 flex items-center gap-2 rounded-xl border border-white/[0.12] bg-[rgb(12_10_22/0.55)] px-2.5 py-1.5 backdrop-blur-md">
           <span className="text-[16px] font-bold leading-none tabular-nums text-white">{draft ? '—' : channel.number}</span>
-          {channel.logoId != null && <ChannelLogo logoId={channel.logoId} name={channel.name} size={22} plate={false} />}
+          {channel.logoId != null && <ChannelLogo logoId={channel.logoId} name={channel.name} size={22} plate={false} wide />}
         </span>
 
         <span className="absolute right-3.5 top-3.5 flex items-center gap-2">

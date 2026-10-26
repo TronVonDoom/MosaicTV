@@ -19,16 +19,18 @@ const MIME: Record<string, string> = {
 // The web UI's grids ask for `?w=` sized to the tile. A request rounds up to one
 // of a few widths so the cache holds a handful of sizes, not one per pixel;
 // anything wider than the largest gets the original.
-const THUMB_WIDTHS = [160, 320, 480, 780]
+// The two widest are for backdrops drawn across a screen (the guide's hero).
+const THUMB_WIDTHS = [160, 320, 480, 780, 1280, 1920]
 function thumbWidth(q: unknown): number | null {
   const n = Number(q)
   if (!Number.isFinite(n) || n <= 0) return null
   return THUMB_WIDTHS.find((w) => w >= n) ?? null
 }
 
-// TMDB serves fixed sizes — ask for the smallest that covers the request.
+// TMDB serves fixed sizes — ask for the smallest that covers the request. Past
+// 1280 there's only its original (often 4K), which remoteArtFile shrinks.
 const tmdbPosterSize = (w: number | null) => (!w ? 'w500' : w <= 185 ? 'w185' : w <= 342 ? 'w342' : 'w500')
-const tmdbBackdropSize = (w: number | null) => (!w || w > 780 ? 'w1280' : w <= 300 ? 'w300' : 'w780')
+const tmdbBackdropSize = (w: number | null) => (!w ? 'w1280' : w <= 300 ? 'w300' : w <= 780 ? 'w780' : w <= 1280 ? 'w1280' : 'original')
 
 function sendArtwork(res: Response, filePath: string, maxAgeSec = 86400) {
   res.setHeader('Cache-Control', `public, max-age=${maxAgeSec}`)

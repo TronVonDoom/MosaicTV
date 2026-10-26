@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ART, artworkUrl, tmdbImage, type Library, type LibraryHome as Home, type OnAirSlot, type Show } from '../../lib/api'
+import { ART, artworkUrl, tmdbImage, wideSrcSet, type Library, type LibraryHome as Home, type OnAirSlot, type Show } from '../../lib/api'
 import { useCached } from '../../lib/cache'
 import { reads } from '../../lib/reads'
 import { formatAiring, formatClock, posterGradient, splitSubtitle } from '../../lib/format'
@@ -24,12 +24,12 @@ function progress(s: OnAirSlot, now: number): number {
 }
 
 /** An airing's backdrop: the movie's, or its show's. */
-function Backdrop({ slot, className }: { slot: OnAirSlot; className?: string }) {
+function Backdrop({ slot, className, sizes }: { slot: OnAirSlot; className?: string; sizes: string }) {
   const [broken, setBroken] = useState(false)
   return (
     <div className={cx('absolute inset-0', className)} style={{ background: posterGradient(slot.title) }}>
       {slot.mediaItemId != null && !broken && (
-        <img src={artworkUrl(slot.mediaItemId, 'backdrop', ART.card)} alt="" onError={() => setBroken(true)} className="w-full h-full object-cover object-[60%_30%]" />
+        <img src={artworkUrl(slot.mediaItemId, 'backdrop', ART.card)} srcSet={wideSrcSet(slot.mediaItemId, 'backdrop')} sizes={sizes} alt="" onError={() => setBroken(true)} className="w-full h-full object-cover object-[60%_30%]" />
       )}
     </div>
   )
@@ -50,7 +50,7 @@ function OnNowFeature({ slot, following, onOpen }: { slot: OnAirSlot; following:
   const { code, name } = splitSubtitle(slot.subtitle)
   return (
     <div className="relative rounded-[22px] overflow-hidden border border-white/[0.08] flex flex-col lg:flex-row min-h-[330px]">
-      <Backdrop slot={slot} />
+      <Backdrop slot={slot} sizes="(min-width: 1024px) calc(100vw - 180px), 100vw" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(8_7_13/0.95)_0%,rgb(8_7_13/0.72)_42%,rgb(8_7_13/0.3)_70%,rgb(8_7_13/0.9)_100%)]" />
       <div className="relative flex-1 p-6 sm:p-8 flex flex-col justify-end gap-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -102,7 +102,7 @@ function OnNowCard({ slot, onOpen }: { slot: OnAirSlot; onOpen: (s: OnAirSlot) =
   const { code, name } = splitSubtitle(slot.subtitle)
   return (
     <div className="relative rounded-[22px] overflow-hidden border border-white/[0.08] min-h-[230px] flex flex-col">
-      <Backdrop slot={slot} />
+      <Backdrop slot={slot} sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw" />
       <div className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/75 to-canvas/10" />
       <div className="relative flex items-start justify-between p-4">
         <Tally tone="live">Live on {slot.channel.number ?? slot.channel.name}</Tally>

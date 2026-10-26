@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import ChannelLogo from './ChannelLogo'
 import Icon from './Icon'
 import SegmentBar, { hasParts, type Piece } from './guide/SegmentBar'
-import { ART, artworkUrl, type NowUnit, type Playout, type PlayoutEntry } from '../lib/api'
+import { ART, artworkUrl, wideSrcSet, type NowUnit, type Playout, type PlayoutEntry } from '../lib/api'
 import { artistsLine, creditOf, episodeCode, formatClock } from '../lib/format'
 import { channelPath } from '../lib/channels'
 import { LiveBadge, Modal, ModalHeader, cx } from './ui'
@@ -101,13 +101,15 @@ export const PAST_HOURS = 3
 export const PAST_READ_HOURS = PAST_HOURS + 0.5
 
 /** The picture of what's on now behind its block, when it has a backdrop. */
-function NowPicture({ unit }: { unit: NowUnit }) {
+function NowPicture({ unit, width }: { unit: NowUnit; width: number }) {
   const [failed, setFailed] = useState(false)
   if (!unit.mediaItemId || !unit.hasBackdrop || failed) return null
   return (
     <>
       <img
         src={artworkUrl(unit.mediaItemId, 'backdrop', ART.card)}
+        srcSet={wideSrcSet(unit.mediaItemId, 'backdrop')}
+        sizes={`${Math.max(1, Math.round(width))}px`}
         alt=""
         loading="lazy"
         onError={() => setFailed(true)}
@@ -340,7 +342,7 @@ export default function GuideGrid({
                         )}
                         style={{ left: left + 2, width: w - 4 }}
                       >
-                        {current && art && <NowPicture unit={art} />}
+                        {current && art && <NowPicture unit={art} width={w - 4} />}
                         {current && <span className="absolute inset-y-0 left-0 bg-now/[0.14] pointer-events-none" style={{ width: `${pct}%` }} />}
                         {/* Where each song of a block of songs begins: marks
                             along its foot, like a record's tracks. */}

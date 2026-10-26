@@ -33,7 +33,8 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
   return (
     <section aria-label={`${channel.number} ${channel.name}, live`} className="relative h-[300px] sm:h-[360px] rounded-2xl p-[2px] bg-[linear-gradient(120deg,#a855f7,#3b82f6,#22d3ee,#e879f9)]">
       <div className="group relative h-full w-full overflow-hidden rounded-[calc(var(--radius-2xl)-2px)] bg-[#15122a]">
-        <ProgramArt unit={unit} logoId={channel.logoId} name={channel.name} />
+        {/* Beside the Up next panel on a wide screen, the page's width below. */}
+        <ProgramArt unit={unit} logoId={channel.logoId} name={channel.name} sizes="(min-width: 1024px) calc(100vw - 460px), 100vw" />
         <Link
           to={`/watch/${channel.number}`}
           aria-label={`Watch ${channel.number} ${channel.name}`}
@@ -42,7 +43,7 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
         />
         <div className="pointer-events-none absolute left-3.5 top-3.5 z-20 flex items-center gap-2.5 rounded-xl glass-label px-3 py-1.5">
           <span className="text-[18px] font-bold tabular-nums">{channel.number}</span>
-          <ChannelLogo logoId={channel.logoId} name={channel.name} size={26} plate={false} />
+          <ChannelLogo logoId={channel.logoId} name={channel.name} size={26} plate={false} wide />
         </div>
         <div className="pointer-events-none absolute right-4 top-4 z-20 flex items-center gap-2">
           {channel.viewers > 0 && (

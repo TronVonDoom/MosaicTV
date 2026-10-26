@@ -766,3 +766,12 @@ export const ART = {
   /** A card-width backdrop (~300–560px). */
   card: 780,
 } as const
+
+/**
+ * A wide picture's sizes, for an <img>'s `srcSet`: with `sizes` saying how
+ * wide it's drawn, the browser takes the smallest that covers it on that
+ * screen — a card gets 780, the guide's hero across a big screen 1920.
+ */
+export function wideSrcSet(id: number, type: 'backdrop' | 'still', version?: string | null): string {
+  return [ART.card, 1280, 1920].map((w) => `${artworkUrl(id, type, w, version)} ${w}w`).join(', ')
+}
