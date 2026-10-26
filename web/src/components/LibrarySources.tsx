@@ -9,7 +9,7 @@ import { confirmDialog } from '../lib/confirm'
 import { errorMessage } from '../lib/errors'
 import { toast } from '../lib/toast'
 import DirectoryPicker from './DirectoryPicker'
-import { LibraryActions, LibraryJobProgress, useLibraryJobs } from './LibraryActions'
+import { LibraryActions, type LibraryJobs } from './LibraryActions'
 import { Badge, Banner, Button, Card, Field, IconButton, InfoHint, Input, Segmented, Select, cx } from './ui'
 import { AddFromServer, SERVER_NAMES, ServerSourcePanel } from './library/ServerLibrary'
 
@@ -127,8 +127,9 @@ const NO_LIBRARIES: Library[] = []
 
 /** The "Sources" half of the Library page: add libraries, point them at
  *  folders, scan them, and pull metadata. Browsing what's inside lives in
- *  LibraryBrowse. */
-export default function LibrarySources({ focusAddForm }: { focusAddForm?: number }) {
+ *  LibraryBrowse. The page owns `jobs` (and shows their progress), so a scan
+ *  is followed on either tab. */
+export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJobs; focusAddForm?: number }) {
   // The same list the sidebar shows, so a library added or removed here is
   // there at once too.
   const librariesRead = useCached(reads.libraries)
@@ -156,8 +157,6 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
   }, [focusAddForm])
 
   const refresh = () => void librariesRead.reload()
-
-  const jobs = useLibraryJobs(refresh)
 
   /** Run an action, surfacing any failure in the page's error banner. */
   async function guard(fallback: string, fn: () => Promise<void>) {
@@ -245,8 +244,6 @@ export default function LibrarySources({ focusAddForm }: { focusAddForm?: number
           to fetch posters, overviews, and ratings for movies &amp; shows.
         </Banner>
       )}
-
-      <LibraryJobProgress jobs={jobs} className="mb-5" />
 
       {/* Add-library form */}
       <Card className="p-5 mb-6">

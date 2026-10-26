@@ -37,6 +37,15 @@ export function useLibraryJobs(onFinish?: () => void) {
     }
   }
 
+  async function startScanAll() {
+    try {
+      await api.scanAll()
+      scanJob.start()
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not start the scan'))
+    }
+  }
+
   async function startMetadata(lib: Library, force = false) {
     const noun = lib.kind === 'tv' ? 'show' : 'movie'
     if (
@@ -66,6 +75,7 @@ export function useLibraryJobs(onFinish?: () => void) {
     meta,
     busy: !!(scan?.running || meta?.running),
     startScan,
+    startScanAll,
     startMetadata,
   }
 }
@@ -155,6 +165,24 @@ export function LibraryActions({
   )
 }
 
+/** Scan every library, one after another — the Library page's own action. */
+export function ScanAllButton({ jobs, libraries }: { jobs: LibraryJobs; libraries: number }) {
+  const all = jobs.scan?.running ? jobs.scan.all : null
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      icon="refresh"
+      loading={!!all}
+      disabled={jobs.busy || libraries === 0}
+      onClick={() => void jobs.startScanAll()}
+      title="Scan every library, one after another, for new, changed and moved files"
+    >
+      {all ? `Scanning ${all.at} of ${all.of}` : 'Scan all'}
+    </Button>
+  )
+}
+
 /** Progress for a running scan or metadata fetch — every library's, or only
  *  `libraryId`'s. */
 export function LibraryJobProgress({ jobs, libraryId, className }: { jobs: LibraryJobs; libraryId?: number; className?: string }) {
@@ -166,7 +194,7 @@ export function LibraryJobProgress({ jobs, libraryId, className }: { jobs: Libra
         <ProgressPanel
           tone="indigo"
           className={className}
-          title={`Scanning ${scan.libraryName}…`}
+          title={`Scanning ${scan.libraryName}…${scan.all ? ` (library ${scan.all.at} of ${scan.all.of})` : ''}`}
           processed={scan.processed}
           total={scan.total}
           detail={scan.currentPath}

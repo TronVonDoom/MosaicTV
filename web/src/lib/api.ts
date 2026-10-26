@@ -357,6 +357,8 @@ export const api = {
     request<void>(`/api/libraries/${libraryId}/folders/${folderId}`, { method: 'DELETE' }),
   startScan: (libraryId: number, force = false) =>
     pokeActivity(request<{ started: boolean }>(`/api/scan/${libraryId}${force ? '?force=1' : ''}`, { method: 'POST' })),
+  /** Every library, one after another. */
+  scanAll: () => pokeActivity(request<{ started: boolean; libraries: number }>('/api/scan/all', { method: 'POST' })),
   scanStatus: () => request<ScanStatus>('/api/scan/status'),
   media: (params: {
     page?: number

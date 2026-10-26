@@ -56,7 +56,25 @@ export function activityItems(): Activity[] {
   }
 
   const scan = getScanStatus()
-  if (scan.startedAt && (scan.running || recent(scan.finishedAt))) {
+  const all = scan.all
+  if (all && (scan.running || recent(all.finishedAt))) {
+    // Scan all is one job here, not one per library.
+    const failed = all.failed.length ? ` · couldn’t scan ${all.failed.join(', ')}` : ''
+    items.push({
+      id: `scan-all:${all.startedAt}`,
+      kind: 'scan',
+      title: scan.running ? `Scanning all libraries — ${scan.libraryName ?? '…'} (${all.at} of ${all.of})` : `Scanned all ${all.of} libraries`,
+      detail: scan.running
+        ? `${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} files`
+        : `${all.added} added · ${all.updated} updated · ${all.removed} removed${all.moved ? ` · ${all.moved} moved` : ''}${failed}`,
+      state: scan.running ? 'running' : all.failed.length ? 'error' : 'done',
+      // Each library done counts as a share of the whole.
+      progress: scan.running && all.of ? (all.at - 1 + (fraction(scan.processed, scan.total) ?? 0)) / all.of : null,
+      startedAt: all.startedAt,
+      finishedAt: all.finishedAt,
+      href: '/library#sources',
+    })
+  } else if (scan.startedAt && (scan.running || recent(scan.finishedAt))) {
     const lib = scan.libraryName ?? 'library'
     items.push({
       id: `scan:${scan.startedAt}`,

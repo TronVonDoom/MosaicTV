@@ -62,9 +62,10 @@ export default function NotificationBell({ placement = 'bar' }: { placement?: 'r
       return
     }
     // Toast what finished since the last look — but not what had already
-    // finished before this page loaded.
+    // finished before this page loaded. Both bells are always mounted (CSS
+    // shows one per screen size), so only the rail's toasts, or each would.
     const before = states.current
-    if (before) {
+    if (before && placement === 'rail') {
       for (const a of next) {
         if (before.get(a.id) !== 'running' || a.state === 'running') continue
         if (a.state === 'error') toast.error(a.detail ? `${a.title}: ${a.detail}` : a.title)
@@ -73,7 +74,7 @@ export default function NotificationBell({ placement = 'bar' }: { placement?: 'r
     }
     states.current = new Map(next.map((a) => [a.id, a.state]))
     setItems(next)
-  }, [])
+  }, [placement])
 
   const running = items.some((a) => a.state === 'running')
   useEffect(() => {

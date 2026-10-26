@@ -40,7 +40,12 @@ const status: ScanStatus = {
   startedAt: null,
   finishedAt: null,
   error: null,
+  all: null,
 }
+
+// True while scanAll is working through the libraries: the job stays running
+// between them, so nothing else starts in a gap.
+let scanningAll = false
 
 export function getScanStatus(): ScanStatus {
   return status
@@ -345,6 +350,8 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
   })
   if (!library) throw new Error(`Library ${libraryId} not found`)
 
+  // A scan of one library ends the last Scan all's word.
+  if (!scanningAll) status.all = null
   Object.assign(status, {
     running: true,
     libraryId: library.id,
@@ -413,7 +420,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)
   } finally {
-    status.running = false
+    status.running = scanningAll
     status.currentPath = null
     status.finishedAt = new Date().toISOString()
     // Open pages follow: what's gone, refiled or moved since the last word.
@@ -421,6 +428,61 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
   }
   // As in Plex, what a scan adds is matched to TMDB straight after.
   if (!status.error) await matchNewTitles(library.id).catch(() => {})
+}
+
+/**
+ * Scan every library, one after another, in the order the sidebar lists them.
+ * A library whose scan fails is noted and the rest go ahead. The job counts as
+ * running from the first library to the end of the last one's matching, so no
+ * other scan, folder change or library delete slips in between.
+ */
+export async function scanAll(): Promise<void> {
+  if (status.running) throw new Error('A scan is already running.')
+  // Taken before the first await, so a second request finds it running.
+  status.running = true
+  scanningAll = true
+  const all: NonNullable<ScanStatus['all']> = {
+    at: 0,
+    of: 0,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    added: 0,
+    updated: 0,
+    removed: 0,
+    moved: 0,
+    failed: [],
+  }
+  status.all = all
+  try {
+    const libraries = await prisma.library.findMany({ orderBy: { createdAt: 'asc' }, select: { id: true, name: true } })
+    all.of = libraries.length
+    for (const [i, lib] of libraries.entries()) {
+      all.at = i + 1
+      await scanLibrary(lib.id).catch((e) => {
+        status.error = e instanceof Error ? e.message : String(e)
+      })
+      if (status.error) {
+        all.failed.push(lib.name)
+        log('warn', 'system', `Scan all: couldn't scan "${lib.name}"`, status.error)
+        continue
+      }
+      all.added += status.added
+      all.updated += status.updated
+      all.removed += status.removed
+      all.moved += status.moved
+    }
+  } finally {
+    scanningAll = false
+    status.running = false
+    all.finishedAt = new Date().toISOString()
+  }
+  log(
+    'info',
+    'system',
+    `Scanned all ${all.of} libraries: ${all.added} added, ${all.updated} updated, ${all.removed} removed` +
+      (all.moved ? `, ${all.moved} moved` : '') +
+      (all.failed.length ? ` — failed: ${all.failed.join(', ')}` : ''),
+  )
 }
 
 /**

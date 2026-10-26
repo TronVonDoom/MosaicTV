@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import LibraryBrowse from '../components/LibraryBrowse'
+import { LibraryJobProgress, ScanAllButton, useLibraryJobs } from '../components/LibraryActions'
 import LibrarySources from '../components/LibrarySources'
 import { Masthead, NetworkTabs } from '../components/onair/Masthead'
 import { formatLongDuration } from '../lib/format'
@@ -29,6 +30,13 @@ export default function Library() {
   const [addRequest, setAddRequest] = useState(0)
   const statsRead = useCached(reads.stats)
   const stats = statsRead.data ?? null
+  const librariesRead = useCached(reads.libraries)
+  // Scans and metadata fetches, followed on both tabs; what one finds shows
+  // in the libraries' counts and the figures above when it's done.
+  const jobs = useLibraryJobs(() => {
+    void librariesRead.reload()
+    void statsRead.reload()
+  })
 
   // Re-read on a tab switch, so the figures catch up with a library just added.
   const statsTab = useRef(tab)
@@ -69,11 +77,14 @@ export default function Library() {
             )}
           </>
         }
+        aside={<ScanAllButton jobs={jobs} libraries={librariesRead.data?.length ?? 0} />}
         tabs={<NetworkTabs<Tab> tabs={TABS} active={tab} onChange={setTab} />}
       />
 
+      <LibraryJobProgress jobs={jobs} className="mb-5" />
+
       {tab === 'browse' && <LibraryBrowse onAddLibrary={startAddLibrary} />}
-      {tab === 'sources' && <LibrarySources focusAddForm={addRequest} />}
+      {tab === 'sources' && <LibrarySources jobs={jobs} focusAddForm={addRequest} />}
     </div>
   )
 }

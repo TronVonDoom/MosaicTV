@@ -99,6 +99,23 @@ export type ScanStatus = {
   startedAt: string | null
   finishedAt: string | null
   error: string | null
+  /** Set while Scan all works through every library, one after another, and
+   *  kept once it's done until the next scan: which library it's on (1-based),
+   *  of how many, what they've found between them, and any that failed. */
+  all: ScanAllStatus | null
+}
+
+export type ScanAllStatus = {
+  at: number
+  of: number
+  startedAt: string
+  finishedAt: string | null
+  added: number
+  updated: number
+  removed: number
+  moved: number
+  /** Libraries whose scan failed; the rest went ahead. */
+  failed: string[]
 }
 
 export type MetadataStatus = {
