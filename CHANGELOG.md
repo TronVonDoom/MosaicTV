@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.25.1 — Sharper pictures (2026-10-26)
+
+- **A sharp picture at the top of the guide.** The live channel's picture
+  was a 780px image stretched across the screen, so on a big screen it
+  looked soft and blocky. It now comes at up to 1920px, and each screen
+  takes the smallest size that stays sharp, so phones and small cards don't
+  download the big one. The pictures behind what's on now in the guide rows,
+  and the library home's on-now cards, get the same treatment.
+- **Wide channel logos you can read.** Beside the channel's number (at the
+  top of the guide, and on channel cards) a wide logo was squeezed into a
+  square and came out a few pixels tall. It can now be up to three times as
+  wide as it is tall.
+
 ## 0.25.0 — Ready-made profiles and Scan all (2026-10-26)
 
 - **Ready-made encoding profiles.** Settings → Encoding now comes with four:
