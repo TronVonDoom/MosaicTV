@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.24.2 — Steady through the night (2026-10-25)
+
+- **No more "Reconnecting…" loop on a channel left on for hours.** The live
+  stream only told players the time of day at the start of each program, and
+  that start drops out of the stream's playlist a couple of minutes in. The
+  Android app (like anything built on Android's ExoPlayer) then lost track of
+  where it was: it slowly fell behind live, fell off the back of the playlist
+  when the next program began, and from then on went black with
+  "Reconnecting…" every half minute or so until that program ended. Every
+  segment of the stream now carries its time, so players always know where
+  they are. Update the Android app to 0.5.1 as well: it no longer mistakes a
+  stream without times for a frozen picture.
+
 ## 0.24.1 — Revivals as shows of their own (2026-10-25)
 
 - **Shows of one name but different years are kept apart.** A show's
