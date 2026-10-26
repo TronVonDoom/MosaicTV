@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.25.0 — Ready-made profiles and Scan all (2026-10-26)
+
+- **Ready-made encoding profiles.** Settings → Encoding now comes with four:
+  720p, 1080p, 1440p (2K) and 2160p (4K). All run at 30 fps and medium
+  quality, use the GPU when there is one, and even out the volume from one
+  program to the next. Each is added once, so one you delete stays deleted.
+- **1080p is the default.** It's labelled "1080p (Default)", and new
+  channels start on it. Pick another default under Settings → Encoding. The
+  default can't be deleted, and deleting any other profile moves its
+  channels onto the default.
+- **No more built-in 720p.** Every channel now has a real profile. On
+  upgrade, channels that used the built-in 720p move onto the new 720p
+  profile: the same picture, but with the volume evened out. Move them to
+  1080p on the channel's Settings tab if you like.
+- **More bitrate for big pictures.** A profile above 1080p used to get
+  barely more bitrate than 1080p. At medium quality, 1440p now gets about
+  16 Mbps and 4K about 26.
+- **Scan all.** The Library page has a Scan all button at the top that
+  scans every library, one after another. The button and progress bar say
+  which library it's on ("Scanning 2 of 5"), and the notification bell
+  shows one "Scanned all 5 libraries" with what they found between them. If
+  one library can't be scanned, the rest still are.
+- **One toast per finished job.** A finished scan, metadata fetch or ident
+  build showed its toast twice; now it shows once.
+
 ## 0.24.2 — Steady through the night (2026-10-25)
 
 - **No more "Reconnecting…" loop on a channel left on for hours.** The live
