@@ -22,3 +22,7 @@ export function channelIdIn(slug: string, list: Addressable[]): number | null {
   const n = Number(slug)
   return (list.find((c) => c.number === n) ?? list.find((c) => c.id === n))?.id ?? null
 }
+
+/** An encoding profile's name, marked when it's the default: "1080p (Default)". */
+export const profileLabel = (p: { id: number; name: string }, defaultId: number | null): string =>
+  p.id === defaultId ? `${p.name} (Default)` : p.name

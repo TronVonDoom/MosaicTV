@@ -586,7 +586,11 @@ export const api = {
     request<Channel>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // --- encoding profiles ---
-  profiles: () => request<{ profiles: EncodingProfile[]; default: ProfileFields }>('/api/profiles'),
+  // defaultId: the default profile (null only before the starters exist);
+  // startFrom: what a new profile starts as, the default's settings.
+  profiles: () => request<{ profiles: EncodingProfile[]; defaultId: number | null; startFrom: ProfileFields }>('/api/profiles'),
+  setDefaultProfile: (profileId: number) =>
+    request<{ defaultId: number }>('/api/profiles/default', { method: 'PUT', body: JSON.stringify({ profileId }) }),
   addProfile: (data: ProfileInput) => request<EncodingProfile>('/api/profiles', { method: 'POST', body: JSON.stringify(data) }),
   updateProfile: (id: number, data: ProfileInput) => request<EncodingProfile>(`/api/profiles/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProfile: (id: number) => request<void>(`/api/profiles/${id}`, { method: 'DELETE' }),

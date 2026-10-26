@@ -17,6 +17,7 @@ import { activeBlockAt, localLogo, logoFor } from '../streaming/logo.js'
 import { asChannelKind, asGuideLook } from '../contract/index.js'
 import { guidePreview } from '../streaming/guideScreen.js'
 import { resolveProfile } from '../streaming/profile.js'
+import { defaultProfileId } from '../seedDefaults.js'
 import { logosDir } from '../paths.js'
 import {
   BlockCreate,
@@ -146,8 +147,9 @@ channelsRouter.post('/', async (req, res) => {
     // Every channel starts with an ident that plays everywhere else — Mosaic,
     // from its logo — so a break always has something its Breaks tab lists,
     // and there's something to edit rather than a hidden default.
+    const profileId = body.profileId ?? (await defaultProfileId())
     const c = await prisma.$transaction(async (tx) => {
-      const c = await tx.channel.create({ data: body })
+      const c = await tx.channel.create({ data: { ...body, profileId } })
       const f = await tx.filler.create({ data: { channelId: c.id, name: c.name, style: 'mosaic', order: 0 } })
       await tx.fillerAssignment.create({ data: { fillerId: f.id, channelId: c.id } })
       return c
@@ -192,6 +194,7 @@ channelsRouter.patch('/:id', async (req, res) => {
   const body = readBody(ChannelUpdate, req, res)
   if (!body) return
   const data = forStorage(body)
+  if (data.profileId === null) data.profileId = await defaultProfileId()
   const { logoId, logoUrl, profileId } = body
   try {
     const before = await prisma.channel.findUnique({ where: { id } })

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { prisma } from './db.js'
 import { assetsDir, logosDir } from './paths.js'
 import { log } from './logs.js'
+import { DEFAULT_PROFILE } from './streaming/profile.js'
 
 // Bundled starter tracks (web/public/defaults, shipped via the frontend build
 // the same way the fallback logo is — see localLogo() in streaming/logo.ts) so a
@@ -85,4 +86,79 @@ export async function seedDefaultLogo(): Promise<void> {
     return count
   })
   log('info', 'system', `Added the MosaicTV logo${moved ? ` — ${moved} channel(s) that showed it with no logo of their own now use it` : ''}`)
+}
+
+// Starter encoding profiles, one for each common picture size, all with the
+// settings DEFAULT_PROFILE holds: whichever GPU the host has (the CPU
+// otherwise), the quality ladder (its bitrate grows with the picture — see
+// encoderArgs), deinterlacing for the frames that need it, stereo for every
+// player, and the volume evened out from one program to the next (dynaudnorm:
+// cheap, and no delay to start). Not "seeded_" like the uploads above: a reset
+// always empties the profiles, so their marks go with them and the starters
+// come back.
+const STARTER_PROFILES = [
+  { key: '720p', name: '720p', width: 1280, height: 720 },
+  { key: '1080p', name: '1080p', width: 1920, height: 1080 },
+  { key: '1440p', name: '1440p (2K)', width: 2560, height: 1440 },
+  { key: '2160p', name: '2160p (4K)', width: 3840, height: 2160 },
+]
+const starterKey = (key: string) => `starter_profile_${key}`
+/** The default until someone picks another. */
+const DEFAULT_STARTER = '1080p'
+/** Channels with no profile aired at the old built-in default, 720p; this starter is it now. */
+const BUILT_IN_STARTER = '720p'
+
+/**
+ * The Setting holding the default profile's id. New channels start on it, a
+ * channel whose profile is deleted moves to it, and it can't be deleted itself.
+ */
+export const DEFAULT_PROFILE_KEY = 'defaultProfile'
+
+async function existingProfile(value: string | undefined): Promise<number | null> {
+  const id = Number(value)
+  if (!value || !Number.isInteger(id)) return null
+  return (await prisma.encodingProfile.findUnique({ where: { id }, select: { id: true } }))?.id ?? null
+}
+
+/** The default profile's id, or null before there is one. */
+export async function defaultProfileId(): Promise<number | null> {
+  return existingProfile((await prisma.setting.findUnique({ where: { key: DEFAULT_PROFILE_KEY } }))?.value)
+}
+
+/**
+ * Add the starter profiles, each once (its mark holds its id), so one deleted
+ * stays deleted and one added to the list later reaches existing installs on
+ * their next boot. Channels with no profile move onto the 720p one when it
+ * arrives, so they look as they did. Then there's always a default — the
+ * 1080p one, unless someone picked another — and no channel without a profile.
+ */
+export async function seedDefaultProfiles(): Promise<void> {
+  const added: string[] = []
+  let moved = 0
+  for (const s of STARTER_PROFILES) {
+    const key = starterKey(s.key)
+    if (await prisma.setting.findUnique({ where: { key } })) continue
+    moved += await prisma.$transaction(async (tx) => {
+      const profile = await tx.encodingProfile.create({ data: { ...DEFAULT_PROFILE, name: s.name, width: s.width, height: s.height } })
+      await tx.setting.create({ data: { key, value: String(profile.id) } })
+      if (s.key !== BUILT_IN_STARTER) return 0
+      return (await tx.channel.updateMany({ where: { profileId: null }, data: { profileId: profile.id } })).count
+    })
+    added.push(s.name)
+  }
+  if (added.length) {
+    log('info', 'system', `Added the starter encoding profiles: ${added.join(', ')}${moved ? ` — ${moved} channel(s) on the old built-in 720p now use 720p` : ''}`)
+  }
+
+  let fallback = await defaultProfileId()
+  if (fallback == null) {
+    const starter = await existingProfile((await prisma.setting.findUnique({ where: { key: starterKey(DEFAULT_STARTER) } }))?.value)
+    const pick = starter != null ? { id: starter } : await prisma.encodingProfile.findFirst({ orderBy: { id: 'asc' }, select: { id: true } })
+    if (!pick) return
+    fallback = pick.id
+    const value = String(fallback)
+    await prisma.setting.upsert({ where: { key: DEFAULT_PROFILE_KEY }, create: { key: DEFAULT_PROFILE_KEY, value }, update: { value } })
+  }
+  const { count } = await prisma.channel.updateMany({ where: { profileId: null }, data: { profileId: fallback } })
+  if (count) log('info', 'system', `${count} channel(s) with no encoding profile now use the default`)
 }

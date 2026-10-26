@@ -83,6 +83,8 @@ export const ChannelCreate = z.object({
   name: requiredText('name is required'),
   group: textOrNull,
   logoId: loose.transform((v): number | null => (v != null ? Number(v) : null)),
+  // Left out (or null), it starts on the default profile (Settings → Encoding).
+  profileId: idOrNull.optional(),
   // A guide channel (see Channel.kind); a normal one when left out.
   kind: loose.transform(asChannelKind),
 })
@@ -95,6 +97,7 @@ export const ChannelUpdate = z.object({
   group: textOrNull.optional(),
   logoUrl: textOrNull.optional(),
   logoId: idOrNull.optional(),
+  // null puts it back on the default profile.
   profileId: idOrNull.optional(),
   comingUp: comingUp.optional(),
   // '' from a cleared <select> means "inherit the global setting", not "no audio".
@@ -404,6 +407,9 @@ export type IdentOrder = z.output<typeof IdentOrder>
 // ── Settings ────────────────────────────────────────────────────────────────
 
 export const WatermarkSave = loose.transform((v) => sanitizeWatermark(v))
+
+/** The default encoding profile (see DEFAULT_PROFILE_KEY on the server). */
+export const DefaultProfileSave = z.object({ profileId: requiredNumber('profileId is required') })
 
 export const StreamModeSave = z.object({
   mode: loose.transform((v) => (v === 'hls' ? ('hls' as const) : ('mpegts' as const))),

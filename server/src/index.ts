@@ -17,7 +17,7 @@ import { applyPendingRestore } from './restore.js'
 import { eventStream, watch } from './events.js'
 import { migrateDatabase } from './dbMigrate.js'
 import { replanIfTimezoneChanged } from './schedule/scheduleChanges.js'
-import { seedDefaultAudio, seedDefaultLogo } from './seedDefaults.js'
+import { seedDefaultAudio, seedDefaultLogo, seedDefaultProfiles } from './seedDefaults.js'
 import { reparseAfterUpgrade, rescanAfterUpgrade, tagExtras } from './scanner/scanner.js'
 import { fillLogosAfterUpgrade } from './metadata/metadata.js'
 import { startWarmingLogos } from './metadata/artworkFiles.js'
@@ -207,6 +207,7 @@ async function boot(): Promise<void> {
   await replanIfTimezoneChanged().catch((e) => log('error', 'playout', 'Timezone check failed', String(e?.stack || e)))
   await seedDefaultAudio().catch((e) => log('error', 'system', 'Default audio seed failed', String(e?.stack || e)))
   await seedDefaultLogo().catch((e) => log('error', 'system', 'Adding the MosaicTV logo failed', String(e?.stack || e)))
+  await seedDefaultProfiles().catch((e) => log('error', 'system', 'Adding the starter encoding profiles failed', String(e?.stack || e)))
   await tagExtras().catch((e) => log('error', 'system', 'Telling extras apart failed', String(e?.stack || e)))
   await reparseAfterUpgrade().catch((e) => log('error', 'system', 'Queueing the upgrade’s rescan failed', String(e?.stack || e)))
   // In the background: a library's scan can take a while.

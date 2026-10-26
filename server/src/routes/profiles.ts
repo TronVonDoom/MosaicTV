@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
-import { resolveProfile, DEFAULT_PROFILE } from '../streaming/profile.js'
+import { resolveProfile } from '../streaming/profile.js'
 import { warmFiller } from '../streaming/filler.js'
+import { DEFAULT_PROFILE_KEY, defaultProfileId } from '../seedDefaults.js'
+import { DefaultProfileSave } from '../contract/index.js'
+import { readBody } from '../validate.js'
 
 export const profilesRouter = Router()
 
@@ -27,9 +30,26 @@ function sanitize(body: Record<string, unknown>) {
   })
 }
 
+// Smallest picture first, so the list reads 720p → 4K wherever it's shown.
+// startFrom: what a new profile starts as — the default's settings.
 profilesRouter.get('/', async (_req, res) => {
-  const profiles = await prisma.encodingProfile.findMany({ orderBy: { createdAt: 'asc' } })
-  res.json({ profiles, default: DEFAULT_PROFILE })
+  const profiles = await prisma.encodingProfile.findMany({ orderBy: [{ height: 'asc' }, { width: 'asc' }, { id: 'asc' }] })
+  const defaultId = await defaultProfileId()
+  const startFrom = resolveProfile(profiles.find((p) => p.id === defaultId) ?? null)
+  res.json({ profiles, defaultId, startFrom })
+})
+
+// Which profile is the default. Channels already made keep theirs.
+profilesRouter.put('/default', async (req, res) => {
+  const body = readBody(DefaultProfileSave, req, res)
+  if (!body) return
+  const { profileId } = body
+  if (!(await prisma.encodingProfile.findUnique({ where: { id: profileId }, select: { id: true } }))) {
+    return res.status(404).json({ error: 'Profile not found' })
+  }
+  const value = String(profileId)
+  await prisma.setting.upsert({ where: { key: DEFAULT_PROFILE_KEY }, create: { key: DEFAULT_PROFILE_KEY, value }, update: { value } })
+  res.json({ defaultId: profileId })
 })
 
 profilesRouter.post('/', async (req, res) => {
@@ -51,9 +71,18 @@ profilesRouter.patch('/:id', async (req, res) => {
   res.json(updated)
 })
 
+// The default stays (every channel needs one to fall back on); any other's
+// channels move to the default.
 profilesRouter.delete('/:id', async (req, res) => {
-  // Channels referencing it fall back to the built-in default (FK onDelete: SetNull).
-  await prisma.encodingProfile.delete({ where: { id: Number(req.params.id) } }).catch(() => {})
+  const id = Number(req.params.id)
+  const defaultId = await defaultProfileId()
+  if (id === defaultId) return res.status(409).json({ error: 'That’s the default profile. Make another one the default first.' })
+  await prisma
+    .$transaction([
+      prisma.channel.updateMany({ where: { profileId: id }, data: { profileId: defaultId } }),
+      prisma.encodingProfile.delete({ where: { id } }),
+    ])
+    .catch(() => {})
   warmFiller().catch(() => {})
   res.status(204).end()
 })

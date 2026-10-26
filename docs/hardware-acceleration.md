@@ -150,8 +150,10 @@ GPU may need `VAAPI_DEVICE` set to the right render node (see above).
 ## Encoding profiles
 
 **Settings → Encoding** — create profiles and assign them per channel
-(channel **General** tab). Channels without one use the built-in default
-(1280×720, 30 fps).
+(channel **Settings** tab). Four come ready-made — 720p, 1080p, 1440p (2K)
+and 2160p (4K), all 30 fps, medium quality, GPU when there is one, loudness
+evened out — and 1080p is the default: new channels start on it, and a
+deleted profile's channels move to it.
 
 | Setting | What it does |
 | ------- | ------------ |

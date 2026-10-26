@@ -14,6 +14,7 @@ import {
   type GuideLook,
 } from '../../lib/api'
 import { useSyncedDraft } from '../../lib/hooks'
+import { profileLabel } from '../../lib/channels'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import { Badge, Button, Card, Field, InfoHint, Input, Section, Segmented, Select, Switch } from '../ui'
@@ -27,6 +28,7 @@ const offComingUp = (): ComingUpConfig => ({ ...DEFAULT_COMINGUP, enabled: false
  *  channel-wide "coming up next" card, and what its songs air over. */
 export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabProps) {
   const [profiles, setProfiles] = useState<EncodingProfile[]>([])
+  const [defaultId, setDefaultId] = useState<number | null>(null)
   // The form follows the channel as saved — this tab's own saves, and a
   // change made anywhere else — in every field you haven't touched.
   const [form, setForm, formChanges] = useSyncedDraft(drafts, 'general.form', {
@@ -53,7 +55,13 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
   const dirty = Object.keys(formChanges).length > 0 || cuChanged
 
   useEffect(() => {
-    api.profiles().then((r) => setProfiles(r.profiles)).catch(() => {})
+    api
+      .profiles()
+      .then((r) => {
+        setProfiles(r.profiles)
+        setDefaultId(r.defaultId)
+      })
+      .catch(() => {})
   }, [])
 
   async function save(e: React.FormEvent) {
@@ -123,8 +131,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
               <span className="inline-flex items-center gap-1.5">
                 Encoding profile
                 <InfoHint>
-                  How this channel is transcoded for playback. The built-in default suits most setups;
-                  create your own under{' '}
+                  How this channel is transcoded for playback — its picture size, bitrate and the GPU
+                  that does the work. Profiles are made and changed under{' '}
                   <Link to="/settings#encoding" className="text-indigo-300">
                     Settings → Encoding
                   </Link>
@@ -134,15 +142,14 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
             }
           >
             <Select
-              value={form.profileId ?? ''}
+              value={form.profileId ?? defaultId ?? ''}
               onChange={(e) =>
                 setForm({ ...form, profileId: e.target.value ? Number(e.target.value) : null })
               }
             >
-              <option value="">Default (built-in)</option>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {profileLabel(p, defaultId)}
                 </option>
               ))}
             </Select>

@@ -186,19 +186,30 @@ export async function warmCapabilities(): Promise<void> {
 
 // ---- Encoder arguments ------------------------------------------------------
 
-// Video quality → bitrate ladder (nvenc VBR) / CRF (libx264), scaled a bit by
-// resolution so 1080p isn't starved at the same numbers as 720p.
+// Video quality → bitrate ladder (nvenc VBR) / CRF (libx264), for 720p; see
+// bitrateScale for bigger pictures.
 const QUALITY = {
   low: { bitrate: 2.5, crf: '26' },
   medium: { bitrate: 5, crf: '23' },
   high: { bitrate: 8, crf: '20' },
 } as const
 
+const FULL_HD = (1920 * 1080) / (1280 * 720)
+/**
+ * How much more bitrate a picture gets than 720p: in step with its pixels up
+ * to 1080p, then more slowly, since detail doesn't grow as fast as the pixel
+ * count — 1440p about 3.2×, 4K about 5.2× (medium: 16 and 26 Mbps).
+ */
+export function bitrateScale(width: number, height: number): number {
+  const s = Math.max(1, (width * height) / (1280 * 720))
+  return s <= FULL_HD ? s : FULL_HD * (s / FULL_HD) ** 0.6
+}
+
 export function encoderArgs(enc: string, p: StreamProfile): string[] {
   const g = String(Math.max(2, p.fps * 2))
   const q = QUALITY[p.quality]
-  const scale = (p.width * p.height) / (1280 * 720) // relative to 720p
-  const mbps = (n: number) => `${(Math.max(0.5, n) * Math.max(1, Math.min(2.5, scale))).toFixed(1)}M`
+  const scale = bitrateScale(p.width, p.height)
+  const mbps = (n: number) => `${(Math.max(0.5, n) * scale).toFixed(1)}M`
   // An explicit bitrate wins over the quality ladder; buffer defaults to 2x it.
   const kbps = (n: number) => `${Math.max(1, Math.round(n))}k`
   const bv = p.videoBitrateK > 0 ? kbps(p.videoBitrateK) : mbps(q.bitrate)

@@ -7,7 +7,7 @@ import { prisma } from '../db.js'
 import { copyDatabase, databaseFile } from '../dbMigrate.js'
 import { assetsDir, coversDir, dataDir, forTar, logoCacheDir, logosDir, previewsDir, promosDir, screensDir, thumbsDir, tmdbCacheDir } from '../paths.js'
 import { log } from '../logs.js'
-import { seedDefaultAudio, seedDefaultLogo } from '../seedDefaults.js'
+import { seedDefaultAudio, seedDefaultLogo, seedDefaultProfiles } from '../seedDefaults.js'
 import { stopAllSegmenters } from '../streaming/segmenter.js'
 import { restartAfter } from '../lifecycle.js'
 import { NotRestorable, checkBackup, pendingRestore } from '../restore.js'
@@ -170,6 +170,7 @@ adminRouter.post('/reset', async (req, res) => {
 
     await seedDefaultAudio()
     await seedDefaultLogo()
+    await seedDefaultProfiles()
     log('warn', 'system', `Instance reset to a clean slate (uploads ${wipeAssets ? 'deleted' : 'kept'})`)
     res.json({ ok: true })
   } catch (e) {

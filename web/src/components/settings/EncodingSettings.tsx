@@ -3,13 +3,16 @@ import { api, type EncodingProfile, type ProfileFields, type ProfileInput } from
 import { toast } from '../../lib/toast'
 import { errorMessage } from '../../lib/errors'
 import { confirmDialog } from '../../lib/confirm'
-import { Badge, Button, Input, Menu, Select, Skeleton, Switch } from '../ui'
+import { Button, Input, Menu, Select, Skeleton, Switch } from '../ui'
+import { profileLabel } from '../../lib/channels'
 import { SettingRow, SettingsGroup, SettingsSection, UnitInput } from './SettingsKit'
 
 const RES = [
   { label: '480p', width: 854, height: 480 },
   { label: '720p', width: 1280, height: 720 },
   { label: '1080p', width: 1920, height: 1080 },
+  { label: '1440p (2K)', width: 2560, height: 1440 },
+  { label: '2160p (4K)', width: 3840, height: 2160 },
 ]
 const resLabel = (w: number, h: number) => RES.find((r) => r.width === w && r.height === h)?.label ?? `${w}×${h}`
 const HW: Record<string, string> = {
@@ -47,7 +50,10 @@ const extras = (p: ProfileFields) =>
 /** The ffmpeg profiles channels pick from, and the one being made or edited. */
 export default function EncodingSettings() {
   const [profiles, setProfiles] = useState<EncodingProfile[] | null>(null)
-  const [defaults, setDefaults] = useState<ProfileFields | null>(null)
+  // What a new profile starts as: the default's settings.
+  const [startFrom, setStartFrom] = useState<ProfileFields | null>(null)
+  // The default: new channels start on it, and a deleted profile's channels move to it.
+  const [defaultId, setDefaultId] = useState<number | null>(null)
   // The profile open in the editor: 'new', one of the list's ids, or none.
   const [editing, setEditing] = useState<'new' | number | null>(null)
   const [form, setForm] = useState<ProfileInput | null>(null)
@@ -60,7 +66,8 @@ export default function EncodingSettings() {
       .profiles()
       .then((r) => {
         setProfiles(r.profiles)
-        setDefaults(r.default)
+        setStartFrom(r.startFrom)
+        setDefaultId(r.defaultId)
       })
       .catch(() => setProfiles((p) => p ?? []))
   useEffect(() => {
@@ -79,9 +86,9 @@ export default function EncodingSettings() {
   function open(p: EncodingProfile | 'new') {
     setError(null)
     if (p === 'new') {
-      if (!defaults) return
+      if (!startFrom) return
       setEditing('new')
-      setForm(blank(defaults))
+      setForm(blank(startFrom))
     } else {
       const { id, ...fields } = p
       setEditing(id)
@@ -112,11 +119,25 @@ export default function EncodingSettings() {
     }
   }
 
+  async function pickDefault(id: number) {
+    const before = defaultId
+    setDefaultId(id)
+    try {
+      await api.setDefaultProfile(id)
+      toast.success(`“${profiles?.find((p) => p.id === id)?.name ?? 'That profile'}” is the default`)
+    } catch (e) {
+      setDefaultId(before)
+      toast.error(errorMessage(e, 'Couldn’t save that'))
+    }
+  }
+
+  const defaultProfile = profiles?.find((p) => p.id === defaultId)
+
   async function del(p: EncodingProfile) {
     if (
       !(await confirmDialog({
         title: `Delete “${p.name}”?`,
-        message: 'Channels using it fall back to the built-in default.',
+        message: `Channels using it move to ${defaultProfile ? `“${profileLabel(defaultProfile, defaultId)}”` : 'the default'}.`,
         confirmLabel: 'Delete profile',
         danger: true,
       }))
@@ -132,26 +153,35 @@ export default function EncodingSettings() {
   return (
     <SettingsSection
       title="Encoding"
-      description="The ffmpeg profiles a channel can pick on its Settings tab — resolution, bitrate, the GPU that does the work. A channel without one uses the built-in default."
+      description="The ffmpeg profiles a channel can pick on its Settings tab — resolution, bitrate, the GPU that does the work. New channels start on the default."
     >
       <SettingsGroup
         title="Profiles"
         actions={
-          <Button size="sm" variant="secondary" icon="plus" onClick={() => open('new')} disabled={!defaults || editing === 'new'}>
+          <Button size="sm" variant="secondary" icon="plus" onClick={() => open('new')} disabled={!startFrom || editing === 'new'}>
             New profile
           </Button>
         }
       >
-        {defaults && (
-          <SettingRow label="Built-in default" badge={<Badge>read-only</Badge>} description={`${summary(defaults)} · ${extras(defaults) || 'no extras'}`} />
-        )}
         {profiles?.map((p) => (
-          <SettingRow key={p.id} label={p.name} active={editing === p.id} description={[summary(p), extras(p)].filter(Boolean).join(' · ')}>
+          <SettingRow
+            key={p.id}
+            label={profileLabel(p, defaultId)}
+            active={editing === p.id}
+            description={[summary(p), extras(p)].filter(Boolean).join(' · ')}
+          >
             <div className="flex items-center gap-1.5">
               <Button size="sm" variant="secondary" icon="edit" onClick={() => open(p)} disabled={editing === p.id}>
                 Edit
               </Button>
-              <Menu label={`${p.name} — more`} items={[{ label: 'Delete profile', icon: 'trash', danger: true, onSelect: () => del(p) }]} />
+              <Menu
+                label={`${p.name} — more`}
+                items={[
+                  p.id === defaultId
+                    ? { label: 'Delete profile', icon: 'trash', disabled: true, hint: 'It’s the default — make another one the default first.', onSelect: () => {} }
+                    : { label: 'Delete profile', icon: 'trash', danger: true, onSelect: () => del(p) },
+                ]}
+              />
             </div>
           </SettingRow>
         ))}
@@ -161,15 +191,33 @@ export default function EncodingSettings() {
           </div>
         )}
         {profiles?.length === 0 && (
-          <SettingRow label="No profiles of your own yet" description="Make one to give a channel its own resolution, bitrate or GPU." />
+          <SettingRow label="No profiles yet" description="Make one to give a channel its own resolution, bitrate or GPU." />
         )}
       </SettingsGroup>
+
+      {profiles && profiles.length > 0 && (
+        <SettingsGroup title="Default">
+          <SettingRow
+            label="Default profile"
+            description="New channels start on it, and channels on a profile you delete move to it. Channels already made keep theirs — change one on its Settings tab."
+          >
+            <Select className="w-56" aria-label="Default profile" value={defaultId ?? ''} onChange={(e) => pickDefault(Number(e.target.value))}>
+              {defaultId == null && <option value="">Pick one</option>}
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </SettingRow>
+        </SettingsGroup>
+      )}
 
       {editing != null && form && (
         <div ref={editorRef} className="scroll-mt-20 space-y-8">
           <SettingsGroup
             title={editing === 'new' ? 'New profile' : `Editing “${editingName ?? 'profile'}”`}
-            description={editing === 'new' ? 'Starts from the built-in default — change what you need.' : 'Changes apply from each channel’s next program.'}
+            description={editing === 'new' ? 'Starts from the default profile’s settings — change what you need.' : 'Changes apply from each channel’s next program.'}
           >
             <SettingRow label="Name">
               <Input className="w-56" placeholder="1080p HD" aria-label="Profile name" value={form.name} onChange={(e) => set('name', e.target.value)} autoFocus />

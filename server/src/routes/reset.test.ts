@@ -1,7 +1,8 @@
 // Settings → Maintenance → Reset to a clean slate: every table empties, what
-// the app made for the old instance goes, and a fresh install's starter logo
-// and tracks come back — with "Delete uploaded files too" off, the uploads
-// stay usable, rows and files, and nothing starter is added twice.
+// the app made for the old instance goes, and a fresh install's starter logo,
+// tracks and encoding profiles come back — with "Delete uploaded files too"
+// off, the uploads stay usable, rows and files, and nothing starter is added
+// twice (the profiles always go, so theirs always come back).
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -100,13 +101,18 @@ test('every table is filled before each reset, so a missed one shows', async () 
   assert.deepEqual(Object.keys(await rowsPerTable()).sort(), tables.map((t) => t.name).sort())
 })
 
-test('a clean slate: every row and file goes, and the starter logo and tracks come back', async () => {
+// The starter profiles, each with its mark, and which one new channels start on.
+const STARTER_PROFILES = ['720p', '1080p', '1440p (2K)', '2160p (4K)']
+const starterMarks = (key: string) => key.startsWith('starter_profile_') || key === 'defaultProfile'
+
+test('a clean slate: every row and file goes, and the starter logo, tracks and profiles come back', async () => {
   const res = await reset(true)
   assert.equal(res.status, 200)
   // Sign-in stays: its setting, and what's signed in.
-  assert.deepEqual(await rowsPerTable(), { Asset: 4, Device: 1, Logo: 1, Setting: 6 })
+  assert.deepEqual(await rowsPerTable(), { Asset: 4, Device: 1, EncodingProfile: 4, Logo: 1, Setting: 11 })
   assert.equal((await prisma.logo.findFirstOrThrow()).name, 'MosaicTV')
-  assert.ok((await prisma.setting.findMany()).every((s) => s.key.startsWith('seeded_') || s.key.startsWith('auth')))
+  assert.deepEqual((await prisma.encodingProfile.findMany({ orderBy: { id: 'asc' } })).map((p) => p.name), STARTER_PROFILES)
+  assert.ok((await prisma.setting.findMany()).every((s) => s.key.startsWith('seeded_') || s.key.startsWith('auth') || starterMarks(s.key)))
   assert.ok(!filesIn(paths.logosDir()).includes('logo-mine.png'))
   assert.ok(!filesIn(paths.assetsDir()).includes('asset-mine.mp3'))
   assert.deepEqual(made(), [])
@@ -118,8 +124,9 @@ test('keeping uploads keeps them usable, and adds no second starter logo or trac
   await fillEverything()
   const res = await reset(false)
   assert.equal(res.status, 200)
-  assert.deepEqual(await rowsPerTable(), { Asset: 5, Device: 2, Logo: 1, Setting: 6 })
+  assert.deepEqual(await rowsPerTable(), { Asset: 5, Device: 2, EncodingProfile: 4, Logo: 1, Setting: 11 })
   assert.equal((await prisma.logo.findFirstOrThrow()).name, 'Mine')
+  assert.deepEqual((await prisma.encodingProfile.findMany({ orderBy: { id: 'asc' } })).map((p) => p.name), STARTER_PROFILES)
   assert.ok(filesIn(paths.logosDir()).includes('logo-mine.png'))
   assert.ok(filesIn(paths.assetsDir()).includes('asset-mine.mp3'))
   assert.deepEqual(made(), [])

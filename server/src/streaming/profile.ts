@@ -48,9 +48,12 @@ export type StreamProfile = {
   burnSubtitles: boolean
 }
 
+// The settings the starter profiles share (see seedDefaultProfiles), at the
+// default one's picture size. Every channel has a profile; this is only what
+// one airs at in the moment it has none.
 export const DEFAULT_PROFILE: StreamProfile = {
-  width: 1280,
-  height: 720,
+  width: 1920,
+  height: 1080,
   fps: 30,
   quality: 'medium',
   hwaccel: 'auto',
@@ -62,7 +65,7 @@ export const DEFAULT_PROFILE: StreamProfile = {
   deinterlace: true,
   threads: 0,
   audioChannels: 2,
-  normalizeLoudness: false,
+  normalizeLoudness: true,
   burnSubtitles: false,
 }
 
@@ -98,8 +101,8 @@ export function resolveProfile(p: ProfileRow): StreamProfile {
     Math.max(lo, Math.min(hi, Math.round(Number(v) || def)))
   const preset = p.preset && ALL_PRESETS.has(p.preset) ? p.preset : 'auto'
   return {
-    width: even(p.width, 1280),
-    height: even(p.height, 720),
+    width: even(p.width, DEFAULT_PROFILE.width),
+    height: even(p.height, DEFAULT_PROFILE.height),
     fps: Math.max(1, Math.min(120, Math.round(Number(p.fps) || 30))),
     quality,
     hwaccel,
