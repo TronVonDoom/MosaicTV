@@ -1,14 +1,15 @@
 # Troubleshooting & Backup
 
-## First stop: the Logs page
+## First stop: the log
 
-**Logs** in the sidebar shows the live application log — scans, stream
+**Settings → Activity** shows the live application log — scans, stream
 starts/stops, ffmpeg fallbacks, errors — and has a download button for filing
 issues. Most mysteries are explained there.
 
 ## Second stop: the Container load chart
 
-The **Dashboard** graphs container CPU and memory over the last 5/15/60 minutes,
+**Settings → Activity** also has the server's status, and graphs container
+CPU and memory over the last 5/15/60 minutes,
 with a vertical rule at every playout change — an episode, a break, or a music
 video starting. Hover any point to read the exact figures and what was playing.
 
@@ -22,7 +23,7 @@ app process only and exclude ffmpeg — the figures are meaningless in that case
 
 ## Common issues
 
-### The dashboard says "ffmpeg: NOT available"
+### Settings › Activity says "No ffmpeg"
 Only possible in non-Docker/dev setups (the Docker image bundles ffmpeg).
 Install ffmpeg and make sure it's on the PATH.
 
@@ -48,26 +49,26 @@ Install ffmpeg and make sure it's on the PATH.
 ### A channel isn't in the M3U / guide
 - Draft channels (no **number**) are excluded on purpose — set a number.
 - The channel needs a schedule — a rotation and/or blocks with something in
-  them. Its guide builds by itself from there; the channel's **Guide** tab
-  shows it, and **Logs** says why if it couldn't ("couldn't rebuild the
+  them. Its guide builds by itself from there; the channel's **On air** tab
+  shows it, and the log says why if it couldn't ("couldn't rebuild the
   guide").
 
 ### The stream stops when a second device tunes in
 That's your *player's* tuner limit, not MosaicTV: raise Jellyfin's
 *Simultaneous stream limit* (0 = unlimited), or give Threadfin/xTeVe more
-tuners for Plex. MosaicTV happily serves them all — in MPEG-TS mode each
-client gets its own stream, and in shared-HLS mode they all read one.
+tuners for Plex. MosaicTV happily serves them all, from one encode per
+channel.
 
 ### Playback stutters / CPU is pegged
-- If several people watch at once, switch **Settings → Streaming** to
-  **shared HLS** — one transcode per channel instead of one per viewer. This is
-  usually the single biggest win. See [Connecting Players](clients.md#streaming-mode-shared-hls-vs-mpeg-ts).
+- The cost is how many **different** channels are being watched at once:
+  viewers of the same channel share one encode (see
+  [Connecting Players](clients.md#streaming-mode-shared-hls-vs-mpeg-ts)).
 - Lower the encoding profile (720p, faster preset), or
 - enable [hardware acceleration](hardware-acceleration.md).
 - Remember: only channels **being watched** are encoded.
-- Look for `encoder slower than real-time` in **Logs** — that's the encoder
+- Look for `encoder slower than real-time` in the log (**Settings → Activity**) — that's the encoder
   failing to keep up, and it's what viewers see as freezing.
-- Cross-check the Dashboard's **Container load** chart: if CPU steps up at one
+- Cross-check the **Container load** chart in **Settings → Activity**: if CPU steps up at one
   transition and stays there, that item (or the profile it's using) is the cost.
 
 ### Schedule times are off by hours
@@ -76,13 +77,13 @@ Every channel's guide is rebuilt for the new timezone when it starts.
 
 ### I edited my schedule but the stream still plays the old one
 Edits take effect from the next program: the one on now plays out first, and
-so does one starting within about 20 seconds. The channel's **Guide** tab says
+so does one starting within about 20 seconds. The channel's **On air** tab says
 where the change took effect ("Updated from …"). If nothing changes after
-that, look in **Logs** for "couldn't rebuild the guide".
+that, look in the log (**Settings → Activity**) for "couldn't rebuild the guide".
 
 ### GPU isn't being used
 Check the [Hardware Acceleration](hardware-acceleration.md) setup for your
-platform, then look in **Logs** for either:
+platform, then look in the log (**Settings → Activity**) for either:
 
 - `Video encoder selected: …` — what MosaicTV actually settled on, or
 - `Profile requests <vendor> but <encoder> does not work on this host` — the
@@ -96,7 +97,7 @@ container isn't seeing the card (runtime/toolkit issue). On VAAPI, make sure
 
 ### A program shows the station ident instead
 The channel couldn't play that file, so it covered the slot and moved on to the
-next program on time. **Logs** says why:
+next program on time. The log (**Settings → Activity**) says why:
 
 - `… retrying it on the CPU` then `… holding the rest of its slot with the
   station ident` — the file failed on the GPU and again on the CPU. The line
@@ -114,7 +115,9 @@ Everything MosaicTV owns lives in **one folder**: the `/app/data` volume
 (database, uploaded logos, music and clips, built idents). Your media is never
 touched.
 
-- **In-app:** **Settings → Maintenance → Download backup (.tar.gz)** — grabs
+<img src="screenshots/settings-maintenance.webp" alt="Settings → Maintenance: the version running, where live segments go, and the credits" width="100%" />
+
+- **In-app:** **Settings → Maintenance → Download a backup** — grabs
   the database, logos, music and clips, and the covers copied out of your
   music files, in one archive. It leaves out what MosaicTV makes again by
   itself: the live streams' segments, built idents, now-playing screens,

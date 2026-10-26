@@ -6,13 +6,16 @@ MosaicTV speaks the two standards every IPTV-capable player understands:
 - **XMLTV guide (EPG)** — `http://YOUR-SERVER:8688/iptv/xmltv.xml`
 
 (Both URLs — plus the HDHomeRun tuner address — are one click away under
-**Live TV setup** at the bottom of the sidebar, with copy buttons and per-player steps.)
+**Live TV setup**, the link icon at the bottom of the rail (in **More** on a
+phone), with copy buttons and per-player steps.)
+
+<img src="screenshots/live-tv-setup.webp" alt="Live TV setup: the M3U, XMLTV and tuner addresses with copy buttons, and steps for each player" width="100%" />
 
 Tune in mid-program and a channel picks up at the right spot, just like real TV.
 
 ## Casting from TV mode
 
-**Watch** (TV mode — or click any channel's picture) has a **Cast** button over
+**Watch** (TV mode — see [Watching](watching.md)) has a **Cast** button over
 the picture. Once a TV is playing, TV mode is its remote: flip channels and the
 TV follows.
 
@@ -32,19 +35,27 @@ TV follows.
 **Settings → Streaming → Stream format** decides which URL the M3U hands your players. Both
 endpoints are always live — this only changes what the playlist advertises.
 
-| Mode | URL | One transcode per… |
+| Mode | URL | What a viewer gets |
 | ---- | --- | ------------------ |
-| **MPEG-TS** (default) | `/iptv/channel/<number>.ts` | **viewer** |
-| **Shared HLS** | `/iptv/channel/<number>/index.m3u8` | **channel** |
+| **MPEG-TS** (default, recommended) | `/iptv/channel/<number>.ts` | A continuous stream, copied from the channel's one encode |
+| **Shared HLS** | `/iptv/channel/<number>/index.m3u8` | The channel's HLS segments, read straight off disk |
 
-**Pick shared HLS if more than one person watches at a time.** A channel runs a
-single encoder that writes rolling segments, and every viewer reads the same
-ones — so three people on one channel cost one transcode instead of three. The
-encoder starts on the first request and shuts down 30 seconds after the last
-viewer leaves, so idle channels still cost nothing.
+**Either way, a channel is encoded once, however many people watch it.** Each
+channel runs a single encoder that writes rolling segments; it starts on the
+first request and stops 30 seconds after the last viewer leaves, so idle
+channels cost nothing.
 
-MPEG-TS remains the default and is the better fit for a single viewer or a
-player that dislikes HLS: it's a continuous stream with no segment latency.
+- **MPEG-TS** wraps those segments into a continuous stream for each viewer —
+  a light copy, not another encode. It's the reliable choice for Jellyfin,
+  Plex and other tuner clients.
+- **Shared HLS** hands players the segments themselves — the lightest of all
+  when many people watch at once, or behind a CDN. Players that don't follow
+  the live edge (Jellyfin, Plex) can freeze on the sliding window, so keep
+  them on MPEG-TS.
+
+TV mode in the browser always plays HLS.
+
+<img src="screenshots/settings-streaming.webp" alt="Settings → Streaming: the stream format, MPEG-TS recommended, and the HDHomeRun tuner's address, name, tuner count and device ID" width="100%" />
 
 > While a shared-HLS channel is warming up (a second or two), the playlist
 > returns **503** and players retry automatically. A channel with nothing
@@ -54,7 +65,7 @@ player that dislikes HLS: it's a continuous stream with no segment latency.
 
 ## Jellyfin
 
-1. **Dashboard → Live TV → Tuner Devices → +**
+1. In Jellyfin: **Dashboard → Live TV → Tuner Devices → +**
    - Type: **M3U Tuner**
    - URL: `http://YOUR-SERVER:8688/iptv/channels.m3u`
 2. **Guide Data Providers → +**
@@ -104,8 +115,8 @@ emulates one natively, so no Threadfin/xTeVe is required.
 > **The tuner always serves MPEG-TS**, whatever *Stream format* is set to. A
 > tuner URL is a raw transport stream by contract, and Plex fails to tune —
 > *"could not tune into your channel, check antenna"* — if handed an HLS
-> playlist. Shared HLS still applies to the M3U; Plex just costs one
-> transcode per viewer.
+> playlist. Shared HLS still applies to the M3U; Plex gets the same one encode
+> per channel, copied.
 
 Threadfin/xTeVe still work as a middle layer if you want their extra
 features (channel remapping, filtering) — point them at the M3U/XMLTV URLs

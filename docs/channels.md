@@ -1,7 +1,8 @@
 # Channels & Scheduling
 
 How MosaicTV decides what airs when — in depth. For the quick version, see
-[Getting Started](getting-started.md).
+[Getting Started](getting-started.md); for step-by-step recipes,
+[How-tos](how-to.md).
 
 ## The model
 
@@ -15,26 +16,53 @@ Channel
 
 ## Channels
 
-**Channels** page → **Add channel**.
+**Channels** lists every channel as a card — its number and logo, what's on
+now over the program's artwork, and the shape of its schedule ("6 blocks · 1
+in rotation") — with **Watch** a tap away. Filter by group, or by **Drafts**.
+
+<img src="screenshots/channels.webp" alt="The Channels page: a card for each channel with its number, logo and what's on now, filters by group, and New channel" width="100%" />
+
+**New channel** makes one in three steps — name it, pick what it plays, choose
+all day or blocks (see [Getting Started](getting-started.md#4-make-a-channel)).
+Everything about it is then on the **channel's page**: its live picture at the
+top, and four tabs — **On air**, **Schedule**, **Breaks** and **Settings**.
+
+The **Settings** tab:
 
 - **Number** — the channel's position on the dial, used in the M3U/XMLTV and
   the stream URL (`/iptv/channel/7.ts`). Leave blank for a **draft**: hidden
-  from the guide and stream while you build it out.
+  from the guide and stream while you build it out. The page's address
+  follows it (`/channels/64`).
 - **Name / Group** — shown in players. Group becomes the M3U `group-title`,
-  which many players use to categorize channels.
+  which many players use to categorize channels, and the filters on the
+  Channels page.
 - **Encoding profile** — which output settings this channel streams with
-  (default: built-in 720p30). See [Hardware Acceleration](hardware-acceleration.md).
+  (new channels start on **1080p (Default)**). See
+  [Hardware Acceleration](hardware-acceleration.md#encoding-profiles).
+- **Audio language** — which audio track to prefer when a file has several.
 - **Logo** — shown in players' guides, and doubles as the default on-screen
   watermark. New channels start on the bundled MosaicTV logo; **No logo** shows
   none at all. See [Branding](branding.md).
-- **Coming up next** — an optional card naming the next program, with its poster.
+- **Picture** — **Its programs**, or **The guide** (see
+  [The guide channel](#the-guide-channel)).
+- **Coming up next** — an optional card naming the next program
+  ([Up next cards](branding.md#up-next-cards)).
 - **Music** — what a song airs over, whether lyrics come first, and how the
   guide lists songs (see [Music](#music)).
 
+<img src="screenshots/channel-settings.webp" alt="Cartoon Network's Settings tab: audio language, logo, the Picture, the up-next card switch and the Music settings" width="100%" />
+
 ## Collections
 
-Each channel manages its own collections (**Collections** tab). A collection
-resolves to a set of playable items from two sources, combined and deduped:
+Each channel has its own collections, at the foot of its **Schedule** tab
+under **Collections on this channel** — what the rotation and the blocks
+above pick from. **+ New** makes one; select one to see its members as
+posters.
+
+<img src="screenshots/collections.webp" alt="Cartoon Network's collections: the daytime shows as a poster grid in the order they take turns, with Toonami and Adult Swim beside them" width="100%" />
+
+A collection resolves to a set of playable items from two sources, combined
+and deduped:
 
 1. **Members** — hand-picked entries added from the add box: a whole **show**,
    a single **season** of one, an individual **episode**, a **movie**, an
@@ -50,6 +78,8 @@ resolves to a set of playable items from two sources, combined and deduped:
    on its episodes; an artist on their albums and an album on its songs. Each
    can go in whole (**Add**) or a piece at a time; the box stays open while you
    add, and what's in already is ticked.
+
+   <img src="screenshots/add-box.webp" alt="The add box open on Cartoon Network's collection, with its All, TV Shows, Movies and Music tabs, and the specials and extras switches beside the list" width="100%" />
 2. **Smart filter** — optional: by library, media type (music videos and songs
    included), exact show, title search (which matches an artist too, so music
    videos + "Madonna" is a Madonna block from every library), or genre. Filter results have no hand-picked position, so they come
@@ -57,10 +87,13 @@ resolves to a set of playable items from two sources, combined and deduped:
 
 Only playable items count (files that exist and have a known duration).
 
-**Specials and extras.** A library keeps everything it finds, as Plex does —
+### Specials and extras
+
+A library keeps everything it finds, as Plex does —
 season 0, and the featurettes, trailers and deleted scenes filed with a movie
 or show (which you'll find under that movie or show, not in the grid). Each
-**channel** decides whether they air, on its **Collections** tab:
+**channel** decides whether they air, in the note under its collections list
+(**Schedule** tab, **Collections on this channel**):
 
 - **Specials** — pilots, holiday specials, shorts and promos filed as season 0.
   They sort before season 1, so a whole show starts with them.
@@ -75,11 +108,15 @@ stays put when the channel changes — so Nickelodeon can take specials while Re
 & Stimpy's season 0 stays off. A season 0 or an extra you pick on its own airs
 either way.
 
+### Playback order and what airs
+
 **Plays in this order** (in the collection's **Settings**) sets its own playback
 order (below), with each choice explained and the collection's first airings
 previewed as you pick. Every rotation item and time block defaults to
 *collection default*, so a collection airing in five places only needs its
 order set once — override it per slot when you actually want them to differ.
+
+<img src="screenshots/playback-orders.webp" alt="A collection's settings: the five playback orders, each in plain words, with a preview of its first airings" width="100%" />
 
 **What airs** lists what the collection resolves to, in its order — the
 quickest way to check an arrangement came out the way you meant.
@@ -87,7 +124,7 @@ quickest way to check an arrangement came out the way you meant.
 ## Music
 
 A music video airs like any program. A **song** has no picture, so it airs over
-a **now playing** screen drawn for it, set on the channel's **General** tab
+a **now playing** screen drawn for it, set on the channel's **Settings** tab
 under **Music**:
 
 - **Album** (the default) — the cover over a blur of itself, with the title,
@@ -123,6 +160,10 @@ videos, shows and movies however its collections and schedule have them.
   in the XMLTV guide your players read, where a block's songs are its
   description.
 
+<img src="screenshots/now-playing.webp" alt="A music channel's now-playing screen: the album cover, the song, its album and track, a progress bar, and what played before and what's next" width="100%" />
+
+<img src="screenshots/music-settings.webp" alt="A channel's Music settings: the now-playing screen, lyrics first, what played before and what's next, and how the guide lists songs" width="100%" />
+
 ## The guide channel
 
 A channel can be a **guide channel**, the way cable systems had one: its
@@ -132,7 +173,7 @@ the date, and a window up top on something that's on. Any player that can
 tune a channel can see what's on: an IPTV app, Plex's Live TV, a TV with no
 guide of its own.
 
-Make one on a channel's **General** tab under **Picture**: **The guide**. Pick
+Make one on a channel's **Settings** tab under **Picture**: **The guide**. Pick
 its **Look** — **Classic**, the blue cable guide with yellow numbers, or
 **Mosaic**, the app's own dark look — and the tab shows the guide as it would
 air now. Songs in its rotation or blocks play underneath, the way a music
@@ -145,6 +186,8 @@ break is part of the program before it, and a run of songs is its hour block.
 The grid moves on each half hour. In the guide itself — the web guide, the
 apps and XMLTV — a guide channel is listed as one program a half hour, named
 after the channel.
+
+<img src="screenshots/guide-channel.webp" alt="The guide channel in its Classic look: now on Nickelodeon in the window, the clock and the date, and every channel's next ninety minutes" width="100%" />
 
 ## Broadcast episodes (multi-segment shows)
 
@@ -290,6 +333,11 @@ Per block:
   turning it off for just this block.
 - **Breaks** — whether the block keeps to its times (below).
 
+Click an empty slot on the grid to start a block at that day and time, or a
+block (or its **Edit**) to change it; the form opens under the grid.
+
+<img src="screenshots/block-editor.webp" alt="Editing SNICK's block on Nickelodeon: Saturday 8 to 10 PM, a hard start, ending on time with a break, on its own :00 and :30 clock" width="100%" />
+
 ### Seasons: blocks for part of the year
 
 A block's **Season** makes it air only between two dates: **Every year**
@@ -306,6 +354,8 @@ Halloween-night block can sit inside the October one, and a one-off beats an
 every-year block on the same dates ("this year's Christmas Eve is
 different"). Two blocks whose seasons cross, with neither inside the other,
 can't share hours.
+
+<img src="screenshots/block-season.webp" alt="A block's Season: every year, October 1 to October 31, with October, Christmas, The holidays and Summer one click away" width="100%" />
 
 On the weekly grid, blocks with a season are striped and drawn over the right
 of the day, side by side where two share a slot. The guide's **Weeks ahead**
@@ -383,6 +433,12 @@ at 10:00.
 - The XMLTV guide lists a short break as part of the program before it, the
   way a paper guide does.
 
+A block can keep its own clock. Cartoon Network's weekday afternoon block runs
+on quarter hours with breaks inside programs, while the rest of the channel
+runs back to back:
+
+<img src="screenshots/block-clock.webp" alt="Editing Cartoon Network's weekday 3 to 6 PM block: its own quarter-hour clock, with breaks inside programs" width="100%" />
+
 ### Breaks inside programs
 
 With the clock on, **Breaks inside programs** shares each slot's break time out
@@ -415,16 +471,18 @@ what to change:
   leave those shows' specials out;
 - an exact-time start **between the lines of the clock**.
 
-The Guide tab's **Weeks ahead** lays the schedule out 2, 4 or 8 weeks past the
+The **On air** tab's **Weeks ahead** lays the schedule out 2, 4 or 8 weeks past the
 guide, exactly as the next builds will, without saving anything: any day's
 programs, a search for a show, how late each block really starts (usually, and
 at worst), break time per day, time off air, and when each show goes back to
 an earlier episode.
 
+<img src="screenshots/weeks-ahead.webp" alt="Weeks ahead on Nickelodeon: break time a day, never off air, 15 shows going back to an earlier episode, and how late each block starts, usually and at worst" width="100%" />
+
 ## The playout (guide)
 
-The **Guide** tab shows the channel's timeline — exactly what airs when, as a
-timeline or a list. There's nothing to build: the engine walks forward,
+The **On air** tab shows the channel's guide — exactly what airs when, as a
+**Timeline** or a **List**. There's nothing to build: the engine walks forward,
 applying blocks when they're active and the rotation otherwise, packing
 programs and inserting breaks to land on block boundaries, as far ahead as the
 **Build ahead** setting (Settings → Channels).
@@ -435,9 +493,8 @@ programs and inserting breaks to land on block boundaries, as far ahead as the
   start), and everything carries on from where it was up to. The tab
   says where the change took effect ("Updated from 8:30 PM").
 - **It extends itself** as time passes, whether anyone is watching or not.
-- **It looks back, too.** The timeline, and the full guide on the Channels
-  page, scroll back three hours to what already aired, dimmed; the Dashboard
-  shows the last half hour.
+- **It looks back, too.** The timeline, and the Guide page, scroll back three
+  hours to what already aired, dimmed.
 - **Start over** starts every collection over from the top — each show at
   its first episode, each artist at their first song — from the next program:
   the only manual control, and rarely what you want.
@@ -447,6 +504,8 @@ programs and inserting breaks to land on block boundaries, as far ahead as the
   gave out). History is kept for 90 days; a show's page says when each episode
   last aired.
 
+<img src="screenshots/what-aired.webp" alt="What aired on Nickelodeon today: every program with its time and length, the one on now marked" width="100%" />
+
 Each program in the guide remembers where every show stood when it was
 scheduled, which is what lets an edit pick up exactly there — nothing is
 skipped and nothing repeats. (A guide built by 0.12 or earlier has no such
@@ -455,11 +514,12 @@ version started building: at most a horizon away, usually a day.)
 
 ## Streams
 
-Each channel is a continuous MPEG-TS stream at
-`/iptv/channel/<number>.ts`. Tuning in mid-program starts at the right offset
-— just like real TV. Multiple clients can watch the same channel; each gets
-its own stream. All items are normalized to the channel's encoding profile so
-transitions are seamless.
+Each channel is a live stream, as MPEG-TS at `/iptv/channel/<number>.ts` or
+shared HLS at `/iptv/channel/<number>/index.m3u8` (see
+[Streaming mode](clients.md#streaming-mode-shared-hls-vs-mpeg-ts)). Tuning in
+mid-program starts at the right offset — just like real TV. Every program is
+normalized to the channel's encoding profile, so the changes between them are
+seamless.
 
 A channel encodes a few seconds ahead of its schedule. That's what makes
 tuning in quick (the first seconds are encoded in a burst), and it means the

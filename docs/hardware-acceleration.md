@@ -155,6 +155,8 @@ and 2160p (4K), all 30 fps, medium quality, GPU when there is one, loudness
 evened out — and 1080p is the default: new channels start on it, and a
 deleted profile's channels move to it.
 
+<img src="screenshots/settings-encoding.webp" alt="Settings → Encoding: the ready-made 720p, 1080p (Default), 1440p and 4K profiles, and the default profile" width="100%" />
+
 | Setting | What it does |
 | ------- | ------------ |
 | **Resolution / FPS** | Output size and frame rate for the whole channel |

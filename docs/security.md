@@ -31,6 +31,8 @@ Then, from away:
 - **Casting** hands the TV a link of its own, so a cast plays wherever the TV
   is.
 
+<img src="screenshots/settings-signin.webp" alt="Settings → Sign-in: Ask who you are and Home signs in by itself switched on, the password, and Approve a code" width="100%" />
+
 Everything signed in is listed there with when and from where it was last
 seen, and can be signed out. A content reset (**Maintenance → Reset**) leaves
 sign-in as it was.

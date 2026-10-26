@@ -6,11 +6,13 @@ the corner, station breaks between programs, and "up next" cards.
 ## Logos
 
 Upload logos under **Studio → Logos** (PNG with transparency looks best).
+**Studio** is the branding kit: **Logos**, **Music** for your breaks, and
+**Clips** for idents of your own.
 Uploaded logos are stored in your data volume and can be assigned to:
 
-- a **channel** (General tab) — used in players' guides (M3U `tvg-logo` +
+- a **channel** (its **Settings** tab) — used in players' guides (M3U `tvg-logo` +
   XMLTV icon) *and* as the default on-screen watermark;
-- a **collection** — on screen while that collection airs;
+- a **collection** (its **Settings**) — on screen while that collection airs;
 - a **time block** (Schedule tab) — overrides the on-screen logo while that
   block airs.
 
@@ -26,6 +28,8 @@ look instead. A collection or block left on **The channel's logo** /
 Click a logo to open it in the inspector: rename it, replace its image, or give
 it its own watermark settings. The preview shows the bug over a frame from your
 library, in 16:9 or 4:3, as you change them.
+
+<img src="screenshots/studio-logos.webp" alt="Studio → Logos: the channels' logos, with Cartoon Network's open in the inspector and its watermark previewed over a frame" width="100%" />
 
 ## Watermark behavior
 
@@ -74,7 +78,7 @@ show, instead of going to black:
 
 ### The Breaks tab
 
-<img src="screenshots/breaks.webp" alt="Nickelodeon's Breaks tab: the next break, which blocks have breaks, and its two idents" width="100%" />
+<img src="screenshots/breaks.webp" alt="Nickelodeon's Breaks tab: the next break, which blocks have breaks, and its two Mosaic idents — one for Nickelodeon and SNICK, one for Nick at Nite" width="100%" />
 
 Each channel's **Breaks** tab is the one place its breaks are set up:
 
@@ -93,6 +97,8 @@ Each channel's **Breaks** tab is the one place its breaks are set up:
   later (below).
 - **Corner logo during breaks** — keep the watermark on during this channel's
   breaks.
+
+<img src="screenshots/breaks-map.webp" alt="Where each ident plays: Nickelodeon's week, each block in the colour of the ident its breaks play, and the promo a break would end on now" width="100%" />
 
 ### Idents
 
@@ -188,6 +194,8 @@ break's music. Set how often on the Breaks tab: **every break**, **1 in 2**,
 would end on now, drawn the way it airs, and the next break says when it ends
 on one.
 
+<img src="screenshots/promo.webp" alt="A promo: Johnny Bravo tonight at 5:30, its three cartoons named, with its poster over its backdrop" width="100%" />
+
 A promo is picked from the guide as its break airs, so a schedule change
 changes it, the same as the up-next card. It looks at what starts between
 twenty minutes after the break (what's on next is the up-next card's) and a
@@ -223,7 +231,7 @@ it starts under an **UP NEXT** label, the next program's logo (its name when
 it has none), the episode (`S1 · E4`) and its
 title, or for a movie its year, genres, runtime and rating.
 
-<img src="screenshots/up-next-card.webp" alt="The art banner over Cow and Chicken, naming Dexter's Laboratory at 4:15 PM and its three parts" width="100%" />
+<img src="screenshots/up-next-card.webp" alt="The art banner over Dexter's Laboratory, naming Duck Dodgers at 4:00 and its two cartoons, with the Toonami logo in the corner" width="100%" />
 
 There are five looks:
 
@@ -244,7 +252,7 @@ There are five looks:
   programs after it. **Programs to list** sets how many: 1 (just the next
   one) to 5.
 
-<img src="screenshots/up-next-styles.webp" alt="The logo bar naming Venom, the snipe sliding out of the Cartoon Network logo, the preview, and Coming up listing five movies" width="100%" />
+<img src="screenshots/up-next-styles.webp" alt="The logo bar naming Ghostbusters: Frozen Empire, the snipe sliding out of the Nickelodeon logo naming Doug, the preview of Venom, and Coming up listing five Marvel movies" width="100%" />
 
 A card that would cover your channel's logo steps clear of it — up above it
 at the bottom of the screen, down below it at the top. The art banner and logo
@@ -256,7 +264,7 @@ Upgrading from 0.22: a channel on **Glass** (or with no style saved) becomes
 **Coming up** listing one program, and one on **Broadcast** becomes the **Art
 banner**.
 
-- **Channel-wide**: General tab → Coming up next.
+- **Channel-wide**: the channel's **Settings** tab → **Coming up next**.
 - **Per block**: Schedule tab → edit a block → override (including turning it
   off for that block only).
 
@@ -264,6 +272,8 @@ The settings show a preview: the card your channel's next program would get,
 drawn exactly as it airs, over a still from what's on now, with your channel's
 logo where its watermark sits — so you can see at a glance if the card would
 cover it. It follows your changes before you save.
+
+<img src="screenshots/card-settings.webp" alt="The Coming up next settings on Cartoon Network: the live preview of the card, its timing, and the five styles" width="100%" />
 
 Cards appear over programs from both rotation and blocks, never over a break.
 A station break between two programs doesn't hide the card: it names the
