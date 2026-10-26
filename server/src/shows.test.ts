@@ -131,8 +131,11 @@ test('a folder with no year, or the same year, joins the show of its name', asyn
 })
 
 test('shows of different years filed as one by older builds are split apart', async () => {
+  // 1994 first, on its own: the first year scanned takes the bare name, and a
+  // scan reads several files at once, so in one pass any year could win.
   episode('The Tick (1994) (x264)', 1, 1)
   episode('The Tick (1994) (x264)', 1, 2)
+  await scanLibrary(lib.id)
   episode('The Tick (2001) (Other)', 1, 1)
   episode('The Tick (2016) (x264)', 1, 1)
   await scanLibrary(lib.id)
