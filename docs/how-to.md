@@ -308,7 +308,9 @@ your addresses with copy buttons and steps for each player.
 ## Watch away from home
 
 The easy way: **Tailscale** (or any VPN) on the server and your devices, and
-use the server's Tailscale address — it works exactly as at home.
+use the server's Tailscale address — it works exactly as at home. The
+MosaicTV app learns that address from the server (once something has opened
+MosaicTV at it), so set it up at home and it carries on away.
 
 Or turn on **sign-in**: **Settings → Sign-in**, set a password, turn on **Ask
 who you are**. Home still gets straight in; anything from outside signs in

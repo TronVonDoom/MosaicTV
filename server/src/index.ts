@@ -46,6 +46,7 @@ import { profilesRouter } from './routes/profiles.js'
 import { fillersRouter } from './routes/fillers.js'
 import { authRouter } from './routes/auth.js'
 import { authGate, linkPrefix, resetSignInIfAsked } from './auth.js'
+import { addressNoter, tailscaleAddresses } from './addresses.js'
 import { apiErrorHandler, catchAsyncErrors } from './asyncRoutes.js'
 import { VERSION } from './version.js'
 
@@ -59,6 +60,9 @@ app.use(express.json({ limit: '10mb' })) // logo uploads arrive as base64 data U
 // then the gate every request passes, open as ever while sign-in is off.
 app.use(linkPrefix)
 app.use(authGate)
+// The Tailscale address a request reached the server at, for the app to try
+// away from home (see addresses.ts).
+app.use(addressNoter)
 
 // Gzip what the web app reads — a big library's lists and a show's page are
 // hundreds of KB of JSON that shrink about tenfold — and the app's own files.
@@ -100,6 +104,12 @@ app.get('/api/health', (_req, res) => {
     ffmpeg: ffmpegAvailable,
     segments: { dir: hlsDir(), inMemory: inMemory(hlsDir()) },
   })
+})
+
+// The other addresses this server answers at: today, the Tailscale ones it's
+// been reached at. Behind the gate, so only a device that's let in reads them.
+app.get('/api/addresses', async (_req, res) => {
+  res.json({ tailscale: await tailscaleAddresses() })
 })
 
 app.get('/api/stats', async (_req, res) => {

@@ -69,6 +69,11 @@ Two good ways:
   home. **[Tailscale](https://tailscale.com/)** is the easiest (install on the
   server and your devices, use the server's Tailscale IP), and with sign-in on
   it counts as home; **WireGuard** is built into many routers and Unraid.
+  The **MosaicTV app** needs nothing typed for Tailscale: once something has
+  opened MosaicTV at its Tailscale address, the server hands that address to
+  the app, which tries it whenever the home address doesn't answer. (The
+  server only passes on addresses it was reached at straight from Tailscale,
+  and the app only takes Tailscale ones.)
 - **Sign-in** and a reverse proxy with HTTPS (Caddy, Nginx Proxy Manager,
   Traefik) in front. MosaicTV honors `X-Forwarded-Proto` / `X-Forwarded-Host`,
   so the addresses in its M3U, XMLTV and player links stay right behind it.

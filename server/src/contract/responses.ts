@@ -41,6 +41,9 @@ export type Health = {
   segments: { dir: string; inMemory: boolean | null }
 }
 
+/** GET /api/addresses: the Tailscale addresses the server's been reached at lately (addresses.ts). */
+export type Addresses = { tailscale: string[] }
+
 export type Stats = {
   libraries: number
   items: number
