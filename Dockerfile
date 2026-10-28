@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 
+# Built for linux/amd64 and linux/arm64. The two build stages produce only
+# JavaScript, so they run on the builder's own platform (fast, no emulation);
+# the runtime stage is the one built per platform.
+
 # ---- Stage 1: build the React frontend ----
-FROM node:22-slim AS web-build
+FROM --platform=$BUILDPLATFORM node:22-slim AS web-build
 WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci
@@ -12,7 +16,7 @@ COPY server/src/contract /server/src/contract
 RUN npm run build
 
 # ---- Stage 2: compile the Express backend + generate Prisma client ----
-FROM node:22-slim AS server-build
+FROM --platform=$BUILDPLATFORM node:22-slim AS server-build
 WORKDIR /server
 COPY server/package*.json ./
 RUN npm ci
@@ -40,11 +44,15 @@ FROM node:22-trixie-slim AS runtime
 # newer) and i965 (older) are VA-API for Intel, their non-free builds carrying
 # the encoders older chips need; libmfx-gen is QuickSync on 11th-gen Core, Arc
 # and newer (older Intel encodes through VA-API); mesa-va-drivers is AMD. About
-# 60 MB, all amd64, as the image is.
+# 60 MB. The Intel ones exist for amd64 only, so arm64 (a Raspberry Pi, an ARM
+# NAS, Apple Silicon) gets Mesa's and encodes on the CPU.
+ARG TARGETARCH
 RUN sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg openssl ca-certificates fonts-dejavu-core \
-    intel-media-va-driver-non-free i965-va-driver-shaders libmfx-gen1.2 mesa-va-drivers \
+  && apt-get install -y --no-install-recommends ffmpeg openssl ca-certificates fonts-dejavu-core mesa-va-drivers \
+  && if [ "$TARGETARCH" = "amd64" ]; then \
+       apt-get install -y --no-install-recommends intel-media-va-driver-non-free i965-va-driver-shaders libmfx-gen1.2; \
+     fi \
   && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV DATABASE_URL=file:/app/data/mosaictv.db

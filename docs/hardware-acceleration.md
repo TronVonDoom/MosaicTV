@@ -46,13 +46,15 @@ you build, or how many people watch.
 | - | ----- | ----------- | ----- |
 | **Channels watched at once** | 1–2 | 3–5 | 6 or more |
 | **CPU** | 4 cores, from about 2015 on | 4–6 cores | 6–8 cores |
-| **GPU** | None — CPU encoding at the default 720p | Any GPU from the table above; NVIDIA GTX 1050 or newer if your files are mostly HEVC (x265) | NVIDIA RTX |
+| **GPU** | None — CPU encoding at 720p | Any GPU from the table above; NVIDIA GTX 1050 or newer if your files are mostly HEVC (x265) | NVIDIA RTX |
 | **RAM** | 4 GB | 8 GB | 16 GB, to keep live segments in RAM |
 
 Every server also needs:
 
-- **A 64-bit Intel or AMD (amd64) Docker host.** There's no ARM image yet —
-  see [Installation](install.md).
+- **A 64-bit Docker host** — Intel or AMD (amd64), or ARM (arm64). On ARM —
+  a Raspberry Pi 4 or 5, an ARM NAS, Apple Silicon — channels are encoded on
+  the CPU; a Raspberry Pi 5 is the Light tier at 720p, one or two channels at
+  once. See [Installation](install.md).
 - **An SSD for `/app/data`, with about 10 GB free.** A large library uses 1–2
   GB for the database, artwork and caches; backups and live segments need the
   rest. Your media can live anywhere, network shares included. To spare the

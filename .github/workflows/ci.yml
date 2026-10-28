@@ -19,8 +19,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # On both platforms the image is built for (see docker-publish.yml).
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

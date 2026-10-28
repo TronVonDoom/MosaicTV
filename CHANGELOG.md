@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Runs on ARM.** The image is built for arm64 as well as amd64, so a
+  Raspberry Pi 4 or 5 (on a 64-bit OS), an ARM NAS or Docker Desktop on a
+  Mac pulls the same `ghcr.io/tronvondoom/mosaictv` and gets its own. On ARM
+  channels are encoded on the CPU — on a Raspberry Pi 5, one or two at 720p
+  watched at once. Each platform is built on its own kind of machine and
+  started once before it's published, and the tests run on both (#6).
 - **Sign-in can't be walked past through Docker's own address.** Home
   signing in by itself trusted any private address — including the gateway
   Docker hands requests over from. On Docker Desktop, WSL, rootless Docker,

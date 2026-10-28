@@ -315,8 +315,9 @@ watched at once**.
 | **GPU** | None (CPU, 720p) | Intel, AMD or NVIDIA; NVIDIA GTX 1050+ for HEVC files | NVIDIA RTX |
 | **RAM** | 4 GB | 8 GB | 16 GB |
 
-Any tier needs a 64-bit Intel or AMD (amd64) Docker host, an SSD with about
-10 GB free for app data, and a wired connection. See
+Any tier needs a 64-bit Docker host — Intel/AMD, or ARM such as a Raspberry
+Pi 5 (CPU encoding only: one or two 720p channels) — an SSD with about 10 GB
+free for app data, and a wired connection. See
 [Hardware requirements](docs/hardware-acceleration.md#hardware-requirements)
 for what drives the cost, measured numbers and bandwidth per viewer.
 

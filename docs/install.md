@@ -2,9 +2,11 @@
 
 MosaicTV ships as a single Docker container:
 **`ghcr.io/tronvondoom/mosaictv:latest`** — web UI, database, and ffmpeg all
-included. It runs on any 64-bit Intel or AMD (amd64) Docker host: Unraid,
-Synology/QNAP models with an Intel or AMD CPU, Proxmox, or any Linux box. There
-is no ARM image yet, so a Raspberry Pi or an ARM NAS can't run it.
+included. It runs on any 64-bit Docker host, Intel/AMD (amd64) or ARM
+(arm64): Unraid, Synology/QNAP, Proxmox, any Linux box, a Raspberry Pi 4 or 5
+on a 64-bit OS, or Docker Desktop on a Mac. Docker pulls the right one by
+itself. On ARM, channels are encoded on the CPU — on a Raspberry Pi 5, expect
+one or two channels at 720p watched at once.
 
 ### Which tag
 
