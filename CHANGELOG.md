@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.25.3 — Found over Tailscale (2026-10-28)
+
+- **The server remembers its Tailscale address.** Open MosaicTV once at
+  the server's Tailscale address, and it keeps that address and hands it
+  to a signed-in app (`GET /api/addresses`). An app set up at home can
+  then carry on over Tailscale when you're away, with nothing to type. It
+  only keeps addresses it was reached at straight from Tailscale (a
+  100.64.0.0/10 or fd7a:115c:a1e0::/48 address, or a `.ts.net` name), and
+  forgets one it hasn't seen for 60 days.
+
 ## 0.25.2 — Faces in frame (2026-10-26)
 
 - **Faces stay in the picture at the top of the guide.** That picture is
