@@ -205,6 +205,8 @@ export type Library = {
 export type LibrarySource = {
   kind: 'plex' | 'jellyfin' | 'emby'
   url: string
+  /** The server's own id (Plex's machine identifier, Jellyfin's and Emby's server id), when known. */
+  server: string | null
   /** The server's id for the library, and its name there. */
   library: string
   libraryName: string | null
@@ -220,6 +222,16 @@ export type LibrarySource = {
     examples: string[]
     changed: number
     error: string | null
+  } | null
+  /** Its live updates from the server: listening, connecting, or dropped and
+   *  trying again (with why, and when); null when nothing listens for it. */
+  live: {
+    state: 'connecting' | 'listening' | 'retrying'
+    since: string
+    error: string | null
+    retryAt: string | null
+    /** When a change the server told of last reached the library. */
+    lastChange: string | null
   } | null
 }
 

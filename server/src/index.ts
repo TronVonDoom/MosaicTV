@@ -23,6 +23,7 @@ import { fillLogosAfterUpgrade } from './metadata/metadata.js'
 import { startWarmingLogos } from './metadata/artworkFiles.js'
 import { librariesRouter } from './routes/libraries.js'
 import { sourcesRouter } from './routes/sources.js'
+import { startLiveSync } from './sources/live.js'
 import { mediaRouter } from './routes/media.js'
 import { scanRouter } from './routes/scan.js'
 import { showsRouter } from './routes/shows.js'
@@ -249,6 +250,8 @@ async function boot(): Promise<void> {
   const metricSource = startMetrics()
   startGuideKeeper() // keep every channel's guide built out, watched or not
   startActBreakFinder() // find act breaks for the channels that break inside programs
+  // Hear from Plex, Jellyfin and Emby when a library read from one changes.
+  startLiveSync().catch((e) => log('error', 'system', 'Listening for media servers’ changes failed', String(e?.stack || e)))
   await checkFfmpeg()
   const server = app.listen(PORT, () => {
     console.log(`MosaicTV v${VERSION} listening on http://0.0.0.0:${PORT}`)

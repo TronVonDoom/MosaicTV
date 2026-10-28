@@ -26,6 +26,9 @@ export type ServerEvent =
    *  a metadata fetch named or pictured them — so its pages follow, as Plex's
    *  do while it scans. Sent at most every LIBRARY_EVERY_MS per library. */
   | { type: 'library'; libraryId: number }
+  /** How a library's live updates from its media server are doing changed —
+   *  connected, dropped, or a change it told of reached the library. */
+  | { type: 'source'; libraryId: number }
 
 type Client = { res: Response; id: number }
 const clients = new Set<Client>()

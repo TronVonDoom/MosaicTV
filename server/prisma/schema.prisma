@@ -30,6 +30,10 @@ model Library {
   // The server's id for the library, and its name there.
   sourceLibrary   String?
   sourceName      String?
+  // The server's own id (Plex's machine identifier, Jellyfin's and Emby's
+  // server id): libraries from one server share its sign-in and its live
+  // updates, and a Plex server that moved is found again by it.
+  sourceServer    String?
   pathMap         String?
   // The last read of it: when, and what it found (JSON SyncResult).
   syncedAt        DateTime?

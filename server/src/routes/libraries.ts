@@ -7,11 +7,23 @@ import { isScanning } from '../scanner/scanner.js'
 import { matchCounts } from '../metadata/metadata.js'
 import { libraryHome } from '../schedule/onAir.js'
 import { readBody } from '../validate.js'
-import { parsePathMap, SERVER_KINDS, type ServerKind } from '../sources/mediaServer.js'
+import { parsePathMap, SERVER_KINDS, SERVER_NAMES, ServerError, type ServerKind } from '../sources/mediaServer.js'
+import { connectionFor } from '../sources/accounts.js'
+import { liveStatus, queueScan, refreshLive } from '../sources/live.js'
 import type { SyncResult } from '../sources/sync.js'
 
 // A library's media server as the web sees it: never its key.
-function sourceOf(l: { source: string; sourceUrl: string | null; sourceLibrary: string | null; sourceName: string | null; pathMap: string | null; syncedAt: Date | null; syncResult: string | null }) {
+function sourceOf(l: {
+  id: number
+  source: string
+  sourceUrl: string | null
+  sourceLibrary: string | null
+  sourceName: string | null
+  sourceServer: string | null
+  pathMap: string | null
+  syncedAt: Date | null
+  syncResult: string | null
+}) {
   if (l.source === 'folders' || !SERVER_KINDS.includes(l.source as ServerKind)) return null
   let result: SyncResult | null = null
   try {
@@ -22,11 +34,13 @@ function sourceOf(l: { source: string; sourceUrl: string | null; sourceLibrary: 
   return {
     kind: l.source as ServerKind,
     url: l.sourceUrl ?? '',
+    server: l.sourceServer,
     library: l.sourceLibrary ?? '',
     libraryName: l.sourceName,
     pathMap: parsePathMap(l.pathMap),
     syncedAt: l.syncedAt,
     result,
+    live: liveStatus(l.id),
   }
 }
 
@@ -148,15 +162,23 @@ librariesRouter.get('/:id/sample', async (req, res) => {
 librariesRouter.post('/', async (req, res) => {
   const { name, kind } = req.body ?? {}
   // A library read from a media server: its folders are where the server's
-  // are here (the mapping's right-hand sides).
-  const src = req.body?.source as { kind?: string; url?: string; token?: string; library?: string; name?: string } | undefined
+  // are here (the mapping's right-hand sides). The server is reached through
+  // its sign-in (`server`, its id) or the address and key given by hand.
+  const src = req.body?.source as { kind?: string; url?: string; token?: string; server?: string; library?: string; name?: string } | undefined
   const pathMap = src ? parsePathMap(JSON.stringify(req.body?.pathMap ?? [])) : []
+  let connection: Awaited<ReturnType<typeof connectionFor>> = null
   if (src) {
-    if (!SERVER_KINDS.includes(src.kind as ServerKind) || !src.url || !src.token || !src.library) {
+    if (!SERVER_KINDS.includes(src.kind as ServerKind) || !src.library || !((src.url && src.token) || src.server)) {
       return res.status(400).json({ error: 'A media server library needs the server, its key and which of its libraries.' })
     }
-    if (kind !== 'tv' && kind !== 'movie') return res.status(400).json({ error: 'A TV or movie library can be read from a media server; music is read from its folders.' })
+    if (kind !== 'tv' && kind !== 'movie' && kind !== 'audio') return res.status(400).json({ error: 'TV, movie and music libraries can be read from a media server.' })
     if (!pathMap.length) return res.status(400).json({ error: 'Say where the server’s folders are here.' })
+    try {
+      connection = await connectionFor(src.kind as ServerKind, { server: src.server ?? null, url: src.url?.trim() || null, token: src.token?.trim() || null })
+    } catch (e) {
+      return res.status(e instanceof ServerError ? 400 : 500).json({ error: e instanceof Error ? e.message : 'Couldn’t reach the server.' })
+    }
+    if (!connection) return res.status(400).json({ error: `Sign in to ${SERVER_NAMES[src.kind as ServerKind]} again — MosaicTV can’t reach that server through its sign-in.` })
   }
   const folders: unknown = src ? pathMap.map(([, to]) => to) : req.body?.folders
   const paths = Array.isArray(folders)
@@ -188,12 +210,14 @@ librariesRouter.post('/', async (req, res) => {
         // MUSIC_METADATA_SOURCES); songs go by their tags, read as they're scanned.
         ...(kind === 'music' ? { metadataSources: MUSIC_METADATA_SOURCES.join(',') } : kind === 'audio' ? { metadataSources: 'embedded' } : {}),
         // The server names everything: nothing else is read unless asked.
-        ...(src
+        // (Songs still go by their tags.)
+        ...(src && connection
           ? {
-              metadataSources: '',
+              metadataSources: kind === 'audio' ? 'embedded' : '',
               source: src.kind,
-              sourceUrl: String(src.url).trim(),
-              sourceToken: String(src.token).trim(),
+              sourceUrl: connection.url,
+              sourceToken: connection.token,
+              sourceServer: connection.server,
               sourceLibrary: String(src.library),
               sourceName: src.name ?? null,
               pathMap: JSON.stringify(pathMap.map(([from, to]) => [from, path.resolve(to)])),
@@ -205,6 +229,11 @@ librariesRouter.post('/', async (req, res) => {
     })
     const { sourceToken: _key, ...shown } = lib
     res.status(201).json(shown)
+    if (src) {
+      // Listen for the server's changes, and read it now when asked to.
+      void refreshLive()
+      if (req.body?.scan === true) queueScan(lib.id, null)
+    }
   } catch {
     res.status(409).json({ error: 'One of those folders is already used by a library.' })
   }
@@ -231,6 +260,7 @@ librariesRouter.patch('/:id/source', async (req, res) => {
     for (const [, to] of map) if (!have.has(to)) await prisma.libraryFolder.create({ data: { libraryId: id, path: to } }).catch(() => {})
   }
   res.json({ ok: true })
+  if (data.sourceUrl || data.sourceToken) void refreshLive()
 })
 
 // Add a folder to an existing library.
@@ -277,6 +307,7 @@ librariesRouter.delete('/:id', async (req, res) => {
     return res.status(409).json({ error: 'Cannot delete a library while a scan is running.' })
   }
   const id = Number(req.params.id)
-  await prisma.library.delete({ where: { id } }).catch(() => {})
+  const lib = await prisma.library.delete({ where: { id } }).catch(() => null)
   res.status(204).end()
+  if (lib && lib.source !== 'folders') void refreshLive()
 })

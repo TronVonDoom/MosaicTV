@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- **Sign in to Plex, Jellyfin or Emby.** Adding a library from a media
+  server no longer needs a token dug out by hand. **Sign in with Plex**
+  opens Plex's own sign-in in a new tab, and MosaicTV lists your servers,
+  tries each one's addresses itself and keeps the first that answers (or
+  shows every address it tried and why it failed). Jellyfin is found on
+  your network or the Docker host, then signed in to with Quick Connect — a
+  code to enter in Jellyfin — or a user name and password; Emby takes a
+  user name and password. The sign-in is kept for the next library and
+  Sign out is beside it. Tick several libraries at once — music too — check
+  where their folders are here, filled in where MosaicTV can tell, and each
+  becomes a library, read straight away. Adding a server by its address
+  and key is still there for one the sign-in can't reach.
+- **Libraries follow their server's changes as they happen.** MosaicTV
+  keeps a connection open to each server, and when one says something was
+  added, changed or removed — a new episode, a title fixed, a movie
+  deleted — it rescans just the folders that changed about fifteen seconds
+  later and reads the server again. The library's card says **Listening for
+  changes**, or **Can't reach … — trying again** with the reason; once the
+  server is back, the whole library is scanned for what changed meanwhile,
+  and a Plex server that moved to a new address at home is found again
+  through the sign-in.
+
 ## 0.25.3 — Found over Tailscale (2026-10-28)
 
 - **The server remembers its Tailscale address.** Open MosaicTV once at

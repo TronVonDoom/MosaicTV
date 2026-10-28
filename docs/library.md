@@ -250,30 +250,67 @@ in [Music channels](channels.md#music).
 ## From Plex, Jellyfin or Emby
 
 Already have a Plex, Jellyfin or Emby server that knows your shows? **Read
-from → Plex / Jellyfin / Emby** on the **Add a library** card reads a TV or
-movie library from it instead: its show names, seasons and episode numbers,
-episode titles, descriptions, genres, ratings, dates, artwork and logos.
-MosaicTV still plays the files itself, from disk — nothing streams through
-the server — so the files have to be mounted where MosaicTV can see them too.
+from → Plex / Jellyfin / Emby** on the **Add a library** card reads its
+libraries instead: show names, seasons and episode numbers, episode titles,
+descriptions, genres, ratings, dates, artwork and logos. MosaicTV still plays
+the files itself, from disk — nothing streams through the server — so the
+files have to be mounted where MosaicTV can see them too.
 
-1. Give the server's **Address** (`192.168.1.10:32400` for Plex, `…:8096`
-   for Jellyfin and Emby) and its key:
-   - **Plex** — your token: in Plex Web, open any movie or episode's ⋯ menu →
-     **Get Info** → **View XML**; the address that opens ends in
-     `X-Plex-Token=…`.
-   - **Jellyfin** — **Dashboard → API Keys → +**.
-   - **Emby** — **Settings → API Keys → New API key**.
-2. **Connect**, and pick one of its **TV or movie** libraries (music is read
-   from its folders).
-3. Fill in **Where its folders are here**: the server sees its files at its
-   own paths (`/data/tv`, `D:\TV`); point each at the same folder inside
-   MosaicTV. Where it can tell, MosaicTV fills these in.
+1. **Sign in.**
+   - **Plex** — **Sign in with Plex** opens Plex's own sign-in in a new tab.
+     Allow it there and come back; MosaicTV never sees your password. It then
+     lists your Plex servers and tries each one's addresses itself (at home
+     first), keeping the first that answers. If none does, it shows every
+     address it tried and what each said.
+   - **Jellyfin** — MosaicTV looks for it on your network, on the machine
+     you opened MosaicTV on, and on the Docker host; pick it, or type its
+     address. Then either **Quick Connect** (MosaicTV shows a code; in
+     Jellyfin, open your profile → **Quick Connect** and enter it) or your
+     user name and password.
+   - **Emby** — found the same way, then your user name and password.
 
-Then **Scan** it. The scan indexes the files as for any library, then reads
-the server and matches each file to it by path. The library's card says how
-many of the files the server lists were found here, and names one that
-wasn't — the way to check the folders are right. Every scan reads the server
-again. The key stays on the MosaicTV server: artwork is fetched through it.
+   The sign-in is kept, so the next library from the same server needs none.
+   **Sign out** is beside it; libraries already added keep reading.
+2. **Tick its libraries** — TV, movies and music. Each one becomes a library
+   here, named as on the server (change it if you like). One that's already
+   here says so.
+3. Check **where its folders are here**: the server sees its files at its own
+   paths (`/data/tv`, `D:\TV`); each needs pointing at the same folder inside
+   MosaicTV. Where it can tell, MosaicTV fills these in — the folder under
+   `/media` whose path ends the same way.
+
+**Add** reads each library straight away. The scan indexes the files as for
+any library, then reads the server and matches each file to it by path. The
+library's card says how many of the files the server lists were found here,
+and names one that wasn't — the way to check the folders are right. A show
+MosaicTV had filed by its folder name joins the server's show (its collection
+picks and broadcast episodes with it). Songs keep going by their own tags, as
+in any music library; the server only says when they change.
+
+**It follows the server's changes.** MosaicTV keeps a connection open to the
+server, and when it says something in a library was added, changed or
+removed — a new episode, a title you fixed, a movie you deleted — MosaicTV
+waits about fifteen seconds for the rest of that burst, then rescans just the
+folders it touched and reads the server again. The card says **Listening for
+changes**, and when the last one came in. If the server can't be reached it
+says so — **Can't reach Plex at … — trying again in …** — and keeps trying,
+waiting longer each time; once it's back, the whole library is scanned for
+what changed meanwhile. A Plex server that moved to a new address at home is
+found again through your sign-in. **Scan** on the library still does it all
+by hand.
+
+Signing in is the easy way, but a server can also be added **by hand**: the
+link under the sign-in takes its **Address** (`192.168.1.10:32400` for Plex,
+`…:8096` for Jellyfin and Emby) and its key:
+
+- **Plex** — your token: in Plex Web, open any movie or episode's ⋯ menu →
+  **Get Info** → **View XML**; the address that opens ends in
+  `X-Plex-Token=…`.
+- **Jellyfin** — **Dashboard → API Keys → +**.
+- **Emby** — **Settings → API Keys → New API key**.
+
+The keys stay on the MosaicTV server: artwork is fetched through it, and the
+web page is only ever told who's signed in.
 
 ## Browsing
 

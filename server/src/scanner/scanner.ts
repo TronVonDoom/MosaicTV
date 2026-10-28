@@ -4,7 +4,7 @@ import { prisma } from '../db.js'
 import { ffprobe, storedTags, TAGS_VERSION } from '../ffprobe.js'
 import { extraHome, extraKind, extraStem, parseMedia, taggedCompilation, withTags, VARIOUS_ARTISTS, type LibraryKind } from './parse.js'
 import { detectArtwork, embeddedCover, findLyrics } from './artwork.js'
-import { extensionsFor, walk } from './walk.js'
+import { extensionsFor, ignoresAbove, walk } from './walk.js'
 import { removeGone } from './gone.js'
 import { log } from '../logs.js'
 import { libraryChanged } from '../events.js'
@@ -118,8 +118,9 @@ async function processFile(
   // Tags read by older rules (before the album artist was kept) are read again.
   const staleTags = kind === 'audio' && !!existing?.embedded && storedTags(existing.embedded)?.version !== TAGS_VERSION
   // A file its media server has named (see sources/sync.ts) keeps the
-  // server's title, show, season and episode: its name doesn't get a say.
-  const told = existing?.serverKey ? existing : null
+  // server's title, show, season and episode: its name doesn't get a say. (A
+  // song keeps going by its own tags; its server id only says which it is.)
+  const told = existing?.serverKey && (kind === 'tv' || kind === 'movie') ? existing : null
   // The show it files under: by the name its folder parses to, through the
   // show's names, so a renamed or merged show keeps its files.
   const show = told
@@ -338,17 +339,43 @@ async function runPool<T>(items: T[], size: number, fn: (item: T) => Promise<voi
   await Promise.all(workers)
 }
 
+/** Wait until no scan is running (background scans take turns). */
+export async function waitForScanner(everyMs = 2000): Promise<void> {
+  while (status.running) await new Promise((r) => setTimeout(r, everyMs))
+}
+
+const isWithin = (p: string, dir: string) => {
+  const rel = path.relative(dir, p)
+  return !rel || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
 /**
  * Scan a single library: index new/changed files and remove vanished ones
  * (see removeGone). Runs in the background; progress is exposed via
- * getScanStatus().
+ * getScanStatus(). Given `only` — folders inside the library's, as a media
+ * server's live updates name them (see sources/live.ts) — it looks at just
+ * those: what's in them is added, changed or let go of, the rest is left as
+ * it is.
  */
-export async function scanLibrary(libraryId: number, force = false): Promise<void> {
-  const library = await prisma.library.findUnique({
-    where: { id: libraryId },
-    include: { folders: true },
-  })
-  if (!library) throw new Error(`Library ${libraryId} not found`)
+export async function scanLibrary(libraryId: number, force = false, only?: string[]): Promise<void> {
+  // Taken at once, so a second scan asked for meanwhile is turned away.
+  if (status.running) throw new Error('A scan is already running.')
+  status.running = true
+  return scanTaken(libraryId, force, only)
+}
+
+/** A library's scan, once the scanner is taken — by scanLibrary, or by scanAll for each library in turn. */
+async function scanTaken(libraryId: number, force = false, only?: string[]): Promise<void> {
+  const library = await prisma.library
+    .findUnique({
+      where: { id: libraryId },
+      include: { folders: true },
+    })
+    .catch(() => null)
+  if (!library) {
+    status.running = scanningAll
+    throw new Error(`Library ${libraryId} not found`)
+  }
 
   // A scan of one library ends the last Scan all's word.
   if (!scanningAll) status.all = null
@@ -378,10 +405,35 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     const unreadable: string[] = []
     // What a .plexignore left out: indexed before, it goes, though it's on disk.
     const skipped: string[] = []
-    for (const folder of library.folders) {
-      const files = await walk(folder.path, unreadable, extensionsFor(library.kind), skipped)
-      for (const f of files) found.push({ file: f, root: folder.path })
+    // What to walk: each of its folders — or, told only some changed, those,
+    // each with the library folder it's in.
+    const walks = only
+      ? only.flatMap((dir) => {
+          const root = library.folders.find((f) => isWithin(dir, f.path))
+          return root ? [{ dir, root: root.path }] : []
+        })
+      : library.folders.map((f) => ({ dir: f.path, root: f.path }))
+    for (const { dir, root } of walks) {
+      let ignores: Awaited<ReturnType<typeof ignoresAbove>>['ignores'] = []
+      if (dir !== root) {
+        // A folder that's gone took its files with it — unless its library
+        // folder can't be read either (a share that isn't mounted).
+        if (!(await exists(dir))) {
+          const entries = await fs.readdir(root).catch(() => null)
+          if (!entries?.length) unreadable.push(root)
+          continue
+        }
+        const above = await ignoresAbove(root, dir)
+        if (above.ignored) {
+          skipped.push(dir)
+          continue
+        }
+        ignores = above.ignores
+      }
+      const files = await walk(dir, unreadable, extensionsFor(library.kind), skipped, ignores)
+      for (const f of files) found.push({ file: f, root })
     }
+    const inScope = (p: string) => !only || walks.some(({ dir }) => isWithin(p, dir))
     // Everything is indexed, season 0 and extras included, as in Plex: each
     // channel says whether it airs them.
     const kind = library.kind as LibraryKind
@@ -399,7 +451,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
       where: { libraryId: library.id },
       select: { id: true, path: true, missing: true },
     })
-    const goneIds = known.filter((k) => !k.missing && !seen.has(k.path)).map((k) => k.id)
+    const goneIds = known.filter((k) => !k.missing && !seen.has(k.path) && inScope(k.path)).map((k) => k.id)
     if (goneIds.length > 0) {
       await prisma.mediaItem.updateMany({
         where: { id: { in: goneIds } },
@@ -412,7 +464,7 @@ export async function scanLibrary(libraryId: number, force = false): Promise<voi
     const told = library.source !== 'folders' ? await syncFromServer(library.id) : null
     // …and goes for good, as in Plex — unless it's under a folder this scan
     // couldn't read (see removeGone).
-    const gone = await removeGone(library.id, unreadable, skipped)
+    const gone = await removeGone(library.id, unreadable, skipped, only ? walks.map((w) => w.dir) : undefined)
     Object.assign(status, { removed: gone.files, held: gone.held, unreachable: gone.unreachable })
     const linked = await linkExtras(library.id)
     // New, changed or vanished files change what the channels can air.
@@ -458,7 +510,7 @@ export async function scanAll(): Promise<void> {
     all.of = libraries.length
     for (const [i, lib] of libraries.entries()) {
       all.at = i + 1
-      await scanLibrary(lib.id).catch((e) => {
+      await scanTaken(lib.id).catch((e) => {
         status.error = e instanceof Error ? e.message : String(e)
       })
       if (status.error) {
@@ -647,6 +699,7 @@ export async function rescanAfterUpgrade(): Promise<void> {
   const ids = row.value.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0)
   for (const id of ids) {
     if (!(await prisma.library.count({ where: { id } }))) continue
+    await waitForScanner()
     log('info', 'system', `Scanning library ${id} after the upgrade`)
     await scanLibrary(id).catch((e) => log('error', 'system', `Scan of library ${id} failed`, String(e?.stack || e)))
   }
