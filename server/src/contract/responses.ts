@@ -1003,6 +1003,8 @@ export type AuthStatus = {
   enabled: boolean
   /** The home network (and Tailscale) signs in by itself. */
   trustHome: boolean
+  /** An address that hides who sent a request (`hidden`) counts as home too. */
+  trustHidden: boolean
   hasPassword: boolean
   /** This request came straight from home. */
   home: boolean
@@ -1010,6 +1012,12 @@ export type AuthStatus = {
   device: { id: number; name: string; kind: 'browser' | 'app' | 'player' } | null
   /** Whether this device can use MosaicTV as things stand. */
   allowed: boolean
+  /**
+   * What hides who sent a request here — the gateway Docker or a router hands
+   * requests over from, or a VM's NAT (`vm`: Docker Desktop, WSL) — and the
+   * last request one hid. Only told to a device that's allowed in.
+   */
+  hidden: { vm: boolean; gateways: string[]; lastSeen: { ip: string; at: string; agent: string | null } | null } | null
 }
 
 /** Something signed in: a browser, an app, or a player with its links. */

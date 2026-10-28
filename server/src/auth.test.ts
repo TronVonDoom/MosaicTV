@@ -10,7 +10,7 @@ import express, { type Request } from 'express'
 import { tempDb } from './testDb.js'
 
 await tempDb('mosaictv-auth-')
-const { authGate, linkPrefix, isHome } = await import('./auth.js')
+const { authGate, linkPrefix, isHome, originOf, setHiding, gatewaysIn, gateways6In, behindVm } = await import('./auth.js')
 const { authRouter } = await import('./routes/auth.js')
 const { baseUrl } = await import('./http.js')
 
@@ -155,8 +155,10 @@ test('too many wrong passwords and it waits', async () => {
   assert.equal(last, 429)
 })
 
+const req = (ip: string, headers: Record<string, string> = {}) => ({ socket: { remoteAddress: ip }, headers }) as unknown as Request
+
 test('what counts as home', () => {
-  const req = (ip: string, headers: Record<string, string> = {}) => ({ socket: { remoteAddress: ip }, headers }) as unknown as Request
+  setHiding({ vm: false, gateways: [] })
   assert.ok(isHome(req('192.168.0.20')))
   assert.ok(isHome(req('::ffff:10.1.2.3')))
   assert.ok(isHome(req('100.76.61.50')), 'Tailscale')
@@ -165,4 +167,43 @@ test('what counts as home', () => {
   assert.ok(!isHome(req('100.128.0.1')), 'just past the Tailscale range')
   assert.ok(!isHome(req('127.0.0.1', { 'x-forwarded-for': '8.8.8.8' })), 'a proxy on this machine')
   assert.ok(!isHome(req('172.17.0.1', { 'cf-connecting-ip': '8.8.8.8' })), 'a tunnel')
+})
+
+test('an address that hides who sent it counts as home only when the user says so', () => {
+  setHiding({ vm: false, gateways: ['172.17.0.1', 'fe80:0000:0000:0000:0000:0000:0000:0001'] })
+  assert.equal(originOf(req('172.17.0.1')), 'hidden', "Docker's bridge: apps on this machine, and visitors over IPv6")
+  assert.ok(!isHome(req('172.17.0.1')))
+  assert.ok(!isHome(req('::ffff:172.17.0.1')))
+  assert.ok(!isHome(req('fe80::1')), 'a gateway on IPv6')
+  assert.ok(isHome(req('172.17.0.1'), true), 'trusted')
+  assert.ok(isHome(req('192.168.0.20')), 'the rest of home is as ever')
+  assert.ok(isHome(req('127.0.0.1')), 'this machine')
+  assert.ok(!isHome(req('172.17.0.1', { 'x-forwarded-for': '8.8.8.8' }), true), 'a proxy is never home')
+
+  setHiding({ vm: true, gateways: [] })
+  assert.ok(!isHome(req('192.168.65.1')), 'Docker Desktop: every request comes from the VM side')
+  assert.ok(isHome(req('192.168.65.1'), true))
+  assert.ok(isHome(req('127.0.0.1')), 'inside the container itself')
+  assert.ok(!isHome(req('8.8.8.8'), true), 'trusting hidden addresses never trusts the internet')
+  setHiding({ vm: false, gateways: [] })
+})
+
+test('the gateways and the VM are read from the system', () => {
+  const route = [
+    'Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT',
+    'eth0\t00000000\t010011AC\t0003\t0\t0\t0\t00000000\t0\t0\t0',
+    'eth0\t000011AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0',
+  ].join('\n')
+  assert.deepEqual(gatewaysIn(route), ['172.17.0.1'])
+  assert.deepEqual(gatewaysIn(''), [])
+  const route6 = [
+    '00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000001 00000400 00000001 00000000 00000003 eth0',
+    'fd000000000000000000000000000000 40 00000000000000000000000000000000 00 00000000000000000000000000000000 00000100 00000001 00000000 00000001 eth0',
+  ].join('\n')
+  assert.deepEqual(gateways6In(route6), ['fe80:0000:0000:0000:0000:0000:0000:0001'])
+  assert.ok(behindVm('linux', '5.15.153.1-microsoft-standard-WSL2'), 'WSL, and Docker Desktop on Windows')
+  assert.ok(behindVm('linux', '6.10.14-linuxkit'), 'Docker Desktop on a Mac')
+  assert.ok(!behindVm('linux', '6.1.0-28-amd64'))
+  assert.ok(!behindVm('linux', '6.12.24-Unraid'))
+  assert.ok(!behindVm('win32', '10.0.26300'))
 })

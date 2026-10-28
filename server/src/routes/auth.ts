@@ -9,6 +9,7 @@ import {
   clearTries,
   clientIp,
   cookieToken,
+  hidingStatus,
   noteWrongPassword,
   passwordMatches,
   pollPairing,
@@ -44,13 +45,17 @@ const linksFor = (req: Request, token: string) => {
 authRouter.get('/status', async (req, res) => {
   const s = await authSettings()
   const who = whoOf(req)
+  const allowed = !s.enabled || !!who?.device || (s.trustHome && !!who?.home)
+  const { vm, gateways, lastSeen } = hidingStatus()
   const body: AuthStatus = {
     enabled: s.enabled,
     trustHome: s.trustHome,
+    trustHidden: s.trustHidden,
     hasPassword: s.hasPassword,
     home: !!who?.home,
     device: who?.device ? { id: who.device.id, name: who.device.name, kind: who.device.kind as SignedInDevice['kind'] } : null,
-    allowed: !s.enabled || !!who?.device || (s.trustHome && !!who?.home),
+    allowed,
+    hidden: allowed ? { vm, gateways, lastSeen } : null,
   }
   res.json(body)
 })
@@ -166,13 +171,13 @@ authRouter.get('/cast-link', async (req, res) => {
   res.json({ url: `${baseUrl(req)}/t/${token}/iptv/channel/${n}/index.m3u8` })
 })
 
-// PUT /api/auth/settings { enabled?, trustHome? }
+// PUT /api/auth/settings { enabled?, trustHome?, trustHidden? }
 authRouter.put('/settings', async (req, res) => {
   const s = await authSettings()
-  const enabled = typeof req.body?.enabled === 'boolean' ? (req.body.enabled as boolean) : undefined
-  const trustHome = typeof req.body?.trustHome === 'boolean' ? (req.body.trustHome as boolean) : undefined
+  const flag = (k: string) => (typeof req.body?.[k] === 'boolean' ? (req.body[k] as boolean) : undefined)
+  const enabled = flag('enabled')
   if (enabled && !s.hasPassword) return res.status(409).json({ error: 'Set a password first.' })
-  await setAuthSettings({ enabled, trustHome })
+  await setAuthSettings({ enabled, trustHome: flag('trustHome'), trustHidden: flag('trustHidden') })
   // Turning it on from a browser that isn't signed in signs it in, so the
   // switch can't lock out the one who flipped it.
   const who = whoOf(req)

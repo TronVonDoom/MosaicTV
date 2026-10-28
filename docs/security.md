@@ -46,6 +46,14 @@ How it's guarded:
   `X-Forwarded-For`, `Forwarded`, `X-Real-IP` or a Cloudflare header — never
   counts as home, so a proxy on the same machine can't make the internet look
   local.
+- An address that **hides who sent a request** doesn't count as home either.
+  Docker hands some requests over from its own gateway (`172.17.0.1` on most
+  installs) — visitors over IPv6, and apps on the same machine, like a Plex
+  or Jellyfin beside it — and a router's loopback looks the same; under
+  Docker Desktop or WSL every request comes from the VM's address. Those sign
+  in like anywhere else unless you switch on **Requests from …** under Home
+  signs in by itself, which also says when the last one came and from what.
+  An app on the same machine is better given a player's links.
 - Changes made through a browser must carry the app's own header, which a
   page on another site can't add — it can't act through a signed-in browser.
 

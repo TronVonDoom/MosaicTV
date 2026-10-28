@@ -14,7 +14,8 @@
 // straight from the local network or Tailscale is let in as it always was. A
 // request that came through a proxy — one that says who it's forwarding for —
 // never counts as home, so a reverse proxy or a tunnel can't make the internet
-// look local.
+// look local. Nor does one from an address that hides who sent it (see
+// "Addresses that hide where a request came from"), unless the user says so.
 //
 // Tokens are 32 random bytes; only their SHA-256 is kept (a player's token is
 // also kept as itself, so its links can be shown again). The password is
@@ -25,20 +26,22 @@
 import type { NextFunction, Request, Response } from 'express'
 import { createHash, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
+import fs from 'node:fs'
 import net from 'node:net'
+import os from 'node:os'
 import { prisma } from './db.js'
 import { log } from './logs.js'
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>
 
 export const COOKIE = 'mosaictv_session'
-const KEYS = { enabled: 'authEnabled', password: 'authPassword', home: 'authTrustHome' } as const
+const KEYS = { enabled: 'authEnabled', password: 'authPassword', home: 'authTrustHome', hidden: 'authTrustHidden' } as const
 const COOKIE_DAYS = 400 // as long as a browser keeps one
 /** How long a pairing code waits to be approved. */
 export const PAIR_MS = 10 * 60_000
 
 export type DeviceKind = 'browser' | 'app' | 'player'
-export type AuthSettings = { enabled: boolean; trustHome: boolean; hasPassword: boolean }
+export type AuthSettings = { enabled: boolean; trustHome: boolean; trustHidden: boolean; hasPassword: boolean }
 
 // ── Settings ────────────────────────────────────────────────────────────────
 
@@ -47,7 +50,7 @@ export async function authSettings(): Promise<AuthSettings> {
   if (cached && Date.now() - cached.at < 5000) return cached
   const rows = await prisma.setting.findMany({ where: { key: { in: Object.values(KEYS) } } })
   const get = (k: string) => rows.find((r) => r.key === k)?.value
-  const s = { enabled: get(KEYS.enabled) === '1', trustHome: get(KEYS.home) !== '0', hasPassword: !!get(KEYS.password) }
+  const s = { enabled: get(KEYS.enabled) === '1', trustHome: get(KEYS.home) !== '0', trustHidden: get(KEYS.hidden) === '1', hasPassword: !!get(KEYS.password) }
   cached = { ...s, at: Date.now() }
   return s
 }
@@ -58,9 +61,10 @@ async function put(key: string, value: string) {
   forget()
 }
 
-export async function setAuthSettings(s: { enabled?: boolean; trustHome?: boolean }): Promise<void> {
+export async function setAuthSettings(s: { enabled?: boolean; trustHome?: boolean; trustHidden?: boolean }): Promise<void> {
   if (s.enabled !== undefined) await put(KEYS.enabled, s.enabled ? '1' : '0')
   if (s.trustHome !== undefined) await put(KEYS.home, s.trustHome ? '1' : '0')
+  if (s.trustHidden !== undefined) await put(KEYS.hidden, s.trustHidden ? '1' : '0')
 }
 
 /** Turns sign-in off: MOSAICTV_RESET_SIGN_IN=1 at startup, for a forgotten password. */
@@ -133,18 +137,98 @@ for (const [a, p] of [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], 
 for (const [a, p] of [['::1', 128], ['fc00::', 7], ['fe80::', 10], ['fd7a:115c:a1e0::', 48]] as const) blocks.addSubnet(a, p, 'ipv6')
 
 export const clientIp = (req: Request): string => (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+const family = (ip: string) => (net.isIPv4(ip) ? 'ipv4' : net.isIPv6(ip) ? 'ipv6' : null)
+const isLoopback = (ip: string) => ip === '::1' || ip.startsWith('127.')
+
+// ── Addresses that hide where a request came from ───────────────────────────
+
+// Some requests reach MosaicTV from its own network's gateway rather than from
+// the device that sent them. Docker hands over visitors on IPv6, and apps on
+// the same machine (a Plex or Jellyfin beside it), from its bridge address; a
+// router's NAT loopback looks the same. That address is private, but it can't
+// say whether a request is from home — so it counts as home only when the user
+// says it should. Inside a VM's NAT (Docker Desktop on Windows or macOS, WSL)
+// every request comes from the VM's side, so none can be told apart.
+
+/** The default gateways in /proc/net/route's table (IPv4, little-endian hex). */
+export function gatewaysIn(table: string): string[] {
+  const out: string[] = []
+  for (const line of table.split('\n').slice(1)) {
+    const [, dest, gw, flags] = line.trim().split(/\s+/)
+    if (dest !== '00000000' || !gw || /^0+$/.test(gw) || !(parseInt(flags, 16) & 2)) continue
+    out.push([6, 4, 2, 0].map((i) => parseInt(gw.slice(i, i + 2), 16)).join('.'))
+  }
+  return out
+}
+
+/** The default gateways in /proc/net/ipv6_route's table. */
+export function gateways6In(table: string): string[] {
+  const out: string[] = []
+  for (const line of table.split('\n')) {
+    const f = line.trim().split(/\s+/)
+    if (f.length < 10 || !/^0{32}$/.test(f[0]) || f[1] !== '00' || /^0+$/.test(f[4])) continue
+    out.push(f[4].match(/.{4}/g)!.join(':'))
+  }
+  return out
+}
+
+/** Whether this runs inside a VM's NAT — Docker Desktop's linuxkit, or WSL's kernel. */
+export const behindVm = (platform: string = process.platform, release: string = os.release()) =>
+  platform === 'linux' && /linuxkit|microsoft|wsl/i.test(release)
+
+export type Hiding = { vm: boolean; gateways: string[] }
+let hiding: (Hiding & { list: net.BlockList; at: number }) | null = null
+function hidingNow() {
+  if (hiding && Date.now() - hiding.at < 10 * 60_000) return hiding
+  const read = (p: string) => {
+    try {
+      return fs.readFileSync(p, 'utf8')
+    } catch {
+      return ''
+    }
+  }
+  return setHiding({ vm: behindVm(), gateways: [...gatewaysIn(read('/proc/net/route')), ...gateways6In(read('/proc/net/ipv6_route'))] })
+}
+/** What hides senders here; read from the system, or set by a test. */
+export function setHiding(h: Hiding) {
+  const list = new net.BlockList()
+  for (const g of h.gateways) {
+    const v = family(g)
+    if (v) list.addAddress(g, v)
+  }
+  return (hiding = { ...h, list, at: Date.now() })
+}
+
+/** The last request from an address that hides who sent it, for Settings → Sign-in to name. */
+let lastHidden: { ip: string; at: string; agent: string | null } | null = null
+
+/** What hides senders here, and the last request one hid. */
+export const hidingStatus = () => ({ ...hidingNow(), lastSeen: lastHidden })
 
 /**
- * Whether a request is straight from the home network — a private address,
- * this machine, or Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48) — and not
- * through a proxy.
+ * Where a request came from: `home` straight from the home network — a
+ * private address, this machine, or Tailscale (100.64.0.0/10,
+ * fd7a:115c:a1e0::/48); `hidden` from an address that hides who sent it (see
+ * above); else `away` — the internet, or anything through a proxy.
  */
-export function isHome(req: Request): boolean {
-  if (PROXIED.some((h) => req.headers[h] != null)) return false
+export function originOf(req: Request): 'home' | 'hidden' | 'away' {
+  if (PROXIED.some((h) => req.headers[h] != null)) return 'away'
   const ip = clientIp(req)
-  if (!ip) return false
-  const v = net.isIPv4(ip) ? 'ipv4' : net.isIPv6(ip) ? 'ipv6' : null
-  return v != null && blocks.check(ip, v)
+  const v = family(ip)
+  if (!v || !blocks.check(ip, v)) return 'away'
+  if (isLoopback(ip)) return 'home'
+  const h = hidingNow()
+  if (!h.vm && !h.list.check(ip, v)) return 'home'
+  // Noted at most once a minute per address.
+  const noted = lastHidden?.ip === ip ? Date.parse(lastHidden.at) : 0
+  if (Date.now() - noted > 60_000) lastHidden = { ip, at: new Date().toISOString(), agent: String(req.headers['user-agent'] ?? '').slice(0, 120) || null }
+  return 'hidden'
+}
+
+/** Whether a request counts as from home — an address that hides its sender only when `trustHidden`. */
+export function isHome(req: Request, trustHidden = false): boolean {
+  const o = originOf(req)
+  return o === 'home' || (o === 'hidden' && trustHidden)
 }
 
 export function cookieToken(req: Request): string | null {
@@ -219,7 +303,7 @@ export async function authGate(req: Request, res: Response, next: NextFunction):
   try {
     if (whoOf(req)?.via === 'link') return next()
     const s = await authSettings()
-    const home = isHome(req)
+    const home = isHome(req, s.trustHidden)
     const cookie = cookieToken(req)
     const bearer = bearerToken(req)
     const ip = clientIp(req)

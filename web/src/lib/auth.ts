@@ -60,7 +60,8 @@ export const auth = {
   renameDevice: (id: number, name: string) => send<void>('PATCH', `/api/auth/devices/${id}`, { name }),
   removeDevice: (id: number) => send<void>('DELETE', `/api/auth/devices/${id}`),
   addPlayer: (name: string) => post<{ id: number; links: NonNullable<SignedInDevice['links']> }>('/api/auth/players', { name }),
-  settings: (s: { enabled?: boolean; trustHome?: boolean }) => send<{ enabled: boolean; trustHome: boolean; hasPassword: boolean }>('PUT', '/api/auth/settings', s),
+  settings: (s: { enabled?: boolean; trustHome?: boolean; trustHidden?: boolean }) =>
+    send<{ enabled: boolean; trustHome: boolean; trustHidden: boolean; hasPassword: boolean }>('PUT', '/api/auth/settings', s),
   setPassword: (password: string, current?: string) => post<{ ok: true }>('/api/auth/password', { password, current }),
   castLink: (channel: number) => send<{ url: string }>('GET', `/api/auth/cast-link?channel=${channel}`),
 }

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Sign-in can't be walked past through Docker's own address.** Home
+  signing in by itself trusted any private address — including the gateway
+  Docker hands requests over from. On Docker Desktop, WSL, rootless Docker,
+  or a Linux host taking visitors over IPv6, that let anyone who could reach
+  the port in as if they were at home. Requests from that address (and every
+  request inside a VM's NAT) now sign in like anywhere else. If a Plex or
+  Jellyfin on the same machine reads MosaicTV's tuner while sign-in is on,
+  give it a player's links, or switch on **Requests from …** in Settings →
+  Sign-in — which says when the last one came, and from what.
 - **Sign in to Plex, Jellyfin or Emby.** Adding a library from a media
   server no longer needs a token dug out by hand. **Sign in with Plex**
   opens Plex's own sign-in in a new tab, and MosaicTV lists your servers,
