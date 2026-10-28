@@ -111,6 +111,9 @@ export function extraLabel(kind: ExtraKind): string {
 
 /** A library's total runtime at a glance: "22h 5m", or "403 days" once it's
  *  past a few days — nobody reads "9667h 48m". */
+/** "1 movie", "1,204 episodes": a count and its noun. */
+export const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
+
 export function formatLongDuration(seconds: number | null): string {
   if (!seconds || seconds <= 0) return '—'
   const hours = seconds / 3600

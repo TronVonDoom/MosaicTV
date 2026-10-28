@@ -77,6 +77,8 @@ export function useLibraryJobs(onFinish?: () => void) {
     startScan,
     startScanAll,
     startMetadata,
+    /** Follow a scan the server started on its own (a library added with `scan`). */
+    followScan: scanJob.start,
   }
 }
 

@@ -3,7 +3,7 @@ import LibraryBrowse from '../components/LibraryBrowse'
 import { LibraryJobProgress, ScanAllButton, useLibraryJobs } from '../components/LibraryActions'
 import LibrarySources from '../components/LibrarySources'
 import { Masthead, NetworkTabs } from '../components/onair/Masthead'
-import { formatLongDuration } from '../lib/format'
+import { formatLongDuration, plural } from '../lib/format'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { useHashTab } from '../lib/hooks'
@@ -47,6 +47,16 @@ export default function Library() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
+  // A library added or removed changes the figures too.
+  const libraryIds = librariesRead.data?.map((l) => l.id).join(',')
+  const seenIds = useRef(libraryIds)
+  useEffect(() => {
+    if (libraryIds == null || seenIds.current === libraryIds) return
+    seenIds.current = libraryIds
+    void statsRead.reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryIds])
+
   const startAddLibrary = () => {
     setTab('sources')
     setAddRequest((n) => n + 1)
@@ -63,12 +73,12 @@ export default function Library() {
             {stats && (
               <span className="mt-1 block text-ink-muted tabular-nums">
                 {[
-                  `${stats.libraries} ${stats.libraries === 1 ? 'library' : 'libraries'}`,
-                  stats.byType.episode ? `${stats.byType.episode.toLocaleString()} episodes` : null,
-                  stats.byType.movie ? `${stats.byType.movie.toLocaleString()} movies` : null,
-                  stats.byType.song ? `${stats.byType.song.toLocaleString()} songs` : null,
-                  stats.byType.music ? `${stats.byType.music.toLocaleString()} music videos` : null,
-                  `${formatLongDuration(stats.totalDurationSec)} back to back`,
+                  plural(stats.libraries, 'library', 'libraries'),
+                  stats.byType.episode ? plural(stats.byType.episode, 'episode') : null,
+                  stats.byType.movie ? plural(stats.byType.movie, 'movie') : null,
+                  stats.byType.song ? plural(stats.byType.song, 'song') : null,
+                  stats.byType.music ? plural(stats.byType.music, 'music video') : null,
+                  stats.totalDurationSec > 0 ? `${formatLongDuration(stats.totalDurationSec)} back to back` : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

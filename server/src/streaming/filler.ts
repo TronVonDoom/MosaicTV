@@ -812,7 +812,7 @@ async function obtain(plan: ClipPlan, opts: GetOpts = {}): Promise<string | unde
 /** The plain animated clip: the last resort when nothing else is built. */
 export function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undefined> {
   const plan = planClip('animated', 0, undefined, RESOLUTIONS['1080p'])!
-  plan.title = 'the fallback ident'
+  plan.title = 'the built-in ident'
   return obtain(plan, opts)
 }
 
@@ -824,7 +824,7 @@ export function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undef
  */
 export async function ensureStationIdent(logoFile: string, channelHeight?: number, opts: GetOpts = {}): Promise<string | undefined> {
   const plan = planClip('mosaic', 0, logoFile, dimsFor('auto', channelHeight))
-  if (plan) plan.title = `the fallback ident for the ${path.parse(logoFile).name} logo`
+  if (plan) plan.title = `the built-in ident for the ${path.parse(logoFile).name} logo`
   return plan ? obtain(plan, opts) : undefined
 }
 

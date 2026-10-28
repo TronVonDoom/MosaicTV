@@ -229,11 +229,10 @@ librariesRouter.post('/', async (req, res) => {
     })
     const { sourceToken: _key, ...shown } = lib
     res.status(201).json(shown)
-    if (src) {
-      // Listen for the server's changes, and read it now when asked to.
-      void refreshLive()
-      if (req.body?.scan === true) queueScan(lib.id, null)
-    }
+    // Listen for a media server's changes.
+    if (src) void refreshLive()
+    // Read it now when asked to — after any scan that's running.
+    if (req.body?.scan === true) queueScan(lib.id, null)
   } catch {
     res.status(409).json({ error: 'One of those folders is already used by a library.' })
   }

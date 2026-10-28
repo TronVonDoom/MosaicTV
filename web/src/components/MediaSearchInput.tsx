@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Icon, { type IconName } from './Icon'
 import { api, type ArtistDetail, type CollectionItem, type LibraryKind, type MediaSearchResult, type ShowDetail } from '../lib/api'
-import { creditOf, episodeCode, extraLabel, formatDuration } from '../lib/format'
+import { creditOf, episodeCode, extraLabel, formatDuration, plural } from '../lib/format'
 import { Input, Segmented } from './ui'
 
 /** A shelf of the library: one kind of library's titles, or all of them. */
@@ -66,7 +66,6 @@ export function memberKey(it: CollectionItem): string | null {
 }
 
 const seasonName = (n: number | null) => (n == null ? 'Unsorted' : n === 0 ? 'Specials' : `Season ${n}`)
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** A result as a row: its icon, its name, and a line on what it is. */
 function rowFor(r: MediaSearchResult, inside: boolean): { icon: IconName; main: string; meta: string } {

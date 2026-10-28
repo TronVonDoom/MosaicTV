@@ -14,7 +14,7 @@ import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { usePolling } from '../lib/hooks'
 import { useLiveRefresh } from '../lib/events'
-import { cx } from './ui'
+import { cx, Skeleton } from './ui'
 
 /** Mac gets ⌘K, everyone else Ctrl-K — label it to match the actual keyboard. */
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
@@ -40,6 +40,26 @@ const MORE_PLACES = PLACES.slice(3)
  * page opens over its library's grid (see TitleLayer), so it counts as the
  * library's: the grid stays where it was underneath.
  */
+/**
+ * A page whose script is still on its way: its masthead and a card, shaped
+ * like what's coming — after a beat, so a quick load doesn't flash.
+ */
+function PageLoading() {
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShown(true), 250)
+    return () => clearTimeout(t)
+  }, [])
+  if (!shown) return null
+  return (
+    <div className="space-y-5" aria-busy="true">
+      <Skeleton className="h-9 w-48" />
+      <Skeleton className="h-4 w-full max-w-xl" />
+      <Skeleton className="h-64 w-full rounded-2xl" />
+    </div>
+  )
+}
+
 function pageKey(pathname: string): string {
   return pathname.replace(/^(\/library\/[^/]+)\/(movie|show)\/.*$/, '$1')
 }
@@ -300,7 +320,7 @@ export default function Layout() {
           >
             <ErrorBoundary resetKey={location.pathname}>
               {/* A page's script still on its way (see App.tsx): the layout stays. */}
-              <Suspense fallback={null}>
+              <Suspense fallback={<PageLoading />}>
                 <Outlet context={{ railSections: false } satisfies LayoutContext} />
               </Suspense>
             </ErrorBoundary>

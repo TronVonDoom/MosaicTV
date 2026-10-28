@@ -39,9 +39,10 @@ takes the names and artwork from it — see
 
 ## 2. Scan it
 
-Press **Scan** on the library (or **Scan all**). A progress bar follows the
-files as they're read, and the library fills in as it goes — no refresh
-needed. Re-scans are quick: unchanged files are skipped, deleted ones go.
+Adding a library scans it straight away. A progress bar follows the files as
+they're read, and the library fills in as it goes — no refresh needed. Later,
+press **Scan** on the library (or **Scan all**) to pick up what's changed;
+re-scans are quick: unchanged files are skipped, deleted ones go.
 
 ## 3. Turn on artwork (recommended)
 

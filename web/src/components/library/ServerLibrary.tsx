@@ -13,6 +13,7 @@ import {
 } from '../../lib/api'
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
+import { plural } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
 import { toast } from '../../lib/toast'
 import DirectoryPicker from '../DirectoryPicker'
@@ -36,7 +37,6 @@ const KEY_HELP: Record<ServerKind, string> = {
 
 const KIND_WORD: Record<'tv' | 'movie' | 'audio', string> = { tv: 'TV', movie: 'Movies', audio: 'Music' }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
 /**
  * Ask `ask` every `ms` while `active`, until it says it's done. The question
@@ -86,7 +86,7 @@ function FolderMap({ map, onChange }: { map: [string, string][]; onChange: (m: [
       ))}
       {picking != null && (
         <DirectoryPicker
-          initialPath={map[picking]?.[1] || '/media'}
+          initialPath={map[picking]?.[1] || undefined}
           onSelect={(p) => {
             onChange(map.map((m, j) => (j === picking ? [m[0], p] : m)))
             setPicking(null)

@@ -5,7 +5,7 @@ import { peek, remember, useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { channelPath } from '../lib/channels'
 import { errorMessage } from '../lib/errors'
-import { posterGradient } from '../lib/format'
+import { plural, posterGradient } from '../lib/format'
 import { toast } from '../lib/toast'
 import ChannelLogo from '../components/ChannelLogo'
 import LogoPicker from '../components/LogoPicker'
@@ -83,7 +83,6 @@ function addMember(collectionId: number, p: Pick) {
   }
 }
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`
 
 /** "about 100 hours — a little over 4 days" for a running time in seconds. */
 function runningTime(seconds: number): string {

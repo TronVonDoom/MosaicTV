@@ -22,6 +22,15 @@ const KIND_LABELS: Record<LibraryKind, string> = {
   other: 'Other / Bumpers',
 }
 
+/** What the add form suggests for each kind, as placeholders. */
+const EXAMPLE: Record<LibraryKind, { name: string; folder: string }> = {
+  tv: { name: 'TV Shows', folder: '/media/tv' },
+  movie: { name: 'Movies', folder: '/media/movies' },
+  music: { name: 'Music Videos', folder: '/media/music-videos' },
+  audio: { name: 'Music', folder: '/media/music' },
+  other: { name: 'Bumpers', folder: '/media/bumpers' },
+}
+
 const SOURCE_INFO: Record<MetadataSource, { label: string; hint: string; music?: string }> = {
   nfo: {
     label: '.nfo files',
@@ -184,9 +193,11 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
         name: form.name,
         kind: form.kind,
         folders,
+        scan: true,
       })
       setForm({ name: '', kind: 'tv', folders: [''] })
-      toast.success('Library added')
+      toast.success('Library added — scanning it now')
+      jobs.followScan()
       refresh()
     })
     setSubmitting(false)
@@ -278,7 +289,7 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
             <Field label="Name" hint="Shown in the guide and on the Browse tab.">
               <Input
                 ref={nameRef}
-                placeholder="Movies"
+                placeholder={EXAMPLE[form.kind].name}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
@@ -311,7 +322,7 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
               <div key={i} className="flex gap-2">
                 <Input
                   className="flex-1 min-w-0 font-mono"
-                  placeholder="/media/plex_media/movies"
+                  placeholder={EXAMPLE[form.kind].folder}
                   value={folder}
                   onChange={(e) => {
                     const folders = [...form.folders]
@@ -447,7 +458,7 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
 
       {picker && (
         <DirectoryPicker
-          initialPath={picker.mode === 'new' ? form.folders[picker.index] || '/media' : '/media'}
+          initialPath={picker.mode === 'new' ? form.folders[picker.index] || undefined : undefined}
           onSelect={onPick}
           onClose={() => setPicker(null)}
         />

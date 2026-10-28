@@ -332,7 +332,8 @@ export const api = {
   librarySample: (id: number, limit = 12) => request<LibrarySample>(`/api/libraries/${id}/sample?limit=${limit}`),
   // A movie or TV library's home: what's in it, what of it is on, and what isn't.
   libraryHome: (id: number) => request<LibraryHome>(`/api/libraries/${id}/home`),
-  addLibrary: (data: { name: string; kind: LibraryKind; folders: string[] }) =>
+  /** A library of folders here; `scan` reads it straight away (after any scan that's running). */
+  addLibrary: (data: { name: string; kind: LibraryKind; folders: string[]; scan?: boolean }) =>
     request<Library>('/api/libraries', { method: 'POST', body: JSON.stringify(data) }),
   /** A library read from Plex, Jellyfin or Emby — through its sign-in (`server`) or an address and key — its folders where the server's are here; `scan` reads it straight away. */
   addServerLibrary: (data: { name: string; kind: LibraryKind; source: ServerSource & { library: string; name: string }; pathMap: [string, string][]; scan?: boolean }) =>

@@ -17,18 +17,20 @@ export default function DirectoryPicker({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const load = (path?: string) => {
+  const load = (path?: string, orRoot = false) => {
     setLoading(true)
     setError(null)
     api
       .browse(path)
+      // A folder typed in that's gone, or outside the media root, opens the root instead.
+      .catch((e) => (orRoot && path ? api.browse() : Promise.reject(e)))
       .then((l) => setListing(l))
       .catch((e) => setError(errorMessage(e, 'Failed to open folder')))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    load(initialPath)
+    load(initialPath, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

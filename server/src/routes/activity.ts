@@ -45,7 +45,7 @@ export function activityItems(): Activity[] {
     items.push({
       id: `ident:${b.title}:${b.startedAt}`,
       kind: 'filler',
-      title: b.error ? `Couldn’t build ${b.title}` : `${b.title} is ready`,
+      title: b.error ? `Couldn’t build ${b.title}` : `${b.title.charAt(0).toUpperCase()}${b.title.slice(1)} is ready`,
       detail: b.error ?? 'Ident built for its breaks',
       state: b.error ? 'error' : 'done',
       progress: null,

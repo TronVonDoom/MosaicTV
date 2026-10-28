@@ -90,7 +90,8 @@ More in [Music](#music) below.
 
 ## Scanning
 
-Press **Scan** on a library, or **Scan all** at the top of the Library page
+A library is scanned as soon as it's added. After that, press **Scan** on a
+library, or **Scan all** at the top of the Library page
 to scan every library one after another ("Scanning 2 of 5"). A progress bar
 follows the files as they're probed (length, resolution and codecs, through
 ffprobe) and filed into shows, seasons and episodes, and the notification
