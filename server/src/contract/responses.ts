@@ -680,6 +680,8 @@ export type TimeBlock = {
   /** Its season ("MM-DD" every year, "YYYY-MM-DD" once); null = all year. */
   seasonFrom: string | null
   seasonTo: string | null
+  /** Parental lock on what it airs (see ParentalStatus). */
+  locked: boolean
   collection: { id: number; name: string; defaultOrder: PlaybackOrder; logoId?: number | null }
 }
 
@@ -699,6 +701,9 @@ export type Channel = {
   playoutCursor: Date | null
   viewers: number
   nowPlaying: string | null
+  /** Parental lock on the channel; `lockedNow` also counts a locked block's program on air. */
+  locked: boolean
+  lockedNow: boolean
 }
 
 export type ChannelDetail = {
@@ -737,6 +742,8 @@ export type ChannelDetail = {
   /** Its picture: its programs, or the guide; and how a guide is drawn. */
   kind: ChannelKind
   guideLook: GuideLook
+  /** Parental lock (see ParentalStatus). */
+  locked: boolean
   rotationItems: RotationItem[]
   timeBlocks: TimeBlock[]
 }
@@ -754,6 +761,8 @@ export type PlayoutEntry = {
    *  row of the block — its songs and the breaks between them; null when the
    *  row is listed on its own. */
   block?: GuideBlock | null
+  /** Behind the parental PIN: the channel's locked, or a locked block starts it. */
+  locked?: boolean
   mediaItem: {
     id: number
     title: string
@@ -820,6 +829,8 @@ export type NowUnit = {
   /** Its logo's token (see MediaItemDetail.logo); null when it has none. */
   logo: string | null
   parts: number
+  /** Behind the parental PIN (see PlayoutEntry.locked). */
+  locked?: boolean
 }
 
 export type ChannelNow = {
@@ -828,6 +839,8 @@ export type ChannelNow = {
   viewers: number
   now: NowUnit | null
   next: NowUnit[]
+  /** What's on now is behind the parental PIN. */
+  locked?: boolean
 }
 
 /** What a channel airs during a break. Belongs to one channel. */
@@ -1032,4 +1045,19 @@ export type SignedInDevice = {
   current?: boolean
   /** A player's links (its token in the path). */
   links?: { m3u: string; xmltv: string; tuner: string } | null
+  /** A player's lineup: the channel ids its links reach; null = all. */
+  channels?: number[] | null
+}
+
+// ── Parental controls ─────────────────────────────────────────────────────────
+
+/**
+ * Settings → Parental controls: whether there's a PIN, and what's locked. A
+ * locked channel, or a program a locked block starts, asks for the PIN before
+ * the app plays it; its guide titles stay hidden until then.
+ */
+export type ParentalStatus = {
+  hasPin: boolean
+  channels: { id: number; number: number | null; name: string }[]
+  blocks: { id: number; days: string; startMinute: number; endMinute: number; collection: string; channel: { id: number; number: number | null; name: string } }[]
 }

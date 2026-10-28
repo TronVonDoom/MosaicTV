@@ -22,6 +22,7 @@ import {
   whoOf,
 } from '../auth.js'
 import type { AuthStatus, SignedInDevice } from '../contract/index.js'
+import { lineupOf } from '../parental.js'
 
 export const authRouter = Router()
 
@@ -129,6 +130,7 @@ authRouter.get('/devices', async (req, res) => {
     lastIp: d.lastIp,
     current: d.id === me,
     links: d.kind === 'player' && d.token ? linksFor(req, d.token) : null,
+    channels: d.kind === 'player' ? (lineupOf(d.channels) ? [...lineupOf(d.channels)!] : null) : undefined,
   }))
   res.json(out)
 })

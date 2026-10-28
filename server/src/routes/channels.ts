@@ -44,6 +44,7 @@ import { programLabel } from '../labels.js'
 import { channelsNow } from '../schedule/nowPlaying.js'
 import { guideBlocks } from '../schedule/musicBlocks.js'
 import { publish } from '../events.js'
+import { locks as parentalLocks, lockedAt } from '../parental.js'
 
 export const channelsRouter = Router()
 
@@ -117,6 +118,7 @@ channelsRouter.get('/', async (_req, res) => {
     include: { mediaItem: { select: { title: true, showTitle: true, season: true, episode: true, type: true } } },
   })
   const nowBy = new Map(airing.map((it) => [it.channelId, it]))
+  const locks = await parentalLocks()
   res.json(
     chs.map((c): Stored<Channel> => {
       const cur = nowBy.get(c.id)
@@ -134,6 +136,8 @@ channelsRouter.get('/', async (_req, res) => {
         playoutCursor: c.playoutCursor,
         viewers: c.number != null ? segmenterViewers(c.number) : 0,
         nowPlaying: cur ? nowLabel(cur) : null,
+        locked: c.locked,
+        lockedNow: lockedAt(locks, c.id, cur?.startTime ?? now),
       }
     }),
   )
@@ -172,8 +176,14 @@ channelsRouter.get('/now', async (_req, res) => {
     select: { id: true, number: true },
   })
   const rows = await channelsNow(chs.map((c) => c.id))
+  // What's behind the parental PIN, by when each program starts.
+  const locks = await parentalLocks()
+  const mark = <T extends { startTime: string }>(channelId: number, u: T) => ({ ...u, locked: lockedAt(locks, channelId, new Date(u.startTime)) })
   res.json(
-    rows.map((r, i): Stored<ChannelNow> => ({ ...r, number: chs[i].number, viewers: segmenterViewers(chs[i].number as number) })),
+    rows.map((r, i): Stored<ChannelNow> => {
+      const now = r.now && mark(r.channelId, r.now)
+      return { ...r, now, next: r.next.map((u) => mark(r.channelId, u)), locked: now ? now.locked : lockedAt(locks, r.channelId, new Date()), number: chs[i].number, viewers: segmenterViewers(chs[i].number as number) }
+    }),
   )
 })
 
@@ -580,8 +590,14 @@ channelsRouter.get('/:id/playout', async (req, res) => {
     const music = m.type === 'music' || m.type === 'song'
     return { ...rest, logo: music ? null : logoToken(logoPath, m.type === 'episode' ? show?.tmdbLogoPath : tmdbLogoPath) }
   }
+  const locks = await parentalLocks()
   const items = rows
     .slice(keep)
-    .map(({ channelId: _channel, collectionId: _collection, mediaItem, ...it }, i) => ({ ...it, mediaItem: withLogo(mediaItem), block: blocks[keep + i] }))
+    .map(({ channelId: _channel, collectionId: _collection, mediaItem, ...it }, i) => ({
+      ...it,
+      mediaItem: withLogo(mediaItem),
+      block: blocks[keep + i],
+      locked: lockedAt(locks, channelId, it.startTime),
+    }))
   res.json({ now: now.toISOString(), items } satisfies Stored<Playout>)
 })

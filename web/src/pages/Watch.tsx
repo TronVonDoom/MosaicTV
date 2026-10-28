@@ -15,6 +15,8 @@ import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
 import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
 import SegmentBar, { hasParts, piecesOf, type Piece } from '../components/guide/SegmentBar'
 import TitleLogo from '../components/title/TitleLogo'
+import PinHost from '../components/PinHost'
+import { maskNow, subscribePin, unlock, useUnlocked } from '../lib/parental'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
@@ -74,7 +76,9 @@ export default function Watch() {
   const nowRead = useCached(reads.channelsNow)
   // A list that won't load at all is an empty lineup, not a black screen forever.
   const channels = useMemo(() => channelsRead.data ?? (channelsRead.error ? [] : null), [channelsRead.data, channelsRead.error])
-  const rows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((x) => [x.channelId, x])), [nowRead.data])
+  // A locked program shows as locked until the PIN's entered here (lib/parental.ts).
+  const unlocked = useUnlocked()
+  const rows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((x) => [x.channelId, unlocked ? x : maskNow(x)])), [nowRead.data, unlocked])
   const [current, setCurrent] = useState<number | null>(null)
   const [previous, setPrevious] = useState<number | null>(null)
   const [digits, setDigits] = useState('')
@@ -103,6 +107,13 @@ export default function Watch() {
   )
   const channel = lineup.find((c) => c.number === current) ?? null
   const row = channel ? rows[channel.id] : undefined
+  // Locked, it doesn't play until the PIN's entered; up and down still flip past it.
+  // Nothing plays until what's on has been read fresh — a copy kept on disk
+  // could say a channel isn't locked when it is.
+  const lockedHere = !unlocked && !!(row ? row.locked : channel?.lockedNow)
+  const lockKnown = unlocked || (!!nowRead.data && !nowRead.stored)
+  const [pinOpen, setPinOpen] = useState(false)
+  useEffect(() => subscribePin((a) => setPinOpen(!!a)), [])
   // The channel's guide for the next couple of hours, to draw what's on now in
   // its parts and breaks the way the guide does.
   const guideRead = useCached(channel ? reads.guides([channel.id], 2, 0) : null)
@@ -121,7 +132,7 @@ export default function Watch() {
     setCurrent(lineup.some((c) => c.number === asked) ? asked : (lineup[0].number as number))
   }, [lineup, current, params.number])
 
-  const url = current != null && lineup.some((c) => c.number === current) ? channelPlaylistUrl(current) : null
+  const url = current != null && lockKnown && !lockedHere && lineup.some((c) => c.number === current) ? channelPlaylistUrl(current) : null
   const { error, mutedFallback, reconnecting } = useLivePlayer(videoRef, url)
 
   // Each tune: the address and the tab follow, the banner shows, and the
@@ -335,6 +346,8 @@ export default function Watch() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
+      // The PIN pad has the keys while it's up.
+      if (pinOpen) return
       const k = e.key
       if (helpOpen) {
         if (k === 'Escape' || k === '?' || k === 'h') setHelpOpen(false)
@@ -360,6 +373,7 @@ export default function Watch() {
       }
       if (/^[0-9]$/.test(k)) setDigits((d) => (d + k).slice(-4))
       else if (k === 'Enter' && digits) commitDigits()
+      else if (k === 'Enter' && lockedHere) void unlock()
       else if (k === 'ArrowUp' || k === 'PageUp' || k === '+' || k === '=') step(1)
       else if (k === 'ArrowDown' || k === 'PageDown' || k === '-') step(-1)
       else if (k === 'Backspace' || k === 'l' || k === 'L') {
@@ -389,7 +403,7 @@ export default function Watch() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideOpen, helpOpen, looksOpen, looks, setLooks, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit])
+  }, [guideOpen, helpOpen, looksOpen, looks, setLooks, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit, pinOpen, lockedHere])
 
   // Swipe up/down to change channel; a tap wakes the controls.
   const touch = useRef<{ y: number; t: number } | null>(null)
@@ -449,13 +463,36 @@ export default function Watch() {
       )}
       {tvScreen && <TvSet w={box.w} h={box.h} screen={tvScreen} channel={current} />}
 
+      {/* Locked: nothing plays until the PIN is entered. */}
+      {lockedHere && channel && (
+        <div className="absolute inset-0 grid place-items-center bg-black p-6 text-center">
+          <div>
+            <Icon name="lock" size={34} className="mx-auto mb-4 text-amber-300" />
+            <div className="text-lg font-semibold">
+              {channel.number} {channel.name} is locked
+            </div>
+            <p className="mt-1 text-sm text-white/60">Enter the parental PIN to watch. Up and down still change channel.</p>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => void unlock()}
+              className="mt-5 rounded-xl bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400"
+            >
+              Enter PIN
+            </button>
+          </div>
+        </div>
+      )}
+      <PinHost />
+
       {/* Tuning: the channel's ident over a soft static until the picture arrives. */}
       <div
         className={cx(
           'absolute inset-0 grid place-items-center bg-black transition-opacity pointer-events-none',
           // On at once (a flip never shows the old picture or a bare black
-          // frame), off gently once the new picture is playing.
-          tuning ? 'opacity-100 duration-0' : 'opacity-0 duration-500',
+          // frame), off gently once the new picture is playing. A locked
+          // channel has no picture coming: its lock shows instead.
+          tuning && !lockedHere ? 'opacity-100 duration-0' : 'opacity-0 duration-500',
         )}
       >
         <div className="tv-static absolute inset-0 opacity-[0.07]" />

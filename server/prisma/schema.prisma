@@ -66,6 +66,9 @@ model Device {
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime?
   lastIp     String?
+  // A player's lineup: the channel ids its links list and play, as JSON
+  // ("[3,7]"); null = every channel. See parental.ts.
+  channels   String?
 }
 
 // A reusable ffmpeg output profile assignable per channel (null on a channel =
@@ -443,6 +446,9 @@ model Channel {
   // guide is drawn: "classic" (the blue cable guide) or "mosaic" (the app's).
   kind              String             @default("normal")
   guideLook         String             @default("classic")
+  // Parental lock: the app asks for the PIN before playing it, and its guide
+  // leaves its titles out until then (parental.ts).
+  locked            Boolean            @default(false)
   collections       Collection[]
   rotationItems     RotationItem[]
   timeBlocks        TimeBlock[]
@@ -499,6 +505,9 @@ model TimeBlock {
   // and a shorter season from a longer one (see contract/seasons.ts).
   seasonFrom        String?
   seasonTo          String?
+  // Parental lock for what it airs: a program it starts asks for the PIN
+  // before the app plays it, as a locked channel does (parental.ts).
+  locked            Boolean            @default(false)
   fillerAssignments FillerAssignment[]
 
   @@index([channelId])

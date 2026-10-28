@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../db.js'
 import { baseUrl } from '../http.js'
 import { deviceId, friendlyName, tunerCount } from '../tuner.js'
+import { lineupFor } from '../parental.js'
 
 export const hdhrRouter = Router()
 
@@ -42,7 +43,8 @@ hdhrRouter.post('/lineup.post', (_req, res) => {
 // stream-mode setting stays a choice for the M3U, where players negotiate both.
 hdhrRouter.get('/lineup.json', async (req, res) => {
   const base = baseUrl(req)
-  const channels = await prisma.channel.findMany({ orderBy: { number: 'asc' } })
+  const lineup = await lineupFor(req)
+  const channels = (await prisma.channel.findMany({ orderBy: { number: 'asc' } })).filter((c) => !lineup || lineup.has(c.id))
   res.json(
     channels
       .filter((c) => c.number != null)

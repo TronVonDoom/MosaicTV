@@ -9,6 +9,7 @@ import StreamingSettings from '../components/settings/StreamingSettings'
 import EncodingSettings from '../components/settings/EncodingSettings'
 import MaintenanceSettings from '../components/settings/MaintenanceSettings'
 import SignInSettings from '../components/settings/SignInSettings'
+import ParentalSettings from '../components/settings/ParentalSettings'
 import ActivitySettings from '../components/settings/ActivitySettings'
 import SideNav from '../components/SideNav'
 import type { LayoutContext } from '../components/Layout'
@@ -75,6 +76,7 @@ export default function Settings() {
           {tab === 'encoding' && <EncodingSettings />}
           {tab === 'maintenance' && <MaintenanceSettings />}
           {tab === 'sign-in' && <SignInSettings />}
+          {tab === 'parental' && <ParentalSettings />}
           {tab === 'activity' && <ActivitySettings />}
         </div>
       </div>

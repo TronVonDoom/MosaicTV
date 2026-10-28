@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Parental controls.** Set a PIN in Settings → Parental controls, then lock
+  a whole channel on its Settings tab, or just a block's hours — a late-night
+  horror block — in the block's editor. A locked program doesn't play in TV
+  mode until the PIN is entered, and the guide shows it as **Locked**, with
+  no title or picture. The PIN unlocks everything in that browser for four
+  hours, or until it's closed. Turning a lock off, or changing the PIN, asks
+  for it too (#10).
+- **A player's own channels.** A player given its own links can be kept to
+  some channels (Settings → Sign-in → Player links → Just these): the rest
+  are left out of its M3U, guide and tuner, and won't play through its links.
+
 - **Runs on ARM.** The image is built for arm64 as well as amd64, so a
   Raspberry Pi 4 or 5 (on a 64-bit OS), an ARM NAS or Docker Desktop on a
   Mac pulls the same `ghcr.io/tronvondoom/mosaictv` and gets its own. On ARM

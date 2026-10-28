@@ -10,6 +10,8 @@ import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { useNow } from '../lib/hooks'
 import { useGuideRefresh, useLiveRefresh } from '../lib/events'
+import { maskEntry, maskNow, unlock, relock, useUnlocked } from '../lib/parental'
+import Icon from '../components/Icon'
 import { Button, EmptyState, SectionHeading, Segmented, Skeleton, buttonClass } from '../components/ui'
 import { Kicker, Masthead } from '../components/onair/Masthead'
 import { StatFigure } from '../components/onair/OnAir'
@@ -51,12 +53,15 @@ export default function Guide() {
   const nowRead = useCached(reads.channelsNow)
   const stats = statsRead.data ?? null
   const channels = channelsRead.data ?? null
-  const nowRows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((r) => [r.channelId, r])), [nowRead.data])
+  // Locked programs show as locked until the PIN's entered here (lib/parental.ts).
+  const unlocked = useUnlocked()
+  const nowList = useMemo(() => (nowRead.data ?? []).map((r) => (unlocked ? r : maskNow(r))), [nowRead.data, unlocked])
+  const nowRows = useMemo(() => Object.fromEntries(nowList.map((r) => [r.channelId, r])), [nowList])
   const nowArt = useMemo(() => {
     const m: Record<number, NowUnit | null> = {}
-    for (const r of nowRead.data ?? []) m[r.channelId] = r.now
+    for (const r of nowList) m[r.channelId] = r.now
     return m
-  }, [nowRead.data])
+  }, [nowList])
   const [detailId, setDetailId] = useState<number | null>(null)
   const [span, setSpan] = useState<Span>('24')
   const [zoom, setZoom] = useState<Zoom>('standard')
@@ -80,7 +85,13 @@ export default function Guide() {
   // The guides: fetched when the on-air set or the span changes, again
   // whenever a channel's guide does, and every few minutes.
   const guidesRead = useCached(onAir.length > 0 ? reads.guides(onAir.map((c) => c.id), Number(span) + 1, PAST_READ_HOURS) : null)
-  const guides = guidesRead.data ?? NO_GUIDES
+  const rawGuides = guidesRead.data ?? NO_GUIDES
+  const guides = useMemo(
+    (): Record<number, Playout> =>
+      unlocked ? rawGuides : Object.fromEntries(Object.entries(rawGuides).map(([id, g]) => [id, { ...g, items: g.items.map(maskEntry) }])),
+    [rawGuides, unlocked],
+  )
+  const anyLocked = useMemo(() => (nowRead.data ?? []).some((r) => r.locked || r.next.some((u) => u.locked)) || Object.values(rawGuides).some((g) => g.items.some((e) => e.locked)), [nowRead.data, rawGuides])
   useGuideRefresh(guidesRead.reload)
 
   // Up top: the channel picked last time if it's still on air, else whichever
@@ -210,6 +221,15 @@ export default function Guide() {
                 <span className="h-[3px] w-3.5 rounded-full bg-cue" />
                 Break
               </span>
+              {anyLocked && (
+                <span className="inline-flex items-center gap-2">
+                  <Icon name={unlocked ? 'unlock' : 'lock'} size={13} className="text-amber-300" />
+                  {unlocked ? 'Locked programs are showing here.' : 'Locked programs are hidden.'}
+                  <button type="button" className="text-now hover:text-white" onClick={() => (unlocked ? relock() : void unlock())}>
+                    {unlocked ? 'Lock again' : 'Unlock'}
+                  </button>
+                </span>
+              )}
               <span>Listings reach as far ahead as each channel's schedule has been built (Settings › Channels › Build ahead).</span>
             </div>
           </section>

@@ -8,6 +8,7 @@ import ConnectPlayers from './ConnectPlayers'
 import NotificationBell from './NotificationBell'
 import SupportLinks from './SupportLinks'
 import ConfirmHost from './ConfirmHost'
+import PinHost from './PinHost'
 import ContextMenuHost from './ContextMenuHost'
 import { api, type Health } from '../lib/api'
 import { useCached } from '../lib/cache'
@@ -334,6 +335,7 @@ export default function Layout() {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onConnect={() => setConnectOpen(true)} />
       {connectOpen && <ConnectPlayers onClose={() => setConnectOpen(false)} />}
       <ConfirmHost />
+      <PinHost />
       <ContextMenuHost />
       <ToastContainer />
     </div>

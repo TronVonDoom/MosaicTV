@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Collection } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
+import { maskNow, useUnlocked } from '../lib/parental'
 import { channelIdIn, channelSlug } from '../lib/channels'
 import { copyText } from '../lib/clipboard'
 import { errorMessage } from '../lib/errors'
@@ -111,7 +112,9 @@ function ChannelEditorFor({
   // A block the Breaks tab asked to open on the Schedule tab.
   const [scheduleFocus, setScheduleFocus] = useState<number | null>(null)
   const nowRead = useCached(reads.channelsNow)
-  const now = nowRead.data?.find((r) => r.channelId === channelId) ?? null
+  const unlocked = useUnlocked()
+  const nowRow = nowRead.data?.find((r) => r.channelId === channelId) ?? null
+  const now = nowRow && !unlocked ? maskNow(nowRow) : nowRow
   const nowMs = useNow(15000)
 
   // In-progress form values for the tabs, held here so they survive a tab

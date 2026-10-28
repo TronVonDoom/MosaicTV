@@ -355,7 +355,7 @@ change.
 | 📚 [Your Library](docs/library.md) | Libraries, naming, scanning, metadata and logos, fixing matches, Plex/Jellyfin/Emby |
 | 🗓 [Channels & Scheduling](docs/channels.md) | Collections, broadcast episodes, rotations, time blocks, seasons, the clock, the guide |
 | 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, promos, up-next cards |
-| 📺 [Watching](docs/watching.md) | The Guide, TV mode, looks, picture in picture, casting |
+| 📺 [Watching](docs/watching.md) | The Guide, TV mode, looks, picture in picture, casting, parental controls |
 | 📡 [Connecting Players](docs/clients.md) | Jellyfin · Emby · Plex · VLC · IPTV apps |
 | ⚡ [Hardware Acceleration](docs/hardware-acceleration.md) | Hardware requirements, CPU vs GPU, setup per platform, profiles |
 | 🔒 [Security](docs/security.md) | Sign-in, player links, VPN access, reverse proxies |

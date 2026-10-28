@@ -22,7 +22,7 @@ plugs into Plex, Jellyfin, Emby, or any IPTV player.
 | 📚 [Your Library](library.md) | Adding libraries, naming, scanning, metadata and title logos, fixing matches, specials and extras, music, reading from Plex/Jellyfin/Emby, title pages |
 | 🗓 [Channels & Scheduling](channels.md) | Collections, playback orders, broadcast episodes, rotations, time blocks, seasons, holiday episodes, the broadcast clock, music, the guide channel, the playout |
 | 🎨 [Branding: Logos, Watermarks & Breaks](branding.md) | On-screen logos, watermarks, station breaks and idents, promos, "up next" cards |
-| 📺 [Watching](watching.md) | The Guide, TV mode and its keys, retro looks, picture in picture, casting, phones |
+| 📺 [Watching](watching.md) | The Guide, TV mode and its keys, retro looks, picture in picture, casting, parental controls, phones |
 | 📡 [Connecting Players](clients.md) | Jellyfin, Emby, Plex, VLC, IPTV apps — and shared HLS vs MPEG-TS |
 | ⚡ [Hardware Acceleration](hardware-acceleration.md) | Hardware requirements, CPU vs GPU encoding (NVIDIA/QuickSync/VAAPI/AMF/VideoToolbox), setup per platform, encoding profiles |
 | 🔒 [Security](security.md) | Sign-in, player links, and watching away from home the safe way |

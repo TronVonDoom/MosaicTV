@@ -8,6 +8,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'streaming', label: 'Streaming', icon: 'cast', description: 'Stream format, HDHomeRun tuner' },
   { id: 'encoding', label: 'Encoding', icon: 'cpu', description: 'ffmpeg profiles' },
   { id: 'sign-in', label: 'Sign-in', icon: 'lock', description: 'Away from home, devices, player links' },
+  { id: 'parental', label: 'Parental controls', icon: 'shield', description: 'A PIN, locked channels, players’ lineups' },
   { id: 'maintenance', label: 'Maintenance', icon: 'database', description: 'About, backup, reset' },
   { id: 'activity', label: 'Activity', icon: 'activity', description: 'Server log, CPU and memory' },
 ] as const

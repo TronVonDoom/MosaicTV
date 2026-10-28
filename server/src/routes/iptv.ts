@@ -12,6 +12,7 @@ import { escapeXml, programmesXml } from '../xmltv.js'
 import { guideBlocks } from '../schedule/musicBlocks.js'
 import { baseUrl } from '../http.js'
 import { clientName } from '../sessions.js'
+import { lineupFor, mayPlay } from '../parental.js'
 
 export const iptvRouter = Router()
 
@@ -30,6 +31,13 @@ iptvRouter.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', req.header('Access-Control-Request-Headers') ?? 'Range')
   res.setHeader('Access-Control-Max-Age', '86400')
   res.status(204).end()
+})
+
+// A player kept to its own lineup (parental.ts) plays just those channels.
+iptvRouter.use(async (req, res, next) => {
+  const m = /^\/channel\/(\d+)(?:\.ts|\/)/.exec(req.path)
+  if (m && !(await mayPlay(req, Number(m[1])))) return res.status(403).type('text/plain').send('That channel isn’t in this player’s lineup.')
+  next()
 })
 
 // Live stream (per-client MPEG-TS): GET /iptv/channel/1.ts — a thin -c copy
@@ -87,7 +95,8 @@ const guideLogo = (c: { logoId: number | null; logoUrl: string | null }, base: s
 
 // M3U playlist — one entry per channel, pointing at its (future) stream URL.
 iptvRouter.get('/channels.m3u', async (req, res) => {
-  const channels = await prisma.channel.findMany({ orderBy: { number: 'asc' } })
+  const lineup = await lineupFor(req)
+  const channels = (await prisma.channel.findMany({ orderBy: { number: 'asc' } })).filter((c) => !lineup || lineup.has(c.id))
   const base = baseUrl(req)
   // Global output mode: 'hls' (shared, one transcode per channel) or 'mpegts'
   // (per-client). The stream URL each channel advertises depends on it.
@@ -110,11 +119,12 @@ iptvRouter.get('/channels.m3u', async (req, res) => {
 // XMLTV guide — channels + programmes from the built playout.
 iptvRouter.get('/xmltv.xml', async (req, res) => {
   const base = baseUrl(req)
-  const channels = await prisma.channel.findMany({ orderBy: { number: 'asc' } })
+  const lineup = await lineupFor(req)
+  const channels = (await prisma.channel.findMany({ orderBy: { number: 'asc' } })).filter((c) => !lineup || lineup.has(c.id))
   const numById = new Map(channels.map((c) => [c.id, c.number]))
   const since = new Date(Date.now() - 2 * 3600 * 1000)
   const items = await prisma.playoutItem.findMany({
-    where: { stopTime: { gt: since } },
+    where: { stopTime: { gt: since }, ...(lineup ? { channelId: { in: [...lineup] } } : {}) },
     orderBy: [{ channelId: 'asc' }, { startTime: 'asc' }],
     include: {
       mediaItem: {

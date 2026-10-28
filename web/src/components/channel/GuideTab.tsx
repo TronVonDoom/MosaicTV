@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, type Playout } from '../../lib/api'
 import { errorMessage } from '../../lib/errors'
 import { programLabel } from '../../lib/format'
@@ -11,6 +11,7 @@ import MediaDetailModal from '../MediaDetailModal'
 import { Button, Card, EmptyState, InfoHint, LiveBadge, Segmented, Skeleton, cx } from '../ui'
 import type { ChannelTabProps } from './types'
 import { confirmDialog } from '../../lib/confirm'
+import { maskEntry, useUnlocked } from '../../lib/parental'
 
 function fmtClock(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -41,7 +42,10 @@ export default function GuideTab({
   onReload: () => void
   onError: (msg: string | null) => void
 }) {
-  const [playout, setPlayout] = useState<Playout | null>(null)
+  const [read, setPlayout] = useState<Playout | null>(null)
+  // Locked programs show as locked here too until the PIN's entered (lib/parental.ts).
+  const unlocked = useUnlocked()
+  const playout = useMemo(() => (read && !unlocked ? { ...read, items: read.items.map(maskEntry) } : read), [read, unlocked])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'timeline' | 'list' | 'aired' | 'ahead'>('timeline')
   const [building, setBuilding] = useState(false)

@@ -4,6 +4,7 @@ import ChannelCard from '../components/ChannelCard'
 import { api, type Channel } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
+import { maskNow, useUnlocked } from '../lib/parental'
 import { channelPath } from '../lib/channels'
 import { copyText } from '../lib/clipboard'
 import { confirmDialog } from '../lib/confirm'
@@ -29,7 +30,8 @@ export default function Channels() {
   const nowRead = useCached(reads.channelsNow)
   // A list that won't load at all is an empty lineup, not a page loading forever.
   const channels = useMemo(() => channelsRead.data ?? (channelsRead.error ? [] : null), [channelsRead.data, channelsRead.error])
-  const nowRows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((r) => [r.channelId, r])), [nowRead.data])
+  const unlocked = useUnlocked()
+  const nowRows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((r) => [r.channelId, unlocked ? r : maskNow(r)])), [nowRead.data, unlocked])
   const [filter, setFilter] = useState<Filter>('all')
   const nowMs = useNow(15000)
 

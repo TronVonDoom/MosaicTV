@@ -14,11 +14,48 @@ import {
   type GuideLook,
 } from '../../lib/api'
 import { useSyncedDraft } from '../../lib/hooks'
+import { errorMessage } from '../../lib/errors'
+import { parental, withPin } from '../../lib/parental'
+import { toast } from '../../lib/toast'
 import { profileLabel } from '../../lib/channels'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import { Badge, Button, Card, Field, InfoHint, Input, Section, Segmented, Select, Switch } from '../ui'
 import type { ChannelTabProps } from './types'
+
+/**
+ * The channel's parental lock — switched at once, not with Save: locking needs
+ * a PIN set, and letting go of the lock asks for it.
+ */
+function ParentalLock({ channelId, locked }: { channelId: number; locked: boolean }) {
+  const [busy, setBusy] = useState(false)
+  async function toggle(v: boolean) {
+    setBusy(true)
+    try {
+      const done = await withPin((pin) => parental.lockChannel(channelId, v, pin), 'Enter the PIN to unlock this channel')
+      if (done) toast.success(v ? 'Channel locked' : 'Channel unlocked')
+    } catch (err) {
+      toast.error(errorMessage(err, 'Couldn’t change the lock'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Section title="Parental lock" className="mt-5">
+      <div className="flex items-center justify-between gap-6">
+        <p className="min-w-0 max-w-xl text-ink-muted text-sm">
+          Locked, it asks for the parental PIN before it plays in TV mode or the guide, and its titles stay hidden until then. To lock
+          just some hours, lock a block on the Schedule tab. The PIN is set in{' '}
+          <Link to="/settings#parental" className="text-indigo-300">
+            Settings → Parental controls
+          </Link>
+          ; this applies at once.
+        </p>
+        <Switch checked={locked} disabled={busy} onChange={(v) => void toggle(v)} label="Parental lock" />
+      </div>
+    </Section>
+  )
+}
 
 // Channel-level coming-up state is always a full config; "off" is enabled=false,
 // which we persist as null (see save()).
@@ -240,6 +277,8 @@ export default function GeneralTab({ channelId, ch, guard, drafts }: ChannelTabP
             </div>
           )}
         </Section>
+
+        {form.kind !== 'guide' && <ParentalLock channelId={channelId} locked={ch.locked} />}
 
         {form.kind !== 'guide' && (
         <Section title="Coming up next" className="mt-5">

@@ -83,7 +83,7 @@ test('rows carry only the contract fields, never the checkpoint', () => {
   assert.ok(!text.includes('"state"'), 'state is not sent')
   assert.ok(!text.includes('xxxx'), 'no checkpoint content is sent')
   for (const item of playout.items)
-    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'locked', 'mediaItem', 'startTime', 'stopTime', 'title'])
 })
 
 test('each program says whether its title has a logo, as a token, and no more', async () => {
@@ -141,7 +141,7 @@ test('back= reaches into the history, with the breaks between filled in', async 
   // Each row runs into the next: no holes.
   for (let i = 1; i < guide.items.length; i++) assert.equal(guide.items[i].startTime, guide.items[i - 1].stopTime)
   for (const item of guide.items)
-    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'mediaItem', 'startTime', 'stopTime', 'title'])
+    assert.deepEqual(Object.keys(item).sort(), ['block', 'groupKey', 'id', 'kind', 'locked', 'mediaItem', 'startTime', 'stopTime', 'title'])
 
   // Without back= the guide starts at what's on now.
   const plain = (await (await fetch(`${base}/api/channels/${nick.id}/playout?hours=2`)).json()) as Playout

@@ -119,6 +119,34 @@ is its remote: flip channels and the TV follows.
 With [sign-in](security.md) on, a cast hands the TV a link of its own, so it
 plays wherever the TV is.
 
+## Parental controls
+
+A channel, or a block of one — a late-night horror block, say — can be locked
+behind a PIN.
+
+1. **Settings → Parental controls**: set a PIN, 4 to 8 digits.
+2. Lock a whole channel on its **Settings** tab (**Parental lock**), or just
+   some hours with a block's **Parental lock** in its editor on the
+   **Schedule** tab. A lock applies at once.
+
+A locked channel — or a program a locked block starts — doesn't play in TV
+mode until the PIN is entered, and the guide shows it as **Locked**, with no
+title or picture. Entering the PIN (**Enter PIN** in TV mode, **Unlock** under
+the guide or in Settings) unlocks everything in that browser for four hours,
+or until it's closed; **Lock again** ends it sooner. Turning a lock off,
+removing the PIN or changing the PIN asks for it too.
+
+**A player's own channels.** A TV app or Plex given its own links (**Settings
+→ Sign-in → Player links**) can be kept to some channels: open the player,
+choose **Just these** and tick them. The others are left out of its M3U, its
+guide and its tuner, and won't play through its links — the way to keep a
+kids' TV to the kids' channels, whether or not sign-in is on.
+
+Like a TV's own lock, it keeps a channel off the screen, not out of reach: the
+library stays browsable, and anyone who can edit channels in the web app can
+change a schedule. Give the kids' TV its own player links, and keep the web
+app to yourself with [sign-in](security.md).
+
 ## On a phone
 
 Everything works at phone width. The rail becomes a bar along the bottom

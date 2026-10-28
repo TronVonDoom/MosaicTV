@@ -4,7 +4,10 @@ import { copyText } from '../../lib/clipboard'
 import { confirmDialog } from '../../lib/confirm'
 import { errorMessage } from '../../lib/errors'
 import { toast } from '../../lib/toast'
-import { Badge, Button, Input, Skeleton, Switch } from '../ui'
+import { useCached } from '../../lib/cache'
+import { parental, withPin } from '../../lib/parental'
+import { reads } from '../../lib/reads'
+import { Badge, Button, Input, Segmented, Skeleton, Switch, cx } from '../ui'
 import { SettingRow, SettingsGroup, SettingsSection } from './SettingsKit'
 
 const KIND: Record<SignedInDevice['kind'], string> = { browser: 'Browser', app: 'App', player: 'Player' }
@@ -117,6 +120,78 @@ function Links({ links }: { links: NonNullable<SignedInDevice['links']> }) {
           </Button>
         </div>
       ))}
+    </div>
+  )
+}
+
+/**
+ * A player's own channels: every one, or just those ticked — the rest are
+ * left out of its M3U, guide and tuner, and won't play through its links.
+ * Changing it asks for the parental PIN when there is one.
+ */
+function PlayerLineup({ player, onSaved }: { player: SignedInDevice; onSaved: () => void }) {
+  const channels = (useCached(reads.channels).data ?? []).filter((c) => c.number != null)
+  const [some, setSome] = useState(player.channels != null)
+  const [picked, setPicked] = useState<Set<number>>(new Set(player.channels ?? []))
+  const [busy, setBusy] = useState(false)
+  const saved = player.channels == null ? 'all' : [...player.channels].sort().join(',')
+  const now = !some ? 'all' : [...picked].sort().join(',')
+  async function save() {
+    setBusy(true)
+    try {
+      const done = await withPin((pin) => parental.setLineup(player.id, some ? [...picked] : null, pin), 'Enter the PIN to change its channels')
+      if (done) {
+        toast.success(some ? `${player.name} gets ${picked.size} ${picked.size === 1 ? 'channel' : 'channels'}` : `${player.name} gets every channel`)
+        onSaved()
+      }
+    } catch (err) {
+      toast.error(errorMessage(err, 'Couldn’t save its channels'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggle = (id: number) => setPicked((p) => {
+    const next = new Set(p)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+  return (
+    <div className="mt-3 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-[12.5px] text-ink-faint">Its channels</span>
+        <Segmented<'all' | 'some'>
+          options={[
+            { value: 'all', label: 'Every channel' },
+            { value: 'some', label: 'Just these' },
+          ]}
+          value={some ? 'some' : 'all'}
+          onChange={(v) => setSome(v === 'some')}
+        />
+      </div>
+      {some && (
+        <div className="flex flex-wrap gap-1.5">
+          {channels.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={picked.has(c.id)}
+              onClick={() => toggle(c.id)}
+              className={cx(
+                'rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors',
+                picked.has(c.id) ? 'border-indigo-400/60 bg-indigo-500/15 text-ink' : 'border-white/[0.08] text-ink-faint hover:text-ink-soft',
+              )}
+            >
+              <span className="tabular-nums">{c.number}</span> {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {now !== saved && (
+        <Button size="sm" onClick={() => void save()} loading={busy} disabled={some && picked.size === 0}>
+          Save its channels
+        </Button>
+      )}
     </div>
   )
 }
@@ -306,19 +381,20 @@ export default function SignInSettings() {
           <SettingRow
             key={d.id}
             label={d.name}
-            description={`Last used ${ago(d.lastSeenAt)}${d.lastIp ? ` from ${d.lastIp}` : ''}.`}
+            description={`Last used ${ago(d.lastSeenAt)}${d.lastIp ? ` from ${d.lastIp}` : ''}. ${d.channels == null ? 'Every channel.' : `${d.channels.length} ${d.channels.length === 1 ? 'channel' : 'channels'}.`}`}
             stacked={openPlayer === d.id}
           >
             <div className="flex flex-col gap-2">
               <div className="flex gap-2 sm:justify-end">
                 <Button size="sm" variant="secondary" onClick={() => setOpenPlayer(openPlayer === d.id ? null : d.id)}>
-                  {openPlayer === d.id ? 'Hide links' : 'Links'}
+                  {openPlayer === d.id ? 'Close' : 'Links & channels'}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => remove(d)}>
                   Remove
                 </Button>
               </div>
               {openPlayer === d.id && d.links && <Links links={d.links} />}
+              {openPlayer === d.id && <PlayerLineup player={d} onSaved={load} />}
             </div>
           </SettingRow>
         ))}

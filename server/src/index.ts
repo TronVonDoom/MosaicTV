@@ -46,6 +46,7 @@ import { assetsRouter } from './routes/assets.js'
 import { profilesRouter } from './routes/profiles.js'
 import { fillersRouter } from './routes/fillers.js'
 import { authRouter } from './routes/auth.js'
+import { parentalRouter } from './routes/parental.js'
 import { authGate, linkPrefix, resetSignInIfAsked } from './auth.js'
 import { addressNoter, tailscaleAddresses } from './addresses.js'
 import { apiErrorHandler, catchAsyncErrors } from './asyncRoutes.js'
@@ -143,6 +144,7 @@ app.get('/api/stats', async (_req, res) => {
 app.get('/api/events', eventStream)
 
 app.use('/api/auth', authRouter)
+app.use('/api/parental', parentalRouter)
 app.use('/api/libraries', librariesRouter)
 app.use('/api/sources', sourcesRouter)
 app.use('/api/media', mediaRouter)

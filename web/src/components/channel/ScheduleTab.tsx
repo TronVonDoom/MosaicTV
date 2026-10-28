@@ -20,6 +20,10 @@ import { formatDays, minutesToTime } from '../../lib/format'
 import { seasonLine } from '@contract'
 import { INHERIT, PLAYBACK_ORDERS, orderLabel } from '../../lib/playback'
 import { useDraft } from '../../lib/hooks'
+import { errorMessage } from '../../lib/errors'
+import { parental, withPin } from '../../lib/parental'
+import { toast } from '../../lib/toast'
+import Icon from '../Icon'
 import ComingUpFields from '../ComingUpFields'
 import LogoPicker from '../LogoPicker'
 import WeeklyBlockGrid from '../WeeklyBlockGrid'
@@ -140,6 +144,34 @@ function endHint(mode: FillerMode, startMin: number, endMin: number, clock: numb
  * during specific day/time windows — and when each block has breaks (what the
  * breaks play is set on the Breaks tab).
  */
+/**
+ * A block's parental lock: what it starts asks for the PIN before it plays, in
+ * TV mode and the guide. Switched at once, apart from the block's Save.
+ */
+function BlockLock({ blockId, locked }: { blockId: number; locked: boolean }) {
+  const [busy, setBusy] = useState(false)
+  async function toggle(v: boolean) {
+    setBusy(true)
+    try {
+      const done = await withPin((pin) => parental.lockBlock(blockId, v, pin), 'Enter the PIN to unlock this block')
+      if (done) toast.success(v ? 'Block locked' : 'Block unlocked')
+    } catch (err) {
+      toast.error(errorMessage(err, 'Couldn’t change the lock'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="-mt-1 flex items-center justify-between gap-6">
+      <p className="min-w-0 text-[12.5px] text-ink-muted leading-relaxed">
+        Locked, a program this block starts asks for the parental PIN before it plays in TV mode or the guide, and its title stays
+        hidden until then. Applies at once.
+      </p>
+      <Switch checked={locked} disabled={busy} onChange={(v) => void toggle(v)} label="Parental lock" />
+    </div>
+  )
+}
+
 export default function ScheduleTab({
   channelId,
   ch,
@@ -562,7 +594,10 @@ export default function ScheduleTab({
               )}
             >
               <div className="flex-1 min-w-0">
-                <div className="truncate">{b.collection.name}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate">{b.collection.name}</span>
+                  {b.locked && <Icon name="lock" size={12} className="shrink-0 text-amber-300" aria-label="Locked" />}
+                </div>
                 <div className="text-xs text-ink-faint">
                   {seasonLine(b) && <span className="text-amber-200/80">{seasonLine(b)} · </span>}
                   {formatDays(b.days)} · {minutesToTime(b.startMinute)}–{minutesToTime(b.endMinute)} ·{' '}
@@ -631,6 +666,14 @@ export default function ScheduleTab({
 
           <Section title="Season">
             <SeasonFields value={blk.season} onChange={(season) => setBlk({ ...blk, season })} />
+          </Section>
+
+          <Section title="Parental lock">
+            {editingBlock != null ? (
+              <BlockLock blockId={editingBlock} locked={!!ch.timeBlocks.find((b) => b.id === editingBlock)?.locked} />
+            ) : (
+              <p className="-mt-1 text-[12.5px] text-ink-muted">Add the block, then lock it here.</p>
+            )}
           </Section>
 
           <LogoPicker
