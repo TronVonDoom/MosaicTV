@@ -49,6 +49,16 @@
   server is back, the whole library is scanned for what changed meanwhile,
   and a Plex server that moved to a new address at home is found again
   through the sign-in.
+- **A smoother first run.** A new folder library is scanned as soon as it's
+  added. The folder picker opens on your media folder (it failed outright
+  when MosaicTV ran from source), and a folder typed in that can't be opened
+  falls back to it. The add form suggests a name and folder that fit the
+  type picked, the Library page's figures catch up when a library is added
+  (and read "1 movie"), a page still loading shows its shape instead of a
+  blank screen, and the first notice reads "The built-in ident is ready".
+- **Security updates.** The server's dependencies are updated past four
+  advisories (in express's request parsing and in zod), with no changes to
+  how anything works.
 
 ## 0.25.3 — Found over Tailscale (2026-10-28)
 
