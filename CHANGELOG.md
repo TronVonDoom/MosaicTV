@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 — Ready for every TV in the house (2026-10-29)
 
 - **Parental controls.** Set a PIN in Settings → Parental controls, then lock
   a whole channel on its Settings tab, or just a block's hours — a late-night
