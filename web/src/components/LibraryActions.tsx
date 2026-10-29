@@ -220,10 +220,14 @@ export function LibraryJobProgress({ jobs, libraryId, className }: { jobs: Libra
           total={meta.total}
           detail={meta.currentTitle}
           stats={
-            <>
-              <span className="text-emerald-400">{meta.matched} matched</span>
-              {meta.unmatched > 0 && <span className="text-amber-400">{meta.unmatched} not found</span>}
-            </>
+            meta.online ? (
+              <>
+                <span className="text-emerald-400">{meta.matched} matched</span>
+                {meta.unmatched > 0 && <span className="text-amber-400">{meta.unmatched} not found</span>}
+              </>
+            ) : (
+              <span>Reading the files alone — no TMDB or TheTVDB key</span>
+            )
           }
         />
       )}

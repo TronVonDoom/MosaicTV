@@ -129,6 +129,10 @@ export type MetadataStatus = {
   processed: number
   matched: number
   unmatched: number
+  /** Whether the run could ask anyone to match: false for movies or shows read
+   *  with no TMDB or TheTVDB key — only their files were read, so nothing was
+   *  "not found". */
+  online: boolean
   currentTitle: string | null
   startedAt: string | null
   finishedAt: string | null
@@ -1030,7 +1034,12 @@ export type AuthStatus = {
    * requests over from, or a VM's NAT (`vm`: Docker Desktop, WSL) — and the
    * last request one hid. Only told to a device that's allowed in.
    */
-  hidden: { vm: boolean; gateways: string[]; lastSeen: { ip: string; at: string; agent: string | null } | null } | null
+  hidden: {
+    vm: boolean
+    gateways: string[]
+    /** `tailscale`: it asked for a Tailscale address — Tailscale on the host hands its visitors over this way. */
+    lastSeen: { ip: string; at: string; agent: string | null; tailscale: boolean } | null
+  } | null
 }
 
 /** Something signed in: a browser, an app, or a player with its links. */

@@ -204,11 +204,14 @@ function PlayerLineup({ player, onSaved }: { player: SignedInDevice; onSaved: ()
 function HiddenRow({ status, onChange }: { status: AuthStatus; onChange: (v: boolean) => void }) {
   const h = status.hidden
   if (!h || (!h.vm && !h.gateways.length)) return null
-  const last = h.lastSeen ? ` Last one ${ago(h.lastSeen.at)}${h.lastSeen.agent ? `, from ${h.lastSeen.agent}` : ''}.` : ' None since MosaicTV started.'
+  const seen = h.lastSeen
+  const last = seen
+    ? ` Last one ${ago(seen.at)}${seen.tailscale ? ', over Tailscale' : ''}${seen.agent ? `, from ${seen.agent}` : ''}.`
+    : ' None since MosaicTV started.'
   const label = h.vm ? 'Requests from the VM' : `Requests from ${h.gateways.join(' or ')}`
   const description = h.vm
     ? 'MosaicTV runs inside a virtual machine (Docker Desktop or WSL), so every request reaches it from the VM’s own address, at home or not. Off, everything signs in. On, everything counts as home — only if this server can’t be reached from outside your home.'
-    : 'The address MosaicTV’s network goes out through. Docker hands some requests over from it — apps on this machine, like a Plex or Jellyfin beside it, and visitors over IPv6 — and a router’s loopback looks the same, so they can’t be told apart. Off, they sign in like anywhere else: give those apps a player’s links below. On, they count as home.'
+    : 'The address MosaicTV’s network goes out through. Docker hands some requests over from it — apps on this machine, like a Plex or Jellyfin beside it, and visitors over IPv6 — and so does Tailscale running on this machine, for everything over Tailscale; a router’s loopback looks the same, so they can’t be told apart. Off, they sign in like anywhere else — once on each device — and those apps take a player’s links below. On, they count as home.'
   return (
     <SettingRow label={label} description={description + last}>
       <Switch checked={status.trustHidden} label={label} onChange={onChange} />
@@ -293,7 +296,7 @@ export default function SignInSettings() {
         </SettingRow>
         <SettingRow
           label="Home signs in by itself"
-          description="Phones, TVs and players on your home network — and on Tailscale — get straight in, as they always have. A request through a reverse proxy or a tunnel never counts as home."
+          description="Phones, TVs and players on your home network — and on Tailscale — get straight in, unless they reach MosaicTV through Docker’s own address (below). A request through a reverse proxy or a tunnel never counts as home."
         >
           <Switch checked={status.trustHome} label="Home signs in by itself" onChange={(v) => set({ trustHome: v }, v ? 'Home signs in by itself' : 'Home signs in like anywhere else')} />
         </SettingRow>

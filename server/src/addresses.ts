@@ -6,15 +6,21 @@
 // Tailscale with nothing typed.
 //
 // The server can't ask Tailscale itself: in a container it doesn't see the
-// host's network. And it only learns from a request straight from Tailscale
-// (no proxy in between) that named a Tailscale address — a 100.64.0.0/10 or
-// fd7a:115c:a1e0::/48 address, or a MagicDNS name under .ts.net — so nothing
-// can teach the app an address outside the tailnet to send its sign-in to.
+// host's network. And it only learns from a request with no proxy in between
+// that named a Tailscale address — a 100.64.0.0/10 or fd7a:115c:a1e0::/48
+// address, or a MagicDNS name under .ts.net — so nothing can teach the app an
+// address outside the tailnet to send its sign-in to. Straight from Tailscale,
+// or from the gateway Docker hands requests over from: Tailscale on a Linux
+// host masquerades what it forwards into a container, so there every visitor
+// over Tailscale comes from that gateway. Such a request could have come from
+// anywhere, so it may only name a Tailscale IP, never a MagicDNS name (a
+// .ts.net name can be another tailnet's, served to the internet by Funnel).
 
 import type { NextFunction, Request, Response } from 'express'
 import net from 'node:net'
 import { prisma } from './db.js'
-import { clientIp, isHome } from './auth.js'
+import { clientIp, originOf } from './auth.js'
+import { onTailnet, tailnetHost } from './tailnet.js'
 
 const KEY = 'tailscaleAddresses'
 /** Addresses unseen this long are forgotten (a machine renamed, a new tailnet). */
@@ -23,30 +29,18 @@ const FORGET_MS = 60 * 86_400_000
 const REWRITE_MS = 86_400_000
 const KEEP = 4
 
-const tailnet = new net.BlockList()
-tailnet.addSubnet('100.64.0.0', 10, 'ipv4')
-tailnet.addSubnet('fd7a:115c:a1e0::', 48, 'ipv6')
-
-const onTailnet = (ip: string): boolean => {
-  const v = net.isIPv4(ip) ? 'ipv4' : net.isIPv6(ip) ? 'ipv6' : null
-  return v != null && tailnet.check(ip, v)
-}
-
 /**
  * The Tailscale address a request reached this server at, as a URL
- * ("http://100.108.21.80:8689"), or null: it has to come straight from a
- * Tailscale address and name one in its Host.
+ * ("http://100.108.21.80:8689"), or null: it has to name one in its Host, and
+ * come straight from a Tailscale address — or from the gateway, naming a
+ * Tailscale IP (see above).
  */
 export function tailnetAddress(req: Request): string | null {
-  if (!isHome(req) || !onTailnet(clientIp(req))) return null
-  const host = String(req.headers.host ?? '').trim().toLowerCase().replace(/\.(?=:|$)/, '')
-  const m = /^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::(\d{1,5}))?$/.exec(host)
-  if (!m) return null
-  const [, name, port] = m
-  if (port && (Number(port) < 1 || Number(port) > 65535)) return null
-  const bare = name.replace(/^\[|\]$/g, '')
-  const ok = net.isIP(bare) ? onTailnet(bare) : /^([a-z0-9-]+\.)+ts\.net$/.test(name)
-  return ok ? `http://${name}${port ? `:${port}` : ''}` : null
+  const from = originOf(req)
+  if (from === 'away' || (from === 'home' && !onTailnet(clientIp(req)))) return null
+  const t = tailnetHost(req)
+  if (!t || (t.byName && from !== 'home')) return null
+  return `http://${t.name}${t.port ? `:${t.port}` : ''}`
 }
 
 type Seen = { url: string; at: number }

@@ -101,7 +101,13 @@ export function activityItems(): Activity[] {
       id: `metadata:${meta.startedAt}`,
       kind: 'metadata',
       title: meta.running ? `Fetching metadata for ${lib}` : meta.error ? `Metadata for ${lib} failed` : `Metadata fetched for ${lib}`,
-      detail: meta.error ?? (meta.running ? meta.currentTitle : `${meta.matched.toLocaleString()} matched · ${meta.unmatched.toLocaleString()} not found`),
+      detail:
+        meta.error ??
+        (meta.running
+          ? meta.currentTitle
+          : meta.online
+            ? `${meta.matched.toLocaleString()} matched · ${meta.unmatched.toLocaleString()} not found`
+            : 'Read from the files alone — add a TMDB or TheTVDB key in Settings to match them'),
       state: meta.running ? 'running' : meta.error ? 'error' : 'done',
       progress: meta.running ? fraction(meta.processed, meta.total) : null,
       startedAt: meta.startedAt,

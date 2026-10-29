@@ -176,7 +176,8 @@ export default function MetadataSettings({ info, onChange }: { info: SettingsInf
               <LibraryJobProgress jobs={jobs} />
               {!running && last?.libraryName && (
                 <p className="text-[12px] text-ink-faint">
-                  Last run: {last.libraryName} — {last.matched.toLocaleString()} matched, {last.unmatched.toLocaleString()} not found
+                  Last run: {last.libraryName} —{' '}
+                  {last.online ? `${last.matched.toLocaleString()} matched, ${last.unmatched.toLocaleString()} not found` : 'read from the files alone, with no key to match them'}
                   {last.finishedAt ? `, ${ago(last.finishedAt)}` : ''}.{last.error ? ` Error: ${last.error}` : ''}
                 </p>
               )}

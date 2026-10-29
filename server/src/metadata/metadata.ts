@@ -76,6 +76,7 @@ const status: MetadataStatus = {
   processed: 0,
   matched: 0,
   unmatched: 0,
+  online: true,
   currentTitle: null,
   startedAt: null,
   finishedAt: null,
@@ -857,6 +858,8 @@ export async function enrichLibrary(libraryId: number, mode: EnrichMode): Promis
     processed: 0,
     matched: 0,
     unmatched: 0,
+    // Music reads count as matched; a movie or show is only matched online.
+    online: (library.kind !== 'movie' && library.kind !== 'tv') || askable(a).length > 0,
     currentTitle: null,
     startedAt: new Date().toISOString(),
     finishedAt: null,

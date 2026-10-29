@@ -190,7 +190,8 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
     setSubmitting(true)
     await guard('Failed to add library', async () => {
       await api.addLibrary({
-        name: form.name,
+        // Left blank, it takes the name the box suggests.
+        name: form.name.trim() || EXAMPLE[form.kind].name,
         kind: form.kind,
         folders,
         scan: true,
@@ -286,13 +287,12 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
         ) : (
         <form onSubmit={handleAdd} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-            <Field label="Name" hint="Shown in the guide and on the Browse tab.">
+            <Field label="Name" hint={`Shown in the guide and on the Browse tab. Left blank, it’s “${EXAMPLE[form.kind].name}”.`}>
               <Input
                 ref={nameRef}
                 placeholder={EXAMPLE[form.kind].name}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
               />
             </Field>
             <Field label="Type">

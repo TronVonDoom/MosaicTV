@@ -31,6 +31,7 @@ import net from 'node:net'
 import os from 'node:os'
 import { prisma } from './db.js'
 import { log } from './logs.js'
+import { tailnetHost } from './tailnet.js'
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>
 
@@ -144,10 +145,11 @@ const isLoopback = (ip: string) => ip === '::1' || ip.startsWith('127.')
 
 // Some requests reach MosaicTV from its own network's gateway rather than from
 // the device that sent them. Docker hands over visitors on IPv6, and apps on
-// the same machine (a Plex or Jellyfin beside it), from its bridge address; a
-// router's NAT loopback looks the same. That address is private, but it can't
-// say whether a request is from home — so it counts as home only when the user
-// says it should. Inside a VM's NAT (Docker Desktop on Windows or macOS, WSL)
+// the same machine (a Plex or Jellyfin beside it), from its bridge address;
+// Tailscale on a Linux host masquerades everything it forwards into a
+// container to it too; a router's NAT loopback looks the same. That address
+// is private, but it can't say whether a request is from home — so it counts
+// as home only when the user says it should. Inside a VM's NAT (Docker Desktop on Windows or macOS, WSL)
 // every request comes from the VM's side, so none can be told apart.
 
 /** The default gateways in /proc/net/route's table (IPv4, little-endian hex). */
@@ -199,8 +201,9 @@ export function setHiding(h: Hiding) {
   return (hiding = { ...h, list, at: Date.now() })
 }
 
-/** The last request from an address that hides who sent it, for Settings → Sign-in to name. */
-let lastHidden: { ip: string; at: string; agent: string | null } | null = null
+/** The last request from an address that hides who sent it, for Settings → Sign-in
+ *  to name — and whether it asked for a Tailscale address, as one over Tailscale does. */
+let lastHidden: { ip: string; at: string; agent: string | null; tailscale: boolean } | null = null
 
 /** What hides senders here, and the last request one hid. */
 export const hidingStatus = () => ({ ...hidingNow(), lastSeen: lastHidden })
@@ -221,7 +224,9 @@ export function originOf(req: Request): 'home' | 'hidden' | 'away' {
   if (!h.vm && !h.list.check(ip, v)) return 'home'
   // Noted at most once a minute per address.
   const noted = lastHidden?.ip === ip ? Date.parse(lastHidden.at) : 0
-  if (Date.now() - noted > 60_000) lastHidden = { ip, at: new Date().toISOString(), agent: String(req.headers['user-agent'] ?? '').slice(0, 120) || null }
+  if (Date.now() - noted > 60_000) {
+    lastHidden = { ip, at: new Date().toISOString(), agent: String(req.headers['user-agent'] ?? '').slice(0, 120) || null, tailscale: tailnetHost(req) != null }
+  }
   return 'hidden'
 }
 

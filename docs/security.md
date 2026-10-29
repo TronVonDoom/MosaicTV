@@ -13,7 +13,8 @@ watch away from home, either keep it on a VPN or turn on **sign-in**.
 2. Turn on **Ask who you are**. The browser that turns it on stays signed in.
 3. Leave **Home signs in by itself** on, and nothing changes at home: phones,
    TVs and players on your home network — and on **Tailscale** — get straight
-   in, as they always have. Turn it off and home signs in like anywhere else.
+   in, as they always have, unless they reach MosaicTV through Docker's own
+   address (below). Turn it off and home signs in like anywhere else.
 
 Then, from away:
 
@@ -49,11 +50,14 @@ How it's guarded:
 - An address that **hides who sent a request** doesn't count as home either.
   Docker hands some requests over from its own gateway (`172.17.0.1` on most
   installs) — visitors over IPv6, and apps on the same machine, like a Plex
-  or Jellyfin beside it — and a router's loopback looks the same; under
-  Docker Desktop or WSL every request comes from the VM's address. Those sign
-  in like anywhere else unless you switch on **Requests from …** under Home
-  signs in by itself, which also says when the last one came and from what.
-  An app on the same machine is better given a player's links.
+  or Jellyfin beside it. **Tailscale on a Linux server** (Unraid's plugin
+  among them) hands everything over Tailscale to a container the same way,
+  and a router's loopback looks the same; under Docker Desktop or WSL every
+  request comes from the VM's address. Those sign in like anywhere else —
+  once on each device — unless you switch on **Requests from …** under Home
+  signs in by itself, which also says when the last one came, whether it was
+  over Tailscale, and from what. An app on the same machine is better given a
+  player's links.
 - Changes made through a browser must carry the app's own header, which a
   page on another site can't add — it can't act through a signed-in browser.
 
@@ -76,12 +80,15 @@ Two good ways:
 - **A VPN** into your home network — then everything works exactly as at
   home. **[Tailscale](https://tailscale.com/)** is the easiest (install on the
   server and your devices, use the server's Tailscale IP), and with sign-in on
-  it counts as home; **WireGuard** is built into many routers and Unraid.
+  it counts as home — or, where Tailscale reaches MosaicTV through Docker's
+  address, signs in once on each device (see above); **WireGuard** is built
+  into many routers and Unraid.
   The **MosaicTV app** needs nothing typed for Tailscale: once something has
   opened MosaicTV at its Tailscale address, the server hands that address to
   the app, which tries it whenever the home address doesn't answer. (The
-  server only passes on addresses it was reached at straight from Tailscale,
-  and the app only takes Tailscale ones.)
+  server only passes on Tailscale addresses it was reached at with no proxy
+  in between — by a MagicDNS name only straight from Tailscale — and the app
+  only takes Tailscale ones.)
 - **Sign-in** and a reverse proxy with HTTPS (Caddy, Nginx Proxy Manager,
   Traefik) in front. MosaicTV honors `X-Forwarded-Proto` / `X-Forwarded-Host`,
   so the addresses in its M3U, XMLTV and player links stay right behind it.

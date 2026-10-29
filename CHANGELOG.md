@@ -24,10 +24,18 @@
   Docker hands requests over from. On Docker Desktop, WSL, rootless Docker,
   or a Linux host taking visitors over IPv6, that let anyone who could reach
   the port in as if they were at home. Requests from that address (and every
-  request inside a VM's NAT) now sign in like anywhere else. If a Plex or
-  Jellyfin on the same machine reads MosaicTV's tuner while sign-in is on,
-  give it a player's links, or switch on **Requests from …** in Settings →
-  Sign-in — which says when the last one came, and from what.
+  request inside a VM's NAT) now sign in like anywhere else. **Tailscale on a
+  Linux server — Unraid's plugin among them — hands its visitors over from
+  that address too**, so with sign-in on, each device you use over Tailscale
+  signs in once. If a Plex or Jellyfin on the same machine reads MosaicTV's
+  tuner while sign-in is on, give it a player's links. Or switch on
+  **Requests from …** in Settings → Sign-in, which says when the last one
+  came, whether it was over Tailscale, and from what.
+- **The server learns its Tailscale address on a Linux server too.** There
+  Tailscale hands its visitors over from Docker's own address, so the
+  address the app falls back to when it leaves the house was never learned.
+  A request through that address that names a Tailscale IP now counts (a
+  MagicDNS name still only straight from Tailscale).
 - **Sign in to Plex, Jellyfin or Emby.** Adding a library from a media
   server no longer needs a token dug out by hand. **Sign in with Plex**
   opens Plex's own sign-in in a new tab, and MosaicTV lists your servers,
@@ -53,9 +61,12 @@
   added. The folder picker opens on your media folder (it failed outright
   when MosaicTV ran from source), and a folder typed in that can't be opened
   falls back to it. The add form suggests a name and folder that fit the
-  type picked, the Library page's figures catch up when a library is added
-  (and read "1 movie"), a page still loading shows its shape instead of a
-  blank screen, and the first notice reads "The built-in ident is ready".
+  type picked, and a library left unnamed takes the suggested name. The
+  Library page's figures catch up when a library is added (and read "1
+  movie"), a library read with no TMDB or TheTVDB key says it read the files
+  alone rather than "0 matched · 1,023 not found", a page still loading
+  shows its shape instead of a blank screen, and the first notice reads "The
+  built-in ident is ready".
 - **Security updates.** The server's dependencies are updated past four
   advisories (in express's request parsing and in zod), with no changes to
   how anything works.
