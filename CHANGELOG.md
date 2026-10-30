@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **The clock keeps time when the clocks change.** On the night the clocks go
+  back, a channel on a broadcast clock sat in one dead break through the whole
+  repeated hour — a 67-minute break where seven minutes were due — and a guide
+  channel showed one slab of guide for the same stretch. The next line is now
+  worked out in real time rather than by walking the local clock, so the lines
+  stay a real half hour apart through both changes. Nothing to do: the next
+  replan lays the timeline out correctly.
+
 ## 1.0.0 — Ready for every TV in the house (2026-10-29)
 
 - **Parental controls.** Set a PIN in Settings → Parental controls, then lock

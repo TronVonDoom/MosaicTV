@@ -58,6 +58,13 @@ const minuteOfDay = (ms: number) => {
   return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60
 }
 const inMorningBlock = (ms: number) => minuteOfDay(ms) >= 7 * 60 && minuteOfDay(ms) < 9 * 60
+// How far past the half hour before it a time is. Read straight off the local
+// clock: walking back to the line with setMinutes would land an hour out on
+// the night the clocks go back, where 01:00–02:00 happens twice.
+const intoSlot = (ms: number) => {
+  const d = new Date(ms)
+  return (d.getMinutes() % 30) * 60_000 + d.getSeconds() * 1000 + d.getMilliseconds()
+}
 
 const fx = await fixture()
 await fromScratch(fx.channelId, fx.start, fx.until)
@@ -83,8 +90,7 @@ test('programs start on the :00 and :30 (or a moment after, when the one before 
   const offClock = programs.filter((r) => {
     if (inMorningBlock(r.start)) return false // that block has no clock
     if (minuteOfDay(r.start) === 22 * 60 + 15) return false // the exact-time block, on time
-    const intoSlot = (r.start - new Date(r.start).setMinutes(new Date(r.start).getMinutes() - (new Date(r.start).getMinutes() % 30), 0, 0)) as number
-    return intoSlot > GRID_SLACK_MS
+    return intoSlot(r.start) > GRID_SLACK_MS
   })
   assert.deepEqual(offClock.map((r) => new Date(r.start).toTimeString().slice(0, 8)), [], 'programs off the clock')
   // The slack is used: "Over" hands straight to the next program.

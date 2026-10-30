@@ -180,12 +180,31 @@ export const MIN_POD_MS = 45_000
  */
 export function nextGridLine(endMs: number, gridMin: number): number {
   if (!gridMin) return endMs
-  const d = new Date(endMs)
-  d.setSeconds(0, 0)
-  d.setMinutes(d.getMinutes() - (d.getMinutes() % gridMin)) // the line at or before
-  if (endMs - d.getTime() <= GRID_SLACK_MS) return endMs
-  d.setMinutes(d.getMinutes() + gridMin)
-  return d.getTime()
+  const into = intoSlot(endMs, gridMin)
+  if (into <= GRID_SLACK_MS) return endMs
+  return endMs - into + gridMin * 60_000
+}
+
+/**
+ * How far past the line before it `ms` falls — read off the local clock, but
+ * counted in real milliseconds.
+ *
+ * Stepping on from here keeps the lines a real `gridMin` apart, which is what
+ * a broadcast clock does and the only arithmetic that survives a
+ * daylight-saving change. Walking the local clock instead (setMinutes to the
+ * line, setMinutes again to the next) breaks where an hour repeats: at 01:52
+ * CDT on a fall-back night the next :00 is seven minutes away, but asking for
+ * local "02:00" lands on 02:00 CST an hour and seven minutes later, and the
+ * channel sits in one dead break through the whole repeated hour.
+ */
+function intoSlot(ms: number, gridMin: number): number {
+  const d = new Date(ms)
+  return (d.getMinutes() % gridMin) * 60_000 + d.getSeconds() * 1000 + d.getMilliseconds()
+}
+
+/** The next line strictly after `ms` — what a slab of guide runs up to. */
+export function gridLineAfter(ms: number, gridMin: number): number {
+  return ms - intoSlot(ms, gridMin) + gridMin * 60_000
 }
 
 // One build per channel at a time. Concurrent builds (e.g. two viewers
@@ -687,9 +706,7 @@ export async function planTimeline(
     } else if (channel.kind === 'guide') {
       // A guide channel with no songs: the guide in silence, a half hour at a
       // time (where its grid moves on), up to a block if one's coming.
-      const line = new Date(cursor)
-      line.setSeconds(0, 0)
-      line.setMinutes(line.getMinutes() < 30 ? 30 : 60)
+      const line = new Date(gridLineAfter(cursor.getTime(), 30))
       const block = nextBlockBoundary(channel.timeBlocks, cursor, line)
       const stop = block ? block.start : line
       created.push({ mediaItemId: null, kind: 'program', title: 'Channel Guide', startTime: cursor, stopTime: stop, groupKey: null, state: JSON.stringify(state), inPoint: null, blockId: null, collectionId: null })
