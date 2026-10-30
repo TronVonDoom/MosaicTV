@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — Your shows in the break (2026-10-30)
 
 - **Bubbles, a new break look.** Your shows inside glass balls drifting over a
   lit colour field, your channel's logo in the big one in the middle — up to
