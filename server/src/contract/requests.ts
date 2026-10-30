@@ -9,6 +9,7 @@ import { z } from 'zod'
 import {
   IDENT_PLAYS,
   IDENT_STYLES,
+  LINEUP_SCOPES,
   MEMBER_KINDS,
   NO_AUDIO_PREFERENCE,
   asFillerMode,
@@ -23,6 +24,7 @@ import {
   asStartMode,
   type IdentPlays,
   type IdentStyle,
+  type LineupScope,
   type MemberKind,
 } from './domain.js'
 import { asMatchSource } from './matching.js'
@@ -378,6 +380,7 @@ export const IdentLook = z
       return Math.max(0.4, Math.min(2, Number.isFinite(n) ? n : 1))
     }),
     divider: flag,
+    lineupScope: loose.transform((v): LineupScope => ((LINEUP_SCOPES as readonly string[]).includes(String(v)) ? (String(v) as LineupScope) : 'block')),
     reelFolder: textOrNull,
   })
   .transform((b) => ({

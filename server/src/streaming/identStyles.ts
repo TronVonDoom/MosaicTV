@@ -52,6 +52,9 @@ export type StyleBuild = {
   filter: string // -filter_complex producing [v]
   tone: number // the soft sine a clip carries when the filler has no music
   vol: number
+  // Scratch to throw away once ffmpeg has read it — a look drawn as images
+  // (Bubbles) renders them first and doesn't need them after the encode.
+  cleanup?: () => void
 }
 
 // The gradients source turns its colour points `speed` radians a frame. The
@@ -402,7 +405,8 @@ function frostedGraph(dims: Dims, scale: number, divider: boolean, loopSec: numb
 
 const MOSAIC_ROWS = 27
 // The wall's colours, which the hues travel round: violet, blue, cyan, magenta.
-const MOSAIC_STOPS = [
+// Shared, so every look in the family travels the same cycle.
+export const MOSAIC_STOPS = [
   [139, 92, 246],
   [59, 110, 246],
   [34, 200, 238],
@@ -516,7 +520,53 @@ function mosaicGraph(dims: Dims, scale: number, loopSec: number): string {
 }
 
 // Styles whose clip carries a logo (the channel's, or the filler's own).
-export const BRANDED = new Set(['frosted', 'mosaic', 'logowall', 'pulse'])
+export const BRANDED = new Set(['frosted', 'mosaic', 'bubbles', 'logowall', 'pulse'])
+
+// ── Bubbles ─────────────────────────────────────────────────────────────────
+// The scene is drawn as images (bubbleScreen.ts); all this does is move them.
+// The background drifts inside its own overscan and sways a little round the
+// hue cycle, and each ball bobs on two sines of its own. Every period divides
+// the loop a whole number of times, so the clip's last frame runs straight
+// into its first however long a break turns out to be.
+
+/**
+ * `scene` is what bubbleScreen rendered: a background wider than the frame,
+ * one image per ball, and the balls against the lens. Inputs go in that order.
+ */
+export function bubblesGraph(scene: BubbleSceneGeometry, dims: Dims, loop: number): string {
+  const { w: W, h: H } = dims
+  const f4 = (n: number) => n.toFixed(4)
+  const wave = (amp: number, period: number, phase = 0) => `${f4(amp)}*sin(2*PI*t/${f4(period)}+${f4(phase)})`
+
+  // How far the background may drift before its edge would show.
+  const bg = scene.bg
+  const slackX = Math.max(0, (bg.w - W) / 2) * 0.7
+  const slackY = Math.max(0, (bg.h - H) / 2) * 0.7
+  const steps = [
+    `[0:v]format=rgba,hue=h='${wave(14, loop)}',` +
+      // crop has no eval option: its x/y expressions are worked out per frame.
+      `crop=w=${W}:h=${H}:x='(iw-ow)/2+${wave(slackX, fitPeriod(23, loop))}':y='(ih-oh)/2+${wave(slackY, fitPeriod(31, loop), 1.7)}'[bg]`,
+  ]
+
+  let last = 'bg'
+  scene.balls.forEach((b, i) => {
+    const out = i === scene.balls.length - 1 ? 'balls' : `o${i}`
+    steps.push(
+      `[${last}][${i + 1}:v]overlay=x='${b.x}+${wave(b.ax, b.px, b.phx)}':y='${b.y}+${wave(b.ay, b.py, b.phy)}':format=auto:eval=frame[${out}]`,
+    )
+    last = out
+  })
+
+  // The balls against the lens, the vignette and the grain, all in one image.
+  steps.push(`[${last}][${scene.balls.length + 1}:v]overlay=0:0:format=auto,fps=${FPS},format=yuv420p[v]`)
+  return steps.join(';')
+}
+
+/** What bubblesGraph needs to know about a rendered scene. */
+export type BubbleSceneGeometry = {
+  bg: Dims
+  balls: { x: number; y: number; ax: number; ay: number; px: number; py: number; phx: number; phy: number }[]
+}
 
 // Build the StyleBuild for a generated style, looping over `loop` seconds.
 // `logoFile` brands the logo styles; `mzLogo` is the bundled MosaicTV mark

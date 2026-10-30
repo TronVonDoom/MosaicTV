@@ -118,8 +118,16 @@ export function asMetadataSources(v: unknown): MetadataSource[] {
 /** An ident's look: a generated style, or `custom` (an uploaded clip). The
  *  rest are retired styles older idents may still carry. (Spotlight isn't
  *  one: it was replaced by Mosaic, and its idents moved over.) */
-export const IDENT_STYLES = ['animated', 'frosted', 'mosaic', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const
+export const IDENT_STYLES = ['animated', 'frosted', 'mosaic', 'bubbles', 'custom', 'reel', 'logowall', 'pulse', 'retro', 'vintage'] as const
 export type IdentStyle = (typeof IDENT_STYLES)[number]
+
+/** Whose shows a look that carries them draws (Bubbles): the block the break
+ *  falls in, or everything the channel airs. Outside any block, "block" has
+ *  nothing to go on and the channel's lineup is used either way. */
+export const LINEUP_SCOPES = ['block', 'channel'] as const
+export type LineupScope = (typeof LINEUP_SCOPES)[number]
+/** The looks drawn from the channel's show logos. */
+export const LINEUP_STYLES = new Set<string>(['bubbles'])
 
 /** Where an ident plays: everywhere else on its channel, only during some of
  *  its blocks, or (left over from an upgrade) nowhere yet. */

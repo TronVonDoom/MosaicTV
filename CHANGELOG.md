@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Bubbles, a new break look.** Your shows inside glass balls drifting over a
+  lit colour field, your channel's logo in the big one in the middle — up to
+  sixteen shows at a time, drawn from the title logos the library already has.
+  Pick it on a channel's **Breaks** tab like any other look.
+- **Whose shows it carries.** By default a Bubbles ident shows the shows of
+  the block the break falls in, so a Nick at Nite break carries Nick at Nite's
+  and a SNICK break carries SNICK's. Outside any block there's nothing
+  narrower to go on, so it carries the whole channel's lineup — and an ident
+  set to **The whole channel** always does. A title with no logo on disk is
+  left out rather than drawn as a gap, and the picture sizes itself to however
+  many shows there are: four shows are four balls with room around them, not a
+  grid with holes in it.
 - **The clock keeps time when the clocks change.** On the night the clocks go
   back, a channel on a broadcast clock sat in one dead break through the whole
   repeated hour — a 67-minute break where seven minutes were due — and a guide

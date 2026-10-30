@@ -316,6 +316,9 @@ model Filler {
   logoScale    Float              @default(1)
   // Frosted glass: draw a divider between the channel's half and MosaicTV's.
   divider      Boolean            @default(false)
+  // Bubbles: whose shows it carries — the block the break falls in, or the
+  // whole channel's lineup. Every other look ignores it.
+  lineupScope  String             @default("block") // "block" | "channel"
   // A break reel: a folder of clips (bumpers, promos, commercials) that a
   // break is filled from, in turn, with the channel's generated look covering
   // what's left (style "reel"). Its clips are ReelClip rows.

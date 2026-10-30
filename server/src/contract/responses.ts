@@ -9,6 +9,7 @@ import type {
   FillerMode,
   IdentPlays,
   IdentStyle,
+  LineupScope,
   LibraryKind,
   MetadataSource,
   LogCategory,
@@ -861,6 +862,8 @@ export type Ident = {
   logoScale: number
   /** Frosted glass: a divider between the two halves. */
   divider: boolean
+  /** Bubbles: whose shows it carries — the block it plays in, or the channel's whole lineup. */
+  lineupScope: LineupScope
   /** A break reel's folder of clips, and what's in it (null for other styles). */
   reelFolder: string | null
   reel: { clips: number; seconds: number; scanning: boolean } | null

@@ -182,6 +182,7 @@ export function whenSummary(ch: Pick<ChannelDetail, 'grid' | 'actBreaks' | 'time
 export const LOOKS: { id: IdentLook; label: string; desc: string }[] = [
   { id: 'mosaic', label: 'Mosaic', desc: 'Your logo on a wall of glass tiles, rings of light spreading out from it.' },
   { id: 'frosted', label: 'Frosted glass', desc: 'Your logo in front of frosted glass, logos gliding behind.' },
+  { id: 'bubbles', label: 'Bubbles', desc: 'Your shows inside glass balls drifting over a lit colour field, your logo in the big one.' },
   { id: 'custom', label: 'Your own clip', desc: 'A video you upload, looped for the break.' },
   { id: 'reel', label: 'Clips from a folder', desc: 'Bumpers, promos, old commercials — each break a new mix of them.' },
 ]
@@ -199,7 +200,16 @@ export const lookLabel = (s: string): string =>
   s === 'custom' ? 'Your clip' : (LOOKS.find((l) => l.id === s)?.label ?? RETIRED[s] ?? s)
 export const isRetiredLook = (s: string): boolean => s in RETIRED
 /** Looks drawn from a logo (a custom clip carries its own artwork). */
-export const isLogoLook = (s: string): boolean => ['frosted', 'mosaic', 'logowall', 'pulse'].includes(s)
+export const isLogoLook = (s: string): boolean => ['frosted', 'mosaic', 'bubbles', 'logowall', 'pulse'].includes(s)
+
+/** Looks that carry the channel's show logos, and so have a lineup to choose. */
+export const isLineupLook = (s: string): boolean => s === 'bubbles'
+
+/** Whose shows a lineup look draws. */
+export const LINEUP_SCOPE_LABELS: Record<string, { label: string; desc: string }> = {
+  block: { label: 'The block it plays in', desc: 'A Nick at Nite break shows Nick at Nite’s shows. Outside any block, the whole channel’s.' },
+  channel: { label: 'The whole channel', desc: 'Everything the channel airs, wherever the break falls.' },
+}
 
 /** A colour per ident, by its place in the list — the week map and the list's swatches. */
 export const IDENT_COLORS = ['#8b5cf6', '#38bdf8', '#f59e0b', '#34d399', '#fb7185', '#e879f9', '#a3e635', '#f97316']

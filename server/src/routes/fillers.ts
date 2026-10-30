@@ -70,6 +70,7 @@ function shape({ assignments, channel, clips, ...f }: IdentRow, readiness?: { re
     logoId: f.logoId,
     logoScale: f.logoScale,
     divider: f.divider,
+    lineupScope: f.lineupScope,
     reelFolder: f.reelFolder,
     reel:
       f.style === 'reel'
@@ -181,6 +182,22 @@ function sendAndDrop(res: Response, file: string, type: string) {
 
 // The draft being previewed: the editor's unsaved fields, on the channel it's
 // being edited on, optionally showing a particular logo (a block's).
+/**
+ * The block a preview should be drawn for: an ident that plays only during
+ * some blocks is shown carrying the first one's shows, which is what it will
+ * actually air. Without that, a Nick at Nite ident would preview the whole
+ * channel's lineup and look wrong before it had aired once.
+ */
+async function previewBlock(channelId: number, blockIds: number[]): Promise<{ id: number; collectionId: number } | null> {
+  if (blockIds.length === 0) return null // plays everywhere else: the channel's lineup
+  const block = await prisma.timeBlock.findFirst({
+    where: { channelId, id: { in: blockIds } },
+    orderBy: { startMinute: 'asc' },
+    select: { id: true, collectionId: true },
+  })
+  return block ?? null
+}
+
 function previewDraft(req: Request) {
   const look = lookData(req.body ?? {})
   const channelId = Number(req.query.channelId)
@@ -196,8 +213,9 @@ fillersRouter.post(
   '/preview',
   handle(async (req, res) => {
     const { ident, ctx } = previewDraft(req)
+    const block = await previewBlock(ctx.channelId, IdentPlacement.parse(req.body ?? {}).blockIds)
     try {
-      sendAndDrop(res, await renderIdentPreview(ident, ctx), 'video/mp4')
+      sendAndDrop(res, await renderIdentPreview(ident, { ...ctx, block }), 'video/mp4')
     } catch (e) {
       if (e instanceof PreviewSuperseded) throw new Refused(409, 'A newer preview replaced this one.')
       throw e
@@ -211,7 +229,8 @@ fillersRouter.post(
   '/still',
   handle(async (req, res) => {
     const { ident, ctx } = previewDraft(req)
-    res.type('image/jpeg').sendFile(await renderIdentStill(ident, ctx))
+    const block = await previewBlock(ctx.channelId, IdentPlacement.parse(req.body ?? {}).blockIds)
+    res.type('image/jpeg').sendFile(await renderIdentStill(ident, { ...ctx, block }))
   }),
 )
 
@@ -223,7 +242,9 @@ fillersRouter.get(
     const f = await prisma.filler.findUnique({ where: { id: Number(req.params.id) } })
     if (!f?.channelId) throw new Refused(404, 'Ident not found')
     const logoId = req.query.logoId != null && req.query.logoId !== '' ? Number(req.query.logoId) : null
-    const file = await renderIdentStill(f, { channelId: f.channelId, logoId })
+    const plays = await prisma.fillerAssignment.findMany({ where: { fillerId: f.id, timeBlockId: { not: null } }, select: { timeBlockId: true } })
+    const block = await previewBlock(f.channelId, plays.map((a) => a.timeBlockId as number))
+    const file = await renderIdentStill(f, { channelId: f.channelId, logoId, block })
     // Revalidated each time (a cheap check): a replaced logo changes it.
     res.set('Cache-Control', 'no-cache')
     res.type('image/jpeg').sendFile(file)

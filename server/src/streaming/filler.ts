@@ -14,6 +14,9 @@ import { runFfmpeg, type ProgressCb } from './run.js'
 import { localLogo, logoFileById, logoFor } from './logo.js'
 import { reelClips } from './reel.js'
 import { resolveProfile } from './profile.js'
+import { bgSize, renderBubbleScene, sceneDir } from './bubbleScreen.js'
+import { EMPTY_LINEUP, identLineup, type Lineup, type LineupBlock } from './identLineup.js'
+import { LINEUP_STYLES, type LineupScope } from '../contract/index.js'
 import {
   BRANDED,
   FPS,
@@ -21,6 +24,7 @@ import {
   animatedBuild,
   assembleStill,
   assembleVideo,
+  bubblesGraph,
   buildStyle,
   loopSecFor,
   toneInput,
@@ -120,7 +124,16 @@ const CLIP_FILE = /^filler-[a-z]+-f\d+-[0-9a-f]{32}\.mp4$/
  * that decides the picture (the file name is its hash); `title` and
  * `channelId` name it for Activity.
  */
-type ClipPlan = { out: string; key: string; loop: number; build: StyleBuild; label: string; title?: string; channelId?: number | null }
+type ClipPlan = { out: string; key: string; loop: number; build: LazyBuild; label: string; title?: string; channelId?: number | null }
+
+/**
+ * A look drawn from images (Bubbles) has to render them before ffmpeg can run,
+ * which is work worth skipping when the clip is already on disk. Its build is
+ * therefore a thunk: the plan — and so the file name — is known without it,
+ * and `useBuild` only draws anything when something is actually going to run.
+ */
+type LazyBuild = StyleBuild | (() => Promise<StyleBuild>)
+const useBuild = (b: LazyBuild): Promise<StyleBuild> => Promise.resolve(typeof b === 'function' ? b() : b)
 
 /**
  * Plan the clip for a generated style, or null when the style can't be drawn
@@ -128,15 +141,54 @@ type ClipPlan = { out: string; key: string; loop: number; build: StyleBuild; lab
  * MosaicTV mark). Everything that changes the picture is in the file name, so
  * a clip on disk is always the right one for its inputs.
  */
-function planClip(style: string, fillerId: number, logoFile: string | undefined, dims: Dims, scale = 1, divider = false): ClipPlan | null {
+function planClip(
+  style: string,
+  fillerId: number,
+  logoFile: string | undefined,
+  dims: Dims,
+  scale = 1,
+  divider = false,
+  lineup: Lineup = EMPTY_LINEUP,
+): ClipPlan | null {
   const s = clampScale(scale)
   const loop = loopSecFor(style, dims)
-  const build = buildStyle(style, dims, loop, s, logoFile, mosaictvLogoFile(), divider)
-  if (!build) return null
   const brand = BRANDED.has(style) ? `${fileKey(logoFile)}:${s}` : ''
-  const key = `${brand}:${style === 'frosted' && divider ? 'div' : ''}:${dimKey(dims)}:v${STYLE_VERSION[style] ?? THEME_VERSION}`
-  const label = `${style} filler (${dimKey(dims)}${BRANDED.has(style) && logoFile ? `, ${path.basename(logoFile)}` : ''})`
-  return { out: cacheName(style, fillerId, key), key: `${style}:${key}`, loop, build, label }
+  // Which shows it carries is part of the picture, so a changed lineup is a
+  // different clip — and the old one is swept once nothing airs it.
+  const shows = LINEUP_STYLES.has(style) ? `:${lineup.key}` : ''
+  const key = `${brand}:${style === 'frosted' && divider ? 'div' : ''}${shows}:${dimKey(dims)}:v${STYLE_VERSION[style] ?? THEME_VERSION}`
+  const label = `${style} filler (${dimKey(dims)}${BRANDED.has(style) && logoFile ? `, ${path.basename(logoFile)}` : ''}${LINEUP_STYLES.has(style) ? `, ${lineup.titles.length} show${lineup.titles.length === 1 ? '' : 's'}` : ''})`
+  const out = cacheName(style, fillerId, key)
+
+  let build: LazyBuild
+  if (style === 'bubbles') {
+    // Nothing is drawn until something is going to encode it.
+    build = async () => {
+      const dir = sceneDir(createHash('md5').update(`${fillerId}:${key}`).digest('hex'))
+      const scene = await renderBubbleScene(dims, logoFile, lineup.titles, hashSeed(key), loop, dir)
+      return {
+        inputs: [
+          '-loop', '1', '-i', scene.bg,
+          ...scene.balls.flatMap((b) => ['-loop', '1', '-i', b.file]),
+          '-loop', '1', '-i', scene.fg,
+        ],
+        filter: bubblesGraph({ bg: bgSize(dims), balls: scene.balls }, dims, loop),
+        tone: 86,
+        vol: 0.04,
+        cleanup: scene.dispose,
+      }
+    }
+  } else {
+    const made = buildStyle(style, dims, loop, s, logoFile, mosaictvLogoFile(), divider)
+    if (!made) return null
+    build = made
+  }
+  return { out, key: `${style}:${key}`, loop, build, label }
+}
+
+/** A stable seed from a clip's key, so the same picture is dealt the same way. */
+function hashSeed(key: string): number {
+  return createHash('md5').update(key).digest().readUInt32BE(0)
 }
 
 // ---- Rendering --------------------------------------------------------------
@@ -193,7 +245,12 @@ function render(plan: ClipPlan, onProgress?: ProgressCb): Promise<string | undef
           if (self) self.percent = pct
           listeners.forEach((l) => l(pct))
         }
-        await runFfmpeg(assembleVideo(plan.build, plan.loop, tmp), progress, plan.loop, { background: true })
+        const build = await useBuild(plan.build)
+        try {
+          await runFfmpeg(assembleVideo(build, plan.loop, tmp), progress, plan.loop, { background: true })
+        } finally {
+          build.cleanup?.()
+        }
         fs.renameSync(tmp, plan.out)
         failedAt.delete(plan.out)
         finished.push({ title, channelId, startedAt: self?.startedAt ?? Date.now(), finishedAt: Date.now() })
@@ -245,7 +302,7 @@ async function obtain(plan: ClipPlan, opts: GetOpts = {}): Promise<string | unde
 }
 
 /** The plain animated clip: the last resort when nothing else is built. */
-export function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undefined> {
+export async function ensureAnimatedFiller(opts: GetOpts = {}): Promise<string | undefined> {
   const plan = planClip('animated', 0, undefined, RESOLUTIONS['1080p'])!
   plan.title = 'the built-in ident'
   return obtain(plan, opts)
@@ -292,6 +349,7 @@ type FillerRow = {
   logoId: number | null
   logoScale: number
   divider: boolean
+  lineupScope?: string | null
 }
 
 export type FillerClip = { clip?: string; music?: string }
@@ -306,6 +364,12 @@ const identName = (f: FillerRow) => f.name?.trim() || `${f.style} ident`
  */
 const lookOf = (style: string): string => (style === 'reel' || style === 'spotlight' ? 'mosaic' : style)
 
+/** Whose shows an ident carries where a break falls — nothing, for a look that draws none. */
+async function lineupFor(f: FillerRow, block: LineupBlock): Promise<Lineup> {
+  if (!LINEUP_STYLES.has(lookOf(f.style))) return EMPTY_LINEUP
+  return identLineup(f.channelId, block, (f.lineupScope as LineupScope) ?? 'block')
+}
+
 /** A clip to show for a reel on its own: its first. */
 async function reelCover(f: FillerRow): Promise<string | undefined> {
   if (f.style !== 'reel' || !f.id) return undefined
@@ -319,7 +383,12 @@ async function reelCover(f: FillerRow): Promise<string | undefined> {
  * over `logoFile`, the logo on air where the break falls. `plan` is null when
  * the style can't be drawn here (see planClip).
  */
-async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight?: number): Promise<{ upload?: string; plan: ClipPlan | null; dims: Dims }> {
+async function planFor(
+  f: FillerRow,
+  logoFile: string | undefined,
+  channelHeight?: number,
+  block: LineupBlock = null,
+): Promise<{ upload?: string; plan: ClipPlan | null; dims: Dims }> {
   const dims = dimsFor('auto', channelHeight)
   if (f.style === 'custom') {
     const upload = await assetFilePath(f.assetId)
@@ -327,7 +396,8 @@ async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight
     return { plan: null, dims }
   }
   if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
-  const plan = planClip(lookOf(f.style), f.id, logoFile, dims, f.logoScale, f.divider)
+  const lineup = await lineupFor(f, block)
+  const plan = planClip(lookOf(f.style), f.id, logoFile, dims, f.logoScale, f.divider, lineup)
   if (plan) {
     plan.title = `“${identName(f)}”`
     plan.channelId = f.channelId ?? null
@@ -351,10 +421,10 @@ async function planFor(f: FillerRow, logoFile: string | undefined, channelHeight
 export async function resolveFillerClip(
   f: FillerRow,
   logoFile: string | undefined,
-  opts: GetOpts & { channelHeight?: number } = {},
+  opts: GetOpts & { channelHeight?: number; block?: LineupBlock } = {},
 ): Promise<FillerClip> {
   const music = await assetFilePath(f.audioAssetId)
-  const { upload, plan, dims } = await planFor(f, logoFile, opts.channelHeight)
+  const { upload, plan, dims } = await planFor(f, logoFile, opts.channelHeight, opts.block ?? null)
   if (upload) return { clip: upload, music }
   const clip = plan ? await obtain(plan, opts) : undefined
   if (clip || (plan && (opts.wait === false || opts.build === false))) return { clip, music }
@@ -364,15 +434,21 @@ export async function resolveFillerClip(
 }
 
 /** An ident's generated look, falling back to the animated one it airs as when its style can't be drawn. */
-function buildFor(f: FillerRow, logoFile: string | undefined, dims: Dims): { build: StyleBuild; loop: number } {
+async function buildFor(
+  f: FillerRow,
+  logoFile: string | undefined,
+  dims: Dims,
+  block: LineupBlock = null,
+): Promise<{ build: StyleBuild; loop: number }> {
   const style = f.style === 'custom' ? 'animated' : lookOf(f.style)
   const loop = loopSecFor(style, dims)
-  const build = buildStyle(style, dims, loop, clampScale(f.logoScale), logoFile, mosaictvLogoFile(), f.divider)
-  return build ? { build, loop } : { build: animatedBuild(dims, LOOP_SEC), loop: LOOP_SEC }
+  const plan = planClip(style, f.id, logoFile, dims, f.logoScale, f.divider, await lineupFor(f, block))
+  if (plan) return { build: await useBuild(plan.build), loop: plan.loop }
+  return { build: animatedBuild(dims, LOOP_SEC), loop: LOOP_SEC }
 }
 
 /** Where an ident is being previewed: its channel, and optionally the logo to show (a block's). */
-export type IdentContext = { channelId: number; logoId?: number | null }
+export type IdentContext = { channelId: number; logoId?: number | null; block?: LineupBlock }
 
 // The logo and channel size for a preview: the ident's pinned logo, else the
 // one asked for (the logo of a block it plays in), else the channel's own.
@@ -403,7 +479,9 @@ export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise
   const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : await reelCover(f)
   // A thumbnail needn't be sharper than 720p, however big the channel.
   const dims = dimsFor('720p')
-  const plan = upload ? null : planClip(f.style === 'custom' ? 'animated' : lookOf(f.style), 0, logoFile, dims, f.logoScale, f.divider)
+  const plan = upload
+    ? null
+    : planClip(f.style === 'custom' ? 'animated' : lookOf(f.style), 0, logoFile, dims, f.logoScale, f.divider, await lineupFor(f, ctx.block ?? null))
   const key = upload ? `upload:${fileKey(upload)}` : (plan?.key ?? `animated:${dimKey(dims)}`)
   const out = path.join(previewsDir(), `still-${createHash('md5').update(key).digest('hex')}.jpg`)
   let job = stills.get(out)
@@ -411,8 +489,16 @@ export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise
     job = (async () => {
       const tmp = `${out}.${Date.now()}.tmp.jpg`
       try {
-        if (upload) await runFfmpeg(['-y', '-ss', '1', '-i', upload, '-frames:v', '1', '-update', '1', '-q:v', '3', tmp])
-        else await runFfmpeg(assembleStill(buildFor(f, logoFile, dims).build, tmp))
+        if (upload) {
+          await runFfmpeg(['-y', '-ss', '1', '-i', upload, '-frames:v', '1', '-update', '1', '-q:v', '3', tmp])
+        } else {
+          const { build } = await buildFor(f, logoFile, dims, ctx.block ?? null)
+          try {
+            await runFfmpeg(assembleStill(build, tmp))
+          } finally {
+            build.cleanup?.()
+          }
+        }
         fs.renameSync(tmp, out)
         return out
       } finally {
@@ -457,6 +543,8 @@ export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<str
     const fadeOut = `afade=t=out:st=${PREVIEW_SEC - 1.2}:d=1.2`
     const encode = ['-t', String(PREVIEW_SEC), '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-c:a', 'aac', '-ac', '2', '-ar', '48000', '-movflags', '+faststart', out]
     let args: string[]
+    // A look drawn as images leaves scratch behind; it goes once ffmpeg has read it.
+    let drawn: (() => void) | undefined
     if (upload) {
       // The upload itself, scaled to fit; its own sound unless there's music.
       const scale = `scale=${dims.w}:${dims.h}:force_original_aspect_ratio=decrease,pad=${dims.w}:${dims.h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v]`
@@ -464,7 +552,8 @@ export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<str
         ? ['-y', '-stream_loop', '-1', '-i', upload, '-stream_loop', '-1', '-i', music, '-filter_complex', `[0:v]${scale};[1:a]afade=t=in:d=0.5,${fadeOut}[a]`, '-map', '[v]', '-map', '[a]', ...encode]
         : ['-y', '-stream_loop', '-1', '-i', upload, '-filter_complex', `[0:v]${scale}`, '-map', '[v]', '-map', '0:a?', ...encode]
     } else {
-      const { build, loop } = buildFor(f, logoFile, dims)
+      const { build, loop } = await buildFor(f, logoFile, dims, ctx.block ?? null)
+      drawn = build.cleanup
       const n = videoInputCount(build.inputs)
       const sound = music ? ['-stream_loop', '-1', '-i', music] : toneInput(loop, build.tone, build.vol)
       args = ['-y', ...build.inputs, ...sound, '-filter_complex', `${build.filter};[${n}:a]afade=t=in:d=0.5,${fadeOut}[a]`, '-map', '[v]', '-map', '[a]', ...encode]
@@ -474,6 +563,8 @@ export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<str
     } catch (e) {
       fs.rmSync(out, { force: true })
       throw e
+    } finally {
+      drawn?.()
     }
     return out
   }
@@ -617,6 +708,8 @@ function sweepScratch(): void {
   try {
     for (const f of fs.readdirSync(dataDir())) {
       if (/^caption-.*\.txt$|^card-.*\.png$|^filler-.*\.tmp\.mp4$/.test(f)) fs.rmSync(path.join(dataDir(), f), { force: true })
+      // A Bubbles scene the encode would have thrown away itself.
+      if (/^bubbles-[0-9a-f]+$/.test(f)) fs.rmSync(path.join(dataDir(), f), { recursive: true, force: true })
     }
     // A render's scratch, and an upload a restart cut off (routes/assets.ts).
     for (const f of fs.readdirSync(assetsDir())) if (f.endsWith('.tmp.mp4') || f.endsWith('.part')) fs.rmSync(path.join(assetsDir(), f), { force: true })
@@ -697,7 +790,8 @@ async function warmPass(): Promise<void> {
       const logo = await localLogo(logoFor(ch, block, logos).raw)
       // Only a channel caught mid-edit has no idents: its safety net, then.
       if (pool.length === 0 && logo) keep(await ensureStationIdent(logo, channelHeight))
-      for (const f of pool) keep((await resolveFillerClip(f, logo, { channelHeight })).clip)
+      const where: LineupBlock = block ? { id: block.id, collectionId: block.collectionId } : null
+      for (const f of pool) keep((await resolveFillerClip(f, logo, { channelHeight, block: where })).clip)
     }
   }
   sweepUnused(wanted)

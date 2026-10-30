@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Asset, type ChannelDetail, type Ident, type IdentInput, type IdentLook, type Logo } from '../lib/api'
 import {
+  LINEUP_SCOPE_LABELS,
   LOOKS,
   airsIn,
   blockLogo,
   breaksOn,
+  isLineupLook,
   isLogoLook,
   isRetiredLook,
   logosOf,
@@ -30,6 +32,7 @@ const inputOf = (i: Ident): IdentInput => ({
   logoId: i.logoId,
   logoScale: i.logoScale,
   divider: i.divider,
+  lineupScope: i.lineupScope,
   reelFolder: i.reelFolder,
   plays: i.plays,
   blockIds: i.blockIds,
@@ -43,6 +46,7 @@ const blankInput = (ch: ChannelDetail, look: IdentLook, idents: Ident[]): IdentI
   logoId: null,
   logoScale: 1,
   divider: false,
+  lineupScope: 'block',
   reelFolder: null,
   plays: 'any',
   blockIds: [],
@@ -167,7 +171,7 @@ export default function IdentEditor({
   stillsRef.current = stills
   useEffect(() => () => Object.values(stillsRef.current).forEach((u) => URL.revokeObjectURL(u)), [])
   const stillKey = (look: string) =>
-    `${look}:${logo}:${draft.logoId}:${draft.logoScale}:${draft.divider}:${look === 'custom' ? draft.assetId : ''}`
+    `${look}:${logo}:${draft.logoId}:${draft.logoScale}:${draft.divider}:${draft.lineupScope}:${look === 'custom' ? draft.assetId : ''}`
   useEffect(() => {
     const ctl = new AbortController()
     for (const l of looks) {
@@ -183,14 +187,14 @@ export default function IdentEditor({
     }
     return () => ctl.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logo, draft.logoId, draft.logoScale, draft.divider, draft.assetId, draft.style])
+  }, [logo, draft.logoId, draft.logoScale, draft.divider, draft.lineupScope, draft.assetId, draft.style])
 
   // ── The preview: a few seconds as it airs ───────────────────────────────
   const [videoUrl, setVideo] = useObjectUrl()
   const [rendering, setRendering] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const previewCtl = useRef<AbortController | null>(null)
-  const previewKey = `${draft.style}:${draft.assetId}:${draft.audioAssetId}:${draft.logoId}:${draft.logoScale}:${draft.divider}:${logo}`
+  const previewKey = `${draft.style}:${draft.assetId}:${draft.audioAssetId}:${draft.logoId}:${draft.logoScale}:${draft.divider}:${draft.lineupScope}:${logo}`
   // A preview of other settings would mislead: drop it when they change.
   useEffect(() => {
     previewCtl.current?.abort()
@@ -566,6 +570,27 @@ export default function IdentEditor({
                       className="w-full accent-indigo-500"
                     />
                   </Field>
+                  {isLineupLook(draft.style) && (
+                    <Field label="Shows it carries">
+                      <div className="space-y-1.5">
+                        {(['block', 'channel'] as const).map((scope) => (
+                          <label key={scope} className="flex items-start gap-2.5 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              className="mt-0.5"
+                              name="lineupScope"
+                              checked={draft.lineupScope === scope}
+                              onChange={() => set('lineupScope', scope)}
+                            />
+                            <span>
+                              <span className="text-ink-soft">{LINEUP_SCOPE_LABELS[scope].label}</span>
+                              <span className="block text-xs text-ink-faint">{LINEUP_SCOPE_LABELS[scope].desc}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </Field>
+                  )}
                   <div className="space-y-2">
                     {draft.style === 'frosted' && (
                       <label className="flex items-start gap-2.5 text-sm cursor-pointer">
