@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Bubbles moves smoothly.** The balls and the background now drift by
+  fractions of a pixel at a true 30 frames a second. Before, they ticked along
+  a whole pixel at a time and every sixth frame repeated, so the motion
+  stuttered. Clips already built are rebuilt in the new motion on their own,
+  and building one is quicker than it was.
+- **The Bubbles preview shows your shows.** Previewing a Bubbles ident in the
+  editor showed only the channel's logo, because an ident that isn't saved yet
+  had no channel to take shows from. It now uses the channel you're editing,
+  and the block you've picked for it.
+
 ## 1.1.0 — Your shows in the break (2026-10-30)
 
 - **Bubbles, a new break look.** Your shows inside glass balls drifting over a

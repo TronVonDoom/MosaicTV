@@ -751,17 +751,26 @@ let resvg: Promise<typeof import('@resvg/resvg-js')> | null = null
 
 // Rendering takes ~50ms, and it runs at a program boundary: off the main
 // thread (resvg's worker), so segment requests aren't held up meanwhile.
-export async function render(svg: string, extra: Partial<ResvgRenderOptions> = {}): Promise<Buffer> {
+async function rendered(svg: string, extra: Partial<ResvgRenderOptions>) {
   resvg ??= import('@resvg/resvg-js')
   const { renderAsync } = await resvg.catch((e) => {
     resvg = null // let the next card try again
     throw e
   })
-  const img = await renderAsync(svg, {
+  return renderAsync(svg, {
     font: { fontFiles: fontFiles(), loadSystemFonts: false, defaultFontFamily: 'Outfit' },
     ...extra,
   })
-  return img.asPng()
+}
+
+export async function render(svg: string, extra: Partial<ResvgRenderOptions> = {}): Promise<Buffer> {
+  return (await rendered(svg, extra)).asPng()
+}
+
+/** The same drawing as raw pixels: premultiplied RGBA, row by row (no PNG to encode and decode). */
+export async function renderPixels(svg: string, extra: Partial<ResvgRenderOptions> = {}): Promise<{ pixels: Buffer; width: number; height: number }> {
+  const img = await rendered(svg, extra)
+  return { pixels: img.pixels, width: img.width, height: img.height }
 }
 
 /** A drawn card's shadow (masked off its frosted shape, which it mustn't darken), and the card. */

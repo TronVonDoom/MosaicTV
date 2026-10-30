@@ -14,7 +14,7 @@ import { runFfmpeg, type ProgressCb } from './run.js'
 import { localLogo, logoFileById, logoFor } from './logo.js'
 import { reelClips } from './reel.js'
 import { resolveProfile } from './profile.js'
-import { bgSize, renderBubbleScene, sceneDir } from './bubbleScreen.js'
+import { SCENE_DIR, bubblesInputs, renderBubbleScene, sceneDir } from './bubbleScreen.js'
 import { EMPTY_LINEUP, identLineup, type Lineup, type LineupBlock } from './identLineup.js'
 import { LINEUP_STYLES, type LineupScope } from '../contract/index.js'
 import {
@@ -82,7 +82,8 @@ function mosaictvLogoFile(): string | undefined {
 
 // Bump a style's version when its generator changes, so clips already on disk
 // are rebuilt (and the old ones swept away, see sweepUnused).
-const STYLE_VERSION: Record<string, number> = { animated: 6, frosted: 10 }
+// bubbles 4: drifts on fractions of a pixel, at a true 30 fps.
+const STYLE_VERSION: Record<string, number> = { animated: 6, frosted: 10, bubbles: 4 }
 const THEME_VERSION = 3 // every other style
 
 // Resolve an Asset id to its on-disk file (or undefined).
@@ -131,9 +132,12 @@ type ClipPlan = { out: string; key: string; loop: number; build: LazyBuild; labe
  * which is work worth skipping when the clip is already on disk. Its build is
  * therefore a thunk: the plan — and so the file name — is known without it,
  * and `useBuild` only draws anything when something is actually going to run.
+ * A still says so: it needs one frame, not the motion, so Bubbles skips the
+ * sub-pixel copies for it.
  */
-type LazyBuild = StyleBuild | (() => Promise<StyleBuild>)
-const useBuild = (b: LazyBuild): Promise<StyleBuild> => Promise.resolve(typeof b === 'function' ? b() : b)
+type BuildFor = { still?: boolean }
+type LazyBuild = StyleBuild | ((use: BuildFor) => Promise<StyleBuild>)
+const useBuild = (b: LazyBuild, use: BuildFor = {}): Promise<StyleBuild> => Promise.resolve(typeof b === 'function' ? b(use) : b)
 
 /**
  * Plan the clip for a generated style, or null when the style can't be drawn
@@ -163,16 +167,14 @@ function planClip(
   let build: LazyBuild
   if (style === 'bubbles') {
     // Nothing is drawn until something is going to encode it.
-    build = async () => {
+    build = async (use) => {
+      // A folder of its own per draw: a still and a preview of the same look
+      // can be drawn at once, and each throws its folder away when it's done.
       const dir = sceneDir(createHash('md5').update(`${fillerId}:${key}`).digest('hex'))
-      const scene = await renderBubbleScene(dims, logoFile, lineup.titles, hashSeed(key), loop, dir)
+      const scene = await renderBubbleScene(dims, logoFile, lineup.titles, hashSeed(key), loop, dir, use.still ? 1 : undefined)
       return {
-        inputs: [
-          '-loop', '1', '-i', scene.bg,
-          ...scene.balls.flatMap((b) => ['-loop', '1', '-i', b.file]),
-          '-loop', '1', '-i', scene.fg,
-        ],
-        filter: bubblesGraph({ bg: bgSize(dims), balls: scene.balls }, dims, loop),
+        inputs: bubblesInputs(scene),
+        filter: bubblesGraph(scene, dims, loop),
         tone: 86,
         vol: 0.04,
         cleanup: scene.dispose,
@@ -439,16 +441,22 @@ async function buildFor(
   logoFile: string | undefined,
   dims: Dims,
   block: LineupBlock = null,
+  use: BuildFor = {},
 ): Promise<{ build: StyleBuild; loop: number }> {
   const style = f.style === 'custom' ? 'animated' : lookOf(f.style)
   const loop = loopSecFor(style, dims)
   const plan = planClip(style, f.id, logoFile, dims, f.logoScale, f.divider, await lineupFor(f, block))
-  if (plan) return { build: await useBuild(plan.build), loop: plan.loop }
+  if (plan) return { build: await useBuild(plan.build, use), loop: plan.loop }
   return { build: animatedBuild(dims, LOOP_SEC), loop: LOOP_SEC }
 }
 
 /** Where an ident is being previewed: its channel, and optionally the logo to show (a block's). */
 export type IdentContext = { channelId: number; logoId?: number | null; block?: LineupBlock }
+
+// An editor's draft hasn't been saved to a channel yet, but it's drawn for the
+// one it's being edited on — and a look that carries the channel's shows needs
+// to know which channel that is, or it carries none.
+export const onChannel = (f: FillerRow, ctx: IdentContext): FillerRow => (f.channelId != null ? f : { ...f, channelId: ctx.channelId })
 
 // The logo and channel size for a preview: the ident's pinned logo, else the
 // one asked for (the logo of a block it plays in), else the channel's own.
@@ -474,6 +482,7 @@ const stills = new Map<string, Promise<string>>()
  * graph the full clip would; a custom clip gives a frame of its upload.
  */
 export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise<string> {
+  f = onChannel(f, ctx)
   let { logoFile } = await previewSetting(ctx)
   if (f.logoId != null) logoFile = (await logoFileById(f.logoId, null)) ?? logoFile
   const upload = f.style === 'custom' ? await assetFilePath(f.assetId) : await reelCover(f)
@@ -492,7 +501,7 @@ export async function renderIdentStill(f: FillerRow, ctx: IdentContext): Promise
         if (upload) {
           await runFfmpeg(['-y', '-ss', '1', '-i', upload, '-frames:v', '1', '-update', '1', '-q:v', '3', tmp])
         } else {
-          const { build } = await buildFor(f, logoFile, dims, ctx.block ?? null)
+          const { build } = await buildFor(f, logoFile, dims, ctx.block ?? null, { still: true })
           try {
             await runFfmpeg(assembleStill(build, tmp))
           } finally {
@@ -531,6 +540,7 @@ let previewChain: Promise<unknown> = Promise.resolve()
  * request comes in is dropped (PreviewSuperseded).
  */
 export function renderIdentPreview(f: FillerRow, ctx: IdentContext): Promise<string> {
+  f = onChannel(f, ctx)
   const mine = ++previewSeq
   const run = async (): Promise<string> => {
     if (mine !== previewSeq) throw new PreviewSuperseded()
@@ -709,7 +719,7 @@ function sweepScratch(): void {
     for (const f of fs.readdirSync(dataDir())) {
       if (/^caption-.*\.txt$|^card-.*\.png$|^filler-.*\.tmp\.mp4$/.test(f)) fs.rmSync(path.join(dataDir(), f), { force: true })
       // A Bubbles scene the encode would have thrown away itself.
-      if (/^bubbles-[0-9a-f]+$/.test(f)) fs.rmSync(path.join(dataDir(), f), { recursive: true, force: true })
+      if (SCENE_DIR.test(f)) fs.rmSync(path.join(dataDir(), f), { recursive: true, force: true })
     }
     // A render's scratch, and an upload a restart cut off (routes/assets.ts).
     for (const f of fs.readdirSync(assetsDir())) if (f.endsWith('.tmp.mp4') || f.endsWith('.part')) fs.rmSync(path.join(assetsDir(), f), { force: true })

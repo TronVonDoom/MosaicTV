@@ -528,44 +528,73 @@ export const BRANDED = new Set(['frosted', 'mosaic', 'bubbles', 'logowall', 'pul
 // hue cycle, and each ball bobs on two sines of its own. Every period divides
 // the loop a whole number of times, so the clip's last frame runs straight
 // into its first however long a break turns out to be.
+//
+// Each moving layer arrives as a sheet of copies a fraction of a pixel apart
+// (subpixel.ts). Per frame, a crop picks the copy for where the layer is
+// between pixels and an overlay puts it on the pixel below — both worked out
+// from the same position, so together they place it to 1/q of a pixel.
+
+/** A layer as bubblesGraph places it: one copy's cell on its sheet, and copies a side. */
+type Placed = { cellW: number; cellH: number; q: number }
 
 /**
- * `scene` is what bubbleScreen rendered: a background wider than the frame,
- * one image per ball, and the balls against the lens. Inputs go in that order.
+ * `scene` is what bubbleScreen rendered: a background wider than the frame
+ * (`w`×`h` as drawn), one sheet per ball, and the balls against the lens.
+ * Inputs go in that order (bubblesInputs).
  */
 export function bubblesGraph(scene: BubbleSceneGeometry, dims: Dims, loop: number): string {
   const { w: W, h: H } = dims
   const f4 = (n: number) => n.toFixed(4)
-  const wave = (amp: number, period: number, phase = 0) => `${f4(amp)}*sin(2*PI*t/${f4(period)}+${f4(phase)})`
+  // Periods get six places: 30/7 at four would drift off by a frame's worth by the loop.
+  const wave = (amp: number, period: number, phase = 0) => `${f4(amp)}*sin(2*PI*t/${period.toFixed(6)}+${f4(phase)})`
 
-  // How far the background may drift before its edge would show.
+  // Every layer is a single image, converted to the format it's composited in
+  // once and then repeated on exact 30 fps timestamps — so the motion below
+  // advances evenly every frame. (Looping the files at the demuxer's default
+  // 25 fps meant every sixth frame repeated: a steady stutter.)
+  const still = (fmt: string) => `format=${fmt},loop=loop=-1:size=1,settb=1/${FPS},setpts=N`
+  // Where a layer whose top-left sits at `pos` lands, counted in 1/q pixels.
+  const steps1 = (pos: string, q: number) => `floor((${pos})*${q}+0.5)`
+  // The copy to crop for a position, and the whole pixel to put it on.
+  const copyAt = (pos: string, q: number, cell: number) => (q === 1 ? '0' : `${cell}*mod(${steps1(pos, q)},${q})`)
+  const pixelAt = (pos: string, q: number) => `floor(${steps1(pos, q)}/${q})`
+
+  // The background: a window the frame's size, drifting inside the overscan.
+  // A window at X shows the picture placed at −X; the copy and the window's
+  // start follow from that.
   const bg = scene.bg
   const slackX = Math.max(0, (bg.w - W) / 2) * 0.7
   const slackY = Math.max(0, (bg.h - H) / 2) * 0.7
+  const bx = `-(${f4((bg.w - W) / 2)}+${wave(slackX, fitPeriod(23, loop))})`
+  const by = `-(${f4((bg.h - H) / 2)}+${wave(slackY, fitPeriod(31, loop), 1.7)})`
   const steps = [
-    `[0:v]format=rgba,hue=h='${wave(14, loop)}',` +
-      // crop has no eval option: its x/y expressions are worked out per frame.
-      `crop=w=${W}:h=${H}:x='(iw-ow)/2+${wave(slackX, fitPeriod(23, loop))}':y='(ih-oh)/2+${wave(slackY, fitPeriod(31, loop), 1.7)}'[bg]`,
+    // crop has no eval option: its x/y expressions are worked out per frame.
+    `[0:v]${still('yuv444p')},crop=w=${W}:h=${H}:x='${copyAt(bx, bg.q, bg.cellW)}-${pixelAt(bx, bg.q)}':y='${copyAt(by, bg.q, bg.cellH)}-${pixelAt(by, bg.q)}',` +
+      `hue=h='${wave(14, loop)}'[bg]`,
   ]
 
   let last = 'bg'
   scene.balls.forEach((b, i) => {
     const out = i === scene.balls.length - 1 ? 'balls' : `o${i}`
-    steps.push(
-      `[${last}][${i + 1}:v]overlay=x='${b.x}+${wave(b.ax, b.px, b.phx)}':y='${b.y}+${wave(b.ay, b.py, b.phy)}':format=auto:eval=frame[${out}]`,
-    )
+    const x = `${f4(b.x)}+${wave(b.ax, b.px, b.phx)}`
+    const y = `${f4(b.y)}+${wave(b.ay, b.py, b.phy)}`
+    const pick = b.q === 1 ? '' : `,crop=w=${b.cellW}:h=${b.cellH}:x='${copyAt(x, b.q, b.cellW)}':y='${copyAt(y, b.q, b.cellH)}'`
+    steps.push(`[${i + 1}:v]${still('yuva444p')}${pick}[s${i}]`)
+    steps.push(`[${last}][s${i}]overlay=x='${pixelAt(x, b.q)}':y='${pixelAt(y, b.q)}':format=yuv444:eval=frame[${out}]`)
     last = out
   })
 
   // The balls against the lens, the vignette and the grain, all in one image.
-  steps.push(`[${last}][${scene.balls.length + 1}:v]overlay=0:0:format=auto,fps=${FPS},format=yuv420p[v]`)
+  const n = scene.balls.length + 1
+  steps.push(`[${n}:v]${still('yuva444p')}[lens]`)
+  steps.push(`[${last}][lens]overlay=0:0:format=yuv444,fps=${FPS},format=yuv420p[v]`)
   return steps.join(';')
 }
 
 /** What bubblesGraph needs to know about a rendered scene. */
 export type BubbleSceneGeometry = {
-  bg: Dims
-  balls: { x: number; y: number; ax: number; ay: number; px: number; py: number; phx: number; phy: number }[]
+  bg: Dims & Placed
+  balls: (Placed & { x: number; y: number; ax: number; ay: number; px: number; py: number; phx: number; phy: number })[]
 }
 
 // Build the StyleBuild for a generated style, looping over `loop` seconds.

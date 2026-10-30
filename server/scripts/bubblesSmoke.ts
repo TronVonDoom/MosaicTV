@@ -3,11 +3,13 @@
 // the ffmpeg graph is valid — the two things a unit test can't check.
 //
 //   npx tsx scripts/bubblesSmoke.ts <logos-dir> <channel-logo.png> <out.mp4>
+//
+// HEIGHT=720 draws it at the editor preview's size.
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
-import { renderBubbleScene, bgSize, MAX_BUBBLES } from '../src/streaming/bubbleScreen.js'
+import { renderBubbleScene, bubblesInputs, MAX_BUBBLES } from '../src/streaming/bubbleScreen.js'
 import { assembleVideo, bubblesGraph } from '../src/streaming/identStyles.js'
 
 const [logosDir, chLogo, out] = process.argv.slice(2)
@@ -16,7 +18,8 @@ if (!logosDir || !chLogo || !out) {
   process.exit(2)
 }
 
-const dims = { w: 1920, h: 1080 }
+const height = Number(process.env.HEIGHT ?? 1080)
+const dims = { w: Math.round((height * 16) / 9 / 2) * 2, h: height }
 const loop = 30
 const titles = fs
   .readdirSync(logosDir)
@@ -30,12 +33,8 @@ const scene = await renderBubbleScene(dims, chLogo, titles, 311, loop, dir)
 console.log(`drew ${scene.balls.length} balls + background in ${((Date.now() - started) / 1000).toFixed(1)}s`)
 
 const build = {
-  inputs: [
-    '-loop', '1', '-i', scene.bg,
-    ...scene.balls.flatMap((b) => ['-loop', '1', '-i', b.file]),
-    '-loop', '1', '-i', scene.fg,
-  ],
-  filter: bubblesGraph({ bg: bgSize(dims), balls: scene.balls }, dims, loop),
+  inputs: bubblesInputs(scene),
+  filter: bubblesGraph(scene, dims, loop),
   tone: 86,
   vol: 0.04,
 }

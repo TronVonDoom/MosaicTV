@@ -23,12 +23,18 @@
 // turns away from the light, the caustic pooling on the far inside wall, and
 // last the specular on the front surface, which passes straight over the mark.
 // That draw order is the whole trick.
+//
+// MOTION. ffmpeg only places a layer on whole pixels, and these drift slower
+// than a pixel a frame, so each ball and the background go in as a sheet of
+// copies at every fraction of a pixel (subpixel.ts) and the graph picks one
+// per frame. Without that they tick along a pixel at a time.
 
 import fs from 'node:fs'
 import path from 'node:path'
 import { dataDir } from '../paths.js'
-import { imageDims, render } from './card.js'
+import { imageDims, render, renderPixels } from './card.js'
 import { MOSAIC_STOPS, type Dims } from './identStyles.js'
+import { phasesFor, subpixelSheet } from './subpixel.js'
 import type { LineupTitle } from './identLineup.js'
 
 const n2 = (n: number) => Number(n.toFixed(2))
@@ -272,10 +278,27 @@ function foregroundSvg(w: number, h: number, phase: number): string {
 </svg>`
 }
 
-/** One ball as ffmpeg needs it: its image, where it sits, and how it drifts. */
-export type BubbleLayer = { file: string; x: number; y: number; ax: number; ay: number; px: number; py: number; phx: number; phy: number }
+/**
+ * A layer handed to ffmpeg as raw pixels: its sheet on disk (sheetW×sheetH
+ * straight RGBA), one copy's cell, and how many copies a side (see Sheet).
+ */
+export type RawLayer = { file: string; sheetW: number; sheetH: number; cellW: number; cellH: number; q: number }
+/** One ball as ffmpeg needs it: its sheet, where it sits, and how it drifts. */
+export type BubbleLayer = RawLayer & { x: number; y: number; ax: number; ay: number; px: number; py: number; phx: number; phy: number }
 /** Everything the graph overlays, and a way to throw the images away after. */
-export type BubbleScene = { bg: string; fg: string; balls: BubbleLayer[]; dispose: () => void }
+export type BubbleScene = {
+  /** The background, `w`×`h` as drawn (wider than the frame). */
+  bg: RawLayer & Dims
+  fg: string
+  balls: BubbleLayer[]
+  dispose: () => void
+}
+
+/** The ffmpeg inputs for a scene, in the order bubblesGraph numbers them. */
+export function bubblesInputs(scene: BubbleScene): string[] {
+  const raw = (l: RawLayer) => ['-f', 'rawvideo', '-pix_fmt', 'rgba', '-video_size', `${l.sheetW}x${l.sheetH}`, '-i', l.file]
+  return [...raw(scene.bg), ...scene.balls.flatMap(raw), '-i', scene.fg]
+}
 
 /** How much wider than the frame the background is drawn, so it can drift inside it. */
 export const BG_OVERSCAN = 1.06
@@ -289,9 +312,12 @@ export const bgSize = (dims: Dims): Dims => ({
 const fitPeriod = (period: number, loop: number) => loop / Math.max(1, Math.round(loop / period))
 
 /**
- * Draw the whole scene as PNGs under `dir`. `titles` are the shows it carries,
+ * Draw the whole scene under `dir`. `titles` are the shows it carries,
  * longest-standing first; `chLogo` goes in the hero. Nothing here animates —
  * bubblesGraph does that with what this returns.
+ *
+ * `phases` is how finely the moving layers can be placed (copies per pixel a
+ * side); a still needs no motion, so it passes 1 and skips the sheets.
  */
 export async function renderBubbleScene(
   dims: Dims,
@@ -300,6 +326,7 @@ export async function renderBubbleScene(
   seed: number,
   loop: number,
   dir: string,
+  phases = phasesFor(dims.h),
 ): Promise<BubbleScene> {
   const k = dims.h / 1080
   const phase = ((seed % 100) / 100) * 0.9
@@ -311,9 +338,18 @@ export async function renderBubbleScene(
     fs.writeFileSync(file, await render(svg))
     return file
   }
+  const writeSheet = async (name: string, svg: string, q: number): Promise<RawLayer> => {
+    const drawn = await renderPixels(svg)
+    const sheet = await subpixelSheet(drawn.pixels, drawn.width, drawn.height, q)
+    const file = path.join(dir, name)
+    fs.writeFileSync(file, sheet.data)
+    return { file, sheetW: sheet.w, sheetH: sheet.h, cellW: sheet.cellW, cellH: sheet.cellH, q: sheet.q }
+  }
 
   const { w: bgW, h: bgH } = bgSize(dims)
-  const bg = await write('bg.png', backgroundSvg(bgW, bgH, phase, seed))
+  // The background is soft all over and moves slowly: half a pixel is fine
+  // enough, and keeps its sheet (four copies of a frame and a bit) in hand.
+  const bg = { ...(await writeSheet('bg.rgba', backgroundSvg(bgW, bgH, phase, seed), Math.min(2, phases))), w: bgW, h: bgH }
   const fg = await write('fg.png', foregroundSvg(dims.w, dims.h, phase))
 
   const shown = titles.slice(0, MAX_BUBBLES)
@@ -337,18 +373,20 @@ export async function renderBubbleScene(
   for (let i = 0; i < placed.length; i++) {
     const b = placed[i]
     const side = Math.round(b.r * 2 + b.r * 1.0)
-    const file = await write(`ball${i}.png`, ballSvg(b, side, k))
+    const sheet = await writeSheet(`ball${i}.rgba`, ballSvg(b, side, k), phases)
     // A ball drifts further and slower the bigger it is — it is nearer, so the
     // same drift in the world covers more of the frame.
     const amp = clamp(b.r * 0.07, 5 * k, 26 * k)
     balls.push({
-      file,
-      x: Math.round(b.x - side / 2),
-      y: Math.round(b.y - side / 2),
+      ...sheet,
+      x: n2(b.x - side / 2),
+      y: n2(b.y - side / 2),
       ax: n2(amp * (0.6 + rnd() * 0.5)),
       ay: n2(amp * (0.8 + rnd() * 0.7)),
-      px: n2(fitPeriod(11 + rnd() * 9, loop)),
-      py: n2(fitPeriod(7 + rnd() * 7, loop)),
+      // Not rounded: a period that's off by a hundredth no longer divides the
+      // loop, and the ball jumps where the clip repeats.
+      px: fitPeriod(11 + rnd() * 9, loop),
+      py: fitPeriod(7 + rnd() * 7, loop),
       phx: n2(rnd() * Math.PI * 2),
       phy: n2(rnd() * Math.PI * 2),
     })
@@ -357,5 +395,9 @@ export async function renderBubbleScene(
   return { bg, fg, balls, dispose }
 }
 
-/** Where a scene's images live, by what's in them. */
-export const sceneDir = (hash: string): string => path.join(dataDir(), `bubbles-${hash}`)
+let drawn = 0
+/** Where a scene's images live: named by what's in them, and unique to this draw. */
+export const sceneDir = (hash: string): string =>
+  path.join(dataDir(), `bubbles-${hash}-${process.pid.toString(36)}${(++drawn).toString(36)}${Date.now().toString(36)}`)
+/** A scene folder's name, for the boot sweep. */
+export const SCENE_DIR = /^bubbles-[0-9a-f]+(-[0-9a-z]+)?$/

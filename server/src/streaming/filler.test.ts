@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { dimsFor, poolFor } from './filler.js'
+import { dimsFor, onChannel, poolFor } from './filler.js'
 
 test('a fixed resolution renders at that size, whatever the channel', () => {
   assert.deepEqual(dimsFor('720p', 1080), { w: 1280, h: 720 })
@@ -40,4 +40,13 @@ test('breaks take turns in the channel’s list order, not the order the rows co
   // Equal places (from before there was an order) fall back to the oldest first.
   const tied = { id: 1, fillerAssignments: pooled(ident(8, 0), ident(3, 0)) }
   assert.deepEqual(poolFor(tied, null).pool.map((f) => f.id), [3, 8])
+})
+
+test('an editor’s draft is drawn for the channel it’s being edited on', () => {
+  // A draft has no channel of its own yet; without one, Bubbles found no shows
+  // and previewed the channel's logo alone.
+  const draft = { id: 0, style: 'bubbles', assetId: null, audioAssetId: null, logoId: null, logoScale: 1, divider: false }
+  assert.equal(onChannel(draft, { channelId: 31 }).channelId, 31)
+  // A saved ident keeps its own.
+  assert.equal(onChannel({ ...draft, channelId: 64 }, { channelId: 31 }).channelId, 64)
 })
