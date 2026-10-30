@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 — Bubbles that glide (2026-10-30)
 
 - **Bubbles moves smoothly.** The balls and the background now drift by
   fractions of a pixel at a true 30 frames a second. Before, they ticked along
