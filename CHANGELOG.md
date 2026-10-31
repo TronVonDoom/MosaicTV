@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.2 — Moving day (2026-10-31)
 
 - **Removing a library folder no longer freezes the app.** Taking a folder out
   of a library — or deleting a library, or a scan letting go of a lot of files
