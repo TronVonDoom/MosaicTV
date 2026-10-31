@@ -22,8 +22,8 @@ export default function ConfirmHost() {
       <div className="p-5 flex gap-4">
         <IconTile name={pending.danger ? 'warning' : 'info'} color={pending.danger ? '#fb7185' : undefined} size="md" />
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-[15px] tracking-tight text-ink">{pending.title}</h2>
-          {pending.message && <div className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">{pending.message}</div>}
+          <h2 className="font-semibold text-[15px] tracking-tight text-ink break-words">{pending.title}</h2>
+          {pending.message && <div className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted break-words">{pending.message}</div>}
         </div>
       </div>
       <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-edge bg-sunken/40">

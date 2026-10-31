@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from '../db.js'
 import { isScanning } from '../scanner/scanner.js'
+import { forgetFiles, setAside } from '../scanner/forget.js'
 import { matchCounts } from '../metadata/metadata.js'
 import { libraryHome } from '../schedule/onAir.js'
 import { readBody } from '../validate.js'
@@ -262,7 +263,9 @@ librariesRouter.patch('/:id/source', async (req, res) => {
   if (data.sourceUrl || data.sourceToken) void refreshLive()
 })
 
-// Add a folder to an existing library.
+// Add a folder to an existing library, and scan it: files the library had
+// elsewhere (a folder that moved, a share renamed) keep their place on the
+// channels, by name and size (see movedFrom).
 librariesRouter.post('/:id/folders', async (req, res) => {
   const libraryId = Number(req.params.id)
   const raw = String(req.body?.path ?? '').trim()
@@ -277,11 +280,15 @@ librariesRouter.post('/:id/folders', async (req, res) => {
     const folder = await prisma.libraryFolder.create({ data: { libraryId, path: folderPath } })
     res.status(201).json(folder)
   } catch {
-    res.status(409).json({ error: 'That folder is already used by a library.' })
+    return res.status(409).json({ error: 'That folder is already used by a library.' })
   }
+  queueScan(libraryId, null)
 })
 
-// Remove a folder (and the media indexed under it).
+// Take a folder out of a library. Its files are set aside, not forgotten:
+// the scan that follows finds any that are in the library's other folders —
+// the folder moved, or was copied there — and they keep their picks,
+// broadcast episodes, history and details. What it doesn't find goes then.
 librariesRouter.delete('/:id/folders/:folderId', async (req, res) => {
   if (isScanning()) {
     return res.status(409).json({ error: 'Cannot change folders while a scan is running.' })
@@ -292,13 +299,13 @@ librariesRouter.delete('/:id/folders/:folderId', async (req, res) => {
   if (!folder || folder.libraryId !== libraryId) {
     return res.status(404).json({ error: 'Folder not found.' })
   }
-  // Drop media indexed under this folder, then the folder itself. Append the
-  // separator so "/media/movies" doesn't also match "/media/movies-4k".
-  await prisma.mediaItem.deleteMany({
-    where: { libraryId, path: { startsWith: folder.path + path.sep } },
-  })
+  // The folder first, so a scan that starts meanwhile doesn't read it; then
+  // its files, a slice at a time so the rest of the app isn't kept waiting.
   await prisma.libraryFolder.delete({ where: { id: folderId } })
+  await setAside(libraryId, folder.path)
   res.status(204).end()
+  // With no folder left there's nowhere to look yet: they wait for one.
+  if (await prisma.libraryFolder.count({ where: { libraryId } })) queueScan(libraryId, null)
 })
 
 librariesRouter.delete('/:id', async (req, res) => {
@@ -306,6 +313,8 @@ librariesRouter.delete('/:id', async (req, res) => {
     return res.status(409).json({ error: 'Cannot delete a library while a scan is running.' })
   }
   const id = Number(req.params.id)
+  // Its files a slice at a time first (see forgetFiles), then the rest of it.
+  await forgetFiles(id)
   const lib = await prisma.library.delete({ where: { id } }).catch(() => null)
   res.status(204).end()
   if (lib && lib.source !== 'folders') void refreshLive()

@@ -219,11 +219,21 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
     })
   }
 
-  const handleRemoveFolder = (libraryId: number, folderId: number) =>
-    guard('Failed to remove folder', async () => {
-      await api.removeFolder(libraryId, folderId)
+  async function handleRemoveFolder(lib: Library, folder: { id: number; path: string }) {
+    const ok = await confirmDialog({
+      title: `Remove ${folder.path}?`,
+      message: `Its files leave ${lib.name}. Any that are in the library’s other folders — moved or copied there — keep their place on your channels, with their picks, broadcast episodes and details. Your files stay on disk.`,
+      confirmLabel: 'Remove folder',
+      danger: true,
+    })
+    if (!ok) return
+    await guard('Failed to remove folder', async () => {
+      await api.removeFolder(lib.id, folder.id)
+      toast.success('Folder removed — scanning for files that moved')
+      jobs.followScan()
       refresh()
     })
+  }
 
   async function onPick(path: string) {
     const target = picker
@@ -236,6 +246,8 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
     } else {
       await guard('Failed to add folder', async () => {
         await api.addFolder(target.libraryId, path)
+        toast.success('Folder added — scanning it now')
+        jobs.followScan()
         refresh()
       })
     }
@@ -432,11 +444,11 @@ export default function LibrarySources({ jobs, focusAddForm }: { jobs: LibraryJo
                     <span className="font-mono text-ink-muted truncate flex-1">{f.path}</span>
                     {lib.folders.length > 1 && (
                       <button
-                        onClick={() => handleRemoveFolder(lib.id, f.id)}
+                        onClick={() => void handleRemoveFolder(lib, f)}
                         disabled={busy}
                         className="text-ink-faint hover:text-rose-400 disabled:opacity-40 px-1"
                         aria-label="Remove folder"
-                        title="Remove folder (and its indexed media)"
+                        title="Remove folder"
                       >
                         ×
                       </button>

@@ -129,7 +129,7 @@ async function drain(): Promise<void> {
       try {
         await scanLibrary(libraryId, false, folders ? [...folders] : undefined)
       } catch (e) {
-        log('warn', 'system', `Library ${libraryId}: the scan for its server’s changes failed`, String((e as Error)?.stack || e))
+        log('warn', 'system', `Library ${libraryId}: a scan it was waiting for failed`, String((e as Error)?.stack || e))
       }
       scannedAt.set(libraryId, Date.now())
     }

@@ -45,8 +45,9 @@ export type Gone = {
  * `unreadable` are the folders the scan couldn't read: what's under them, or
  * under a library folder that came up empty, stays. So does a file that's on
  * disk after all (back since the scan looked): the next scan brings it back —
- * unless it's in `skipped`, what a .plexignore leaves out, which goes whether
- * it's on disk or not. A scan of only some folders (`within`) lets go of only
+ * unless it's in `skipped`, what a .plexignore leaves out, or under none of the
+ * library's folders (its folder was taken out), which go whether they're on
+ * disk or not. A scan of only some folders (`within`) lets go of only
  * what's in them: it can't tell what it didn't look at.
  */
 export async function removeGone(libraryId: number, unreadable: string[] = [], skipped: string[] = [], within?: string[]): Promise<Gone> {
@@ -74,8 +75,13 @@ export async function removeGone(libraryId: number, unreadable: string[] = [], s
   const heldIds = new Set(held.map((m) => m.id))
   const candidates = missing.filter((m) => !heldIds.has(m.id))
   const ruledOut = (p: string) => skipped.some((s) => p === s || isUnder(p, s))
+  // Under none of the library's folders: its folder was taken out, and this
+  // scan didn't find it in the others (see setAside). It goes, on disk or not —
+  // the library doesn't read there any more. (A library with no folders at
+  // all keeps its files until it has one to look in.)
+  const leftBehind = (p: string) => library.folders.length > 0 && !library.folders.some((f) => isUnder(p, f.path))
   for (const batch of slices(candidates)) {
-    const here = await Promise.all(batch.map((m) => (ruledOut(m.path) ? false : exists(m.path))))
+    const here = await Promise.all(batch.map((m) => (ruledOut(m.path) || leftBehind(m.path) ? false : exists(m.path))))
     batch.forEach((m, i) => !here[i] && gone.push(m))
   }
   const fileIds = gone.map((m) => m.id)

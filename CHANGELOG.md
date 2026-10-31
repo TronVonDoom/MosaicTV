@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- **Removing a library folder no longer freezes the app.** Taking a folder out
+  of a library — or deleting a library, or a scan letting go of a lot of files
+  gone from disk — kept every other request waiting until it was done: the
+  guide, the library pages and channels moving on to their next program. On a
+  big TV library that was minutes. The guide had no index on the file each row
+  plays, so every file forgotten read the whole guide; now it has one, and the
+  files go a few hundred at a time so the rest of the app keeps its turn.
+  Forgetting 21,000 episodes went from 16 seconds of nothing else happening to
+  under a second, with nothing waiting more than a few hundredths of one.
+- **Moving a library's folder keeps everything.** Swapping a library's folder
+  for a new one — a share renamed, a library moved to another disk — used to
+  forget every file in the old folder and read the new one from scratch: the
+  collection picks of single episodes and movies, every broadcast episode, act
+  breaks, episode details and aired history went with them. Now a removed
+  folder's files are set aside, not forgotten, and the scan that follows finds
+  them in the library's other folders by name and size; they keep their place
+  on the channels. This works whichever order the folders are added and
+  removed, and when the files were copied rather than moved. Removing a folder
+  now asks first, and adding one scans it straight away.
+- **A moved file with no artwork of its own moves on the first scan.** A scan
+  skipped an unchanged file before noticing it had moved, so a movie with no
+  poster beside it (its art from TMDB) stayed at its old path until a second
+  scan. Removing the old folder between the two forgot it.
+
 ## 1.1.1 — Bubbles that glide (2026-10-30)
 
 - **Bubbles moves smoothly.** The balls and the background now drift by

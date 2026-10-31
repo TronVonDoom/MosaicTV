@@ -6,6 +6,7 @@ import { extraHome, extraKind, extraStem, parseMedia, taggedCompilation, withTag
 import { detectArtwork, embeddedCover, findLyrics } from './artwork.js'
 import { extensionsFor, ignoresAbove, walk } from './walk.js'
 import { removeGone } from './gone.js'
+import { knownByName, sameNameAndSize, sharedTail, takeOver, type Known } from './moved.js'
 import { log } from '../logs.js'
 import { libraryChanged } from '../events.js'
 import { scheduleChangedEverywhere } from '../schedule/scheduleChanges.js'
@@ -59,6 +60,10 @@ export function isScanning(): boolean {
 type ScanPass = {
   /** Rows a moved file has already claimed this pass (4 files probe at once). */
   claimed: Set<number>
+  /** The library's files as the pass began, by name and size (see movedFrom). */
+  byName: Map<string, Known[]>
+  /** The library's folders: a file under none of them was in a folder taken out of it. */
+  folders: string[]
   /** Shows a file left for another this pass: old show id -> the shows it went to. */
   refiled: Map<number, Set<number>>
   /** Show lookups this pass, by library and name (see showFor). */
@@ -74,20 +79,36 @@ const exists = (p: string) =>
   )
 
 /**
- * A file new at this path that the library already knows: same name, same
- * size, and its old path is gone. That's a move or a renamed folder, and
- * keeping the row keeps everything that points at it — broadcast episodes,
- * collection picks, the guide — instead of a new row and a missing one.
+ * The row a file at this path used to be: one the library already knows by
+ * the same name and size, whose old path is gone — a move, a renamed folder,
+ * a library folder that moved — or that's under none of the library's folders
+ * any more (its folder was taken out: moved here, or copied here first).
+ * Keeping the row keeps everything that points at it — broadcast episodes,
+ * collection picks, the guide, its details and act breaks — instead of a new
+ * row and a missing one. Of two such, the one whose folders match more of
+ * this path ("Doug/Season 01/") wins. `atPath` is the row this path has of
+ * its own, if a scan gave it one already (a copy, read before the folder it
+ * came from was taken out): an old row from that folder takes its place.
  */
-async function movedFrom(filePath: string, size: number, libraryId: number, pass: ScanPass) {
-  const base = path.basename(filePath)
-  const candidates = await prisma.mediaItem.findMany({
-    where: { libraryId, sizeBytes: size, path: { endsWith: base }, id: { notIn: [...pass.claimed] } },
-  })
+async function movedFrom(filePath: string, size: number, pass: ScanPass, atPath: number | null) {
+  const candidates = sameNameAndSize(pass.byName, filePath, size)
+    .filter((c) => c.id !== atPath && c.path !== filePath && !pass.claimed.has(c.id))
+    .sort((a, b) => sharedTail(b.path, filePath) - sharedTail(a.path, filePath))
   for (const c of candidates) {
-    if (path.basename(c.path) !== base || (await exists(c.path))) continue
+    const leftBehind = pass.folders.length > 0 && !pass.folders.some((f) => isWithin(c.path, f))
+    // Only a file whose folder was taken out takes over a row of its own: one
+    // whose path merely can't be found may be on a share that isn't mounted.
+    if (atPath != null && !leftBehind) continue
+    if (!leftBehind && (await exists(c.path))) continue
+    if (pass.claimed.has(c.id)) continue // another file took it while we looked
     pass.claimed.add(c.id)
-    return c
+    const row = await prisma.mediaItem.findUnique({ where: { id: c.id } })
+    if (!row) continue
+    if (atPath != null) {
+      pass.claimed.add(atPath)
+      await takeOver(row.id, atPath)
+    }
+    return row
   }
   return null
 }
@@ -108,11 +129,15 @@ async function processFile(
   // as SQLite REAL, so an exact float compare would never match. Integer ms
   // round-trips exactly and is more than precise enough for change detection.
   const mtimeMs = Math.floor(stat.mtimeMs)
-  const atPath = await prisma.mediaItem.findUnique({ where: { path: filePath } })
-  const moved = atPath ? null : await movedFrom(filePath, stat.size, libraryId, pass)
+  const found = await prisma.mediaItem.findUnique({ where: { path: filePath } })
+  const moved = await movedFrom(filePath, stat.size, pass, found?.id ?? null)
+  // A row at this path is gone if an older one for the same file took its place.
+  const atPath = moved ? null : found
   const existing = atPath ?? moved
   const parsed = parseMedia(filePath, libraryPath, kind)
-  const sameFile = !!existing && existing.mtimeMs === mtimeMs
+  // A moved file is the one its name and size say it is, though a copy's
+  // time stamp is new: it keeps what was read from it, act breaks included.
+  const sameFile = !!existing && (existing.mtimeMs === mtimeMs || !!moved)
   // A song goes by its own tags (see withTags) — as stored, while the file's the same.
   const named = kind === 'audio' && sameFile ? withTags(parsed, storedTags(existing!.embedded)) : parsed
   // Tags read by older rules (before the album artist was kept) are read again.
@@ -149,9 +174,11 @@ async function processFile(
   // improvement to the parser (a new release tag it knows to strip) reach a
   // library on an ordinary re-scan: the row is rewritten from the cached probe,
   // so nothing is re-probed and no forced re-scan is needed.
+  // (Never a moved file: its row has yet to take its new path.)
   if (
     !force &&
     !staleTags &&
+    !moved &&
     existing &&
     existing.mtimeMs === mtimeMs &&
     existing.durationSec != null &&
@@ -176,7 +203,7 @@ async function processFile(
   }
 
   // Reuse existing probe results when the file itself hasn't changed.
-  const unchanged = !force && !staleTags && !!existing && existing.mtimeMs === mtimeMs && existing.durationSec != null
+  const unchanged = !force && !staleTags && sameFile && existing!.durationSec != null
   const probe = unchanged ? null : await ffprobe(filePath)
   const embedded = unchanged ? existing!.embedded : probe ? JSON.stringify(probe.tags) : null
   if (music && !art.posterPath) art.posterPath = await embeddedCover(filePath, mtimeMs, embedded)
@@ -440,7 +467,14 @@ async function scanTaken(libraryId: number, force = false, only?: string[]): Pro
     status.total = found.length
 
     const dirCache: DirCache = new Map()
-    const pass: ScanPass = { claimed: new Set(), refiled: new Map(), shows: new Map(), created: new Set() }
+    const pass: ScanPass = {
+      claimed: new Set(),
+      byName: await knownByName(library.id),
+      folders: library.folders.map((f) => f.path),
+      refiled: new Map(),
+      shows: new Map(),
+      created: new Set(),
+    }
     await runPool(found, PROBE_CONCURRENCY, ({ file, root }) =>
       processFile(file, library.id, root, kind, dirCache, force, pass),
     )

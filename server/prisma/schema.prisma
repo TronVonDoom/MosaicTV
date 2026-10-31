@@ -550,6 +550,10 @@ model PlayoutItem {
   inPoint      Float?
 
   @@index([channelId, startTime])
+  // Forgetting a file takes its guide rows along; without this, every file
+  // forgotten reads the whole guide to find them (a library folder's worth
+  // held the database for minutes).
+  @@index([mediaItemId])
 }
 
 // What a channel aired: a program's playout rows, kept once the guide lets

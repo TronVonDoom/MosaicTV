@@ -101,6 +101,15 @@ bell follows it from any page.
 - **Deleted files go.** Files gone from disk are removed, as in Plex — but
   not while their folder can't be read: a share that isn't mounted looks like
   every file in it gone, so those wait, hidden, for a scan that can read it.
+- **Moved files keep their place.** A file is known by its name and size, so
+  one that moves — a renamed folder, a show filed somewhere else in the
+  library, a whole library on a new disk or a renamed share — keeps its
+  collection picks, broadcast episodes, act breaks, details and aired history.
+- **Moving a library's folder.** Add the new folder with **+ Add folder** (it's
+  scanned straight away), then remove the old one with **×**. Either order
+  works, and so does copying the files first: a removed folder's files wait,
+  hidden, for the scan that follows, and any it finds in the library's other
+  folders keep their place. The rest go then.
 - **The library follows the scan.** New titles turn up where they sort and
   removed ones go, on the grid and on any open show, movie or artist page — no
   refresh, and the page stays where you'd scrolled. Posters and names a
