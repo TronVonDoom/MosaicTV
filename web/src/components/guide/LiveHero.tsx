@@ -8,6 +8,7 @@ import { logoImageUrl, type Channel, type ChannelNow, type NowBlock, type NowUni
 import { channelPath } from '../../lib/channels'
 import { copyText } from '../../lib/clipboard'
 import { formatClock, formatRemaining } from '../../lib/format'
+import { usePlayer } from '../../lib/player'
 import { toast } from '../../lib/toast'
 import { IconButton, LiveBadge, buttonClass, cx } from '../ui'
 import TitleLogo from '../title/TitleLogo'
@@ -37,6 +38,18 @@ function BlockMark({ block, channelLogoId }: { block: NowBlock; channelLogoId: n
   return <span className="max-w-[12rem] truncate text-[14px] font-semibold">{block.name}</span>
 }
 
+/** Play the channel in the corner, to keep watching while looking round the
+ *  app — or, when it's already playing there, stop it. */
+function useCorner(channel: Channel) {
+  const player = usePlayer()
+  const on = !player.full && channel.number != null && player.number === channel.number
+  return {
+    on,
+    label: on ? 'Stop the mini player' : 'Watch in the corner',
+    toggle: () => (on ? player.stop() : channel.number != null && player.tune(channel.number)),
+  }
+}
+
 /**
  * The channel picked in the guide, live: its program's picture with the brand
  * ring round it, its number and logo — and the block on, if one is — and a
@@ -44,6 +57,7 @@ function BlockMark({ block, channelLogoId }: { block: NowBlock; channelLogoId: n
  * drawn to scale, its breaks in amber. The picture tunes TV mode to it.
  */
 export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; now: ChannelNow | undefined; pieces: Piece[]; nowMs: number }) {
+  const corner = useCorner(channel)
   const unit = now?.now ?? null
   const block = unit?.timeBlock ?? null
   const start = unit ? new Date(unit.startTime).getTime() : 0
@@ -80,6 +94,19 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
             </span>
           )}
           {unit && <LiveBadge />}
+          <button
+            type="button"
+            onClick={corner.toggle}
+            title={corner.label}
+            aria-label={corner.label}
+            aria-pressed={corner.on}
+            className={cx(
+              'pointer-events-auto grid size-8 place-items-center rounded-full transition-colors',
+              corner.on ? 'bg-indigo-400/40 ring-1 ring-indigo-300/60 text-white' : 'glass-label text-white/90 hover:bg-[rgb(12_10_22/0.75)]',
+            )}
+          >
+            <Icon name="mini" size={16} />
+          </button>
         </div>
         <div className="pointer-events-none absolute inset-x-3.5 bottom-3.5 z-20 max-w-[640px] rounded-2xl glass-label px-5 py-4">
           {unit ? (
@@ -113,9 +140,10 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
   )
 }
 
-/** What's next on the picked channel, and the three ways in: watch it, open
- *  the channel, copy the link players tune. */
+/** What's next on the picked channel, and the ways in: watch it (full screen
+ *  or in the corner), open the channel, copy the link players tune. */
 export function UpNextPanel({ channel, now }: { channel: Channel; now: ChannelNow | undefined }) {
+  const corner = useCorner(channel)
   const next = (now?.next ?? []).slice(0, 4)
   async function copyStream() {
     const url = `${window.location.origin}/iptv/channel/${channel.number}.ts`
@@ -144,11 +172,19 @@ export function UpNextPanel({ channel, now }: { channel: Channel; now: ChannelNo
           ))}
         </ol>
       )}
-      {/* One row: the panel is wide enough for all three. */}
+      {/* One row: the panel is wide enough for all four. */}
       <div className="mt-auto flex gap-2 pt-1">
         <Link to={`/watch/${channel.number}`} className={buttonClass('primary', 'md', 'flex-1 min-w-0')}>
           <Icon name="play" size={15} className="fill-current" /> Watch
         </Link>
+        <IconButton
+          icon="mini"
+          label={corner.label}
+          aria-pressed={corner.on}
+          variant={corner.on ? 'primary' : 'secondary'}
+          onClick={corner.toggle}
+          className="shrink-0"
+        />
         <Link to={channelPath(channel)} className={buttonClass('secondary', 'md', 'flex-1 min-w-0')}>
           Open channel
         </Link>

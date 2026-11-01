@@ -25,6 +25,9 @@ guide grid, with a red now-line and a time ruler.
 <img src="screenshots/guide.webp" alt="The Guide: Cartoon Network large at the top with what's up next, and every channel in the grid below" width="100%" />
 
 - **Pick a channel** — tap its tile in the grid to bring it up top.
+- **Watch in the corner** — the button beside **Watch** (and the one in the
+  live picture's top corner) plays the channel in the
+  [mini player](#the-mini-player) instead of full screen.
 - **Open a program** — tap it for its details: the episode, its parts, when
   it airs, and a link to its show or movie.
 - **12h · 24h · 48h** — how far the grid reaches; it also scrolls back three
@@ -66,7 +69,7 @@ strip stacks into a compact card.
 | **F** | Full screen |
 | **P** | Picture in picture |
 | **?** | All the keys |
-| **Esc** | Leave TV mode |
+| **Esc** | Back to the page you came from, the channel still playing in the corner |
 
 Move the mouse (or tap) and the same controls appear along the top, with
 **Cast** and **instant flipping** (the ⚡ button): the channels either side
@@ -93,13 +96,32 @@ Each is remembered in the browser for next time.
 
 <img src="screenshots/tv-crt.webp" alt="TV mode with the CRT look: scanlines, a gentle curve and a glow" width="100%" />
 
+### The mini player
+
+Leave TV mode (**Esc**, or the back arrow) and the channel keeps playing in a
+small card in the corner of the page you go back to, so you can look round the
+Guide, the Library or a channel's settings while it's on. The picture goes on
+without a pause — it's the same stream, just smaller.
+
+- Under the picture: the channel, what's on, how long is left, and buttons for
+  **channel down / up**, **mute**, **bigger / smaller**, **pop out** (below),
+  **TV mode** and **×** to stop watching.
+- **Tap the picture** to go back to TV mode.
+- **Drag it** to any corner; it stays where you left it, and at the size you
+  picked, next time.
+- A program that's locked shows **Enter PIN** in the card instead of the
+  picture. A channel that's casting to a TV, or locked when you leave TV mode,
+  stops rather than going to the corner.
+
 ### Picture in picture
 
-The button beside Full screen (or **P**) pops the channel into a small window
-that stays on top of other tabs and apps while the TV-mode tab stays open.
-Its skip buttons flip channels, and so do media keys and the system's media
-controls, which show what's on and the channel's logo. (Firefox has its own
-picture-in-picture toggle on the video, so the button isn't shown there.)
+The button beside Full screen in TV mode (or **P**), or **pop out** on the mini
+player, puts the channel in a small window that stays on top of other tabs and
+apps while MosaicTV's tab stays open — and you can keep using MosaicTV in that
+tab meanwhile. Its skip buttons flip channels, and so do media keys and the
+system's media controls, which show what's on and the channel's logo. (Firefox
+has its own picture-in-picture toggle on the video, so the button isn't shown
+there.)
 
 ## Casting
 

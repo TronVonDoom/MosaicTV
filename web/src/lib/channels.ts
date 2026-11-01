@@ -3,6 +3,9 @@
 
 type Addressable = { id: number; number: number | null }
 
+/** A channel's live playlist, as the browser players pull it. */
+export const channelPlaylistUrl = (number: number) => `${window.location.origin}/iptv/channel/${number}/index.m3u8`
+
 /** The last part of a channel's address: its number, or "id-7" for a draft. */
 export const channelSlug = (c: Addressable): string => (c.number != null ? String(c.number) : `id-${c.id}`)
 

@@ -14,7 +14,8 @@ export default function ToastContainer() {
   if (items.length === 0) return null
 
   return (
-    <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 w-[22rem] max-w-[calc(100vw-2.5rem)]" aria-live="polite">
+    // Above the mini player when it's in the way (--mini-lift, set by components/player).
+    <div className="fixed bottom-[calc(1.25rem+var(--mini-lift,0px))] right-5 z-[100] flex flex-col gap-2 w-[22rem] max-w-[calc(100vw-2.5rem)]" aria-live="polite">
       {items.map((t) => {
         const tone =
           t.type === 'success'

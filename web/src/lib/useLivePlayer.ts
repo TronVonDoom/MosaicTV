@@ -10,9 +10,6 @@ const STALL_RECONNECT_SEC = 30
 // many failed attempts, surface a real error instead of looping forever.
 const MAX_RECONNECTS = 6
 
-/** A channel's live playlist, as the browser players pull it. */
-export const channelPlaylistUrl = (number: number) => `${window.location.origin}/iptv/channel/${number}/index.m3u8`
-
 export type LivePlayer = {
   error: string | null
   /** Autoplay with sound was blocked, so it started muted. */

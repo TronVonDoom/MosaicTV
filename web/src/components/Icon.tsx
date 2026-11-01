@@ -48,6 +48,7 @@ import {
   ShieldCheck,
   List,
   Maximize,
+  Maximize2,
   Minimize,
   ListVideo,
   Menu,
@@ -57,12 +58,14 @@ import {
   PanelLeftOpen,
   Pause,
   Pencil,
+  PictureInPicture,
   PictureInPicture2,
   Play,
   Plus,
   RadioTower,
   RefreshCw,
   ScrollText,
+  Scaling,
   Search,
   Server,
   Settings2,
@@ -156,6 +159,9 @@ export type IconName =
   | 'fullscreen'
   | 'exitFullscreen'
   | 'pip'
+  | 'mini'
+  | 'maximize'
+  | 'resize'
   | 'volume'
   | 'muted'
   | 'heart'
@@ -232,6 +238,10 @@ const GLYPH: Record<IconName, LucideIcon> = {
   fullscreen: Maximize,
   exitFullscreen: Minimize,
   pip: PictureInPicture2,
+  // The mini player, in the app's own corner (pip is the browser's window).
+  mini: PictureInPicture,
+  maximize: Maximize2,
+  resize: Scaling,
   volume: Volume2,
   muted: VolumeX,
   heart: Heart,

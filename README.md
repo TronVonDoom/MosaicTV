@@ -277,8 +277,10 @@ your breaks live here too.
 **Watch** turns the browser into a TV: the channels full screen, a slim glass
 strip with the show's logo, its parts and what's next as you tune in, and the
 channel guide over the picture. Flip with **↑ / ↓** or a swipe, type a number
-to jump straight to a channel, **⌫** for the last one. Picture in picture,
-media keys, and casting to a Chromecast, Google TV or Apple TV. **Looks** put
+to jump straight to a channel, **⌫** for the last one. Leave it and the
+channel keeps playing in a mini player in the corner while you look round the
+app. Picture in picture, media keys, and casting to a Chromecast, Google TV or
+Apple TV. **Looks** put
 the shows back on the set they aired on: a CRT's scanlines and curve, an old TV
 set round a 4:3 program, and the guide in the blue cable-guide look.
 

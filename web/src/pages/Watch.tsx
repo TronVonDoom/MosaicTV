@@ -4,56 +4,35 @@ import CastButton from '../components/CastButton'
 import ChannelLogo from '../components/ChannelLogo'
 import Icon, { type IconName } from '../components/Icon'
 import { Kbd, LiveBadge, cx, osdButtonClass } from '../components/ui'
-import { logoImageUrl, type NowUnit } from '../lib/api'
+import { logoImageUrl } from '../lib/api'
 import { useCached } from '../lib/cache'
 import { reads } from '../lib/reads'
 import { castChannel, stopCasting } from '../lib/cast'
-import { useLiveRefresh } from '../lib/events'
+import { channelPlaylistUrl } from '../lib/channels'
 import { formatClock } from '../lib/format'
 import { useMediaQuery, useNow } from '../lib/hooks'
-import { channelPlaylistUrl, useLivePlayer } from '../lib/useLivePlayer'
+import { minutesLeft, progressOf, readStore, unitLabel, usePlayer, writeStore } from '../lib/player'
 import { Crt, LooksMenu, TV_SET_SCALE, TvSet, shrink, useLooks, usePicture } from '../components/watch/RetroLooks'
 import SegmentBar, { hasParts, piecesOf, type Piece } from '../components/guide/SegmentBar'
 import TitleLogo from '../components/title/TitleLogo'
 import PinHost from '../components/PinHost'
-import { maskNow, subscribePin, unlock, useUnlocked } from '../lib/parental'
+import { subscribePin, unlock } from '../lib/parental'
 
 // TV mode: the channels full screen, flipped like a TV. Up/down (or swipe)
 // changes channel, digits tune straight to one, Backspace goes back to the
 // last, G opens the channel guide. Everything on screen fades away on its own
 // so the picture is all there is. Cast to a TV and this becomes its remote:
-// the TV follows every flip.
+// the TV follows every flip. The picture is the app's shared player
+// (components/player), drawn under all this: leave TV mode and the channel
+// carries on in the corner of the page you go back to.
 
 const LAST_KEY = 'mosaictv.watch.last'
 const WARM_KEY = 'mosaictv.watch.warm'
-const VOLUME_KEY = 'mosaictv.watch.volume'
 const BANNER_MS = 5000
 const CONTROLS_MS = 3000
 const DIGIT_MS = 1600
 const WARM_EVERY_MS = 10_000
 
-function readStore(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-function writeStore(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    /* storage blocked: the preference just won't stick */
-  }
-}
-
-const minutesLeft = (u: NowUnit, now: number) => Math.max(0, Math.round((new Date(u.stopTime).getTime() - now) / 60000))
-const progressOf = (u: NowUnit, now: number) => {
-  const s = new Date(u.startTime).getTime()
-  const e = new Date(u.stopTime).getTime()
-  return e > s ? Math.min(1, Math.max(0, (now - s) / (e - s))) : 0
-}
-const unitLabel = (u: NowUnit) => (u.kind === 'filler' ? 'Station break' : u.title)
 /** "part 1 of 2": which of an airing's parts is on, or null for one in a single part. */
 const partOf = (pieces: readonly Piece[], now: number): string | null => {
   const parts = pieces.filter((p) => !p.filler)
@@ -65,30 +44,41 @@ const partOf = (pieces: readonly Piece[], now: number): string | null => {
 export default function Watch() {
   const params = useParams()
   const navigate = useNavigate()
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const player = usePlayer()
+  const {
+    videoRef,
+    channels,
+    lineup,
+    rows,
+    channel,
+    row,
+    lockedHere,
+    url,
+    tuning,
+    error,
+    reconnecting,
+    muted,
+    volume,
+    toggleMute,
+    setVolume,
+    pipSupported,
+    pip,
+    togglePip,
+    previous,
+    setCasting,
+    tune: tuneTo,
+  } = player
+  const current = player.number
   const nowMs = useNow(1000)
   // A big screen gets the banner at full size (lg in the classes below).
   const wide = useMediaQuery('(min-width: 1024px)')
 
-  // The lineup the last visit kept, so tuning starts without waiting on it.
-  const channelsRead = useCached(reads.channels)
-  const nowRead = useCached(reads.channelsNow)
-  // A list that won't load at all is an empty lineup, not a black screen forever.
-  const channels = useMemo(() => channelsRead.data ?? (channelsRead.error ? [] : null), [channelsRead.data, channelsRead.error])
-  // A locked program shows as locked until the PIN's entered here (lib/parental.ts).
-  const unlocked = useUnlocked()
-  const rows = useMemo(() => Object.fromEntries((nowRead.data ?? []).map((x) => [x.channelId, unlocked ? x : maskNow(x)])), [nowRead.data, unlocked])
-  const [current, setCurrent] = useState<number | null>(null)
-  const [previous, setPrevious] = useState<number | null>(null)
   const [digits, setDigits] = useState('')
   const [notFound, setNotFound] = useState<string | null>(null)
   const [bannerUntil, setBannerUntil] = useState(0)
   const [controlsUntil, setControlsUntil] = useState(0)
-  const [tuning, setTuning] = useState(true)
   const [guideOpen, setGuideOpen] = useState(false)
   const [guideSel, setGuideSel] = useState(0)
-  const [muted, setMuted] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [warm, setWarm] = useState(() => readStore(WARM_KEY) === '1')
   const [helpOpen, setHelpOpen] = useState(false)
@@ -100,18 +90,6 @@ export default function Watch() {
   const [castingTo, setCastingTo] = useState<string | null>(null)
   const castNumber = useRef<number | null>(null)
 
-  // Numbered channels only: a draft isn't on air.
-  const lineup = useMemo(
-    () => (channels ?? []).filter((c) => c.number != null).sort((a, b) => (a.number as number) - (b.number as number)),
-    [channels],
-  )
-  const channel = lineup.find((c) => c.number === current) ?? null
-  const row = channel ? rows[channel.id] : undefined
-  // Locked, it doesn't play until the PIN's entered; up and down still flip past it.
-  // Nothing plays until what's on has been read fresh — a copy kept on disk
-  // could say a channel isn't locked when it is.
-  const lockedHere = !unlocked && !!(row ? row.locked : channel?.lockedNow)
-  const lockKnown = unlocked || (!!nowRead.data && !nowRead.stored)
   const [pinOpen, setPinOpen] = useState(false)
   useEffect(() => subscribePin((a) => setPinOpen(!!a)), [])
   // The channel's guide for the next couple of hours, to draw what's on now in
@@ -122,47 +100,38 @@ export default function Watch() {
     return piecesOf(guideRead.data?.[channel.id]?.items, new Date(row.now.startTime).getTime(), new Date(row.now.stopTime).getTime())
   }, [channel, row?.now, guideRead.data])
 
-  useLiveRefresh(nowRead.reload, ['onAir', 'guide'], { fallbackMs: 15_000 })
-
-  // Where to start: the channel in the address, else the last one watched here,
-  // else the lowest number.
+  // Where to start: the channel in the address, else the one already playing
+  // in the corner, else the last one watched here, else the lowest number.
+  const [started, setStarted] = useState(false)
   useEffect(() => {
-    if (current != null || lineup.length === 0) return
-    const asked = Number(params.number ?? readStore(LAST_KEY))
-    setCurrent(lineup.some((c) => c.number === asked) ? asked : (lineup[0].number as number))
-  }, [lineup, current, params.number])
+    if (started || lineup.length === 0) return
+    const on = (n: number) => lineup.some((c) => c.number === n)
+    const asked = Number(params.number)
+    const last = Number(readStore(LAST_KEY))
+    tuneTo(on(asked) ? asked : current != null && on(current) ? current : on(last) ? last : (lineup[0].number as number))
+    setStarted(true)
+  }, [started, lineup, params.number, current, tuneTo])
 
-  const url = current != null && lockKnown && !lockedHere && lineup.some((c) => c.number === current) ? channelPlaylistUrl(current) : null
-  const { error, mutedFallback, reconnecting } = useLivePlayer(videoRef, url)
-
-  // Each tune: the address and the tab follow, the banner shows, and the
-  // picture is veiled until the new channel's first frame plays.
+  // Each tune: the address and the tab follow, and the banner shows (it stays
+  // up while the picture's tuning).
   useEffect(() => {
-    if (current == null || !channel) return
+    if (!started || current == null || !channel) return
     navigate(`/watch/${current}`, { replace: true })
     writeStore(LAST_KEY, String(current))
     document.title = `${current} ${channel.name} · MosaicTV`
-    setTuning(true)
     setBannerUntil(Date.now() + BANNER_MS)
-    const video = videoRef.current
-    const done = () => setTuning(false)
-    video?.addEventListener('playing', done)
-    const t = setTimeout(done, 12_000) // never leave the veil up on a slow start
-    return () => {
-      video?.removeEventListener('playing', done)
-      clearTimeout(t)
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, channel?.id])
+  }, [started, current, channel?.id])
   useEffect(() => () => void (document.title = 'MosaicTV'), [])
-  useEffect(() => setMuted(mutedFallback), [mutedFallback])
 
   const airing = row?.now ? [unitLabel(row.now), row.now.subtitle].filter(Boolean).join(' · ') : undefined
   const castTitle = channel ? `${channel.number} · ${channel.name}` : ''
   const castImage = channel?.logoId != null ? `${window.location.origin}${logoImageUrl(channel.logoId)}` : undefined
 
   // Casting: the picture here stays paused (a flip starts the player again, so
-  // it's held), and a flip sends the new channel to the TV.
+  // it's held), and a flip sends the new channel to the TV. The player's told,
+  // so leaving TV mode doesn't leave the channel playing here as well.
+  useEffect(() => setCasting(castingTo), [castingTo, setCasting])
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -174,7 +143,7 @@ export default function Watch() {
     const hold = () => video.pause()
     video.addEventListener('play', hold)
     return () => video.removeEventListener('play', hold)
-  }, [castingTo])
+  }, [castingTo, videoRef])
   useEffect(() => {
     if (!castingTo || !url || current == null || castNumber.current === current) return
     castNumber.current = current
@@ -184,14 +153,10 @@ export default function Watch() {
 
   const tune = useCallback(
     (n: number) => {
-      if (n === current) {
-        setBannerUntil(Date.now() + BANNER_MS)
-        return
-      }
-      setPrevious(current)
-      setCurrent(n)
+      if (n === current) setBannerUntil(Date.now() + BANNER_MS)
+      else tuneTo(n)
     },
-    [current],
+    [current, tuneTo],
   )
   const step = useCallback(
     (dir: 1 | -1) => {
@@ -240,94 +205,24 @@ export default function Watch() {
     }
   }
 
+  // Back to wherever TV mode was opened from, where the channel carries on in
+  // the corner (the player leaves full screen, too); straight to the guide if
+  // it was opened directly.
   const exit = useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    // Back to wherever TV mode was opened from; straight to the guide if it
-    // was opened directly.
     if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1)
     else navigate('/')
   }, [navigate])
 
+  // The whole page goes full screen, not just this layer: the picture's under it.
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    else rootRef.current?.requestFullscreen?.().catch(() => {})
+    else document.documentElement.requestFullscreen?.().catch(() => {})
   }, [])
   useEffect(() => {
     const on = () => setFullscreen(!!document.fullscreenElement)
+    on()
     document.addEventListener('fullscreenchange', on)
     return () => document.removeEventListener('fullscreenchange', on)
-  }, [])
-
-  // Picture in picture: the channel keeps playing in a small window over other
-  // tabs and apps (this tab stays open behind it). Firefox has its own button
-  // on the video instead of this API.
-  const pipSupported = typeof document !== 'undefined' && !!document.pictureInPictureEnabled
-  const [pip, setPip] = useState(false)
-  const togglePip = useCallback(() => {
-    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {})
-    else videoRef.current?.requestPictureInPicture?.().catch(() => {})
-  }, [])
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const on = () => setPip(true)
-    const off = () => setPip(false)
-    video.addEventListener('enterpictureinpicture', on)
-    video.addEventListener('leavepictureinpicture', off)
-    return () => {
-      video.removeEventListener('enterpictureinpicture', on)
-      video.removeEventListener('leavepictureinpicture', off)
-    }
-  }, [])
-
-  // The browser's media controls (the small window's skip buttons, media keys,
-  // the OS media flyout) flip channels.
-  useEffect(() => {
-    const ms = navigator.mediaSession
-    if (!ms) return
-    ms.setActionHandler('nexttrack', () => step(1))
-    ms.setActionHandler('previoustrack', () => step(-1))
-    return () => {
-      ms.setActionHandler('nexttrack', null)
-      ms.setActionHandler('previoustrack', null)
-    }
-  }, [step])
-  useEffect(() => {
-    if (!navigator.mediaSession || !channel || typeof MediaMetadata === 'undefined') return
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: airing ?? channel.name,
-      artist: `${channel.number} · ${channel.name}`,
-      artwork: castImage ? [{ src: castImage }] : [],
-    })
-  }, [channel, airing, castImage])
-  useEffect(() => () => void (navigator.mediaSession && (navigator.mediaSession.metadata = null)), [])
-
-  const toggleMute = useCallback(() => {
-    const v = videoRef.current
-    if (!v) return
-    v.muted = !v.muted
-    setMuted(v.muted)
-    if (!v.muted && v.paused) v.play().catch(() => {})
-  }, [])
-
-  // Volume, remembered between visits. Turning it up unmutes, like a TV.
-  const [volume, setVolumeState] = useState(() => {
-    const v = Number(readStore(VOLUME_KEY))
-    return readStore(VOLUME_KEY) != null && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
-  })
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = volume
-  }, [volume])
-  const setVolume = useCallback((to: number) => {
-    const v = Math.round(Math.min(1, Math.max(0, to)) * 100) / 100
-    setVolumeState(v)
-    writeStore(VOLUME_KEY, String(v))
-    const video = videoRef.current
-    if (video && v > 0 && video.muted) {
-      video.muted = false
-      setMuted(false)
-      if (video.paused) video.play().catch(() => {})
-    }
   }, [])
 
   const toggleWarm = () =>
@@ -403,7 +298,7 @@ export default function Watch() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideOpen, helpOpen, looksOpen, looks, setLooks, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit, pinOpen, lockedHere])
+  }, [guideOpen, helpOpen, looksOpen, looks, setLooks, guideSel, lineup, digits, previous, step, tune, openGuide, toggleFullscreen, togglePip, toggleMute, setVolume, volume, exit, pinOpen, lockedHere, pipSupported])
 
   // Swipe up/down to change channel; a tap wakes the controls.
   const touch = useRef<{ y: number; t: number } | null>(null)
@@ -426,11 +321,18 @@ export default function Watch() {
   const { box, frame, fourThree } = usePicture(videoRef, looks.tvSet && !castingTo)
   // Inside the set, the picture shrinks a little so the cabinet shows round it.
   const tvScreen = looks.tvSet && !castingTo && fourThree ? shrink(fourThree, TV_SET_SCALE, box.w, box.h) : null
+  const inSet = !!tvScreen
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.style.transform = inSet ? `scale(${TV_SET_SCALE})` : ''
+    return () => void (video.style.transform = '')
+  }, [inSet, videoRef])
   const classic = looks.classicGuide
 
   if (channels != null && lineup.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black text-ink grid place-items-center p-6 text-center">
+      <div className="fixed inset-0 z-[1] bg-black text-ink grid place-items-center p-6 text-center">
         <div>
           <Icon name="tv" size={34} className="mx-auto mb-4 text-indigo-300" />
           <div className="text-lg font-semibold">Nothing on air yet</div>
@@ -444,20 +346,14 @@ export default function Watch() {
   }
 
   return (
+    // Over the shared picture (components/player), which sits beneath this layer.
     <div
-      ref={rootRef}
-      className={cx('fixed inset-0 bg-black text-white overflow-hidden select-none', !controlsShown && !guideOpen && 'cursor-none')}
+      className={cx('fixed inset-0 z-[1] text-white overflow-hidden select-none', !controlsShown && !guideOpen && 'cursor-none')}
       onMouseMove={wake}
+      onClick={wake}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <video
-        ref={videoRef}
-        playsInline
-        className="absolute inset-0 w-full h-full object-contain transition-transform duration-500"
-        style={tvScreen ? { transform: `scale(${TV_SET_SCALE})` } : undefined}
-        onClick={wake}
-      />
       {looks.crt && frame && !castingTo && (
         <Crt videoRef={videoRef} rect={tvScreen ?? frame} crop={tvScreen ? [0.125, 0, 0.875, 1] : [0, 0, 1, 1]} />
       )}
@@ -633,7 +529,7 @@ export default function Watch() {
           muted && 'pt-16 sm:pt-16',
         )}
       >
-        <OsdButton icon="back" label="Exit TV mode (Esc)" onClick={exit} />
+        <OsdButton icon="back" label="Back — it keeps playing in the corner (Esc)" onClick={exit} />
         <div className="flex items-center gap-2">
           <OsdButton icon="chevronDown" label="Channel down (↓)" onClick={() => step(-1)} />
           <OsdButton icon="chevronUp" label="Channel up (↑)" onClick={() => step(1)} />
@@ -814,7 +710,7 @@ export default function Watch() {
                   ['− +', 'Volume'],
                   ['F', 'Full screen'],
                   ...(pipSupported ? ([['P', 'Picture in picture']] as const) : []),
-                  ['Esc', 'Leave TV mode'],
+                  ['Esc', 'Back — it keeps playing in the corner'],
                 ] as const
               ).map(([k, what]) => (
                 <div key={k} className="contents">

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
+import PlayerProvider from './components/player/PlayerProvider'
 
 // Each page is a script of its own, so the first screen waits on its own code
 // rather than on every page's (the app was one 750 KB script). The others are
@@ -33,8 +34,9 @@ const NewChannel = lazy(pages.NewChannel)
 const Studio = lazy(pages.Studio)
 const Pair = lazy(pages.Pair)
 
-// TV mode carries the video player (hls.js), so it loads only when opened,
-// never in the background.
+// TV mode loads only when opened, never in the background. The stream player
+// (hls.js) is a script of its own too, fetched with the first channel played
+// (components/player/LiveStream.tsx).
 const Watch = lazy(() => import('./pages/Watch'))
 
 function preloadPages(): () => void {
@@ -62,50 +64,54 @@ function LegacyRedirect({ from, to }: { from: string; to: string }) {
 export default function App() {
   useEffect(preloadPages, [])
   return (
-    <Routes>
-      {/* TV mode is the whole screen: no sidebar, no top bar. */}
-      <Route
-        path="watch/:number?"
-        element={
-          <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
-            <Watch />
-          </Suspense>
-        }
-      />
-      <Route element={<Layout />}>
-        {/* The home screen is the guide: what's on, across every channel. */}
-        <Route index element={<Guide />} />
-        <Route path="guide" element={<Navigate to="/" replace />} />
+    // One player for every page: a channel tuned in TV mode keeps playing in
+    // the corner once you leave it.
+    <PlayerProvider>
+      <Routes>
+        {/* TV mode is the whole screen: no sidebar, no top bar. */}
+        <Route
+          path="watch/:number?"
+          element={
+            <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+              <Watch />
+            </Suspense>
+          }
+        />
+        <Route element={<Layout />}>
+          {/* The home screen is the guide: what's on, across every channel. */}
+          <Route index element={<Guide />} />
+          <Route path="guide" element={<Navigate to="/" replace />} />
 
-        <Route path="channels" element={<Channels />} />
-        <Route path="channels/new" element={<NewChannel />} />
-        <Route path="channels/:slug" element={<ChannelEditor />} />
+          <Route path="channels" element={<Channels />} />
+          <Route path="channels/new" element={<NewChannel />} />
+          <Route path="channels/:slug" element={<ChannelEditor />} />
 
-        <Route path="library" element={<Library />} />
-        {/* A movie's, show's or artist's page opens over its library's grid. */}
-        <Route path="library/:libraryId" element={<LibraryView />}>
-          <Route path="movie/:movieId" element={<MovieView />} />
-          <Route path="show/:show" element={<ShowView />} />
-          <Route path="artist/:artist" element={<ArtistView />} />
+          <Route path="library" element={<Library />} />
+          {/* A movie's, show's or artist's page opens over its library's grid. */}
+          <Route path="library/:libraryId" element={<LibraryView />}>
+            <Route path="movie/:movieId" element={<MovieView />} />
+            <Route path="show/:show" element={<ShowView />} />
+            <Route path="artist/:artist" element={<ArtistView />} />
+          </Route>
+
+          <Route path="studio" element={<Studio />} />
+          <Route path="logs" element={<Navigate to="/settings#activity" replace />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="pair" element={<Pair />} />
+
+          {/* Old routes, kept working. Browse and Libraries merged into Library;
+              Media became Studio and absorbed the standalone Logos page;
+              collections moved inside a channel back in Phase 2. */}
+          <Route path="browse/*" element={<LegacyRedirect from="/browse" to="/library" />} />
+          <Route path="libraries" element={<Navigate to="/library#sources" replace />} />
+          <Route path="media" element={<LegacyRedirect from="/media" to="/studio" />} />
+          <Route path="logos" element={<Navigate to="/studio#images" replace />} />
+          <Route path="collections/*" element={<Navigate to="/channels" replace />} />
+
+          {/* Anything else is a typo or a link from a much older version. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-
-        <Route path="studio" element={<Studio />} />
-        <Route path="logs" element={<Navigate to="/settings#activity" replace />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="pair" element={<Pair />} />
-
-        {/* Old routes, kept working. Browse and Libraries merged into Library;
-            Media became Studio and absorbed the standalone Logos page;
-            collections moved inside a channel back in Phase 2. */}
-        <Route path="browse/*" element={<LegacyRedirect from="/browse" to="/library" />} />
-        <Route path="libraries" element={<Navigate to="/library#sources" replace />} />
-        <Route path="media" element={<LegacyRedirect from="/media" to="/studio" />} />
-        <Route path="logos" element={<Navigate to="/studio#images" replace />} />
-        <Route path="collections/*" element={<Navigate to="/channels" replace />} />
-
-        {/* Anything else is a typo or a link from a much older version. */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </PlayerProvider>
   )
 }
