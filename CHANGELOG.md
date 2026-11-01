@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.3 — Which block is on (2026-11-01)
+
+- **The guide says which block is on.** The live picture at the top of the
+  guide now shows the block on air beside the channel's logo: Adult Swim's
+  logo over Cowboy Bebop, Toonami's over Dragon Ball Z. A block with no logo
+  of its own, or the same logo as the channel, shows its name instead, and
+  outside any block nothing extra shows. A show belongs to the block it
+  starts in, as the logo in the corner of the stream does, so one that runs
+  into a block still reads as part of the lineup before it.
+- **A roomier Up next.** The panel beside the picture is wider, and Watch,
+  Open channel and Copy stream URL sit on one row instead of the copy button
+  wrapping onto a line of its own.
+
 ## 1.1.2 — Moving day (2026-10-31)
 
 - **Removing a library folder no longer freezes the app.** Taking a folder out
