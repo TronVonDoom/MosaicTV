@@ -13,7 +13,7 @@ plugs into Plex, Jellyfin, Emby, or any IPTV player.
 | 🚀 [Installation](install.md) | Docker run, Docker Compose, Portainer, Unraid — plus updating and every setting |
 | 🏁 [Getting Started](getting-started.md) | Zero to your first live channel, step by step, in about ten minutes |
 | 👀 [A tour of MosaicTV](tour.md) | Every screen, one after another, with what each is for |
-| 🧑‍🍳 [How-tos](how-to.md) | Recipes: a Saturday-morning block, cartoons as the half-hours they aired as, a Halloween month, a music channel, a guide channel… |
+| 🧑‍🍳 [How-tos](how-to.md) | Recipes: a Saturday-morning block, cartoons as the half-hours they aired as, one channel for every holiday, a music channel, a guide channel… |
 
 ## Guides
 

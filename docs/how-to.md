@@ -13,6 +13,7 @@ the details.
 - [Air cartoons as the half-hours they aired as](#air-cartoons-as-the-half-hours-they-aired-as)
 - [Start every show on the :00 and :30, with commercial breaks](#start-every-show-on-the-00-and-30-with-commercial-breaks)
 - [Run a block only in October (or at Christmas)](#run-a-block-only-in-october-or-at-christmas)
+- [Make one channel for every holiday](#make-one-channel-for-every-holiday)
 - [Keep Christmas episodes for Christmas](#keep-christmas-episodes-for-christmas)
 - [Air specials and extras on one channel only](#air-specials-and-extras-on-one-channel-only)
 - [Make a music channel](#make-a-music-channel)
@@ -172,6 +173,44 @@ which plays up to it and picks up again after. Out of season, it isn't there.
 A shorter season inside a longer one wins its days, so a Halloween-night
 block can sit inside an October of movies.
 [More on seasons](channels.md#seasons-blocks-for-part-of-the-year).
+
+## Make one channel for every holiday
+
+Seasons stack, so one channel can be Halloween all October, Christmas through
+December, and Thanksgiving on November Thursdays — and change over by itself.
+Here's how the Holiday Channel in these pictures is built.
+
+1. **A collection per daypart**, under **Collections on this channel** on the
+   **Schedule** tab: *Little Monsters*, *Halloween Matinee*, *Fright Night*…
+   for October; *Holiday Toons*, *Holiday Matinee*, *Holiday Classics*,
+   *Naughty List*, *Silent Night* for Christmas.
+2. **Halloween:** draw a block for each daypart, and under **Season** choose
+   **Every year → October**. Give each an **On-screen logo** if October should
+   have its own (a jack-o'-lantern here).
+3. **Christmas:** draw blocks over the same hours with **Every year**, from
+   **November 1** to **December 31**. They don't clash with October's: the
+   seasons never share a day.
+4. **Thanksgiving:** a *Turkey Thursdays* collection in **Your order**, on a
+   **Thursday 5:00–10:00 PM** block, **Every year** from **November 1** to
+   **November 30**. It sits inside the Christmas season, and the shorter season
+   wins its hours.
+5. **A one-night special:** *A Christmas Story* from 8 PM Christmas Eve to 8 PM
+   Christmas Day is two blocks — **8:00 PM–12:00 AM** with the season
+   **December 24** to **December 24**, and **12:00 AM–8:00 PM** with
+   **December 25** to **December 25**.
+6. **The rest of the year:** whatever's in the **Rotation** plays when no block
+   is in season — here, Holiday Classics from January to September.
+
+<img src="screenshots/holiday-season.webp" alt="Editing the Turkey Thursdays block: Thursday 5 to 10 PM, every year from November 1 to November 30" width="100%" />
+
+<img src="screenshots/holiday-year.webp" alt="A day on the Holiday Channel four times a year, 6 AM to 6 AM: Halloween on October 31 handing over to Christmas at midnight, Turkey Thursdays on Thanksgiving, a December day, and A Christmas Story from 8 PM Christmas Eve" width="100%" />
+
+**Weeks ahead**, on the channel's **On air** tab, says where each block's
+season stands — Halloween's out of season until October 1, Christmas's in
+season until December 31 — and the schedule notes say when one is about to
+start.
+
+<img src="screenshots/holiday-weeks.webp" alt="Weeks ahead on the Holiday Channel: each Halloween block out of season until October 1, and Silent Night in season until December 31" width="100%" />
 
 ## Keep Christmas episodes for Christmas
 

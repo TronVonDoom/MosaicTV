@@ -362,6 +362,30 @@ of the day, side by side where two share a slot. The guide's **Weeks ahead**
 view says where each one's season stands, and the schedule notes say when one
 is about to start, has just ended, or (a one-off) is over for good.
 
+#### An example: one channel, every holiday
+
+The Holiday Channel on the MosaicTV in these pictures has no all-year blocks
+at all. Every block has a season:
+
+| Season | Blocks | When |
+| ------ | ------ | ---- |
+| Oct 1–31, every year | Little Monsters, Halloween Matinee, Monster Hits, Fright Night (Freddy Fridays on Fridays), Midnight Madness, Graveyard Shift | Around the clock, each block with the Halloween logo |
+| Nov 1 – Dec 31, every year | Holiday Toons, Holiday Matinee, Holiday Classics, Naughty List, Silent Night | Around the clock, with the channel's own logo |
+| Nov 1–30, every year | Turkey Thursdays | Thursdays 5–10 PM: a shorter season, so it takes those hours from the Christmas blocks |
+| Dec 24 and Dec 25, every year | A Christmas Story Marathon | 8 PM Christmas Eve to 8 PM Christmas Day, as two blocks |
+
+From January to September no block is in season, and the channel's rotation
+(Holiday Classics) plays. At midnight on Halloween the last horror movie plays
+out and Christmas starts, with nothing to switch; next October, Halloween comes
+back by itself.
+
+<img src="screenshots/holiday-year.webp" alt="A day on the Holiday Channel four times a year, 6 AM to 6 AM: Halloween's dayparts on October 31 handing over to Christmas at midnight; Turkey Thursdays taking 5 to 10 PM on Thanksgiving; a regular December day; and A Christmas Story from 8 PM Christmas Eve" width="100%" />
+
+With every block in a season, the weekly grid puts each day's seasons side by
+side; the list under it is the easier read, each block with its dates:
+
+<img src="screenshots/holiday-blocks.webp" alt="The Holiday Channel's time blocks: each Halloween block on October 1 to 31 every year beside the Christmas block for the same hours on November 1 to December 31, plus Turkey Thursdays on November 1 to 30 and A Christmas Story Marathon on December 24 and 25" width="100%" />
+
 ### Holiday episodes in their season
 
 The Schedule tab's **Holiday episodes in their season** switch keeps a

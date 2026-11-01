@@ -2,8 +2,9 @@
 
 Every screen, one after another, from a real MosaicTV running a handful of
 channels: Cartoon Network as it was around 2001, Nickelodeon's 1996 lineup
-with SNICK on Saturday night, a Halloween movie channel, a sitcom channel, a
-Marvel channel, a Christmas music channel and a video-game music station.
+with SNICK on Saturday night, a holiday movie channel (Halloween in October,
+Christmas through December), a sitcom channel, a Marvel channel, a Christmas
+music channel and a video-game music station.
 
 - [The Guide](#the-guide)
 - [Channels](#channels)

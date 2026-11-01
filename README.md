@@ -26,9 +26,9 @@
 
 Remember channel surfing? MosaicTV brings it back, but every channel is built
 from *your* library. Rebuild Cartoon Network as it was in 2001, Nickelodeon's
-1996 lineup with SNICK on Saturday night, a Halloween movie channel for
-October, a station that plays your music — then flip to one like real TV: it's
-already playing, mid-episode, right on schedule.
+1996 lineup with SNICK on Saturday night, one movie channel that's Halloween
+all October and Christmas all December, a station that plays your music — then
+flip to one like real TV: it's already playing, mid-episode, right on schedule.
 
 Every picture on this page comes from a real MosaicTV running those very
 channels.
@@ -37,7 +37,7 @@ channels.
 
 - 📺 **Real live-TV channels** — tune in mid-program like broadcast TV; every channel resumes where it left off, forever.
 - 🧩 **Cartoons in the half-hours they aired as** — shorts grouped into broadcast episodes, even with a short borrowed from another show.
-- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation, dayparts on a weekly grid, soft or exact-time starts, a broadcast clock on the :00 and :30, blocks that only run in October, and Christmas episodes kept for Christmas. Edit any time: the guide follows from the next program on.
+- 🗓 **Scheduling that thinks like a station** — a 24/7 rotation, dayparts on a weekly grid, soft or exact-time starts, a broadcast clock on the :00 and :30, blocks with a season (Halloween, Thanksgiving and Christmas on one channel), and Christmas episodes kept for Christmas. Edit any time: the guide follows from the next program on.
 - 🎬 **Broadcast polish** — station logos and watermarks, idents made from your logo, commercial breaks at each episode's act breaks, promos for what's on later, and up-next cards with the next show's logo.
 - 🎵 **Music channels** — songs from your own files over a now-playing screen: the album art, a spectrum drawn from the song, or its lyrics as they're sung.
 - 🔍 **A library built in** — a Plex-style scanner that reads .nfo files, tags, TMDB and TheTVDB (or your Plex, Jellyfin or Emby server), with show and movie pages that know where everything's on.
@@ -95,15 +95,10 @@ each start on the :00 or the :30, with a break filling the time between.
 
 <img src="docs/screenshots/schedule.webp" alt="Nickelodeon's week of time blocks: Nickelodeon by day, Nick at Nite every night, SNICK on Saturday at 8" width="100%" />
 
-And a Halloween movie channel in seven dayparts — Little Monsters in the
-morning, a family matinee, the monster hits, Fright Night after 8 (Freddy on
-Fridays, in order), then Midnight Madness and the Graveyard Shift:
-
-<img src="docs/screenshots/schedule-dayparts.webp" alt="The Halloween channel's seven movie dayparts across the week" width="100%" />
-
 - **Blocks for part of the year.** Give a block a **season** — October,
   Christmas, the holidays, summer, or any dates — and it takes its hours from
-  the all-year schedule only then.
+  the all-year schedule only then. [One channel can be every
+  holiday.](#one-channel-every-holiday)
 - **Holiday episodes in their season.** Christmas episodes at Christmas,
   Halloween ones in October, wherever they fall in a show's run.
 - **Breaks inside programs.** On a broadcast clock, the break time is shared
@@ -118,6 +113,31 @@ Fridays, in order), then Midnight Madness and the Graveyard Shift:
   really starts, break time a day, and when each show starts over.
 
 <img src="docs/screenshots/weeks-ahead.webp" alt="Weeks ahead on Nickelodeon: break time a day, never off air, how late each block starts, and when each show goes back to an earlier episode" width="100%" />
+
+### One channel, every holiday
+
+Seasons stack, so one channel can follow the calendar. The Holiday Channel on
+the MosaicTV in these pictures is fifteen blocks, each with a season:
+
+- **October 1–31:** seven Halloween dayparts — Little Monsters in the morning,
+  a family matinee, the monster hits, Fright Night after 8 (Freddy on Fridays,
+  in order), Midnight Madness and the Graveyard Shift — under a jack-o'-lantern
+  logo.
+- **November 1 – December 31:** five Christmas dayparts — Rankin/Bass and
+  Peanuts in the morning, *Elf* and *Home Alone* by day, *It's a Wonderful
+  Life* in the evening, *Die Hard* after 8, and holiday movies all night —
+  under the Holiday Channel's logo.
+- **Turkey Thursdays:** Thursdays 5–10 PM, November 1–30 — *A Charlie Brown
+  Thanksgiving*, *Holiday Inn*, *Planes, Trains and Automobiles*. A shorter
+  season inside a longer one wins its hours, so it takes them from the
+  Christmas blocks under it.
+- **Christmas Eve to Christmas night:** *A Christmas Story*, 24 hours straight
+  — two blocks, a day's season each.
+
+<img src="docs/screenshots/holiday-year.webp" alt="A day on the Holiday Channel four times a year, 6 AM to 6 AM: Halloween's dayparts on October 31 handing over to Christmas at midnight; Turkey Thursdays taking 5 to 10 PM on Thanksgiving; a regular December day; and A Christmas Story from 8 PM Christmas Eve" width="100%" />
+
+At midnight on Halloween the last horror movie plays out and Christmas
+begins; next October, Halloween comes back by itself. Nobody touches it.
 
 ### Channels built from collections
 
@@ -351,7 +371,7 @@ change.
 | 🚀 [Installation](docs/install.md) | Docker run · Portainer · **Unraid template** · Compose |
 | 🏁 [Getting Started](docs/getting-started.md) | First library → first channel → first stream |
 | 👀 [A tour of MosaicTV](docs/tour.md) | Every screen, one after another |
-| 🧑‍🍳 [How-tos](docs/how-to.md) | Recipes: a Saturday-morning block, cartoons as they aired, a Halloween month, a music channel… |
+| 🧑‍🍳 [How-tos](docs/how-to.md) | Recipes: a Saturday-morning block, cartoons as they aired, one channel for every holiday, a music channel… |
 | 📚 [Your Library](docs/library.md) | Libraries, naming, scanning, metadata and logos, fixing matches, Plex/Jellyfin/Emby |
 | 🗓 [Channels & Scheduling](docs/channels.md) | Collections, broadcast episodes, rotations, time blocks, seasons, the clock, the guide |
 | 🎨 [Branding](docs/branding.md) | Logos, watermarks, station breaks, promos, up-next cards |
