@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.0 — Watch while you browse (2026-11-01)
+
+- **A mini player.** Leave TV mode — Esc, or the back arrow — and the channel
+  keeps playing in a small card in the corner of the page you go back to, so
+  you can look round the Guide, the Library or a channel's settings while
+  it's on. It's the same stream, so it carries on without a pause. Under the
+  picture: the channel, what's on and how long is left, and buttons for
+  channel down and up, mute, bigger or smaller, pop out, TV mode, and × to
+  stop watching. Tap the picture to go back to TV mode; drag the card to any
+  corner and it stays there next time.
+- **Start one from the Guide.** A new button beside **Watch** in Up next, and
+  one in the corner of the live picture, play the channel in the corner
+  instead of full screen. Press it again to stop.
+- **Picture in picture while you browse.** Popping the channel out into the
+  browser's own small window (from TV mode, or the mini player's pop-out
+  button) no longer needs TV mode left open: use the rest of MosaicTV in the
+  tab while it plays.
+- Leaving TV mode while casting to a TV, or on a locked program, still stops
+  the channel rather than moving it to the corner. A locked program that
+  comes on while it's in the corner asks for the PIN there.
+- Pages that never play a channel load a little lighter: the video player
+  is fetched the first time a channel plays.
+
 ## 1.1.3 — Which block is on (2026-11-01)
 
 - **The guide says which block is on.** The live picture at the top of the
