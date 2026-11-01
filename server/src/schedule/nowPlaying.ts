@@ -7,7 +7,7 @@
 
 import { prisma } from '../db.js'
 import { episodeCode } from '../labels.js'
-import { creditOf, type ChannelNow as ChannelNowDTO, type NowUnit } from '../contract/index.js'
+import { activeBlockAt, creditOf, type BlockWhen, type ChannelNow as ChannelNowDTO, type NowBlock, type NowUnit } from '../contract/index.js'
 import { logoToken } from '../metadata/logo.js'
 
 type MediaForNow = {
@@ -164,6 +164,17 @@ const MEDIA_SELECT = {
   tmdbLogoPath: true,
 } as const
 
+type BlockForNow = BlockWhen & { id: number; logoId: number | null; collection: { name: string; logoId: number | null } }
+
+/**
+ * The block a program airs in: the one on when it starts — the rule the
+ * on-screen logo and the parental lock go by — or null outside every block.
+ */
+export function blockOf(blocks: BlockForNow[], start: Date): NowBlock | null {
+  const b = activeBlockAt(blocks, start)
+  return b ? { id: b.id, name: b.collection.name, logoId: b.logoId ?? b.collection.logoId } : null
+}
+
 /** A channel's now and next; the route adds its number and viewers. */
 export type ChannelNow = Omit<ChannelNowDTO, 'number' | 'viewers'>
 
@@ -222,17 +233,30 @@ export async function channelsNow(channelIds: number[], nextCount = 3): Promise<
     return m?.showTitle ? shows.get(`${m.libraryId}\u0000${m.showTitle}`) : undefined
   }
 
+  // Every channel's blocks, to say which one each program airs in.
+  const blocks = new Map<number, BlockForNow[]>()
+  for (const b of await prisma.timeBlock.findMany({
+    where: { channelId: { in: channelIds } },
+    select: { id: true, channelId: true, days: true, startMinute: true, endMinute: true, seasonFrom: true, seasonTo: true, logoId: true, collection: { select: { name: true, logoId: true } } },
+  })) {
+    const list = blocks.get(b.channelId)
+    if (list) list.push(b)
+    else blocks.set(b.channelId, [b])
+  }
+
   return channelIds.map((channelId, i) => {
     const units = groupRows(perChannel[i])
     const current = units[0] && units[0][0].startTime <= now ? units[0] : null
     const rest = current ? units.slice(1) : units
+    const own = blocks.get(channelId) ?? []
+    const describe = (u: RowForNow[]): NowUnit => ({ ...describeUnit(u, showFor(u)), timeBlock: blockOf(own, u[0].startTime) })
     return {
       channelId,
-      now: current ? describeUnit(current, showFor(current)) : null,
+      now: current ? describe(current) : null,
       next: rest
         .filter((u) => u[0].kind !== 'filler' && u[0].mediaItem)
         .slice(0, nextCount)
-        .map((u) => describeUnit(u, showFor(u))),
+        .map(describe),
     }
   })
 }

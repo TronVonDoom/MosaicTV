@@ -133,7 +133,7 @@ export default function Guide() {
         {channels == null ? (
           <div className="flex flex-wrap gap-1.5">
             <Skeleton className="h-[360px] flex-[999_1_540px] rounded-2xl" />
-            <Skeleton className="h-[360px] flex-[1_1_300px] rounded-2xl" />
+            <Skeleton className="h-[360px] flex-[1_1_380px] rounded-2xl" />
           </div>
         ) : onAir.length === 0 ? (
           <EmptyState
@@ -152,7 +152,7 @@ export default function Guide() {
               <div className="min-w-0 flex-[999_1_540px]">
                 <LiveHero channel={current} now={currentNow} pieces={pieces} nowMs={nowMs} />
               </div>
-              <div className="min-w-0 flex-[1_1_300px] lg:max-w-[400px]">
+              <div className="min-w-0 flex-[1_1_380px]">
                 <UpNextPanel channel={current} now={currentNow} />
               </div>
             </div>

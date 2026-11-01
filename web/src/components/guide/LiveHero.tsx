@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChannelLogo from '../ChannelLogo'
 import { ProgramArt } from '../ChannelCard'
 import Icon from '../Icon'
 import SegmentBar, { hasParts, type Piece } from './SegmentBar'
-import type { Channel, ChannelNow, NowUnit } from '../../lib/api'
+import { logoImageUrl, type Channel, type ChannelNow, type NowBlock, type NowUnit } from '../../lib/api'
 import { channelPath } from '../../lib/channels'
 import { copyText } from '../../lib/clipboard'
 import { formatClock, formatRemaining } from '../../lib/format'
@@ -19,22 +20,43 @@ function kindLine(unit: NowUnit): string | null {
   return null
 }
 
+/** The block on the air, beside the channel's logo: its own logo, or its name
+ *  when it has none (or only the channel's, which is already there). */
+function BlockMark({ block, channelLogoId }: { block: NowBlock; channelLogoId: number | null }) {
+  const [broken, setBroken] = useState(false)
+  if (block.logoId != null && block.logoId !== channelLogoId && !broken) {
+    return (
+      <img
+        src={logoImageUrl(block.logoId)}
+        alt={block.name}
+        onError={() => setBroken(true)}
+        className="h-[20px] w-auto max-w-[96px] object-contain drop-shadow-[0_2px_6px_rgb(0_0_0/0.5)]"
+      />
+    )
+  }
+  return <span className="max-w-[12rem] truncate text-[14px] font-semibold">{block.name}</span>
+}
+
 /**
  * The channel picked in the guide, live: its program's picture with the brand
- * ring round it, its number and logo, and a frosted card saying what's on and
- * how far through it is — an airing's parts drawn to scale, its breaks in
- * amber. The picture tunes TV mode to it.
+ * ring round it, its number and logo — and the block on, if one is — and a
+ * frosted card saying what's on and how far through it is — an airing's parts
+ * drawn to scale, its breaks in amber. The picture tunes TV mode to it.
  */
 export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; now: ChannelNow | undefined; pieces: Piece[]; nowMs: number }) {
   const unit = now?.now ?? null
+  const block = unit?.timeBlock ?? null
   const start = unit ? new Date(unit.startTime).getTime() : 0
   const stop = unit ? new Date(unit.stopTime).getTime() : 0
   const extra = unit ? kindLine(unit) : null
   return (
-    <section aria-label={`${channel.number} ${channel.name}, live`} className="relative h-[300px] sm:h-[360px] rounded-2xl p-[2px] bg-[linear-gradient(120deg,#a855f7,#3b82f6,#22d3ee,#e879f9)]">
+    <section
+      aria-label={`${channel.number} ${channel.name}${block ? `, ${block.name}` : ''}, live`}
+      className="relative h-[300px] sm:h-[360px] rounded-2xl p-[2px] bg-[linear-gradient(120deg,#a855f7,#3b82f6,#22d3ee,#e879f9)]"
+    >
       <div className="group relative h-full w-full overflow-hidden rounded-[calc(var(--radius-2xl)-2px)] bg-[#15122a]">
         {/* Beside the Up next panel on a wide screen, the page's width below. */}
-        <ProgramArt unit={unit} logoId={channel.logoId} name={channel.name} sizes="(min-width: 1024px) calc(100vw - 460px), 100vw" />
+        <ProgramArt unit={unit} logoId={channel.logoId} name={channel.name} sizes="(min-width: 1024px) calc(100vw - 540px), 100vw" />
         <Link
           to={`/watch/${channel.number}`}
           aria-label={`Watch ${channel.number} ${channel.name}`}
@@ -44,6 +66,12 @@ export function LiveHero({ channel, now, pieces, nowMs }: { channel: Channel; no
         <div className="pointer-events-none absolute left-3.5 top-3.5 z-20 flex items-center gap-2.5 rounded-xl glass-label px-3 py-1.5">
           <span className="text-[18px] font-bold tabular-nums">{channel.number}</span>
           <ChannelLogo logoId={channel.logoId} name={channel.name} size={26} plate={false} wide />
+          {block && (
+            <>
+              <span aria-hidden className="h-5 w-px bg-white/30" />
+              <BlockMark block={block} channelLogoId={channel.logoId} />
+            </>
+          )}
         </div>
         <div className="pointer-events-none absolute right-4 top-4 z-20 flex items-center gap-2">
           {channel.viewers > 0 && (
@@ -116,14 +144,15 @@ export function UpNextPanel({ channel, now }: { channel: Channel; now: ChannelNo
           ))}
         </ol>
       )}
-      <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        <Link to={`/watch/${channel.number}`} className={buttonClass('primary', 'md', 'flex-1 min-w-[7rem]')}>
+      {/* One row: the panel is wide enough for all three. */}
+      <div className="mt-auto flex gap-2 pt-1">
+        <Link to={`/watch/${channel.number}`} className={buttonClass('primary', 'md', 'flex-1 min-w-0')}>
           <Icon name="play" size={15} className="fill-current" /> Watch
         </Link>
-        <Link to={channelPath(channel)} className={buttonClass('secondary', 'md', 'flex-1 min-w-[7rem]')}>
+        <Link to={channelPath(channel)} className={buttonClass('secondary', 'md', 'flex-1 min-w-0')}>
           Open channel
         </Link>
-        <IconButton icon="copy" label="Copy stream URL" variant="secondary" onClick={copyStream} />
+        <IconButton icon="copy" label="Copy stream URL" variant="secondary" onClick={copyStream} className="shrink-0" />
       </div>
     </section>
   )

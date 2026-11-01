@@ -834,9 +834,17 @@ export type NowUnit = {
   /** Its logo's token (see MediaItemDetail.logo); null when it has none. */
   logo: string | null
   parts: number
+  /** The time block it airs in — the one on when it starts, as the on-screen
+   *  logo goes — or null outside every block (a rotation program that runs
+   *  into a block still belongs to the rotation). */
+  timeBlock?: NowBlock | null
   /** Behind the parental PIN (see PlayoutEntry.locked). */
   locked?: boolean
 }
+
+/** A time block as the "what's on" views name it: its collection's name, and
+ *  its logo — the block's own, else its collection's; null when neither has one. */
+export type NowBlock = { id: number; name: string; logoId: number | null }
 
 export type ChannelNow = {
   channelId: number

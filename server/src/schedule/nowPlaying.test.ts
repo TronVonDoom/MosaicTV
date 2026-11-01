@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { describeUnit, groupRows } from './nowPlaying.js'
+import { blockOf, describeUnit, groupRows } from './nowPlaying.js'
 
 const media = (over: Partial<Parameters<typeof describeUnit>[0][number]['mediaItem'] & object> = {}) => ({
   id: 1,
@@ -64,6 +64,18 @@ test('a movie is its own title, year beneath, art only when there is some', () =
   const dressed = describeUnit([row(0, 96, null, { ...m, tmdbPosterPath: '/p.jpg', tmdbBackdropPath: '/b.jpg' })], undefined)
   assert.equal(dressed.art, 'poster')
   assert.equal(dressed.hasBackdrop, true)
+})
+
+test('a program airs in the block on when it starts, with the block’s logo or its collection’s', () => {
+  const toonami = { id: 44, days: '1,2,3,4,5', startMinute: 15 * 60, endMinute: 18 * 60, logoId: 11, collection: { name: 'Toonami', logoId: null } }
+  const adultSwim = { id: 45, days: '0,1,2,3,4,5,6', startMinute: 22 * 60, endMinute: 5 * 60, logoId: null, collection: { name: 'Adult Swim', logoId: 12 } }
+  const blocks = [toonami, adultSwim]
+  // Local times, as the blocks' minutes are. 2026-10-30 is a Friday.
+  assert.deepEqual(blockOf(blocks, new Date(2026, 9, 30, 15, 30)), { id: 44, name: 'Toonami', logoId: 11 })
+  assert.deepEqual(blockOf(blocks, new Date(2026, 9, 31, 2, 0)), { id: 45, name: 'Adult Swim', logoId: 12 }, 'past midnight, last night’s block')
+  assert.equal(blockOf(blocks, new Date(2026, 9, 30, 14, 50)), null, 'started before the block: the rotation’s')
+  assert.equal(blockOf(blocks, new Date(2026, 9, 31, 15, 30)), null, 'Saturday: no Toonami')
+  assert.equal(blockOf([], new Date(2026, 9, 30, 15, 30)), null)
 })
 
 test('filler is a station break, never a program', () => {
