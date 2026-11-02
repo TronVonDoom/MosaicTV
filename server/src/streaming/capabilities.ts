@@ -205,7 +205,20 @@ export function bitrateScale(width: number, height: number): number {
   return s <= FULL_HD ? s : FULL_HD * (s / FULL_HD) ** 0.6
 }
 
+/**
+ * The video encoder's options: the profile's frame rate, then the codec's own.
+ *
+ * The frame rate is said outright. Our graphs end in fps=<profile fps>, but the
+ * HLS muxer doesn't hear it: ffmpeg 7 reports "no information about the input
+ * framerate" and encodes at its fallback of 25 fps, dropping every sixth frame
+ * of a 30 fps channel (a steady judder; the -loglevel error hid the warning).
+ * Measured 2026-11-01 on the live box: 25 fps out of every channel, 30 with -r.
+ */
 export function encoderArgs(enc: string, p: StreamProfile): string[] {
+  return ['-r', String(p.fps), ...codecArgs(enc, p)]
+}
+
+function codecArgs(enc: string, p: StreamProfile): string[] {
   const g = String(Math.max(2, p.fps * 2))
   const q = QUALITY[p.quality]
   const scale = bitrateScale(p.width, p.height)

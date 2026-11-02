@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { audioFades, cardAnchor, cardEntry, clearOfLogo, comingUpWindows, ffmpegArgs, mediaRect, placeCard, watermarkBox, type Segment } from './filters.js'
+import { audioFades, blackArgs, cardAnchor, cardEntry, clearOfLogo, comingUpWindows, ffmpegArgs, mediaRect, placeCard, watermarkBox, type Segment } from './filters.js'
 import { DEFAULT_COMINGUP, DEFAULT_WATERMARK, parseComingUp, sanitizeComingUp } from './overlays.js'
 import { DEFAULT_PROFILE } from './profile.js'
 import { fitText, textWidth } from './card.js'
@@ -205,6 +205,22 @@ test('a break fades its sound in at the top and out before the show', () => {
   assert.equal(audioFades({ durationSec: 1800 }), '')
   // A fade out can't start before the segment does.
   assert.equal(audioFades({ audioFadeOutSec: 1.5 }), '')
+})
+
+test('every encode names its frame rate, so HLS output keeps the profile fps', () => {
+  // Without -r the HLS muxer falls back to 25 fps and drops every sixth frame
+  // of a 30 fps channel.
+  const seg: Segment = { filePath: 'show.mkv', offsetSec: 0, loop: false, durationSec: 1320, hasAudio: true, wmEpochSec: 0, mediaWidth: 640, mediaHeight: 480, isFiller: false, fadeInSec: 0, fadeOutSec: 0 }
+  const hls = { kind: 'hls' as const, playlist: 'i.m3u8', segmentFilename: 'i_%05d.ts', hlsTimeSec: 4 }
+  for (const fps of [30, 24, 60]) {
+    const p = { ...DEFAULT_PROFILE, fps }
+    for (const args of [ffmpegArgs(seg, 'h264_nvenc', DEFAULT_WATERMARK, p, [], [], hls), blackArgs(p, 'libx264', 10, hls)]) {
+      const r = args.indexOf('-r')
+      assert.equal(args[r + 1], String(fps))
+      // An output option: after the last input, before the muxer.
+      assert.ok(r > args.lastIndexOf('-i') && r < args.indexOf('-f', args.lastIndexOf('-i')))
+    }
+  }
 })
 
 test('the corner logo stays off a break unless the channel keeps it on', () => {
