@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 — Every frame (2026-11-02)
+
+- **Channels stream at their profile's frame rate.** Every channel was going
+  out at 25 frames a second, whatever its encoding profile said. The
+  pictures were built at the profile's rate, but ffmpeg's HLS output never
+  heard it, fell back to 25 and dropped frames to fit: one in six on a
+  30 fps channel, a small, steady stutter most visible on camera pans and
+  fast cartoon motion, and more than half on a 60 fps one. Each encode now
+  names its frame rate, so a 30 fps channel sends all 30. Sound and picture
+  timing are unchanged.
+
 ## 1.2.0 — Watch while you browse (2026-11-01)
 
 - **A mini player.** Leave TV mode — Esc, or the back arrow — and the channel
